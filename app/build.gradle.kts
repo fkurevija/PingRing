@@ -78,6 +78,7 @@ dependencies {
     implementation(libs.retrofit)
     implementation(libs.accompanist.permissions)
     implementation(libs.mlkit.barcode.scanning)
+    implementation(libs.zxing.core)
     testImplementation(libs.androidx.core)
     testImplementation(libs.androidx.junit)
     testImplementation(libs.junit)

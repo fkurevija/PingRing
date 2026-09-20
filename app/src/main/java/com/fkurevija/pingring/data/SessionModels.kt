@@ -7,7 +7,9 @@ data class Event(
     val id: String,
     val name: String,
     val description: String,
-    val expiryTimestamp: Long
+    val expiryTimestamp: Long,
+    val hostPeerId: String? = null,
+    val trackHost: Boolean = false
 )
 
 @Serializable
@@ -21,6 +23,7 @@ data class Friend(
 @Serializable
 data class SessionState(
     val currentEvent: Event? = null,
+    val isHost: Boolean = false,
     val isVisible: Boolean = false,
     val friends: List<Friend> = emptyList()
 )

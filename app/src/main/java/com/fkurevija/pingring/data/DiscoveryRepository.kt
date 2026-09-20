@@ -17,6 +17,7 @@ import androidx.core.uwb.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import java.nio.charset.StandardCharsets
+import java.nio.ByteBuffer
 import java.util.UUID
 import kotlin.math.cos
 import kotlin.math.sin
@@ -159,7 +160,15 @@ class DiscoveryRepository(
         bleAdvertiser = adapter.bluetoothLeAdvertiser ?: return
 
         val currentPeerId = sessionManager.peerId.value
-        val peerIdBytes = currentPeerId.toByteArray(StandardCharsets.UTF_8)
+        val currentEvent = sessionManager.sessionState.value.currentEvent ?: return
+        val peerIdBytes = currentPeerId.toByteArray(StandardCharsets.UTF_8).copyOf(8)
+        val flags = (if (sessionManager.sessionState.value.isHost) 1 else 0) or
+            (if (currentEvent.trackHost) 2 else 0)
+        val servicePayload = ByteBuffer.allocate(13)
+            .putInt(currentEvent.id.hashCode())
+            .put(flags.toByte())
+            .put(peerIdBytes)
+            .array()
 
         val settings = AdvertiseSettings.Builder()
             .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
@@ -170,7 +179,7 @@ class DiscoveryRepository(
         val data = AdvertiseData.Builder()
             .setIncludeDeviceName(false)
             .addServiceUuid(ParcelUuid(PINGRING_SERVICE_UUID))
-            .addServiceData(ParcelUuid(PINGRING_SERVICE_UUID), peerIdBytes)
+            .addServiceData(ParcelUuid(PINGRING_SERVICE_UUID), servicePayload)
             .build()
 
         try {
@@ -221,7 +230,24 @@ class DiscoveryRepository(
     private fun handleScanResult(result: ScanResult) {
         val record = result.scanRecord ?: return
         val serviceData = record.getServiceData(ParcelUuid(PINGRING_SERVICE_UUID)) ?: return
-        val peerId = String(serviceData, StandardCharsets.UTF_8).trim()
+        if (serviceData.size < 13) return
+
+        val payload = ByteBuffer.wrap(serviceData)
+        val eventHash = payload.int
+        val flags = payload.get().toInt()
+        val isHostPeer = flags and 1 != 0
+        val hostTracksMembers = flags and 2 != 0
+        val peerId = String(ByteArray(payload.remaining()).also(payload::get), StandardCharsets.UTF_8).trim()
+        var currentEvent = sessionManager.sessionState.value.currentEvent ?: return
+        if (eventHash != currentEvent.id.hashCode()) return
+        if (isHostPeer && !sessionManager.sessionState.value.isHost) {
+            currentEvent = currentEvent.copy(
+                hostPeerId = peerId,
+                trackHost = hostTracksMembers
+            )
+            sessionManager.updateEvent(currentEvent)
+        }
+        if (currentEvent.trackHost && !sessionManager.sessionState.value.isHost && !isHostPeer) return
         if (peerId.isEmpty()) return
 
         val rssi = result.rssi

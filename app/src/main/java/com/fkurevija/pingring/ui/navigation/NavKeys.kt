@@ -7,4 +7,16 @@ import kotlinx.serialization.Serializable
 data object EventJoinKey : NavKey
 
 @Serializable
+data object HomeKey : NavKey
+
+@Serializable
+data object HostSetupKey : NavKey
+
+@Serializable
+data object AppSettingsKey : NavKey
+
+@Serializable
+data class EventSettingsKey(val eventId: String) : NavKey
+
+@Serializable
 data class RadarKey(val eventId: String) : NavKey

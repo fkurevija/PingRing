@@ -22,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BluetoothDisabled
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -32,6 +33,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -62,8 +64,11 @@ import com.fkurevija.pingring.data.RadarPeerUpdate
 fun RadarScreen(
     eventId: String,
     isVisible: Boolean,
+    isHost: Boolean,
+    trackHost: Boolean,
     discoveryRepository: DiscoveryRepository?,
     onVisibilityToggle: (Boolean) -> Unit,
+    onEventSettings: () -> Unit,
     onLeaveEvent: () -> Unit
 ) {
     LaunchedEffect(isVisible, discoveryRepository) {
@@ -91,10 +96,16 @@ fun RadarScreen(
                 title = {
                     Column {
                         Text("PingRing", fontWeight = FontWeight.Bold)
-                        Text("Event $eventId", style = MaterialTheme.typography.labelMedium)
+                        Text("Ping-Ring $eventId", style = MaterialTheme.typography.labelMedium)
+                    }
+                },
+                navigationIcon = {
+                    IconButton(onClick = onLeaveEvent) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
                 },
                 actions = {
+                    TextButton(onClick = onEventSettings) { Text("Settings") }
                     IconButton(onClick = { onVisibilityToggle(!isVisible) }) {
                         Icon(
                             if (isVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
@@ -110,7 +121,7 @@ fun RadarScreen(
                 modifier = Modifier.fillMaxWidth().padding(16.dp).height(52.dp),
                 shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-            ) { Text("Leave event") }
+            ) { Text("Leave Ping-Ring") }
         }
     ) { padding ->
         BoxWithConstraints(
@@ -122,12 +133,20 @@ fun RadarScreen(
             } else if (wide) {
                 val paneWidth = (maxWidth - 20.dp) / 2
                 Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-                    RadarContent(nearest, peers.isNotEmpty(), Modifier.width(paneWidth))
+                    RadarContent(
+                        if (isHost || !trackHost) nearest else peers.firstOrNull(),
+                        peers.isNotEmpty(),
+                        Modifier.width(paneWidth)
+                    )
                     PeerList(peers, connectivity, discoveryRepository, Modifier.width(paneWidth))
                 }
             } else {
                 Column(Modifier.fillMaxSize()) {
-                    RadarContent(nearest, peers.isNotEmpty(), Modifier.fillMaxWidth().height(320.dp))
+                    RadarContent(
+                        if (isHost || !trackHost) nearest else peers.firstOrNull(),
+                        peers.isNotEmpty(),
+                        Modifier.fillMaxWidth().height(320.dp)
+                    )
                     PeerList(peers, connectivity, discoveryRepository, Modifier.fillMaxWidth())
                 }
             }

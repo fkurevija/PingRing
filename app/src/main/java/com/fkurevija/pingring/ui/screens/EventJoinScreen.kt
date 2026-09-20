@@ -11,6 +11,8 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -29,9 +31,10 @@ import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
 import java.util.concurrent.Executors
 
-@OptIn(ExperimentalPermissionsApi::class)
+@OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun EventJoinScreen(
+    onBack: () -> Unit,
     onJoinEvent: (String) -> Unit
 ) {
     var eventCode by remember { mutableStateOf("") }
@@ -51,17 +54,23 @@ fun EventJoinScreen(
         return
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Join a Ping-Ring") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                    }
+                }
+            )
+        }
+    ) { padding ->
+      Column(
+        modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
-    ) {
-        Text(
-            text = "Join an Event",
-            style = MaterialTheme.typography.headlineMedium
-        )
+      ) {
         Spacer(modifier = Modifier.height(32.dp))
         OutlinedTextField(
             value = eventCode,
@@ -93,10 +102,11 @@ fun EventJoinScreen(
         TextButton(onClick = { showScanner = true }) {
             Text("Scan QR Code")
         }
+      }
     }
 }
 
-@OptIn(ExperimentalPermissionsApi::class)
+@OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class)
 @Composable
 private fun QrScannerScreen(
     onCancel: () -> Unit,
@@ -112,13 +122,23 @@ private fun QrScannerScreen(
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Scan Event QR") },
+                navigationIcon = {
+                    IconButton(onClick = onCancel) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                    }
+                }
+            )
+        }
+    ) { padding ->
+      Column(
+        modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text("Scan Event QR", style = MaterialTheme.typography.headlineSmall)
+      ) {
+        Spacer(modifier = Modifier.height(8.dp))
         Spacer(modifier = Modifier.height(8.dp))
         Text(scanMessage, style = MaterialTheme.typography.bodyMedium)
         Spacer(modifier = Modifier.height(16.dp))
@@ -176,6 +196,7 @@ private fun QrScannerScreen(
                     modifier = Modifier.weight(1f)
                 ) {
                     Text("Grant Camera")
+                  }
                 }
             }
         }
@@ -211,7 +232,7 @@ private fun PermissionDeniedCard(
 @Composable
 fun EventJoinScreenPreview() {
     PingRingTheme {
-        EventJoinScreen(onJoinEvent = {})
+        EventJoinScreen(onBack = {}, onJoinEvent = {})
     }
 }
 

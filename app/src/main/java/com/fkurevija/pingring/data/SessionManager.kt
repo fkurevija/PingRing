@@ -24,6 +24,16 @@ class SessionManager(
         // In a real app, this would trigger Bluetooth advertising/scanning
     }
 
+    fun hostEvent(event: Event) {
+        coordinationRepository.markSyncing()
+        coordinationRepository.hostEvent(event)
+        // Hosting currently uses the same local BLE mesh as joining.
+    }
+
+    fun updateEvent(event: Event) {
+        coordinationRepository.updateEvent(event)
+    }
+
     fun leaveEvent() {
         coordinationRepository.leaveEvent()
         _peerId.value = generatePeerId() // Rotate peer ID for privacy

@@ -19,6 +19,8 @@ interface EventCoordinationRepository {
     val syncStatus: StateFlow<CoordinationSyncStatus>
 
     fun joinEvent(event: Event)
+    fun hostEvent(event: Event)
+    fun updateEvent(event: Event)
     fun leaveEvent()
     fun setVisibility(visible: Boolean)
     fun updateMembers(newMembers: List<Friend>)

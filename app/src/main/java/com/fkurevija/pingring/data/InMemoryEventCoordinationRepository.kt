@@ -13,12 +13,24 @@ class InMemoryEventCoordinationRepository : EventCoordinationRepository {
     override val syncStatus: StateFlow<CoordinationSyncStatus> = _syncStatus.asStateFlow()
 
     override fun joinEvent(event: Event) {
-        _sessionState.update { it.copy(currentEvent = event, isVisible = true) }
+        _sessionState.update { it.copy(currentEvent = event, isHost = false, isVisible = true) }
+        markSynced()
+    }
+
+    override fun hostEvent(event: Event) {
+        _sessionState.update { it.copy(currentEvent = event, isHost = true, isVisible = true) }
+        markSynced()
+    }
+
+    override fun updateEvent(event: Event) {
+        _sessionState.update { it.copy(currentEvent = event) }
         markSynced()
     }
 
     override fun leaveEvent() {
-        _sessionState.update { it.copy(currentEvent = null, isVisible = false, friends = emptyList()) }
+        _sessionState.update {
+            it.copy(currentEvent = null, isHost = false, isVisible = false, friends = emptyList())
+        }
         _syncStatus.value = CoordinationSyncStatus()
     }
 

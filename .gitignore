@@ -16,6 +16,25 @@
 /.idea/workspace.xml
 /.idea/navEditor.xml
 /.idea/assetWizardSettings.xml
+/.idea/deploymentTargetSelector.xml
+/.idea/deviceManager.xml
+/.idea/shelf/
+/.idea/dictionaries/
+/.idea/httpRequests/
+/.idea/sonarlint/
+/.idea/other.xml
+/.idea/usage.statistics.xml
+*.iws
+out/
+
+# Other IDE / editor files
+.vscode/
+.project
+.classpath
+.settings/
+*.swp
+*.swo
+*~
 
 # Generated and machine-local files
 .DS_Store
