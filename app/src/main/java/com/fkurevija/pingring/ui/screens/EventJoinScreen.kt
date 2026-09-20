@@ -1,10 +1,12 @@
 package com.fkurevija.pingring.ui.screens
 
 import android.Manifest
+import androidx.annotation.OptIn as AndroidXOptIn
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
-import androidx.camera.core.Preview
+import androidx.camera.core.Preview as CameraPreview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.layout.*
@@ -16,8 +18,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.fkurevija.pingring.ui.theme.PingRingTheme
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
@@ -242,7 +244,7 @@ private fun QrCameraPreview(
         val listener = Runnable {
             try {
                 val cameraProvider = cameraProviderFuture.get()
-                val preview = Preview.Builder().build().also {
+                val preview = CameraPreview.Builder().build().also {
                     it.surfaceProvider = previewView.surfaceProvider
                 }
                 val imageAnalysis = ImageAnalysis.Builder()
@@ -283,6 +285,7 @@ private class QrImageAnalyzer(
 ) : ImageAnalysis.Analyzer {
     private val scanner = BarcodeScanning.getClient()
 
+    @AndroidXOptIn(markerClass = [ExperimentalGetImage::class])
     override fun analyze(imageProxy: ImageProxy) {
         val mediaImage = imageProxy.image
         if (mediaImage == null) {
