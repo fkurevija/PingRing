@@ -1,15 +1,34 @@
 *.iml
-.gradle
+
+# Gradle and Kotlin build state
+.gradle/
+.kotlin/
+**/build/
+**/.externalNativeBuild/
+**/.cxx/
+/captures/
+
+# Android Studio and local SDK configuration
 /local.properties
-/.idea/caches
-/.idea/libraries
+/.idea/caches/
+/.idea/libraries/
 /.idea/modules.xml
 /.idea/workspace.xml
 /.idea/navEditor.xml
 /.idea/assetWizardSettings.xml
+
+# Generated and machine-local files
 .DS_Store
-/build
-/captures
-.externalNativeBuild
-.cxx
-local.properties
+*.log
+*.hprof
+/.artifacts/
+/.agent/
+
+# Generated Android packages
+*.apk
+*.aab
+
+# Local environment files
+.env
+.env.*
+!.env.example
