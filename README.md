@@ -18,7 +18,8 @@ code, opt in to discovery, and receive proximity feedback from nearby peers.
 - Camera permission prompt for QR join flow
 - Bluetooth Low Energy advertising and scanning using event peer IDs
 - RSSI-based hot/cold proximity classification
-- Optional Jetpack UWB session initialization on supported devices
+- Real Jetpack UWB session setup on supported devices, with controller
+  channel/address/session material exchanged through the coordination service
 - Rotation-vector and magnetometer sensor integration
 - World-space direction-vector calculation from device orientation and target azimuth
 - Adaptive radar UI for compact and wide layouts
@@ -66,15 +67,18 @@ short-lived peer identifier rather than a permanent account identifier.
 Leaving an event rotates the local identifier and clears the in-memory peer
 list. Turning visibility off stops discovery while keeping the event open.
 
-## Current prototype limitations
+## Deployment configuration
 
-- Event membership is coordinated locally and event closure is delivered over
-  BLE only to nearby, actively scanning members. A backend is still required
-  to synchronize membership or closure across distance, offline periods, and
-  process restarts.
-- UWB peer-session parameter exchange is not yet implemented. UWB-capable
-  devices initialize the client session, while BLE remains the usable
-  proximity fallback until peer parameters are exchanged through a transport.
+Run the self-hosted coordination service before using remote membership,
+closure, or UWB parameter exchange:
+
+```powershell
+.\gradlew.bat :coordination-service:run
+```
+
+The Android debug build defaults to `http://10.0.2.2:8080/` for the Android
+emulator. Set the `coordinationUrl` Gradle property to the HTTPS URL of a
+reachable deployed service for physical devices.
 
 ## QR join flow
 

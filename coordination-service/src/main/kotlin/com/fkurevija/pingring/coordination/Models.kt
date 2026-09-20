@@ -64,3 +64,25 @@ data class ApiError(
     val error: String,
     val message: String
 )
+
+@Serializable
+data class UwbControllerParameters(
+    val hostPeerId: String,
+    val controllerAddress: String,
+    val channel: Int,
+    val preambleIndex: Int,
+    val sessionId: Int,
+    val staticStsKey: String
+)
+
+@Serializable
+data class UwbPeerAddress(
+    val peerId: String,
+    val address: String
+)
+
+@Serializable
+data class UwbExchangeResponse(
+    val controller: UwbControllerParameters?,
+    val peers: List<UwbPeerAddress>
+)

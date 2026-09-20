@@ -5,6 +5,8 @@ import com.fkurevija.pingring.coordination.model.CreateEventRequest
 import com.fkurevija.pingring.coordination.model.EndEventRequest
 import com.fkurevija.pingring.coordination.model.JoinEventRequest
 import com.fkurevija.pingring.coordination.model.MembersResponse
+import com.fkurevija.pingring.coordination.model.UwbControllerParameters
+import com.fkurevija.pingring.coordination.model.UwbPeerAddress
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
 import io.ktor.server.application.call
@@ -84,6 +86,26 @@ fun Application.coordinationModule(service: EventCoordinationService = EventCoor
                     val request = call.receive<EndEventRequest>()
                     service.endEvent(eventId, request.hostPeerId)
                     call.respond(HttpStatusCode.NoContent)
+                }
+
+                route("/uwb") {
+                    get {
+                        call.respond(HttpStatusCode.OK, service.getUwbExchange(call.parameters.getOrFail("eventId")))
+                    }
+                    post("/controller") {
+                        service.publishUwbController(
+                            call.parameters.getOrFail("eventId"),
+                            call.receive<UwbControllerParameters>()
+                        )
+                        call.respond(HttpStatusCode.NoContent)
+                    }
+                    post("/peers") {
+                        service.publishUwbPeerAddress(
+                            call.parameters.getOrFail("eventId"),
+                            call.receive<UwbPeerAddress>()
+                        )
+                        call.respond(HttpStatusCode.NoContent)
+                    }
                 }
 
                 route("/members") {

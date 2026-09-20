@@ -13,12 +13,14 @@ import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.ParcelUuid
 import android.util.Log
+import android.util.Base64
 import androidx.core.uwb.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import java.nio.charset.StandardCharsets
 import java.nio.ByteBuffer
 import java.util.UUID
+import java.security.SecureRandom
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -85,6 +87,7 @@ class DiscoveryRepository(
     // UWB objects
     private var uwbManager: UwbManager? = null
     private var uwbSessionJob: Job? = null
+    private val uwbExchange = UwbSessionExchange()
 
     init {
         rotationMatrix[0] = 1f
@@ -127,7 +130,7 @@ class DiscoveryRepository(
         // 2. Start Sensor Fusion
         registerSensors()
 
-        // 3. Start UWB monitoring / simulation loop linked to active screen
+        // 3. Start foreground-only UWB ranging after exchanging OOB parameters through coordination.
         startUwbRangingSession()
     }
 
@@ -267,6 +270,7 @@ class DiscoveryRepository(
     private companion object {
         const val CLOSURE_ANNOUNCEMENT_DURATION_MILLIS = 5_000L
         const val COORDINATION_REFRESH_INTERVAL_MILLIS = 5_000L
+        const val UWB_EXCHANGE_POLL_MILLIS = 2_000L
     }
 
     private fun startBleScanning() {
@@ -459,43 +463,89 @@ class DiscoveryRepository(
     private fun startUwbRangingSession() {
         val manager = uwbManager
         val scope = repositoryScope ?: return
+        val event = sessionManager.sessionState.value.currentEvent ?: return
+        val localPeerId = sessionManager.peerId.value
 
         uwbSessionJob = scope.launch {
-            if (manager != null) {
-                try {
-                    // Jetpack UWB setup syntax validation & fallback mechanism
-                    // In a live two-device setup, we would retrieve partner parameters via BLE OOB.
-                    // Here we implement the structurally correct Jetpack UWB ClientSessionScope setup blocks
-                    val clientSession = manager.controleeSessionScope()
-                    Log.d(TAG, "Local UWB Address: ${clientSession.localAddress}")
-                } catch (e: Exception) {
-                    Log.e(TAG, "UWB session initialization error, entering high-fidelity fusion simulation", e)
-                }
-            }
-
-            // High-fidelity active simulation loop providing real-time distance, azimuth, and elevation
-            // to fuse with the phone's orientation sensors while RadarScreen is active
-            var mockAngle = 0f
-            while (isActive) {
-                delay(250)
-                mockAngle = (mockAngle + 5f) % 360f
-                val azimuthVal = mockAngle - 180f // Range from -180 to 180
-                val elevationVal = 15f * sin(Math.toRadians(mockAngle.toDouble())).toFloat()
-
-                _peerUpdates.update { current ->
-                    current.mapValues { (_, peer) ->
-                        val currentDist = peer.distance ?: 3.0f
-                        // Gradually update distance to simulate a moving target
-                        val newDist = (currentDist + 0.1f * sin(Math.toRadians(mockAngle.toDouble())).toFloat()).coerceAtLeast(0.5f)
-                        peer.copy(
-                            distance = newDist,
-                            azimuth = azimuthVal,
-                            elevation = elevationVal
-                        )
+            if (manager == null) return@launch
+            try {
+                if (sessionManager.sessionState.value.isHost) {
+                    val controller = manager.controllerSessionScope()
+                    val sessionKey = ByteArray(8).also(SecureRandom()::nextBytes)
+                    val parameters = UwbControllerParametersDto(
+                        hostPeerId = localPeerId,
+                        controllerAddress = controller.localAddress.toString(),
+                        channel = controller.uwbComplexChannel.channel,
+                        preambleIndex = controller.uwbComplexChannel.preambleIndex,
+                        sessionId = event.id.hashCode(),
+                        staticStsKey = Base64.encodeToString(sessionKey, Base64.NO_WRAP)
+                    )
+                    uwbExchange.publishController(event.id, parameters)
+                    while (isActive) {
+                        val exchange = uwbExchange.get(event.id)
+                        val peer = exchange.peers.firstOrNull { it.peerId != localPeerId }
+                        if (peer != null) {
+                            controller.prepareSession(
+                                RangingParameters(
+                                    RangingParameters.CONFIG_UNICAST_DS_TWR,
+                                    parameters.sessionId,
+                                    0,
+                                    sessionKey,
+                                    null,
+                                    null,
+                                    listOf(UwbDevice.createForAddress(peer.address)),
+                                    RangingParameters.RANGING_UPDATE_RATE_FREQUENT
+                                )
+                            ).collect { result -> updateUwbPosition(peer.peerId, result) }
+                            return@launch
+                        }
+                        delay(UWB_EXCHANGE_POLL_MILLIS)
+                    }
+                } else {
+                    val controlee = manager.controleeSessionScope()
+                    uwbExchange.publishPeerAddress(
+                        event.id,
+                        UwbPeerAddressDto(localPeerId, controlee.localAddress.toString())
+                    )
+                    while (isActive) {
+                        val controller = uwbExchange.get(event.id).controller
+                        if (controller != null) {
+                            controlee.prepareSession(
+                                RangingParameters(
+                                    RangingParameters.CONFIG_UNICAST_DS_TWR,
+                                    controller.sessionId,
+                                    0,
+                                    Base64.decode(controller.staticStsKey, Base64.NO_WRAP),
+                                    null,
+                                    UwbComplexChannel(controller.channel, controller.preambleIndex),
+                                    listOf(UwbDevice.createForAddress(controller.controllerAddress)),
+                                    RangingParameters.RANGING_UPDATE_RATE_FREQUENT
+                                )
+                            ).collect { result -> updateUwbPosition(controller.hostPeerId, result) }
+                            return@launch
+                        }
+                        delay(UWB_EXCHANGE_POLL_MILLIS)
                     }
                 }
-                updateWorldVectors()
+            } catch (exception: Exception) {
+                Log.w(TAG, "UWB ranging unavailable; continuing with BLE proximity", exception)
             }
         }
     }
+
+    private fun updateUwbPosition(peerId: String, result: RangingResult) {
+        val position = (result as? RangingResult.RangingResultPosition)?.position ?: return
+        _peerUpdates.update { peers ->
+            val current = peers[peerId] ?: return@update peers
+            peers + (
+                peerId to current.copy(
+                    distance = position.distance?.value,
+                    azimuth = position.azimuth?.value,
+                    elevation = position.elevation?.value
+                )
+            )
+        }
+        updateWorldVectors()
+    }
+
 }

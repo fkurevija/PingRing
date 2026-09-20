@@ -5,8 +5,17 @@ import com.fkurevija.pingring.coordination.model.Event
 import com.fkurevija.pingring.coordination.model.EventResponse
 import com.fkurevija.pingring.coordination.model.JoinEventRequest
 import com.fkurevija.pingring.coordination.model.Member
+import com.fkurevija.pingring.coordination.model.UwbControllerParameters
+import com.fkurevija.pingring.coordination.model.UwbExchangeResponse
+import com.fkurevija.pingring.coordination.model.UwbPeerAddress
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.StandardOpenOption
 
 /**
  * Thread-safe, in-memory coordination store for events and their membership.
@@ -17,16 +26,27 @@ import kotlinx.coroutines.sync.withLock
  * self-hosted coordination service (small groups, short-lived events) a single coarse-grained
  * lock keeps the implementation simple and correct without needing per-event locking.
  */
-class EventCoordinationService(private val clock: () -> Long = System::currentTimeMillis) {
+class EventCoordinationService(
+    private val clock: () -> Long = System::currentTimeMillis,
+    private val storageFile: Path? = null
+) {
 
     private data class EventRecord(
         val event: Event,
-        val members: MutableMap<String, Member> = linkedMapOf()
+        val members: MutableMap<String, Member> = linkedMapOf(),
+        var uwbController: UwbControllerParameters? = null,
+        val uwbAddresses: MutableMap<String, String> = mutableMapOf()
     )
 
     private val mutex = Mutex()
     private val events = mutableMapOf<String, EventRecord>()
     private val activeEventByPeer = mutableMapOf<String, String>()
+
+    init {
+        restore()
+        purgeExpiredLocked(clock())
+        persist()
+    }
 
     suspend fun createEvent(request: CreateEventRequest): EventResponse = mutex.withLock {
         val now = clock()
@@ -61,6 +81,7 @@ class EventCoordinationService(private val clock: () -> Long = System::currentTi
         record.members[hostPeerId] = Member(hostPeerId, hostName, now, isHost = true)
         events[id] = record
         activeEventByPeer[hostPeerId] = id
+        persist()
 
         record.toResponse()
     }
@@ -95,6 +116,7 @@ class EventCoordinationService(private val clock: () -> Long = System::currentTi
         val isHost = peerId == record.event.hostPeerId
         record.members[peerId] = Member(peerId, name, now, isHost = isHost)
         activeEventByPeer[peerId] = eventId
+        persist()
 
         record.toResponse()
     }
@@ -109,6 +131,7 @@ class EventCoordinationService(private val clock: () -> Long = System::currentTi
         if (activeEventByPeer[trimmedPeerId] == eventId) {
             activeEventByPeer.remove(trimmedPeerId)
         }
+        persist()
         Unit
     }
 
@@ -128,13 +151,44 @@ class EventCoordinationService(private val clock: () -> Long = System::currentTi
             if (activeEventByPeer[peerId] == eventId) {
                 activeEventByPeer.remove(peerId)
             }
+            persist()
         }
         Unit
+    }
+
+    suspend fun publishUwbController(eventId: String, parameters: UwbControllerParameters) = mutex.withLock {
+        purgeExpiredLocked(clock())
+        val record = requireRecord(eventId)
+        if (record.event.hostPeerId != parameters.hostPeerId) {
+            throw ForbiddenHostActionException("Only the host can publish UWB controller parameters")
+        }
+        record.uwbController = parameters
+        persist()
+    }
+
+    suspend fun publishUwbPeerAddress(eventId: String, address: UwbPeerAddress) = mutex.withLock {
+        purgeExpiredLocked(clock())
+        val record = requireRecord(eventId)
+        if (address.peerId !in record.members) {
+            throw MemberNotFoundException("Peer '${address.peerId}' is not a member of event '$eventId'")
+        }
+        record.uwbAddresses[address.peerId] = address.address
+        persist()
+    }
+
+    suspend fun getUwbExchange(eventId: String): UwbExchangeResponse = mutex.withLock {
+        purgeExpiredLocked(clock())
+        val record = requireRecord(eventId)
+        UwbExchangeResponse(
+            controller = record.uwbController,
+            peers = record.uwbAddresses.map { (peerId, address) -> UwbPeerAddress(peerId, address) }
+        )
     }
 
     /** Removes all events whose expiry timestamp has passed. Safe to call periodically. */
     suspend fun purgeExpired() = mutex.withLock {
         purgeExpiredLocked(clock())
+        persist()
     }
 
     /** Snapshot of how many events are currently tracked, mainly useful for tests/health checks. */
@@ -156,6 +210,54 @@ class EventCoordinationService(private val clock: () -> Long = System::currentTi
                 }
             }
         }
+    }
+
+    private fun restore() {
+        val file = storageFile ?: return
+        if (!Files.exists(file)) return
+        runCatching {
+            json.decodeFromString<PersistedState>(Files.readString(file)).events.forEach { stored ->
+                val record = EventRecord(
+                    stored.event,
+                    stored.members.associateByTo(linkedMapOf()) { it.peerId },
+                    stored.uwbController,
+                    stored.uwbPeers.associate { it.peerId to it.address }.toMutableMap()
+                )
+                events[stored.event.id] = record
+                record.members.keys.forEach { peerId -> activeEventByPeer[peerId] = stored.event.id }
+            }
+        }
+    }
+
+    private fun persist() {
+        val file = storageFile ?: return
+        runCatching {
+            file.parent?.let(Files::createDirectories)
+            val snapshot = PersistedState(events.values.map { record ->
+                PersistedEvent(
+                    record.event,
+                    record.members.values.toList(),
+                    record.uwbController,
+                    record.uwbAddresses.map { (peerId, address) -> UwbPeerAddress(peerId, address) }
+                )
+            })
+            Files.writeString(file, json.encodeToString(snapshot), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE)
+        }
+    }
+
+    @Serializable
+    private data class PersistedState(val events: List<PersistedEvent> = emptyList())
+
+    @Serializable
+    private data class PersistedEvent(
+        val event: Event,
+        val members: List<Member>,
+        val uwbController: UwbControllerParameters? = null,
+        val uwbPeers: List<UwbPeerAddress> = emptyList()
+    )
+
+    private companion object {
+        val json = Json { encodeDefaults = true }
     }
 
     private fun EventRecord.toResponse() = EventResponse(event = event, members = members.values.toList())

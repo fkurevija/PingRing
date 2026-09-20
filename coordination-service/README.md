@@ -5,7 +5,8 @@ PingRing: it lets a device create a short-lived "Ping-Ring" event, lets other
 devices join/leave it by peer id, enforces one active event per peer id, and
 lets the host end the event (clearing membership). All state is kept
 in-memory with automatic expiry cleanup, so no database is required to run
-it.
+it. State is persisted locally in a JSON snapshot so a restart does not discard
+active events, membership, or UWB exchange material.
 
 This module is independent of the Android app module; it only shares plain
 Kotlin serialization DTOs at the JSON boundary (the Android app talks to it
@@ -30,6 +31,9 @@ environment variable:
 $env:PORT = "9090"; .\gradlew.bat :coordination-service:run
 ```
 
+Set `COORDINATION_STATE_FILE` to place the durable state snapshot elsewhere;
+it defaults to `coordination-state.json` in the process working directory.
+
 ## Running tests
 
 ```powershell
@@ -51,6 +55,9 @@ HTTP status code.
 | POST   | `/api/events/{eventId}/members`        | Join the event with a peer id (idempotent).   |
 | DELETE | `/api/events/{eventId}/members/{peerId}` | Leave the event as that peer.               |
 | POST   | `/api/events/{eventId}/end`            | Host-only: end the event and clear membership. |
+| GET    | `/api/events/{eventId}/uwb`            | Read UWB out-of-band parameters.            |
+| POST   | `/api/events/{eventId}/uwb/controller` | Host publishes controller parameters.        |
+| POST   | `/api/events/{eventId}/uwb/peers`      | Member publishes its UWB address.            |
 
 ### `POST /api/events`
 
@@ -114,6 +121,16 @@ member's peer id to join/host another event. Response `204 No Content`.
 Errors: `404` if the event does not exist, `403` if `hostPeerId` does not
 match the event's host.
 
+### UWB out-of-band exchange
+
+The host publishes its UWB controller address, complex channel, session ID,
+and static STS material to `/uwb/controller`. Each active member publishes its
+local UWB address to `/uwb/peers`; `/uwb` returns the complete exchange
+snapshot. The Android client uses this data to begin a real
+`RangingParameters.CONFIG_UNICAST_DS_TWR` session whenever both devices
+support UWB. Exchange state is event-scoped and is removed when an event ends
+or expires.
+
 ### `GET /api/events/{eventId}` / `GET /api/events/{eventId}/members`
 
 Response `200 OK` with the current event/membership snapshot. Errors: `404`
@@ -123,8 +140,8 @@ if the event does not exist or has expired.
 
 - **Storage**: a single `EventCoordinationService` holds events and
   membership in in-memory maps guarded by one `kotlinx.coroutines.sync.Mutex`,
-  so create/join/leave/end and the one-active-event-per-peer invariant are all
-  atomic with respect to each other.
+  and snapshots mutations to a JSON state file. Create/join/leave/end and the
+  one-active-event-per-peer invariant are atomic with respect to each other.
 - **Expiry**: every request lazily purges expired events before acting, and a
   background coroutine sweeps expired events every 30 seconds so idle events
   are still reclaimed even with no further traffic.
