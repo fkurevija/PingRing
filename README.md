@@ -9,7 +9,11 @@ code, opt in to discovery, and receive proximity feedback from nearby peers.
 - Event-code join flow built with Jetpack Compose and Navigation 3
 - Camera-based QR scanning join flow (CameraX + on-device ML Kit QR decoding)
 - Session-scoped visibility with ephemeral peer IDs
+- One-active-Ping-Ring membership guard per device
+- Host-only **End Ping-Ring** flow that clears the host locally and broadcasts
+  event closure to nearby members, returning recipients to Home
 - "Go invisible" control and event leave/cleanup handling
+- Persisted in-app appearance setting: system default, light, or dark
 - Android 12+ Bluetooth, location, and UWB permission rationale flow
 - Camera permission prompt for QR join flow
 - Bluetooth Low Energy advertising and scanning using event peer IDs
@@ -64,12 +68,13 @@ list. Turning visibility off stops discovery while keeping the event open.
 
 ## Current prototype limitations
 
-- QR scanning is represented by the join-screen placeholder and is not yet
-- Event coordination now uses a backend-ready repository abstraction with an
-  in-memory/mock implementation; membership and presence remain local/offline
-  and are not synchronized across devices yet.
-- UWB peer-session parameter exchange is still deferred and not yet wired to a
-  backend or Nearby Connections transport; the BLE fallback path remains.
+- Event membership is coordinated locally and event closure is delivered over
+  BLE only to nearby, actively scanning members. A backend is still required
+  to synchronize membership or closure across distance, offline periods, and
+  process restarts.
+- UWB peer-session parameter exchange is not yet implemented. UWB-capable
+  devices initialize the client session, while BLE remains the usable
+  proximity fallback until peer parameters are exchanged through a transport.
 
 ## QR join flow
 
@@ -79,9 +84,3 @@ list. Turning visibility off stops discovery while keeping the event open.
   link/query that contains an event code.
 - Invalid/empty scans, permission denial, cancellation, and unavailable camera
   states are handled in-app with fallback to manual event-code entry.
-
-## Deferred work
-
-- Real backend persistence/synchronization for event membership and presence
-  (REST/WebSocket/etc.).
-- Real UWB peer-session parameter exchange between devices.

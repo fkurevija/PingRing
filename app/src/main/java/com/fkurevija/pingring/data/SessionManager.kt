@@ -18,13 +18,21 @@ class SessionManager(
         coordinationRepository.setVisibility(visible)
     }
 
-    fun joinEvent(event: Event) {
+    fun joinEvent(event: Event): Boolean {
+        val activeEvent = sessionState.value.currentEvent
+        if (activeEvent != null && activeEvent.id != event.id) {
+            return false
+        }
         coordinationRepository.markSyncing()
         coordinationRepository.joinEvent(event)
         // In a real app, this would trigger Bluetooth advertising/scanning
+        return true
     }
 
     fun hostEvent(event: Event) {
+        check(sessionState.value.currentEvent == null) {
+            "Leave the active Ping-Ring before hosting another one."
+        }
         coordinationRepository.markSyncing()
         coordinationRepository.hostEvent(event)
         // Hosting currently uses the same local BLE mesh as joining.
@@ -37,6 +45,15 @@ class SessionManager(
     fun leaveEvent() {
         coordinationRepository.leaveEvent()
         _peerId.value = generatePeerId() // Rotate peer ID for privacy
+    }
+
+    fun endHostedEvent() {
+        check(sessionState.value.isHost) { "Only the host can end a Ping-Ring." }
+        leaveEvent()
+    }
+
+    fun endEventFromHost() {
+        leaveEvent()
     }
 
     fun updateFriends(newFriends: List<Friend>) {

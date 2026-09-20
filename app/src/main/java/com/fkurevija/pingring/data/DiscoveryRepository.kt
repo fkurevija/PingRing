@@ -48,6 +48,9 @@ class DiscoveryRepository(
 
     private val TAG = "DiscoveryRepository"
     private val PINGRING_SERVICE_UUID = UUID.fromString("0000fa1b-0000-1000-8000-00805f9b34fb")
+    private val hostFlag = 1
+    private val trackHostFlag = 1 shl 1
+    private val eventClosedFlag = 1 shl 2
 
     private val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
     private val bluetoothAdapter = bluetoothManager?.adapter
@@ -68,7 +71,10 @@ class DiscoveryRepository(
 
     private var repositoryScope: CoroutineScope? = null
     private var bleAdvertiser: BluetoothLeAdvertiser? = null
+    private var closureAdvertiser: BluetoothLeAdvertiser? = null
     private var bleScanner: BluetoothLeScanner? = null
+    private var closureAnnouncementJob: Job? = null
+    private val controlScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
     // Sensor Fusion state
     private val rotationMatrix = FloatArray(9) { 0f }.apply { this[0] = 1f; this[4] = 1f; this[8] = 1f }
@@ -140,6 +146,12 @@ class DiscoveryRepository(
         }
     }
 
+    private val closureAdvertiseCallback = object : AdvertiseCallback() {
+        override fun onStartFailure(errorCode: Int) {
+            Log.e(TAG, "Ping-Ring closure announcement failed to start: $errorCode")
+        }
+    }
+
     private val scanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult?) {
             result?.let { handleScanResult(it) }
@@ -162,13 +174,9 @@ class DiscoveryRepository(
         val currentPeerId = sessionManager.peerId.value
         val currentEvent = sessionManager.sessionState.value.currentEvent ?: return
         val peerIdBytes = currentPeerId.toByteArray(StandardCharsets.UTF_8).copyOf(8)
-        val flags = (if (sessionManager.sessionState.value.isHost) 1 else 0) or
-            (if (currentEvent.trackHost) 2 else 0)
-        val servicePayload = ByteBuffer.allocate(13)
-            .putInt(currentEvent.id.hashCode())
-            .put(flags.toByte())
-            .put(peerIdBytes)
-            .array()
+        val flags = (if (sessionManager.sessionState.value.isHost) hostFlag else 0) or
+            (if (currentEvent.trackHost) trackHostFlag else 0)
+        val servicePayload = buildServicePayload(currentEvent.id.hashCode(), flags, peerIdBytes)
 
         val settings = AdvertiseSettings.Builder()
             .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
@@ -196,6 +204,62 @@ class DiscoveryRepository(
             Log.e(TAG, "Exception stopping BLE advertising", e)
         }
         bleAdvertiser = null
+    }
+
+    /**
+     * Sends a terminal host packet before the host clears its local session. Nearby members
+     * receiving this packet clear their session and navigation returns them to Home.
+     */
+    fun announceEventClosure(event: Event) {
+        val adapter = bluetoothAdapter ?: return
+        if (!adapter.isEnabled) return
+        val advertiser = adapter.bluetoothLeAdvertiser ?: return
+        val data = AdvertiseData.Builder()
+            .setIncludeDeviceName(false)
+            .addServiceUuid(ParcelUuid(PINGRING_SERVICE_UUID))
+            .addServiceData(
+                ParcelUuid(PINGRING_SERVICE_UUID),
+                buildServicePayload(
+                    event.id.hashCode(),
+                    hostFlag or eventClosedFlag,
+                    sessionManager.peerId.value.toByteArray(StandardCharsets.UTF_8).copyOf(8)
+                )
+            )
+            .build()
+        try {
+            closureAnnouncementJob?.cancel()
+            closureAdvertiser?.stopAdvertising(closureAdvertiseCallback)
+            bleAdvertiser?.stopAdvertising(advertiseCallback)
+            bleAdvertiser = null
+            closureAdvertiser = advertiser
+            advertiser.startAdvertising(
+                AdvertiseSettings.Builder()
+                    .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
+                    .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
+                    .setConnectable(false)
+                    .build(),
+                data,
+                closureAdvertiseCallback
+            )
+            closureAnnouncementJob = controlScope.launch {
+                delay(CLOSURE_ANNOUNCEMENT_DURATION_MILLIS)
+                closureAdvertiser?.stopAdvertising(closureAdvertiseCallback)
+                closureAdvertiser = null
+            }
+        } catch (exception: Exception) {
+            Log.e(TAG, "Unable to announce Ping-Ring closure", exception)
+        }
+    }
+
+    private fun buildServicePayload(eventHash: Int, flags: Int, peerIdBytes: ByteArray): ByteArray =
+        ByteBuffer.allocate(13)
+            .putInt(eventHash)
+            .put(flags.toByte())
+            .put(peerIdBytes.copyOf(8))
+            .array()
+
+    private companion object {
+        const val CLOSURE_ANNOUNCEMENT_DURATION_MILLIS = 5_000L
     }
 
     private fun startBleScanning() {
@@ -235,11 +299,15 @@ class DiscoveryRepository(
         val payload = ByteBuffer.wrap(serviceData)
         val eventHash = payload.int
         val flags = payload.get().toInt()
-        val isHostPeer = flags and 1 != 0
-        val hostTracksMembers = flags and 2 != 0
+        val isHostPeer = flags and hostFlag != 0
+        val hostTracksMembers = flags and trackHostFlag != 0
         val peerId = String(ByteArray(payload.remaining()).also(payload::get), StandardCharsets.UTF_8).trim()
         var currentEvent = sessionManager.sessionState.value.currentEvent ?: return
         if (eventHash != currentEvent.id.hashCode()) return
+        if (isHostPeer && flags and eventClosedFlag != 0) {
+            sessionManager.endEventFromHost()
+            return
+        }
         if (isHostPeer && !sessionManager.sessionState.value.isHost) {
             currentEvent = currentEvent.copy(
                 hostPeerId = peerId,

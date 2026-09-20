@@ -16,6 +16,7 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
 import com.fkurevija.pingring.data.DiscoveryRepository
 import com.fkurevija.pingring.data.Event
+import com.fkurevija.pingring.data.AppearanceSettingsRepository
 import com.fkurevija.pingring.data.SessionManager
 import com.fkurevija.pingring.ui.navigation.EventJoinKey
 import com.fkurevija.pingring.ui.navigation.EventSettingsKey
@@ -37,18 +38,24 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            PingRingTheme {
-                val sessionManager = remember { SessionManager() }
+            val sessionManager = remember { SessionManager() }
                 val sessionState by sessionManager.sessionState.collectAsState()
                 val context = LocalContext.current.applicationContext
+                val appearanceSettings = remember { AppearanceSettingsRepository(context) }
+                val themeMode by appearanceSettings.themeMode.collectAsState(
+                    initial = com.fkurevija.pingring.data.ThemeMode.SYSTEM
+                )
                 val discoveryRepository = remember { DiscoveryRepository(context, sessionManager) }
 
-                PermissionWrapper {
-                    MainNavigation(
-                        sessionManager = sessionManager,
-                        discoveryRepository = discoveryRepository,
-                        isVisible = sessionState.isVisible
-                    )
+                PingRingTheme(themeMode = themeMode) {
+                    PermissionWrapper {
+                        MainNavigation(
+                            sessionManager = sessionManager,
+                            discoveryRepository = discoveryRepository,
+                            appearanceSettings = appearanceSettings,
+                            themeMode = themeMode,
+                            isVisible = sessionState.isVisible
+                        )
                 }
             }
         }
@@ -59,6 +66,8 @@ class MainActivity : ComponentActivity() {
 fun MainNavigation(
     sessionManager: SessionManager,
     discoveryRepository: DiscoveryRepository,
+    appearanceSettings: AppearanceSettingsRepository,
+    themeMode: com.fkurevija.pingring.data.ThemeMode,
     isVisible: Boolean
 ) {
     val backStack: NavBackStack<NavKey> = rememberNavBackStack(HomeKey)
@@ -98,22 +107,27 @@ fun MainNavigation(
                     EventJoinScreen(
                         onBack = { backStack.removeLastOrNull() },
                         onJoinEvent = { eventCode ->
-                            sessionManager.joinEvent(
+                            if (sessionManager.joinEvent(
                                 Event(
                                     id = eventCode,
                                     name = "Event $eventCode",
                                     description = "PingRing Event",
                                     expiryTimestamp = System.currentTimeMillis() + 3600000
                                 )
-                            )
-                            backStack.clear()
-                            backStack.add(RadarKey(eventCode))
+                            )) {
+                                backStack.clear()
+                                backStack.add(RadarKey(eventCode))
+                            }
                         }
                     )
                 }
 
                 is AppSettingsKey -> {
-                    AppSettingsScreen(onBack = { backStack.removeLastOrNull() })
+                    AppSettingsScreen(
+                        themeMode = themeMode,
+                        onThemeModeChange = appearanceSettings::setThemeMode,
+                        onBack = { backStack.removeLastOrNull() }
+                    )
                 }
 
                 is EventSettingsKey -> {
@@ -131,7 +145,13 @@ fun MainNavigation(
                 }
 
                 is RadarKey -> {
-                    RadarScreen(
+                    val event = sessionState.currentEvent
+                    if (event == null || event.id != key.eventId) {
+                        androidx.compose.runtime.LaunchedEffect(key) {
+                            backStack.clear()
+                            backStack.add(HomeKey)
+                        }
+                    } else RadarScreen(
                         eventId = key.eventId,
                         isVisible = isVisible,
                         discoveryRepository = discoveryRepository,
@@ -141,6 +161,12 @@ fun MainNavigation(
                         onEventSettings = { backStack.add(EventSettingsKey(key.eventId)) },
                         onLeaveEvent = {
                             sessionManager.leaveEvent()
+                            backStack.clear()
+                            backStack.add(HomeKey)
+                        },
+                        onEndEvent = {
+                            discoveryRepository.announceEventClosure(event)
+                            sessionManager.endHostedEvent()
                             backStack.clear()
                             backStack.add(HomeKey)
                         }

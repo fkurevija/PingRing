@@ -28,6 +28,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -43,6 +44,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
@@ -70,8 +72,10 @@ fun RadarScreen(
     discoveryRepository: DiscoveryRepository?,
     onVisibilityToggle: (Boolean) -> Unit,
     onEventSettings: () -> Unit,
-    onLeaveEvent: () -> Unit
+    onLeaveEvent: () -> Unit,
+    onEndEvent: () -> Unit
 ) {
+    var showEndConfirmation by remember { mutableStateOf(false) }
     LaunchedEffect(isVisible, discoveryRepository) {
         if (isVisible) discoveryRepository?.startDiscovery() else discoveryRepository?.stopDiscovery()
     }
@@ -101,8 +105,13 @@ fun RadarScreen(
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = onLeaveEvent) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                    IconButton(onClick = {
+                        if (isHost) showEndConfirmation = true else onLeaveEvent()
+                    }) {
+                        Icon(
+                            Icons.Default.ArrowBack,
+                            contentDescription = if (isHost) "End Ping-Ring" else "Leave Ping-Ring"
+                        )
                     }
                 },
                 actions = {
@@ -124,11 +133,13 @@ fun RadarScreen(
                     .padding(16.dp)
             ) {
                 Button(
-                    onClick = onLeaveEvent,
+                    onClick = {
+                        if (isHost) showEndConfirmation = true else onLeaveEvent()
+                    },
                     modifier = Modifier.fillMaxWidth().height(52.dp),
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                ) { Text("Leave Ping-Ring") }
+                ) { Text(if (isHost) "End Ping-Ring" else "Leave Ping-Ring") }
             }
         }
     ) { padding ->
@@ -157,6 +168,25 @@ fun RadarScreen(
                     )
                     PeerList(peers, connectivity, discoveryRepository, Modifier.fillMaxWidth())
                 }
+            }
+
+            if (showEndConfirmation) {
+                AlertDialog(
+                    onDismissRequest = { showEndConfirmation = false },
+                    title = { Text("End this Ping-Ring?") },
+                    text = {
+                        Text("This removes every member from the Ping-Ring and returns them to the home page.")
+                    },
+                    confirmButton = {
+                        Button(onClick = {
+                            showEndConfirmation = false
+                            onEndEvent()
+                        }) { Text("End Ping-Ring") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showEndConfirmation = false }) { Text("Cancel") }
+                    }
+                )
             }
         }
     }
