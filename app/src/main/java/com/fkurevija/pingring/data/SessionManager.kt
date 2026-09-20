@@ -6,7 +6,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import java.util.UUID
 
 class SessionManager(
-    private val coordinationRepository: EventCoordinationRepository = InMemoryEventCoordinationRepository()
+    context: android.content.Context? = null,
+    private val coordinationRepository: EventCoordinationRepository =
+        context?.let(::RemoteEventCoordinationRepository) ?: InMemoryEventCoordinationRepository()
 ) {
     val sessionState: StateFlow<SessionState> = coordinationRepository.sessionState
     val syncStatus: StateFlow<CoordinationSyncStatus> = coordinationRepository.syncStatus
@@ -24,7 +26,7 @@ class SessionManager(
             return false
         }
         coordinationRepository.markSyncing()
-        coordinationRepository.joinEvent(event)
+        coordinationRepository.joinEvent(event, peerId.value)
         // In a real app, this would trigger Bluetooth advertising/scanning
         return true
     }
@@ -34,7 +36,7 @@ class SessionManager(
             "Leave the active Ping-Ring before hosting another one."
         }
         coordinationRepository.markSyncing()
-        coordinationRepository.hostEvent(event)
+        coordinationRepository.hostEvent(event, peerId.value)
         // Hosting currently uses the same local BLE mesh as joining.
     }
 
@@ -43,13 +45,14 @@ class SessionManager(
     }
 
     fun leaveEvent() {
-        coordinationRepository.leaveEvent()
+        coordinationRepository.leaveEvent(peerId.value)
         _peerId.value = generatePeerId() // Rotate peer ID for privacy
     }
 
     fun endHostedEvent() {
         check(sessionState.value.isHost) { "Only the host can end a Ping-Ring." }
-        leaveEvent()
+        val remote = coordinationRepository as? RemoteEventCoordinationRepository
+        if (remote != null) remote.endEvent(peerId.value) else leaveEvent()
     }
 
     fun endEventFromHost() {
@@ -71,5 +74,9 @@ class SessionManager(
                 leaveEvent()
             }
         }
+    }
+
+    fun refreshCoordination() {
+        (coordinationRepository as? RemoteEventCoordinationRepository)?.refresh()
     }
 }

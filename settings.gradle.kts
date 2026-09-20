@@ -24,3 +24,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "PingRing"
 include(":app")
+include(":coordination-service")

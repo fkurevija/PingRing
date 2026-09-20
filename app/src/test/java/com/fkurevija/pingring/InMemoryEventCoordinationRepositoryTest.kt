@@ -16,7 +16,7 @@ class InMemoryEventCoordinationRepositoryTest {
         val event = Event("E1", "Event E1", "desc", System.currentTimeMillis() + 1_000L)
 
         repository.markSyncing()
-        repository.joinEvent(event)
+        repository.joinEvent(event, "peer-1")
         repository.upsertMember(
             Friend(
                 peerId = "peer-1",
@@ -38,13 +38,14 @@ class InMemoryEventCoordinationRepositoryTest {
     fun leaveClearsMembershipAndResetsSyncStatus() {
         val repository = InMemoryEventCoordinationRepository()
         repository.joinEvent(
-            Event("E2", "Event E2", "desc", System.currentTimeMillis() + 1_000L)
+            Event("E2", "Event E2", "desc", System.currentTimeMillis() + 1_000L),
+            "peer-2"
         )
         repository.updateMembers(
             listOf(Friend("peer-2", "Peer 2", 200L, null))
         )
 
-        repository.leaveEvent()
+        repository.leaveEvent("peer-2")
 
         val state = repository.sessionState.value
         assertNull(state.currentEvent)

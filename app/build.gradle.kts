@@ -34,6 +34,13 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
+    }
+    val coordinationUrl = providers.gradleProperty("coordinationUrl")
+        .orElse("http://10.0.2.2:8080/")
+        .get()
+    defaultConfig {
+        buildConfigField("String", "COORDINATION_URL", "\"$coordinationUrl\"")
     }
 }
 

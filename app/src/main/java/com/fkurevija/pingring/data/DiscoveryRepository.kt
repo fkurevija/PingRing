@@ -113,6 +113,12 @@ class DiscoveryRepository(
         stopDiscovery()
         repositoryScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
         refreshConnectivityStatus()
+        repositoryScope?.launch {
+            while (isActive) {
+                sessionManager.refreshCoordination()
+                delay(COORDINATION_REFRESH_INTERVAL_MILLIS)
+            }
+        }
 
         // 1. Start BLE Advertising & Scanning
         startBleAdvertising()
@@ -260,6 +266,7 @@ class DiscoveryRepository(
 
     private companion object {
         const val CLOSURE_ANNOUNCEMENT_DURATION_MILLIS = 5_000L
+        const val COORDINATION_REFRESH_INTERVAL_MILLIS = 5_000L
     }
 
     private fun startBleScanning() {

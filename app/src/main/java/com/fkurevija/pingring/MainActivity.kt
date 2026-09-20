@@ -38,9 +38,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            val sessionManager = remember { SessionManager() }
+            val context = LocalContext.current.applicationContext
+            val sessionManager = remember(context) { SessionManager(context = context) }
                 val sessionState by sessionManager.sessionState.collectAsState()
-                val context = LocalContext.current.applicationContext
                 val appearanceSettings = remember { AppearanceSettingsRepository(context) }
                 val themeMode by appearanceSettings.themeMode.collectAsState(
                     initial = com.fkurevija.pingring.data.ThemeMode.SYSTEM
