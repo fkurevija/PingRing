@@ -40,6 +40,7 @@ import com.fkurevija.pingring.ui.screens.HostSetupScreen
 import com.fkurevija.pingring.ui.screens.AppSettingsScreen
 import com.fkurevija.pingring.ui.screens.RadarScreen
 import com.fkurevija.pingring.ui.theme.PingRingTheme
+import java.util.UUID
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -93,27 +94,48 @@ fun MainNavigation(
             when (key) {
                 is HomeKey -> {
                     HomeScreen(
-                        onHost = { backStack.add(HostSetupKey) },
+                        onHost = {
+                            val eventCode = generateEventCode()
+                            sessionManager.hostEvent(
+                                Event(
+                                    id = eventCode,
+                                    name = "My Ping-Ring",
+                                    description = "PingRing Event",
+                                    expiryTimestamp = System.currentTimeMillis() + 3600000,
+                                    hostPeerId = sessionManager.peerId.value,
+                                    trackHost = false
+                                )
+                            )
+                            backStack.add(HostSetupKey(eventCode))
+                        },
                         onJoin = { backStack.add(EventJoinKey) },
                         onSettings = { backStack.add(AppSettingsKey) }
                     )
                 }
 
                 is HostSetupKey -> {
-                    HostSetupScreen(
-                        onBack = { backStack.removeLastOrNull() },
-                        onCreate = { name, eventCode, trackHost ->
-                            val event = Event(
-                                id = eventCode,
-                                name = name,
-                                description = "PingRing Event",
-                                expiryTimestamp = System.currentTimeMillis() + 3600000,
-                                hostPeerId = sessionManager.peerId.value,
-                                trackHost = trackHost
-                            )
-                            sessionManager.hostEvent(event)
+                    val event = sessionState.currentEvent
+                    if (event == null || event.id != key.eventCode || !sessionState.isHost) {
+                        androidx.compose.runtime.LaunchedEffect(key) {
                             backStack.clear()
-                            backStack.add(RadarKey(eventCode))
+                            backStack.add(HomeKey)
+                        }
+                    } else HostSetupScreen(
+                        eventCode = key.eventCode,
+                        discoveryRepository = discoveryRepository,
+                        onBack = {
+                            discoveryRepository.announceEventClosure(event)
+                            sessionManager.endHostedEvent()
+                            backStack.removeLastOrNull()
+                        },
+                        onEventChange = { name, trackHost ->
+                            sessionManager.updateEvent(
+                                event.copy(name = name, trackHost = trackHost)
+                            )
+                        },
+                        onView = {
+                            backStack.clear()
+                            backStack.add(RadarKey(key.eventCode))
                         }
                     )
                 }
@@ -192,3 +214,6 @@ fun MainNavigation(
         }
     }
 }
+
+private fun generateEventCode(): String =
+    UUID.randomUUID().toString().replace("-", "").take(6).uppercase()

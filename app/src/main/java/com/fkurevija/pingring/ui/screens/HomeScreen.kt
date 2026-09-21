@@ -32,7 +32,7 @@ fun HomeScreen(
         Text("Stay connected nearby.", style = MaterialTheme.typography.bodyLarge)
         Spacer(Modifier.height(40.dp))
         Button(onClick = onHost, modifier = Modifier.fillMaxWidth()) {
-            Text("Host a Ping-Ring")
+            Text("Create a Ping-Ring")
         }
         Spacer(Modifier.height(12.dp))
         OutlinedButton(onClick = onJoin, modifier = Modifier.fillMaxWidth()) {

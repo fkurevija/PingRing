@@ -22,6 +22,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -31,24 +33,33 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.asImageBitmap
 import android.graphics.Bitmap
+import com.fkurevija.pingring.data.DiscoveryRepository
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.MultiFormatWriter
-import java.util.UUID
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun HostSetupScreen(
+    eventCode: String,
+    discoveryRepository: DiscoveryRepository,
     onBack: () -> Unit,
-    onCreate: (String, String, Boolean) -> Unit
+    onEventChange: (String, Boolean) -> Unit,
+    onView: () -> Unit
 ) {
     var name by remember { mutableStateOf("My Ping-Ring") }
-    var eventCode by remember { mutableStateOf(generateEventCode()) }
     var trackHost by remember { mutableStateOf(false) }
+
+    LaunchedEffect(discoveryRepository, trackHost) {
+        discoveryRepository.startDiscovery()
+    }
+    DisposableEffect(discoveryRepository) {
+        onDispose { discoveryRepository.stopDiscovery() }
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Host a Ping-Ring") },
+                title = { Text("Create a Ping-Ring") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
@@ -73,7 +84,10 @@ fun HostSetupScreen(
             Spacer(Modifier.height(16.dp))
             OutlinedTextField(
                 value = name,
-                onValueChange = { name = it },
+                onValueChange = {
+                    name = it
+                    onEventChange(it.trim(), trackHost)
+                },
                 label = { Text("Ping-Ring name") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
@@ -87,20 +101,23 @@ fun HostSetupScreen(
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
-                Switch(checked = trackHost, onCheckedChange = { trackHost = it })
+                Switch(
+                    checked = trackHost,
+                    onCheckedChange = {
+                        trackHost = it
+                        onEventChange(name.trim(), it)
+                    }
+                )
             }
             Spacer(Modifier.weight(1f))
             Button(
-                onClick = { onCreate(name.trim(), eventCode.trim(), trackHost) },
-                enabled = name.isNotBlank() && eventCode.length >= 3,
+                onClick = onView,
+                enabled = name.isNotBlank(),
                 modifier = Modifier.fillMaxWidth()
-            ) { Text("Create Ping-Ring") }
+            ) { Text("View Ping-Ring") }
         }
     }
 }
-
-private fun generateEventCode(): String =
-    UUID.randomUUID().toString().replace("-", "").take(6).uppercase()
 
 private fun generateQrCode(value: String): Bitmap {
     val matrix = MultiFormatWriter().encode(value, BarcodeFormat.QR_CODE, 512, 512)

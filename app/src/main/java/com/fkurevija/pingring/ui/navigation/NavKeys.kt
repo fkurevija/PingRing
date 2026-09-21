@@ -10,7 +10,7 @@ data object EventJoinKey : NavKey
 data object HomeKey : NavKey
 
 @Serializable
-data object HostSetupKey : NavKey
+data class HostSetupKey(val eventCode: String) : NavKey
 
 @Serializable
 data object AppSettingsKey : NavKey

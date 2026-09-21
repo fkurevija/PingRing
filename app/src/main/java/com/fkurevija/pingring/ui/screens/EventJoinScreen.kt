@@ -245,12 +245,20 @@ private fun QrCameraPreview(
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    val previewView = remember { PreviewView(context) }
+    val previewView = remember {
+        PreviewView(context).apply {
+            implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+        }
+    }
     var hasResult by remember(scanSessionId) { mutableStateOf(false) }
 
     DisposableEffect(lifecycleOwner, previewView, scanSessionId) {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
         val cameraExecutor = Executors.newSingleThreadExecutor()
+        var cameraProvider: ProcessCameraProvider? = null
+        var preview: CameraPreview? = null
+        var imageAnalysis: ImageAnalysis? = null
+        var disposed = false
         val analyzer = QrImageAnalyzer(
             onScanResult = { raw ->
                 if (!hasResult) {
@@ -263,18 +271,19 @@ private fun QrCameraPreview(
         )
 
         val listener = Runnable {
+            if (disposed) return@Runnable
             try {
-                val cameraProvider = cameraProviderFuture.get()
-                val preview = CameraPreview.Builder().build().also {
+                cameraProvider = cameraProviderFuture.get()
+                preview = CameraPreview.Builder().build().also {
                     it.surfaceProvider = previewView.surfaceProvider
                 }
-                val imageAnalysis = ImageAnalysis.Builder()
+                imageAnalysis = ImageAnalysis.Builder()
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                     .build()
                     .also { it.setAnalyzer(cameraExecutor, analyzer) }
 
-                cameraProvider.unbindAll()
-                cameraProvider.bindToLifecycle(
+                cameraProvider?.unbindAll()
+                cameraProvider?.bindToLifecycle(
                     lifecycleOwner,
                     CameraSelector.DEFAULT_BACK_CAMERA,
                     preview,
@@ -288,9 +297,18 @@ private fun QrCameraPreview(
         cameraProviderFuture.addListener(listener, ContextCompat.getMainExecutor(context))
 
         onDispose {
-            analyzer.close()
-            cameraExecutor.shutdown()
-            runCatching { cameraProviderFuture.get().unbindAll() }
+            disposed = true
+            imageAnalysis?.clearAnalyzer()
+            preview?.setSurfaceProvider(null)
+            analyzer.closeWhenIdle {
+                ContextCompat.getMainExecutor(context).execute {
+                    val boundUseCases = listOfNotNull(preview, imageAnalysis).toTypedArray()
+                    if (boundUseCases.isNotEmpty()) {
+                        runCatching { cameraProvider?.unbind(*boundUseCases) }
+                    }
+                    cameraExecutor.shutdown()
+                }
+            }
         }
     }
 
@@ -305,12 +323,23 @@ private class QrImageAnalyzer(
     private val onFailure: (Throwable) -> Unit
 ) : ImageAnalysis.Analyzer {
     private val scanner = BarcodeScanning.getClient()
+    private var closing = false
+    private var activeTasks = 0
+    private var onClosed: (() -> Unit)? = null
 
     @AndroidXOptIn(markerClass = [ExperimentalGetImage::class])
     override fun analyze(imageProxy: ImageProxy) {
+        synchronized(this) {
+            if (closing) {
+                imageProxy.close()
+                return
+            }
+            activeTasks++
+        }
         val mediaImage = imageProxy.image
         if (mediaImage == null) {
             imageProxy.close()
+            completeTask()
             return
         }
 
@@ -321,13 +350,42 @@ private class QrImageAnalyzer(
                     .firstOrNull { it.format == Barcode.FORMAT_QR_CODE }
                     ?.rawValue
                     .orEmpty()
-                onScanResult(qrValue)
+                if (!isClosing()) onScanResult(qrValue)
             }
-            .addOnFailureListener(onFailure)
-            .addOnCompleteListener { imageProxy.close() }
+            .addOnFailureListener {
+                if (!isClosing()) onFailure(it)
+            }
+            .addOnCompleteListener {
+                imageProxy.close()
+                completeTask()
+            }
     }
 
-    fun close() {
-        scanner.close()
+    fun closeWhenIdle(onClosed: () -> Unit) {
+        val closeImmediately = synchronized(this) {
+            closing = true
+            this.onClosed = onClosed
+            activeTasks == 0
+        }
+        if (closeImmediately) finishClosing()
+    }
+
+    @Synchronized
+    private fun isClosing(): Boolean = closing
+
+    private fun completeTask() {
+        val shouldClose = synchronized(this) {
+            activeTasks--
+            closing && activeTasks == 0
+        }
+        if (shouldClose) finishClosing()
+    }
+
+    private fun finishClosing() {
+        val callback = synchronized(this) {
+            scanner.close()
+            onClosed.also { onClosed = null }
+        }
+        callback?.invoke()
     }
 }

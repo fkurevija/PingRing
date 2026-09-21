@@ -78,11 +78,14 @@ private interface CoordinationApi {
 
 /**
  * Mirrors the authoritative coordination service into observable app state. Calls never block the
- * UI; a failed mutation is rolled back and reported through [syncStatus].
+ * UI. When remote coordination is unavailable, the local session remains active for nearby BLE
+ * discovery and the failure is reported through [syncStatus].
  */
 class RemoteEventCoordinationRepository(context: Context) : EventCoordinationRepository {
     private val local = InMemoryEventCoordinationRepository()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    @Volatile
+    private var remotelyCoordinatedEventId: String? = null
     private val api = Retrofit.Builder()
         .baseUrl(BuildConfig.COORDINATION_URL)
         .addConverterFactory(
@@ -97,17 +100,24 @@ class RemoteEventCoordinationRepository(context: Context) : EventCoordinationRep
     override val syncStatus: StateFlow<CoordinationSyncStatus> = local.syncStatus
 
     override fun joinEvent(event: Event, peerId: String) {
+        remotelyCoordinatedEventId = null
         local.joinEvent(event, peerId)
         local.markSyncing()
         scope.launch {
             runCatching {
                 api.join(event.id, JoinEventBody(peerId, "Member"))
             }.onSuccess(::applyServerState)
-                .onFailure { rollback("Unable to join Ping-Ring: ${it.message}") }
+                .onFailure {
+                    local.markSyncError(
+                        "Remote coordination is unavailable. This Ping-Ring is limited to nearby BLE devices."
+                    )
+                    Log.w(TAG, "Unable to join remote Ping-Ring", it)
+                }
         }
     }
 
     override fun hostEvent(event: Event, peerId: String) {
+        remotelyCoordinatedEventId = null
         local.hostEvent(event, peerId)
         local.markSyncing()
         scope.launch {
@@ -133,12 +143,22 @@ class RemoteEventCoordinationRepository(context: Context) : EventCoordinationRep
         }
     }
 
-    override fun updateEvent(event: Event) = local.updateEvent(event)
+    override fun updateEvent(event: Event) {
+        val previousStatus = syncStatus.value
+        local.updateEvent(event)
+        when (previousStatus.state) {
+            CoordinationSyncState.SYNCING -> local.markSyncing()
+            CoordinationSyncState.ERROR -> local.markSyncError(previousStatus.errorMessage.orEmpty())
+            else -> Unit
+        }
+    }
 
     override fun leaveEvent(peerId: String) {
         val event = sessionState.value.currentEvent
+        val wasRemotelyCoordinated = remotelyCoordinatedEventId == event?.id
+        remotelyCoordinatedEventId = null
         local.leaveEvent(peerId)
-        if (event != null) {
+        if (event != null && wasRemotelyCoordinated) {
             scope.launch { runCatching { api.leave(event.id, peerId) } }
         }
     }
@@ -152,7 +172,7 @@ class RemoteEventCoordinationRepository(context: Context) : EventCoordinationRep
 
     fun refresh() {
         val event = sessionState.value.currentEvent ?: return
-        if (syncStatus.value.state != CoordinationSyncState.SYNCED) return
+        if (remotelyCoordinatedEventId != event.id) return
         scope.launch {
             runCatching { api.event(event.id) }
                 .onSuccess(::applyServerState)
@@ -168,24 +188,22 @@ class RemoteEventCoordinationRepository(context: Context) : EventCoordinationRep
 
     fun endEvent(hostPeerId: String) {
         val event = sessionState.value.currentEvent ?: return
+        val wasRemotelyCoordinated = remotelyCoordinatedEventId == event.id
+        remotelyCoordinatedEventId = null
         local.leaveEvent(hostPeerId)
-        scope.launch {
+        if (wasRemotelyCoordinated) scope.launch {
             runCatching { api.end(event.id, EndEventBody(hostPeerId)) }
                 .onFailure { local.markSyncError("Unable to end Ping-Ring: ${it.message}") }
         }
     }
 
     private fun applyServerState(response: EventResponse) {
+        remotelyCoordinatedEventId = response.event.id
         local.updateEvent(response.event.toEvent())
         local.updateMembers(response.members.map { member ->
             Friend(member.peerId, member.name, member.joinedAt, null)
         })
         local.markSynced()
-    }
-
-    private fun rollback(message: String) {
-        local.leaveEvent(sessionState.value.currentEvent?.hostPeerId.orEmpty())
-        local.markSyncError(message)
     }
 
     private fun RemoteEvent.toEvent() = Event(
