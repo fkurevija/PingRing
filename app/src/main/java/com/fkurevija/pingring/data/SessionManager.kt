@@ -7,8 +7,7 @@ import java.util.UUID
 
 class SessionManager(
     context: android.content.Context? = null,
-    private val coordinationRepository: EventCoordinationRepository =
-        context?.let(::RemoteEventCoordinationRepository) ?: InMemoryEventCoordinationRepository()
+    private val coordinationRepository: EventCoordinationRepository = InMemoryEventCoordinationRepository()
 ) {
     val sessionState: StateFlow<SessionState> = coordinationRepository.sessionState
     val syncStatus: StateFlow<CoordinationSyncStatus> = coordinationRepository.syncStatus
@@ -51,8 +50,7 @@ class SessionManager(
 
     fun endHostedEvent() {
         check(sessionState.value.isHost) { "Only the host can end a Ping-Ring." }
-        val remote = coordinationRepository as? RemoteEventCoordinationRepository
-        if (remote != null) remote.endEvent(peerId.value) else leaveEvent()
+        leaveEvent()
     }
 
     fun endEventFromHost() {
@@ -77,6 +75,6 @@ class SessionManager(
     }
 
     fun refreshCoordination() {
-        (coordinationRepository as? RemoteEventCoordinationRepository)?.refresh()
+        // Coordination is now handled P2P via Nearby Connections in DiscoveryRepository
     }
 }
