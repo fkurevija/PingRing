@@ -41,6 +41,7 @@ fun AppSettingsScreen(
     var hapticsEnabled by remember { mutableStateOf(true) }
     var notificationsEnabled by remember { mutableStateOf(true) }
     var themeMenuExpanded by remember { mutableStateOf(false) }
+    var selectedTheme by remember(themeMode) { mutableStateOf(themeMode) }
 
     Scaffold(
         topBar = {
@@ -62,7 +63,7 @@ fun AppSettingsScreen(
                 onExpandedChange = { themeMenuExpanded = it }
             ) {
                 OutlinedTextField(
-                    value = themeMode.label,
+                    value = selectedTheme.label,
                     onValueChange = {},
                     readOnly = true,
                     label = { Text("Theme") },
@@ -79,6 +80,7 @@ fun AppSettingsScreen(
                         DropdownMenuItem(
                             text = { Text(mode.label) },
                             onClick = {
+                                selectedTheme = mode
                                 onThemeModeChange(mode)
                                 themeMenuExpanded = false
                             }

@@ -7,6 +7,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.remember
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Box
@@ -47,7 +48,6 @@ class MainActivity : ComponentActivity() {
         setContent {
             val context = LocalContext.current.applicationContext
             val sessionManager = remember(context) { SessionManager(context = context) }
-            val sessionState by sessionManager.sessionState.collectAsState()
             val appearanceSettings = remember { AppearanceSettingsRepository(context) }
             val themeMode by appearanceSettings.themeMode.collectAsState(
                 initial = com.fkurevija.pingring.data.ThemeMode.SYSTEM
@@ -66,8 +66,7 @@ class MainActivity : ComponentActivity() {
                                 sessionManager = sessionManager,
                                 discoveryRepository = discoveryRepository,
                                 appearanceSettings = appearanceSettings,
-                                themeMode = themeMode,
-                                isVisible = sessionState.isVisible
+                                themeMode = themeMode
                             )
                         }
                     }
@@ -82,14 +81,15 @@ fun MainNavigation(
     sessionManager: SessionManager,
     discoveryRepository: DiscoveryRepository,
     appearanceSettings: AppearanceSettingsRepository,
-    themeMode: com.fkurevija.pingring.data.ThemeMode,
-    isVisible: Boolean
+    themeMode: com.fkurevija.pingring.data.ThemeMode
 ) {
     val backStack: NavBackStack<NavKey> = rememberNavBackStack(HomeKey)
-    val sessionState by sessionManager.sessionState.collectAsState()
+    val currentThemeMode by rememberUpdatedState(themeMode)
 
     NavDisplay(backStack) { key ->
         NavEntry(key) {
+            val sessionState by sessionManager.sessionState.collectAsState()
+            val syncStatus by sessionManager.syncStatus.collectAsState()
             when (key) {
                 is HomeKey -> {
                     HomeScreen(
@@ -139,7 +139,7 @@ fun MainNavigation(
 
                 is AppSettingsKey -> {
                     AppSettingsScreen(
-                        themeMode = themeMode,
+                        themeMode = currentThemeMode,
                         onThemeModeChange = appearanceSettings::setThemeMode,
                         onBack = { backStack.removeLastOrNull() }
                     )
@@ -168,10 +168,11 @@ fun MainNavigation(
                         }
                     } else RadarScreen(
                         eventId = key.eventId,
-                        isVisible = isVisible,
+                        isVisible = sessionState.isVisible,
                         discoveryRepository = discoveryRepository,
                         isHost = sessionState.isHost,
                         trackHost = sessionState.currentEvent?.trackHost == true,
+                        coordinationError = syncStatus.errorMessage,
                         onVisibilityToggle = { sessionManager.setVisibility(it) },
                         onEventSettings = { backStack.add(EventSettingsKey(key.eventId)) },
                         onLeaveEvent = {

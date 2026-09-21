@@ -98,6 +98,7 @@ class RemoteEventCoordinationRepository(context: Context) : EventCoordinationRep
 
     override fun joinEvent(event: Event, peerId: String) {
         local.joinEvent(event, peerId)
+        local.markSyncing()
         scope.launch {
             runCatching {
                 api.join(event.id, JoinEventBody(peerId, "Member"))
@@ -108,6 +109,7 @@ class RemoteEventCoordinationRepository(context: Context) : EventCoordinationRep
 
     override fun hostEvent(event: Event, peerId: String) {
         local.hostEvent(event, peerId)
+        local.markSyncing()
         scope.launch {
             runCatching {
                 api.create(
@@ -122,7 +124,12 @@ class RemoteEventCoordinationRepository(context: Context) : EventCoordinationRep
                     )
                 )
             }.onSuccess(::applyServerState)
-                .onFailure { rollback("Unable to create Ping-Ring: ${it.message}") }
+                .onFailure {
+                    local.markSyncError(
+                        "Remote coordination is unavailable. This Ping-Ring is limited to nearby BLE devices."
+                    )
+                    Log.w(TAG, "Unable to create remote Ping-Ring", it)
+                }
         }
     }
 
@@ -145,6 +152,7 @@ class RemoteEventCoordinationRepository(context: Context) : EventCoordinationRep
 
     fun refresh() {
         val event = sessionState.value.currentEvent ?: return
+        if (syncStatus.value.state != CoordinationSyncState.SYNCED) return
         scope.launch {
             runCatching { api.event(event.id) }
                 .onSuccess(::applyServerState)

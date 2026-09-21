@@ -68,6 +68,7 @@ fun RadarScreen(
     isVisible: Boolean,
     isHost: Boolean,
     trackHost: Boolean,
+    coordinationError: String?,
     discoveryRepository: DiscoveryRepository?,
     onVisibilityToggle: (Boolean) -> Unit,
     onEventSettings: () -> Unit,
@@ -141,50 +142,64 @@ fun RadarScreen(
             }
         }
     ) { padding ->
-        BoxWithConstraints(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp)
-        ) {
-            val wide = maxWidth >= 600.dp
-            if (!isVisible) {
-                InvisibleState(Modifier.fillMaxSize())
-            } else if (wide) {
-                val paneWidth = (maxWidth - 20.dp) / 2
-                Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-                    RadarContent(
-                        if (isHost || !trackHost) nearest else peers.firstOrNull(),
-                        peers.isNotEmpty(),
-                        Modifier.width(paneWidth)
+        Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp)) {
+            coordinationError?.let { message ->
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer
+                    ),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                ) {
+                    Text(
+                        text = message,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.padding(12.dp)
                     )
-                    PeerList(peers, connectivity, discoveryRepository, Modifier.width(paneWidth))
-                }
-            } else {
-                Column(Modifier.fillMaxSize()) {
-                    RadarContent(
-                        if (isHost || !trackHost) nearest else peers.firstOrNull(),
-                        peers.isNotEmpty(),
-                        Modifier.fillMaxWidth().height(320.dp)
-                    )
-                    PeerList(peers, connectivity, discoveryRepository, Modifier.fillMaxWidth())
                 }
             }
-
-            if (showEndConfirmation) {
-                AlertDialog(
-                    onDismissRequest = { showEndConfirmation = false },
-                    title = { Text("End this Ping-Ring?") },
-                    text = {
-                        Text("This removes every member from the Ping-Ring and returns them to the home page.")
-                    },
-                    confirmButton = {
-                        Button(onClick = {
-                            showEndConfirmation = false
-                            onEndEvent()
-                        }) { Text("End Ping-Ring") }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { showEndConfirmation = false }) { Text("Cancel") }
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                val wide = maxWidth >= 600.dp
+                if (!isVisible) {
+                    InvisibleState(Modifier.fillMaxSize())
+                } else if (wide) {
+                    val paneWidth = (maxWidth - 20.dp) / 2
+                    Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                        RadarContent(
+                            if (isHost || !trackHost) nearest else peers.firstOrNull(),
+                            peers.isNotEmpty(),
+                            Modifier.width(paneWidth)
+                        )
+                        PeerList(peers, connectivity, discoveryRepository, Modifier.width(paneWidth))
                     }
-                )
+                } else {
+                    Column(Modifier.fillMaxSize()) {
+                        RadarContent(
+                            if (isHost || !trackHost) nearest else peers.firstOrNull(),
+                            peers.isNotEmpty(),
+                            Modifier.fillMaxWidth().height(320.dp)
+                        )
+                        PeerList(peers, connectivity, discoveryRepository, Modifier.fillMaxWidth())
+                    }
+                }
+
+                if (showEndConfirmation) {
+                    AlertDialog(
+                        onDismissRequest = { showEndConfirmation = false },
+                        title = { Text("End this Ping-Ring?") },
+                        text = {
+                            Text("This removes every member from the Ping-Ring and returns them to the home page.")
+                        },
+                        confirmButton = {
+                            Button(onClick = {
+                                showEndConfirmation = false
+                                onEndEvent()
+                            }) { Text("End Ping-Ring") }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showEndConfirmation = false }) { Text("Cancel") }
+                        }
+                    )
+                }
             }
         }
     }

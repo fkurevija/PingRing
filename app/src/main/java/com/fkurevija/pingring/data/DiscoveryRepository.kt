@@ -73,7 +73,11 @@ class DiscoveryRepository(
 
     private var repositoryScope: CoroutineScope? = null
     private var bleAdvertiser: BluetoothLeAdvertiser? = null
+    private var advertiseCallback: AdvertiseCallback? = null
+    private var advertisingActive = false
     private var closureAdvertiser: BluetoothLeAdvertiser? = null
+    private var closureAdvertiseCallback: AdvertiseCallback? = null
+    private var closureAdvertisingActive = false
     private var bleScanner: BluetoothLeScanner? = null
     private var closureAnnouncementJob: Job? = null
     private val controlScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
@@ -145,22 +149,6 @@ class DiscoveryRepository(
         _peerUpdates.value = emptyMap()
     }
 
-    private val advertiseCallback = object : AdvertiseCallback() {
-        override fun onStartSuccess(settingsInEffect: AdvertiseSettings?) {
-            Log.d(TAG, "BLE Advertising started successfully")
-        }
-
-        override fun onStartFailure(errorCode: Int) {
-            Log.e(TAG, "BLE Advertising failed to start: $errorCode")
-        }
-    }
-
-    private val closureAdvertiseCallback = object : AdvertiseCallback() {
-        override fun onStartFailure(errorCode: Int) {
-            Log.e(TAG, "Ping-Ring closure announcement failed to start: $errorCode")
-        }
-    }
-
     private val scanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult?) {
             result?.let { handleScanResult(it) }
@@ -175,13 +163,13 @@ class DiscoveryRepository(
         }
     }
 
+    @Synchronized
     private fun startBleAdvertising() {
         val adapter = bluetoothAdapter ?: return
         if (!adapter.isEnabled) return
-        bleAdvertiser = adapter.bluetoothLeAdvertiser ?: return
-
         val currentPeerId = sessionManager.peerId.value
         val currentEvent = sessionManager.sessionState.value.currentEvent ?: return
+        val advertiser = adapter.bluetoothLeAdvertiser ?: return
         val peerIdBytes = currentPeerId.toByteArray(StandardCharsets.UTF_8).copyOf(8)
         val flags = (if (sessionManager.sessionState.value.isHost) hostFlag else 0) or
             (if (currentEvent.trackHost) trackHostFlag else 0)
@@ -199,20 +187,59 @@ class DiscoveryRepository(
             .addServiceData(ParcelUuid(PINGRING_SERVICE_UUID), servicePayload)
             .build()
 
+        val callback = object : AdvertiseCallback() {
+            override fun onStartSuccess(settingsInEffect: AdvertiseSettings?) {
+                synchronized(this@DiscoveryRepository) {
+                    if (advertiseCallback === this) {
+                        advertisingActive = true
+                        Log.d(TAG, "BLE Advertising started successfully")
+                    } else {
+                        advertiser.stopAdvertising(this)
+                    }
+                }
+            }
+
+            override fun onStartFailure(errorCode: Int) {
+                synchronized(this@DiscoveryRepository) {
+                    if (advertiseCallback === this) {
+                        advertiseCallback = null
+                        bleAdvertiser = null
+                        advertisingActive = false
+                    }
+                }
+                Log.e(TAG, "BLE Advertising failed to start: $errorCode")
+            }
+        }
+        bleAdvertiser = advertiser
+        advertiseCallback = callback
+        advertisingActive = false
         try {
-            bleAdvertiser?.startAdvertising(settings, data, advertiseCallback)
+            advertiser.startAdvertising(settings, data, callback)
         } catch (e: Exception) {
+            if (advertiseCallback === callback) {
+                advertiseCallback = null
+                bleAdvertiser = null
+                advertisingActive = false
+            }
             Log.e(TAG, "Exception starting BLE advertising", e)
         }
     }
 
+    @Synchronized
     private fun stopBleAdvertising() {
-        try {
-            bleAdvertiser?.stopAdvertising(advertiseCallback)
-        } catch (e: Exception) {
-            Log.e(TAG, "Exception stopping BLE advertising", e)
-        }
+        val advertiser = bleAdvertiser
+        val callback = advertiseCallback
         bleAdvertiser = null
+        advertiseCallback = null
+        val shouldStop = advertisingActive
+        advertisingActive = false
+        if (advertiser != null && callback != null && shouldStop) {
+            try {
+                advertiser.stopAdvertising(callback)
+            } catch (e: Exception) {
+                Log.e(TAG, "Exception stopping BLE advertising", e)
+            }
+        }
     }
 
     /**
@@ -237,10 +264,33 @@ class DiscoveryRepository(
             .build()
         try {
             closureAnnouncementJob?.cancel()
-            closureAdvertiser?.stopAdvertising(closureAdvertiseCallback)
-            bleAdvertiser?.stopAdvertising(advertiseCallback)
-            bleAdvertiser = null
+            stopClosureAdvertising()
+            stopBleAdvertising()
+            val callback = object : AdvertiseCallback() {
+                override fun onStartSuccess(settingsInEffect: AdvertiseSettings?) {
+                    synchronized(this@DiscoveryRepository) {
+                        if (closureAdvertiseCallback === this) {
+                            closureAdvertisingActive = true
+                        } else {
+                            advertiser.stopAdvertising(this)
+                        }
+                    }
+                }
+
+                override fun onStartFailure(errorCode: Int) {
+                    synchronized(this@DiscoveryRepository) {
+                        if (closureAdvertiseCallback === this) {
+                            closureAdvertiseCallback = null
+                            closureAdvertiser = null
+                            closureAdvertisingActive = false
+                        }
+                    }
+                    Log.e(TAG, "Ping-Ring closure announcement failed to start: $errorCode")
+                }
+            }
             closureAdvertiser = advertiser
+            closureAdvertiseCallback = callback
+            closureAdvertisingActive = false
             advertiser.startAdvertising(
                 AdvertiseSettings.Builder()
                     .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
@@ -248,15 +298,32 @@ class DiscoveryRepository(
                     .setConnectable(false)
                     .build(),
                 data,
-                closureAdvertiseCallback
+                callback
             )
             closureAnnouncementJob = controlScope.launch {
                 delay(CLOSURE_ANNOUNCEMENT_DURATION_MILLIS)
-                closureAdvertiser?.stopAdvertising(closureAdvertiseCallback)
-                closureAdvertiser = null
+                stopClosureAdvertising()
             }
         } catch (exception: Exception) {
+            stopClosureAdvertising()
             Log.e(TAG, "Unable to announce Ping-Ring closure", exception)
+        }
+    }
+
+    @Synchronized
+    private fun stopClosureAdvertising() {
+        val advertiser = closureAdvertiser
+        val callback = closureAdvertiseCallback
+        closureAdvertiser = null
+        closureAdvertiseCallback = null
+        val shouldStop = closureAdvertisingActive
+        closureAdvertisingActive = false
+        if (advertiser != null && callback != null && shouldStop) {
+            try {
+                advertiser.stopAdvertising(callback)
+            } catch (exception: Exception) {
+                Log.e(TAG, "Unable to stop Ping-Ring closure announcement", exception)
+            }
         }
     }
 
