@@ -8,10 +8,10 @@ lifecycleRuntimeKtx = "2.8.7"
 lifecycleViewmodelCompose = "2.8.7"
 lifecycleRuntimeCompose = "2.8.7"
 activityCompose = "1.10.1"
-kotlin = "2.2.10"
+kotlin = "2.4.20"
 composeBom = "2024.09.00"
 googleDevtoolsKsp = "2.3.5"
-jetbrainsKotlinPluginSerialization = "2.2.21"
+jetbrainsKotlinPluginSerialization = "2.4.20"
 kotlinxSerializationCore = "1.9.0"
 navigation3Ui = "1.0.1"
 navigation3Runtime = "1.0.1"
@@ -44,6 +44,7 @@ moshiKotlinCodegen = "1.15.2"
 datastorePreferences = "1.1.7"
 material = "1.4.0"
 mlkitBarcodeScanning = "17.3.0"
+playServicesNearby = "19.5.0"
 zxing = "3.5.3"
 ktor = "3.6.0"
 logback = "1.5.18"
@@ -100,6 +101,7 @@ moshi-kotlin-codegen = { group = "com.squareup.moshi", name = "moshi-kotlin-code
 androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastorePreferences" }
 material = { group = "com.google.android.material", name = "material", version.ref = "material" }
 mlkit-barcode-scanning = { group = "com.google.mlkit", name = "barcode-scanning", version.ref = "mlkitBarcodeScanning" }
+play-services-nearby = { group = "com.google.android.gms", name = "play-services-nearby", version.ref = "playServicesNearby" }
 zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxing" }
 
 ktor-server-core = { group = "io.ktor", name = "ktor-server-core", version.ref = "ktor" }

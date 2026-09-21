@@ -24,10 +24,11 @@ fun PermissionWrapper(
         permissions.add(Manifest.permission.BLUETOOTH_SCAN)
         permissions.add(Manifest.permission.BLUETOOTH_CONNECT)
         permissions.add(Manifest.permission.BLUETOOTH_ADVERTISE)
+        permissions.add("android.permission.UWB_RANGING")
     }
 
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        permissions.add("android.permission.UWB_RANGING")
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        permissions.add(Manifest.permission.NEARBY_WIFI_DEVICES)
     }
 
     val permissionState = rememberMultiplePermissionsState(permissions)

@@ -45,7 +45,8 @@ data class ConnectivityStatus(
 @SuppressLint("MissingPermission")
 class DiscoveryRepository(
     private val context: Context,
-    private val sessionManager: SessionManager
+    private val sessionManager: SessionManager,
+    private val nearbyConnectionsManager: NearbyConnectionsManager
 ) : SensorEventListener {
 
     private val TAG = "DiscoveryRepository"
@@ -91,7 +92,6 @@ class DiscoveryRepository(
     // UWB objects
     private var uwbManager: UwbManager? = null
     private var uwbSessionJob: Job? = null
-    private val uwbExchange = UwbSessionExchange()
 
     init {
         rotationMatrix[0] = 1f
@@ -120,25 +120,30 @@ class DiscoveryRepository(
         stopDiscovery()
         repositoryScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
         refreshConnectivityStatus()
-        repositoryScope?.launch {
-            while (isActive) {
-                sessionManager.refreshCoordination()
-                delay(COORDINATION_REFRESH_INTERVAL_MILLIS)
+
+        // 1. Start Nearby Connections
+        val event = sessionManager.sessionState.value.currentEvent
+        if (event != null) {
+            if (sessionManager.sessionState.value.isHost) {
+                nearbyConnectionsManager.startAdvertising(event.id, sessionManager.peerId.value)
+            } else {
+                nearbyConnectionsManager.startDiscovery(event.id)
             }
         }
 
-        // 1. Start BLE Advertising & Scanning
+        // 2. Start BLE Advertising & Scanning
         startBleAdvertising()
         startBleScanning()
 
-        // 2. Start Sensor Fusion
+        // 3. Start Sensor Fusion
         registerSensors()
 
-        // 3. Start foreground-only UWB ranging after exchanging OOB parameters through coordination.
+        // 4. Start foreground-only UWB ranging
         startUwbRangingSession()
     }
 
     fun stopDiscovery() {
+        nearbyConnectionsManager.stopAll()
         stopBleAdvertising()
         stopBleScanning()
         unregisterSensors()
@@ -336,8 +341,6 @@ class DiscoveryRepository(
 
     private companion object {
         const val CLOSURE_ANNOUNCEMENT_DURATION_MILLIS = 5_000L
-        const val COORDINATION_REFRESH_INTERVAL_MILLIS = 5_000L
-        const val UWB_EXCHANGE_POLL_MILLIS = 2_000L
     }
 
     private fun startBleScanning() {
@@ -547,51 +550,50 @@ class DiscoveryRepository(
                         sessionId = event.id.hashCode(),
                         staticStsKey = Base64.encodeToString(sessionKey, Base64.NO_WRAP)
                     )
-                    uwbExchange.publishController(event.id, parameters)
-                    while (isActive) {
-                        val exchange = uwbExchange.get(event.id)
-                        val peer = exchange.peers.firstOrNull { it.peerId != localPeerId }
-                        if (peer != null) {
-                            controller.prepareSession(
-                                RangingParameters(
-                                    RangingParameters.CONFIG_UNICAST_DS_TWR,
-                                    parameters.sessionId,
-                                    0,
-                                    sessionKey,
-                                    null,
-                                    null,
-                                    listOf(UwbDevice.createForAddress(peer.address)),
-                                    RangingParameters.RANGING_UPDATE_RATE_FREQUENT
-                                )
-                            ).collect { result -> updateUwbPosition(peer.peerId, result) }
-                            return@launch
-                        }
-                        delay(UWB_EXCHANGE_POLL_MILLIS)
+
+                    // Collect received peer addresses from members
+                    nearbyConnectionsManager.receivedPeerAddress.collect { peer ->
+                        // Send our controller parameters back to the member
+                        nearbyConnectionsManager.sendUwbParameters(parameters)
+
+                        // Start ranging with the member
+                        controller.prepareSession(
+                            RangingParameters(
+                                RangingParameters.CONFIG_UNICAST_DS_TWR,
+                                parameters.sessionId,
+                                0,
+                                sessionKey,
+                                null,
+                                null,
+                                listOf(UwbDevice.createForAddress(peer.address)),
+                                RangingParameters.RANGING_UPDATE_RATE_FREQUENT
+                            )
+                        ).collect { result -> updateUwbPosition(peer.peerId, result) }
                     }
                 } else {
                     val controlee = manager.controleeSessionScope()
-                    uwbExchange.publishPeerAddress(
-                        event.id,
+
+                    // Send our peer address to the host
+                    // Wait a bit for connection to be established in NearbyConnectionsManager
+                    delay(2000) 
+                    nearbyConnectionsManager.sendUwbParameters(
                         UwbPeerAddressDto(localPeerId, controlee.localAddress.toString())
                     )
-                    while (isActive) {
-                        val controller = uwbExchange.get(event.id).controller
-                        if (controller != null) {
-                            controlee.prepareSession(
-                                RangingParameters(
-                                    RangingParameters.CONFIG_UNICAST_DS_TWR,
-                                    controller.sessionId,
-                                    0,
-                                    Base64.decode(controller.staticStsKey, Base64.NO_WRAP),
-                                    null,
-                                    UwbComplexChannel(controller.channel, controller.preambleIndex),
-                                    listOf(UwbDevice.createForAddress(controller.controllerAddress)),
-                                    RangingParameters.RANGING_UPDATE_RATE_FREQUENT
-                                )
-                            ).collect { result -> updateUwbPosition(controller.hostPeerId, result) }
-                            return@launch
-                        }
-                        delay(UWB_EXCHANGE_POLL_MILLIS)
+
+                    // Collect controller parameters from the host
+                    nearbyConnectionsManager.receivedControllerParams.collect { controllerParams ->
+                        controlee.prepareSession(
+                            RangingParameters(
+                                RangingParameters.CONFIG_UNICAST_DS_TWR,
+                                controllerParams.sessionId,
+                                0,
+                                Base64.decode(controllerParams.staticStsKey, Base64.NO_WRAP),
+                                null,
+                                UwbComplexChannel(controllerParams.channel, controllerParams.preambleIndex),
+                                listOf(UwbDevice.createForAddress(controllerParams.controllerAddress)),
+                                RangingParameters.RANGING_UPDATE_RATE_FREQUENT
+                            )
+                        ).collect { result -> updateUwbPosition(controllerParams.hostPeerId, result) }
                     }
                 }
             } catch (exception: Exception) {

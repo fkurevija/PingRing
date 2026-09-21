@@ -25,6 +25,7 @@ import androidx.navigation3.ui.NavDisplay
 import com.fkurevija.pingring.data.DiscoveryRepository
 import com.fkurevija.pingring.data.Event
 import com.fkurevija.pingring.data.AppearanceSettingsRepository
+import com.fkurevija.pingring.data.NearbyConnectionsManager
 import com.fkurevija.pingring.data.SessionManager
 import com.fkurevija.pingring.ui.navigation.EventJoinKey
 import com.fkurevija.pingring.ui.navigation.EventSettingsKey
@@ -53,7 +54,8 @@ class MainActivity : ComponentActivity() {
             val themeMode by appearanceSettings.themeMode.collectAsState(
                 initial = com.fkurevija.pingring.data.ThemeMode.SYSTEM
             )
-            val discoveryRepository = remember { DiscoveryRepository(context, sessionManager) }
+            val nearbyConnectionsManager = remember(context) { NearbyConnectionsManager(context) }
+            val discoveryRepository = remember { DiscoveryRepository(context, sessionManager, nearbyConnectionsManager) }
 
             PingRingTheme(themeMode = themeMode) {
                 Surface(modifier = Modifier.fillMaxSize()) {

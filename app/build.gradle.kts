@@ -81,6 +81,7 @@ dependencies {
     implementation(libs.moshi.kotlin)
     implementation(libs.okhttp)
     implementation(libs.play.services.location)
+    implementation(libs.play.services.nearby)
     implementation(libs.androidx.uwb)
     implementation(libs.retrofit)
     implementation(libs.accompanist.permissions)
