@@ -8,6 +8,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.material3.Surface
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavEntry
@@ -40,22 +47,30 @@ class MainActivity : ComponentActivity() {
         setContent {
             val context = LocalContext.current.applicationContext
             val sessionManager = remember(context) { SessionManager(context = context) }
-                val sessionState by sessionManager.sessionState.collectAsState()
-                val appearanceSettings = remember { AppearanceSettingsRepository(context) }
-                val themeMode by appearanceSettings.themeMode.collectAsState(
-                    initial = com.fkurevija.pingring.data.ThemeMode.SYSTEM
-                )
-                val discoveryRepository = remember { DiscoveryRepository(context, sessionManager) }
+            val sessionState by sessionManager.sessionState.collectAsState()
+            val appearanceSettings = remember { AppearanceSettingsRepository(context) }
+            val themeMode by appearanceSettings.themeMode.collectAsState(
+                initial = com.fkurevija.pingring.data.ThemeMode.SYSTEM
+            )
+            val discoveryRepository = remember { DiscoveryRepository(context, sessionManager) }
 
-                PingRingTheme(themeMode = themeMode) {
-                    PermissionWrapper {
-                        MainNavigation(
-                            sessionManager = sessionManager,
-                            discoveryRepository = discoveryRepository,
-                            appearanceSettings = appearanceSettings,
-                            themeMode = themeMode,
-                            isVisible = sessionState.isVisible
-                        )
+            PingRingTheme(themeMode = themeMode) {
+                Surface(modifier = Modifier.fillMaxSize()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .windowInsetsPadding(WindowInsets.safeDrawing)
+                    ) {
+                        PermissionWrapper {
+                            MainNavigation(
+                                sessionManager = sessionManager,
+                                discoveryRepository = discoveryRepository,
+                                appearanceSettings = appearanceSettings,
+                                themeMode = themeMode,
+                                isVisible = sessionState.isVisible
+                            )
+                        }
+                    }
                 }
             }
         }

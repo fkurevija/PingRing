@@ -9,11 +9,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.RadioButton
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.Icon
@@ -39,6 +40,7 @@ fun AppSettingsScreen(
 ) {
     var hapticsEnabled by remember { mutableStateOf(true) }
     var notificationsEnabled by remember { mutableStateOf(true) }
+    var themeMenuExpanded by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -54,31 +56,50 @@ fun AppSettingsScreen(
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
             Text("Appearance", style = MaterialTheme.typography.titleLarge)
-            ThemeMode.entries.forEach { mode ->
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
+            Spacer(Modifier.height(8.dp))
+            ExposedDropdownMenuBox(
+                expanded = themeMenuExpanded,
+                onExpandedChange = { themeMenuExpanded = it }
+            ) {
+                OutlinedTextField(
+                    value = themeMode.label,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Theme") },
+                    trailingIcon = {
+                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = themeMenuExpanded)
+                    },
+                    modifier = Modifier.fillMaxWidth().menuAnchor()
+                )
+                ExposedDropdownMenu(
+                    expanded = themeMenuExpanded,
+                    onDismissRequest = { themeMenuExpanded = false }
                 ) {
-                    RadioButton(
-                        selected = themeMode == mode,
-                        onClick = { onThemeModeChange(mode) }
-                    )
-                    TextButton(onClick = { onThemeModeChange(mode) }) {
-                        Text(
-                            when (mode) {
-                                ThemeMode.SYSTEM -> "Use system setting"
-                                ThemeMode.LIGHT -> "Light"
-                                ThemeMode.DARK -> "Dark"
+                    ThemeMode.entries.forEach { mode ->
+                        DropdownMenuItem(
+                            text = { Text(mode.label) },
+                            onClick = {
+                                onThemeModeChange(mode)
+                                themeMenuExpanded = false
                             }
                         )
                     }
                 }
             }
+            Spacer(Modifier.height(16.dp))
             SettingToggle("Haptic proximity alerts", hapticsEnabled) { hapticsEnabled = it }
             SettingToggle("Notifications", notificationsEnabled) { notificationsEnabled = it }
         }
+
     }
 }
+
+private val ThemeMode.label: String
+    get() = when (this) {
+        ThemeMode.SYSTEM -> "Use system setting"
+        ThemeMode.LIGHT -> "Light"
+        ThemeMode.DARK -> "Dark"
+    }
 
 @Composable
 private fun SettingToggle(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
