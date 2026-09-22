@@ -35,7 +35,8 @@ data class RadarPeerUpdate(
     val elevation: Float?, // in degrees
     val worldDirectionX: Float?,
     val worldDirectionY: Float?,
-    val worldDirectionZ: Float?
+    val worldDirectionZ: Float?,
+    val lastSeen: Long
 )
 
 data class ConnectivityStatus(
@@ -125,15 +126,27 @@ class DiscoveryRepository(
 
         // 1. Start Nearby Connections
         val event = sessionManager.sessionState.value.currentEvent
+        val localPeerId = sessionManager.peerId.value
         if (event != null) {
             if (sessionManager.sessionState.value.isHost) {
-                nearbyConnectionsManager.startAdvertising(event.id, sessionManager.peerId.value)
+                nearbyConnectionsManager.startAdvertising(event.id, localPeerId)
             } else {
                 nearbyConnectionsManager.startDiscovery(event.id)
             }
         }
 
-        // 2. Start BLE Advertising & Scanning
+        // 2. Start Periodic Peer Cleanup
+        repositoryScope?.launch {
+            while (isActive) {
+                delay(PEER_CLEANUP_INTERVAL_MILLIS)
+                val now = System.currentTimeMillis()
+                _peerUpdates.update { current ->
+                    current.filterValues { now - it.lastSeen < PEER_EXPIRY_TIMEOUT_MILLIS }
+                }
+            }
+        }
+
+        // 3. Start BLE Advertising & Scanning
         startBleAdvertising()
         startBleScanning()
 
@@ -345,6 +358,8 @@ class DiscoveryRepository(
 
     private companion object {
         const val CLOSURE_ANNOUNCEMENT_DURATION_MILLIS = 5_000L
+        const val PEER_CLEANUP_INTERVAL_MILLIS = 5_000L
+        const val PEER_EXPIRY_TIMEOUT_MILLIS = 15_000L
     }
 
     private fun startBleScanning() {
@@ -401,7 +416,7 @@ class DiscoveryRepository(
             sessionManager.updateEvent(currentEvent)
         }
         if (currentEvent.trackHost && !sessionManager.sessionState.value.isHost && !isHostPeer) return
-        if (peerId.isEmpty()) return
+        if (peerId.isEmpty() || peerId == sessionManager.peerId.value) return
 
         val rssi = result.rssi
         val proximity = if (rssi >= -70) "Hot" else "Cold"
@@ -418,7 +433,8 @@ class DiscoveryRepository(
             elevation = existing?.elevation,
             worldDirectionX = existing?.worldDirectionX,
             worldDirectionY = existing?.worldDirectionY,
-            worldDirectionZ = existing?.worldDirectionZ
+            worldDirectionZ = existing?.worldDirectionZ,
+            lastSeen = System.currentTimeMillis()
         )
 
         _peerUpdates.update { current ->
@@ -647,7 +663,8 @@ class DiscoveryRepository(
                 peerId to current.copy(
                     distance = position.distance?.value,
                     azimuth = position.azimuth?.value,
-                    elevation = position.elevation?.value
+                    elevation = position.elevation?.value,
+                    lastSeen = System.currentTimeMillis()
                 )
             )
         }
