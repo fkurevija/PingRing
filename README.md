@@ -77,6 +77,42 @@ ephemeral peer identifiers. Leaving an event rotates the identifier and clears
 all local peer data. Because the app is P2P, no session data is ever uploaded 
 to a central server.
 
+## Feature overview
+
+### Networking & connectivity
+
+- Tap **Host** to create a Ping-Ring; nearby devices discover it automatically over BLE without any manual pairing or server sign-in.
+- The host advertises over Nearby Connections using the P2P_STAR strategy; guests discover and connect automatically on joining.
+- Toggle **Ultra-wideband (UWB)** and **High Bandwidth (Wi-Fi Direct / Hotspot)** from both the Host Setup and Event Settings screens to match the hardware available at your venue.
+- When UWB is unavailable the app falls back gracefully to BLE RSSI proximity — no configuration required.
+
+### Real-time P2P chat
+
+- Open the chat panel from the Radar screen to send text messages to everyone in the ring.
+- Messages travel over the existing Nearby Connections mesh — no internet connection needed.
+- The host automatically re-broadcasts every incoming message to all other peers, so the full group stays in sync even though guests are only directly connected to the host.
+- Duplicate packets are deduplicated by message ID, so re-broadcasts never produce duplicate bubbles.
+
+### Radar & ranging
+
+- The radar canvas shows all peers simultaneously, each rendered with a directional arrow, distance label, and RSSI indicator.
+- On UWB-capable hardware, sub-metre ranging data (distance, azimuth, elevation) is streamed at up to 30 FPS via concurrent Jetpack UWB sessions — one per peer.
+- Sensor fusion combines the rotation-vector, magnetometer, and accelerometer to rotate each peer arrow into world space so it always points in the correct real-world direction regardless of how you hold the phone.
+- Peers that stop advertising are automatically removed from the radar after 15 seconds of inactivity.
+- The layout is portrait-locked and adapts between compact and wide screen configurations; haptic feedback fires when a peer enters close proximity.
+
+### Session & privacy
+
+- Each session uses an ephemeral peer ID generated at join time; leaving or closing the ring rotates the ID and wipes all local peer data.
+- You never appear on your own radar — the app self-filters its own peer ID from all scan results.
+- The host can end the ring at any time; a BLE closure packet is broadcast to all nearby members, returning them to the Home screen automatically.
+- Visibility can be toggled mid-session from the radar toolbar without leaving the ring.
+
+### Permissions
+
+- A step-by-step rationale flow covers every runtime permission required on Android 12+: Bluetooth, Nearby Devices, Location, Camera, and UWB.
+- Fallback paths are available for every permission — for example, manual event-code entry is always accessible if the camera permission is denied.
+
 ## QR join flow
 
 - Tap **Scan QR Code** from the join screen to open the scanner.
