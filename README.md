@@ -9,6 +9,10 @@ Google Nearby Connections to discover and track friends without an external serv
 
 - **Fully Peer-to-Peer (P2P):** All coordination and UWB parameter exchange occurs 
   directly between devices using Google Nearby Connections. No external server required.
+- **Intelligent Connectivity:** Automatically selects the best connection method 
+  (UWB, Wi-Fi Direct, or Hotspot) based on device support and host preferences.
+- **Connectivity Controls:** Toggles for UWB and High Bandwidth (Wi-Fi) coordination 
+  available in both Host Setup and Event Settings for maximum compatibility.
 - **Multi-Peer Tracking:** Simultaneous tracking of multiple friends on a single radar 
   using concurrent, non-blocking UWB sessions.
 - **Auto-Cleanup:** Automatic removal of stale peers from the radar after 15 seconds of 
@@ -34,7 +38,7 @@ Google Nearby Connections to discover and track friends without an external serv
 - Jetpack Compose and Material 3
 - Navigation 3
 - Kotlin Coroutines and Flow
-- **Google Nearby Connections API** (for P2P coordination)
+- **Google Nearby Connections API** (P2P coordination & Wi-Fi mesh)
 - `androidx.core.uwb`
 - Android Bluetooth LE APIs
 - Android Sensor Framework

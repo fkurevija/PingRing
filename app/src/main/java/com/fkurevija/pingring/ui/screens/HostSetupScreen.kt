@@ -43,13 +43,15 @@ fun HostSetupScreen(
     eventCode: String,
     discoveryRepository: DiscoveryRepository,
     onBack: () -> Unit,
-    onEventChange: (String, Boolean) -> Unit,
+    onEventChange: (String, Boolean, Boolean, Boolean) -> Unit,
     onView: () -> Unit
 ) {
     var name by remember { mutableStateOf("My Ping-Ring") }
     var trackHost by remember { mutableStateOf(false) }
+    var useUwb by remember { mutableStateOf(discoveryRepository.isUwbSupported()) }
+    var useWifiDirect by remember { mutableStateOf(true) }
 
-    LaunchedEffect(discoveryRepository, trackHost) {
+    LaunchedEffect(discoveryRepository, trackHost, useUwb, useWifiDirect) {
         discoveryRepository.startDiscovery()
     }
     DisposableEffect(discoveryRepository) {
@@ -86,7 +88,7 @@ fun HostSetupScreen(
                 value = name,
                 onValueChange = {
                     name = it
-                    onEventChange(it.trim(), trackHost)
+                    onEventChange(it.trim(), trackHost, useUwb, useWifiDirect)
                 },
                 label = { Text("Ping-Ring name") },
                 singleLine = true,
@@ -105,7 +107,42 @@ fun HostSetupScreen(
                     checked = trackHost,
                     onCheckedChange = {
                         trackHost = it
-                        onEventChange(name.trim(), it)
+                        onEventChange(name.trim(), it, useUwb, useWifiDirect)
+                    }
+                )
+            }
+            Spacer(Modifier.height(12.dp))
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Use UWB", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "High-precision ranging (if supported by devices).",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+                Switch(
+                    checked = useUwb,
+                    enabled = discoveryRepository.isUwbSupported(),
+                    onCheckedChange = {
+                        useUwb = it
+                        onEventChange(name.trim(), trackHost, it, useWifiDirect)
+                    }
+                )
+            }
+            Spacer(Modifier.height(12.dp))
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("High Bandwidth (Wi-Fi)", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "Uses Wi-Fi Direct/Hotspot for faster coordination.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+                Switch(
+                    checked = useWifiDirect,
+                    onCheckedChange = {
+                        useWifiDirect = it
+                        onEventChange(name.trim(), trackHost, useUwb, it)
                     }
                 )
             }

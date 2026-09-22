@@ -105,7 +105,9 @@ fun MainNavigation(
                                     description = "PingRing Event",
                                     expiryTimestamp = System.currentTimeMillis() + 3600000,
                                     hostPeerId = sessionManager.peerId.value,
-                                    trackHost = false
+                                    trackHost = false,
+                                    useUwb = discoveryRepository.isUwbSupported(),
+                                    useWifiDirect = true
                                 )
                             )
                             backStack.add(HostSetupKey(eventCode))
@@ -130,9 +132,14 @@ fun MainNavigation(
                             sessionManager.endHostedEvent()
                             backStack.removeLastOrNull()
                         },
-                        onEventChange = { name, trackHost ->
+                        onEventChange = { name, trackHost, useUwb, useWifiDirect ->
                             sessionManager.updateEvent(
-                                event.copy(name = name, trackHost = trackHost)
+                                event.copy(
+                                    name = name, 
+                                    trackHost = trackHost,
+                                    useUwb = useUwb,
+                                    useWifiDirect = useWifiDirect
+                                )
                             )
                         },
                         onView = {

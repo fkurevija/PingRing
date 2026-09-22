@@ -38,6 +38,8 @@ fun EventSettingsScreen(
 ) {
     var name by remember(event) { mutableStateOf(event.name) }
     var visible by remember { mutableStateOf(true) }
+    var useUwb by remember(event) { mutableStateOf(event.useUwb) }
+    var useWifiDirect by remember(event) { mutableStateOf(event.useWifiDirect) }
 
     Scaffold(
         topBar = {
@@ -64,13 +66,34 @@ fun EventSettingsScreen(
             Text("Accept new members", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
             Switch(checked = visible, onCheckedChange = { visible = it })
         }
+        Spacer(Modifier.height(12.dp))
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Use UWB", style = MaterialTheme.typography.titleMedium)
+                Text("High-precision ranging.", style = MaterialTheme.typography.bodySmall)
+            }
+            Switch(checked = useUwb, onCheckedChange = { useUwb = it })
+        }
+        Spacer(Modifier.height(12.dp))
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("High Bandwidth (Wi-Fi)", style = MaterialTheme.typography.titleMedium)
+                Text("Faster coordination.", style = MaterialTheme.typography.bodySmall)
+            }
+            Switch(checked = useWifiDirect, onCheckedChange = { useWifiDirect = it })
+        }
         Spacer(Modifier.weight(1f))
         Row(Modifier.fillMaxWidth()) {
             OutlinedButton(onClick = onBack, modifier = Modifier.weight(1f)) { Text("Cancel") }
             Spacer(Modifier.width(12.dp))
             Button(
                 onClick = {
-                    onSave(event.copy(name = name.trim(), description = if (visible) "PingRing Event" else "Closed"))
+                    onSave(event.copy(
+                        name = name.trim(), 
+                        description = if (visible) "PingRing Event" else "Closed",
+                        useUwb = useUwb,
+                        useWifiDirect = useWifiDirect
+                    ))
                 },
                 enabled = name.isNotBlank(),
                 modifier = Modifier.weight(1f)

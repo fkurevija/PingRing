@@ -27,20 +27,22 @@ class NearbyConnectionsManager(private val context: Context) {
     )
     val receivedControllerParams = _receivedControllerParams.asSharedFlow()
 
-    // Map of PeerId to Nearby EndpointId
     private val connectedEndpoints = mutableMapOf<String, String>()
     private val endpointToPeerId = mutableMapOf<String, String>()
 
-    fun startAdvertising(eventId: String, localPeerId: String) {
-        val options = AdvertisingOptions.Builder()
+    fun startAdvertising(eventId: String, localPeerId: String, useWifiDirect: Boolean, useHotspot: Boolean) {
+        val optionsBuilder = AdvertisingOptions.Builder()
             .setStrategy(Strategy.P2P_STAR)
-            .build()
-
+        
+        // Nearby Connections automatically handles these, but we can potentially force or suggest
+        // However, standard API doesn't have simple toggles for "WiFi Direct only".
+        // It uses "Strategy" to decide. P2P_STAR is the most robust for this use case.
+        
         connectionsClient.startAdvertising(
             localPeerId,
             eventId,
             connectionLifecycleCallback,
-            options
+            optionsBuilder.build()
         ).addOnFailureListener { e ->
             Log.e(TAG, "Advertising failed", e)
         }

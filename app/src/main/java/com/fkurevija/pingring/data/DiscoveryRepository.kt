@@ -56,6 +56,8 @@ class DiscoveryRepository(
     private val hostFlag = 1
     private val trackHostFlag = 1 shl 1
     private val eventClosedFlag = 1 shl 2
+    private val useUwbFlag = 1 shl 3
+    private val useWifiFlag = 1 shl 4
 
     private val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
     private val bluetoothAdapter = bluetoothManager?.adapter
@@ -119,6 +121,10 @@ class DiscoveryRepository(
         _connectivityStatus.value = getConnectivityStatus()
     }
 
+    fun isUwbSupported(): Boolean {
+        return context.packageManager.hasSystemFeature("android.hardware.uwb")
+    }
+
     fun startDiscovery() {
         stopDiscovery()
         repositoryScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
@@ -129,7 +135,12 @@ class DiscoveryRepository(
         val localPeerId = sessionManager.peerId.value
         if (event != null) {
             if (sessionManager.sessionState.value.isHost) {
-                nearbyConnectionsManager.startAdvertising(event.id, localPeerId)
+                nearbyConnectionsManager.startAdvertising(
+                    event.id, 
+                    localPeerId, 
+                    event.useWifiDirect, 
+                    event.useHotspot
+                )
             } else {
                 nearbyConnectionsManager.startDiscovery(event.id)
             }
@@ -194,7 +205,9 @@ class DiscoveryRepository(
         val advertiser = adapter.bluetoothLeAdvertiser ?: return
         val peerIdBytes = currentPeerId.toByteArray(StandardCharsets.UTF_8).copyOf(8)
         val flags = (if (sessionManager.sessionState.value.isHost) hostFlag else 0) or
-            (if (currentEvent.trackHost) trackHostFlag else 0)
+            (if (currentEvent.trackHost) trackHostFlag else 0) or
+            (if (currentEvent.useUwb) useUwbFlag else 0) or
+            (if (currentEvent.useWifiDirect) useWifiFlag else 0)
         val servicePayload = buildServicePayload(currentEvent.id.hashCode(), flags, peerIdBytes)
 
         val settings = AdvertiseSettings.Builder()
@@ -279,7 +292,7 @@ class DiscoveryRepository(
                 ParcelUuid(PINGRING_SERVICE_UUID),
                 buildServicePayload(
                     event.id.hashCode(),
-                    hostFlag or eventClosedFlag,
+                    hostFlag or eventClosedFlag or (if (event.useUwb) useUwbFlag else 0) or (if (event.useWifiDirect) useWifiFlag else 0),
                     sessionManager.peerId.value.toByteArray(StandardCharsets.UTF_8).copyOf(8)
                 )
             )
@@ -401,6 +414,8 @@ class DiscoveryRepository(
         val flags = payload.get().toInt()
         val isHostPeer = flags and hostFlag != 0
         val hostTracksMembers = flags and trackHostFlag != 0
+        val hostUsesUwb = flags and useUwbFlag != 0
+        val hostUsesWifi = flags and useWifiFlag != 0
         val peerId = String(ByteArray(payload.remaining()).also(payload::get), StandardCharsets.UTF_8).trim()
         var currentEvent = sessionManager.sessionState.value.currentEvent ?: return
         if (eventHash != currentEvent.id.hashCode()) return
@@ -411,7 +426,9 @@ class DiscoveryRepository(
         if (isHostPeer && !sessionManager.sessionState.value.isHost) {
             currentEvent = currentEvent.copy(
                 hostPeerId = peerId,
-                trackHost = hostTracksMembers
+                trackHost = hostTracksMembers,
+                useUwb = hostUsesUwb,
+                useWifiDirect = hostUsesWifi
             )
             sessionManager.updateEvent(currentEvent)
         }
@@ -565,7 +582,10 @@ class DiscoveryRepository(
         val localPeerId = sessionManager.peerId.value
 
         uwbSessionJob = scope.launch {
-            if (manager == null) return@launch
+            if (manager == null || !event.useUwb) {
+                Log.d(TAG, "UWB ranging disabled or unavailable")
+                return@launch
+            }
             try {
                 if (sessionManager.sessionState.value.isHost) {
                     val controller = manager.controllerSessionScope()

@@ -9,7 +9,10 @@ data class Event(
     val description: String,
     val expiryTimestamp: Long,
     val hostPeerId: String? = null,
-    val trackHost: Boolean = false
+    val trackHost: Boolean = false,
+    val useUwb: Boolean = true,
+    val useWifiDirect: Boolean = true,
+    val useHotspot: Boolean = false
 )
 
 @Serializable
