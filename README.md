@@ -9,16 +9,22 @@ Google Nearby Connections to discover and track friends without an external serv
 
 - **Fully Peer-to-Peer (P2P):** All coordination and UWB parameter exchange occurs 
   directly between devices using Google Nearby Connections. No external server required.
+- **Multi-Peer Tracking:** Simultaneous tracking of multiple friends on a single radar 
+  using concurrent, non-blocking UWB sessions.
+- **Auto-Cleanup:** Automatic removal of stale peers from the radar after 15 seconds of 
+  inactivity to ensure data accuracy.
 - **Event-code join flow:** Built with Jetpack Compose and Navigation 3.
 - **QR Scanning:** Camera-based join flow using CameraX and on-device ML Kit QR decoding.
-- **Session-scoped Privacy:** Ephemeral peer IDs and visibility controls.
+- **Session-scoped Privacy:** Ephemeral peer IDs and visibility controls. Self-filtering 
+  ensures you don't appear on your own radar.
 - **Host-only Event Closure:** Clear the event locally and broadcast closure to 
   nearby members via BLE, returning them to the Home screen.
-- **High-Precision Ranging:** Real Jetpack UWB session setup on supported devices.
+- **High-Precision Ranging:** Real Jetpack UWB session setup on supported devices with 
+  throttled 30 FPS world-space vector updates for performance stability.
 - **Sensor Fusion:** Integration of rotation-vector, magnetometer, and accelerometer 
   sensors for world-space direction calculation.
-- **Adaptive Radar UI:** Dynamic layout that adapts to compact and wide screens, 
-  featuring directional arrows, distance, RSSI, and haptic feedback.
+- **Adaptive Radar UI:** Portrait-locked dynamic layout that adapts to compact and 
+  wide screens, featuring directional arrows, distance, RSSI, and haptic feedback.
 - **Android 12+ Permissions:** Comprehensive rationale flow for Bluetooth, 
   Location, Nearby Devices, and UWB permissions.
 
