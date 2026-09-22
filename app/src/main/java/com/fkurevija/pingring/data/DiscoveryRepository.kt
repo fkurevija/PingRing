@@ -157,6 +157,25 @@ class DiscoveryRepository(
             }
         }
 
+        // 2b. Start Chat Message Processing Queue Flow Listener Loop
+        repositoryScope?.launch {
+            nearbyConnectionsManager.receivedChatMessage.collect { dto ->
+                val chatMessage = ChatMessage(
+                    id = dto.id,
+                    senderPeerId = dto.senderPeerId,
+                    senderName = dto.senderName,
+                    messageText = dto.text,
+                    timestamp = dto.timestamp
+                )
+                sessionManager.receiveLocalChatMessage(chatMessage)
+
+                // If we are the Host, broker & re-broadcast the message outwards to all other connected peers
+                if (sessionManager.sessionState.value.isHost) {
+                    nearbyConnectionsManager.broadcastChatMessage(dto)
+                }
+            }
+        }
+
         // 3. Start BLE Advertising & Scanning
         startBleAdvertising()
         startBleScanning()
@@ -194,6 +213,31 @@ class DiscoveryRepository(
         override fun onScanFailed(errorCode: Int) {
             Log.e(TAG, "BLE Scan failed: $errorCode")
         }
+    }
+
+    fun broadcastOutgoingChatMessage(text: String, senderName: String) {
+        val localPeerId = sessionManager.peerId.value
+        val dto = ChatPayloadDto(
+            id = UUID.randomUUID().toString(),
+            senderPeerId = localPeerId,
+            senderName = senderName,
+            text = text,
+            timestamp = System.currentTimeMillis()
+        )
+        
+        // Append locally immediately
+        sessionManager.receiveLocalChatMessage(
+            ChatMessage(
+                id = dto.id,
+                senderPeerId = dto.senderPeerId,
+                senderName = dto.senderName,
+                messageText = dto.text,
+                timestamp = dto.timestamp
+            )
+        )
+
+        // Broadcast to P2P mesh endpoints
+        nearbyConnectionsManager.broadcastChatMessage(dto)
     }
 
     @Synchronized

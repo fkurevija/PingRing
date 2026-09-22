@@ -29,7 +29,7 @@ class InMemoryEventCoordinationRepository : EventCoordinationRepository {
 
     override fun leaveEvent(peerId: String) {
         _sessionState.update {
-            it.copy(currentEvent = null, isHost = false, isVisible = false, friends = emptyList())
+            it.copy(currentEvent = null, isHost = false, isVisible = false, friends = emptyList(), chatMessages = emptyList())
         }
         _syncStatus.value = CoordinationSyncStatus()
     }
@@ -49,6 +49,16 @@ class InMemoryEventCoordinationRepository : EventCoordinationRepository {
         val updatedFriends = _sessionState.value.friends
             .filterNot { it.peerId == member.peerId } + member
         updateMembers(updatedFriends)
+    }
+
+    override fun receiveChatMessage(message: ChatMessage) {
+        _sessionState.update { current ->
+            if (current.chatMessages.any { it.id == message.id }) {
+                current
+            } else {
+                current.copy(chatMessages = current.chatMessages + message)
+            }
+        }
     }
 
     override fun markSyncing() {

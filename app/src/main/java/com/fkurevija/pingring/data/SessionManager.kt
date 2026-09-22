@@ -43,6 +43,10 @@ class SessionManager(
         coordinationRepository.updateEvent(event)
     }
 
+    fun receiveLocalChatMessage(message: ChatMessage) {
+        coordinationRepository.receiveChatMessage(message)
+    }
+
     fun leaveEvent() {
         coordinationRepository.leaveEvent(peerId.value)
         _peerId.value = generatePeerId() // Rotate peer ID for privacy

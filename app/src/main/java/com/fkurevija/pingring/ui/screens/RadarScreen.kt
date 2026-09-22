@@ -22,7 +22,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BluetoothDisabled
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -32,6 +33,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -57,9 +59,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import com.fkurevija.pingring.data.ChatMessage
 import com.fkurevija.pingring.data.ConnectivityStatus
 import com.fkurevija.pingring.data.DiscoveryRepository
 import com.fkurevija.pingring.data.RadarPeerUpdate
+import com.fkurevija.pingring.data.SessionState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -70,6 +74,7 @@ fun RadarScreen(
     trackHost: Boolean,
     coordinationError: String?,
     discoveryRepository: DiscoveryRepository?,
+    sessionState: SessionState,
     onVisibilityToggle: (Boolean) -> Unit,
     onEventSettings: () -> Unit,
     onLeaveEvent: () -> Unit,
@@ -109,7 +114,7 @@ fun RadarScreen(
                         if (isHost) showEndConfirmation = true else onLeaveEvent()
                     }) {
                         Icon(
-                            Icons.Default.ArrowBack,
+                            Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = if (isHost) "End Ping-Ring" else "Leave Ping-Ring"
                         )
                     }
@@ -176,9 +181,63 @@ fun RadarScreen(
                         RadarContent(
                             if (isHost || !trackHost) nearest else peers.firstOrNull(),
                             peers.isNotEmpty(),
-                            Modifier.fillMaxWidth().height(320.dp)
+                            Modifier.fillMaxWidth().height(260.dp)
                         )
-                        PeerList(peers, connectivity, discoveryRepository, Modifier.fillMaxWidth())
+                        
+                        var chatText by remember { mutableStateOf("") }
+                        Card(
+                            modifier = Modifier.fillMaxWidth().weight(1f).padding(vertical = 8.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                        ) {
+                            Column(Modifier.fillMaxSize().padding(8.dp)) {
+                                Text("Ping-Ring Chat", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                                LazyColumn(
+                                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    items(sessionState.chatMessages) { msg ->
+                                        Column(
+                                            modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                                            horizontalAlignment = Alignment.Start
+                                        ) {
+                                            Card(
+                                                shape = RoundedCornerShape(8.dp),
+                                                colors = CardDefaults.cardColors(
+                                                    containerColor = MaterialTheme.colorScheme.secondaryContainer
+                                                )
+                                            ) {
+                                                Column(Modifier.padding(8.dp)) {
+                                                    Text(msg.senderName, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                                                    Text(msg.messageText, style = MaterialTheme.typography.bodyMedium)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    OutlinedTextField(
+                                        value = chatText,
+                                        onValueChange = { chatText = it },
+                                        placeholder = { Text("Message...") },
+                                        modifier = Modifier.weight(1f).padding(end = 4.dp),
+                                        maxLines = 2
+                                    )
+                                    Button(
+                                        onClick = {
+                                            if (chatText.isNotBlank()) {
+                                                discoveryRepository?.broadcastOutgoingChatMessage(chatText, if (isHost) "Host" else "Peer")
+                                                chatText = ""
+                                            }
+                                        }
+                                    ) {
+                                        Text("Send")
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
 

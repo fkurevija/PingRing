@@ -7,8 +7,10 @@ Google Nearby Connections to discover and track friends without an external serv
 
 ## Implemented
 
-- **Fully Peer-to-Peer (P2P):** All coordination and UWB parameter exchange occurs 
+- **Fully Peer-to-Peer (P2P):** All coordination, chat messaging, and UWB parameter exchange occurs 
   directly between devices using Google Nearby Connections. No external server required.
+- **Real-Time P2P Chat:** Decentralized group text messaging across hosted and joined 
+  Ping-Ring events. The host automatically brokers packets outward to all remote mesh nodes.
 - **Intelligent Connectivity:** Automatically selects the best connection method 
   (UWB, Wi-Fi Direct, or Hotspot) based on device support and host preferences.
 - **Connectivity Controls:** Toggles for Ultra-wideband (UWB) and High Bandwidth (Wi-Fi) 

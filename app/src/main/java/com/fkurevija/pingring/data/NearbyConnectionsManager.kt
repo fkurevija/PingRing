@@ -27,6 +27,12 @@ class NearbyConnectionsManager(private val context: Context) {
     )
     val receivedControllerParams = _receivedControllerParams.asSharedFlow()
 
+    private val _receivedChatMessage = MutableSharedFlow<ChatPayloadDto>(
+        extraBufferCapacity = 10,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+    val receivedChatMessage = _receivedChatMessage.asSharedFlow()
+
     private val connectedEndpoints = mutableMapOf<String, String>()
     private val endpointToPeerId = mutableMapOf<String, String>()
 
@@ -85,10 +91,22 @@ class NearbyConnectionsManager(private val context: Context) {
         }
     }
 
+    fun broadcastChatMessage(chatMsg: ChatPayloadDto) {
+        connectedEndpoints.values.forEach { endpointId ->
+            sendPayloadToEndpoint(endpointId, chatMsg)
+        }
+    }
+
+    fun sendChatMessageToPeer(peerId: String, chatMsg: ChatPayloadDto) {
+        val endpointId = connectedEndpoints[peerId] ?: return
+        sendPayloadToEndpoint(endpointId, chatMsg)
+    }
+
     private fun sendPayloadToEndpoint(endpointId: String, params: Any) {
         val json = when (params) {
             is UwbControllerParametersDto -> moshi.adapter(UwbControllerParametersDto::class.java).toJson(params)
             is UwbPeerAddressDto -> moshi.adapter(UwbPeerAddressDto::class.java).toJson(params)
+            is ChatPayloadDto -> moshi.adapter(ChatPayloadDto::class.java).toJson(params)
             else -> return
         }
         val payload = Payload.fromBytes(json.toByteArray())
@@ -153,6 +171,15 @@ class NearbyConnectionsManager(private val context: Context) {
                     val peerAddress = moshi.adapter(UwbPeerAddressDto::class.java).fromJson(json)
                     if (peerAddress != null) {
                         _receivedPeerAddress.tryEmit(peerAddress)
+                        return
+                    }
+                } catch (e: Exception) {}
+
+                // Then try as Chat Message
+                try {
+                    val chatMsg = moshi.adapter(ChatPayloadDto::class.java).fromJson(json)
+                    if (chatMsg != null) {
+                        _receivedChatMessage.tryEmit(chatMsg)
                         return
                     }
                 } catch (e: Exception) {}

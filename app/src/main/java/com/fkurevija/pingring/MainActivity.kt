@@ -219,6 +219,7 @@ fun MainNavigation(
                         isHost = sessionState.isHost,
                         trackHost = sessionState.currentEvent?.trackHost == true,
                         coordinationError = syncStatus.errorMessage,
+                        sessionState = sessionState,
                         onVisibilityToggle = { sessionManager.setVisibility(it) },
                         onEventSettings = { backStack.add(EventSettingsKey(key.eventId)) },
                         onLeaveEvent = {

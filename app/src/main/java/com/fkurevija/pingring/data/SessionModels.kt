@@ -24,9 +24,19 @@ data class Friend(
 )
 
 @Serializable
+data class ChatMessage(
+    val id: String,
+    val senderPeerId: String,
+    val senderName: String,
+    val messageText: String,
+    val timestamp: Long
+)
+
+@Serializable
 data class SessionState(
     val currentEvent: Event? = null,
     val isHost: Boolean = false,
     val isVisible: Boolean = false,
-    val friends: List<Friend> = emptyList()
+    val friends: List<Friend> = emptyList(),
+    val chatMessages: List<ChatMessage> = emptyList()
 )
