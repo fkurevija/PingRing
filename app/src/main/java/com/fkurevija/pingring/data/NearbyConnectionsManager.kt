@@ -27,7 +27,9 @@ class NearbyConnectionsManager(private val context: Context) {
     )
     val receivedControllerParams = _receivedControllerParams.asSharedFlow()
 
-    private var activeEndpointId: String? = null
+    // Map of PeerId to Nearby EndpointId
+    private val connectedEndpoints = mutableMapOf<String, String>()
+    private val endpointToPeerId = mutableMapOf<String, String>()
 
     fun startAdvertising(eventId: String, localPeerId: String) {
         val options = AdvertisingOptions.Builder()
@@ -62,11 +64,26 @@ class NearbyConnectionsManager(private val context: Context) {
         connectionsClient.stopAdvertising()
         connectionsClient.stopDiscovery()
         connectionsClient.stopAllEndpoints()
-        activeEndpointId = null
+        connectedEndpoints.clear()
+        endpointToPeerId.clear()
     }
 
-    fun sendUwbParameters(params: Any) {
-        val endpointId = activeEndpointId ?: return
+    fun sendUwbParameters(peerId: String, params: Any) {
+        val endpointId = connectedEndpoints[peerId] ?: return
+        sendPayloadToEndpoint(endpointId, params)
+    }
+
+    /**
+     * Sends parameters to all connected endpoints. 
+     * Useful for members to send their address to the host before they know the host's peerId.
+     */
+    fun broadcastUwbParameters(params: Any) {
+        connectedEndpoints.values.forEach { endpointId ->
+            sendPayloadToEndpoint(endpointId, params)
+        }
+    }
+
+    private fun sendPayloadToEndpoint(endpointId: String, params: Any) {
         val json = when (params) {
             is UwbControllerParametersDto -> moshi.adapter(UwbControllerParametersDto::class.java).toJson(params)
             is UwbPeerAddressDto -> moshi.adapter(UwbPeerAddressDto::class.java).toJson(params)
@@ -78,18 +95,28 @@ class NearbyConnectionsManager(private val context: Context) {
 
     private val connectionLifecycleCallback = object : ConnectionLifecycleCallback() {
         override fun onConnectionInitiated(endpointId: String, info: ConnectionInfo) {
+            // Store mapping immediately if we have it from info.endpointName (which is peerId)
+            endpointToPeerId[endpointId] = info.endpointName
             connectionsClient.acceptConnection(endpointId, payloadCallback)
         }
 
         override fun onConnectionResult(endpointId: String, result: ConnectionResolution) {
             if (result.status.isSuccess) {
-                activeEndpointId = endpointId
-                Log.d(TAG, "Connected to $endpointId")
+                val peerId = endpointToPeerId[endpointId]
+                if (peerId != null) {
+                    connectedEndpoints[peerId] = endpointId
+                }
+                Log.d(TAG, "Connected to $endpointId (Peer: $peerId)")
+            } else {
+                endpointToPeerId.remove(endpointId)
             }
         }
 
         override fun onDisconnected(endpointId: String) {
-            activeEndpointId = null
+            val peerId = endpointToPeerId.remove(endpointId)
+            if (peerId != null) {
+                connectedEndpoints.remove(peerId)
+            }
             Log.d(TAG, "Disconnected from $endpointId")
         }
     }

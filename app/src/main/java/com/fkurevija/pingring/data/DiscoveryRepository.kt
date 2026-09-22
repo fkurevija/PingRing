@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.*
 import java.nio.charset.StandardCharsets
 import java.nio.ByteBuffer
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicLong
 import java.security.SecureRandom
 import kotlin.math.cos
 import kotlin.math.sin
@@ -92,6 +93,7 @@ class DiscoveryRepository(
     // UWB objects
     private var uwbManager: UwbManager? = null
     private var uwbSessionJob: Job? = null
+    private val activeRangingJobs = mutableMapOf<String, Job>()
 
     init {
         rotationMatrix[0] = 1f
@@ -149,6 +151,8 @@ class DiscoveryRepository(
         unregisterSensors()
         uwbSessionJob?.cancel()
         uwbSessionJob = null
+        activeRangingJobs.values.forEach { it.cancel() }
+        activeRangingJobs.clear()
         repositoryScope?.cancel()
         repositoryScope = null
         _peerUpdates.value = emptyMap()
@@ -500,7 +504,15 @@ class DiscoveryRepository(
         _deviceHeading.value = headingDegrees
     }
 
+    private val lastWorldVectorUpdate = AtomicLong(0L)
+    private val WORLD_VECTOR_UPDATE_INTERVAL = 33L // ~30 FPS
+
     private fun updateWorldVectors() {
+        val now = System.currentTimeMillis()
+        val lastUpdate = lastWorldVectorUpdate.get()
+        if (now - lastUpdate < WORLD_VECTOR_UPDATE_INTERVAL) return
+        if (!lastWorldVectorUpdate.compareAndSet(lastUpdate, now)) return
+
         // Recalculate world directional vectors for all peers that have UWB/RSSI direction info
         _peerUpdates.update { current ->
             current.mapValues { (_, peer) ->
@@ -551,49 +563,74 @@ class DiscoveryRepository(
                         staticStsKey = Base64.encodeToString(sessionKey, Base64.NO_WRAP)
                     )
 
-                    // Collect received peer addresses from members
+                    // Launch a separate coroutine to handle each peer connection
                     nearbyConnectionsManager.receivedPeerAddress.collect { peer ->
-                        // Send our controller parameters back to the member
-                        nearbyConnectionsManager.sendUwbParameters(parameters)
+                        // Don't start a new session if one is already active for this peer
+                        if (activeRangingJobs[peer.peerId]?.isActive == true) return@collect
 
-                        // Start ranging with the member
-                        controller.prepareSession(
-                            RangingParameters(
-                                RangingParameters.CONFIG_UNICAST_DS_TWR,
-                                parameters.sessionId,
-                                0,
-                                sessionKey,
-                                null,
-                                null,
-                                listOf(UwbDevice.createForAddress(peer.address)),
-                                RangingParameters.RANGING_UPDATE_RATE_FREQUENT
-                            )
-                        ).collect { result -> updateUwbPosition(peer.peerId, result) }
+                        activeRangingJobs[peer.peerId] = launch {
+                            try {
+                                // Send our controller parameters back to the member
+                                nearbyConnectionsManager.sendUwbParameters(peer.peerId, parameters)
+
+                                // Start ranging with the member in a non-blocking flow
+                                controller.prepareSession(
+                                    RangingParameters(
+                                        RangingParameters.CONFIG_UNICAST_DS_TWR,
+                                        parameters.sessionId,
+                                        0,
+                                        sessionKey,
+                                        null,
+                                        null,
+                                        listOf(UwbDevice.createForAddress(peer.address)),
+                                        RangingParameters.RANGING_UPDATE_RATE_FREQUENT
+                                    )
+                                ).collect { result -> updateUwbPosition(peer.peerId, result) }
+                            } catch (e: Exception) {
+                                Log.e(TAG, "UWB session failed for peer ${peer.peerId}", e)
+                            } finally {
+                                activeRangingJobs.remove(peer.peerId)
+                            }
+                        }
                     }
                 } else {
                     val controlee = manager.controleeSessionScope()
 
-                    // Send our peer address to the host
-                    // Wait a bit for connection to be established in NearbyConnectionsManager
-                    delay(2000) 
-                    nearbyConnectionsManager.sendUwbParameters(
-                        UwbPeerAddressDto(localPeerId, controlee.localAddress.toString())
-                    )
+                    // Periodically send our peer address to the host until ranging starts
+                    launch {
+                        while (isActive) {
+                            nearbyConnectionsManager.broadcastUwbParameters(
+                                UwbPeerAddressDto(localPeerId, controlee.localAddress.toString())
+                            )
+                            delay(5000)
+                        }
+                    }
 
                     // Collect controller parameters from the host
                     nearbyConnectionsManager.receivedControllerParams.collect { controllerParams ->
-                        controlee.prepareSession(
-                            RangingParameters(
-                                RangingParameters.CONFIG_UNICAST_DS_TWR,
-                                controllerParams.sessionId,
-                                0,
-                                Base64.decode(controllerParams.staticStsKey, Base64.NO_WRAP),
-                                null,
-                                UwbComplexChannel(controllerParams.channel, controllerParams.preambleIndex),
-                                listOf(UwbDevice.createForAddress(controllerParams.controllerAddress)),
-                                RangingParameters.RANGING_UPDATE_RATE_FREQUENT
-                            )
-                        ).collect { result -> updateUwbPosition(controllerParams.hostPeerId, result) }
+                        // Don't start a new session if one is already active for the host
+                        if (activeRangingJobs[controllerParams.hostPeerId]?.isActive == true) return@collect
+
+                        activeRangingJobs[controllerParams.hostPeerId] = launch {
+                            try {
+                                controlee.prepareSession(
+                                    RangingParameters(
+                                        RangingParameters.CONFIG_UNICAST_DS_TWR,
+                                        controllerParams.sessionId,
+                                        0,
+                                        Base64.decode(controllerParams.staticStsKey, Base64.NO_WRAP),
+                                        null,
+                                        UwbComplexChannel(controllerParams.channel, controllerParams.preambleIndex),
+                                        listOf(UwbDevice.createForAddress(controllerParams.controllerAddress)),
+                                        RangingParameters.RANGING_UPDATE_RATE_FREQUENT
+                                    )
+                                ).collect { result -> updateUwbPosition(controllerParams.hostPeerId, result) }
+                            } catch (e: Exception) {
+                                Log.e(TAG, "UWB session failed with host", e)
+                            } finally {
+                                activeRangingJobs.remove(controllerParams.hostPeerId)
+                            }
+                        }
                     }
                 }
             } catch (exception: Exception) {
