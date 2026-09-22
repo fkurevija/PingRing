@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation3.runtime.NavBackStack
@@ -95,22 +96,36 @@ fun MainNavigation(
             val syncStatus by sessionManager.syncStatus.collectAsState()
             when (key) {
                 is HomeKey -> {
+                    val currentEvent = sessionState.currentEvent
+                    if (currentEvent != null) {
+                        LaunchedEffect(currentEvent) {
+                            backStack.clear()
+                            if (sessionState.isHost) {
+                                backStack.add(HostSetupKey(currentEvent.id))
+                            } else {
+                                backStack.add(RadarKey(currentEvent.id))
+                            }
+                        }
+                    }
+
                     HomeScreen(
                         onHost = {
-                            val eventCode = generateEventCode()
-                            sessionManager.hostEvent(
-                                Event(
-                                    id = eventCode,
-                                    name = "My Ping-Ring",
-                                    description = "PingRing Event",
-                                    expiryTimestamp = System.currentTimeMillis() + 3600000,
-                                    hostPeerId = sessionManager.peerId.value,
-                                    trackHost = false,
-                                    useUwb = discoveryRepository.isUwbSupported(),
-                                    useWifiDirect = true
+                            if (sessionManager.sessionState.value.currentEvent == null) {
+                                val eventCode = generateEventCode()
+                                sessionManager.hostEvent(
+                                    Event(
+                                        id = eventCode,
+                                        name = "My Ping-Ring",
+                                        description = "PingRing Event",
+                                        expiryTimestamp = System.currentTimeMillis() + 3600000,
+                                        hostPeerId = sessionManager.peerId.value,
+                                        trackHost = false,
+                                        useUwb = discoveryRepository.isUwbSupported(),
+                                        useWifiDirect = true
+                                    )
                                 )
-                            )
-                            backStack.add(HostSetupKey(eventCode))
+                                backStack.add(HostSetupKey(eventCode))
+                            }
                         },
                         onJoin = { backStack.add(EventJoinKey) },
                         onSettings = { backStack.add(AppSettingsKey) }

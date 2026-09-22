@@ -29,7 +29,8 @@ class DiscoveryRepositoryTest {
             elevation = 10.0f,
             worldDirectionX = 0.5f,
             worldDirectionY = 0.5f,
-            worldDirectionZ = 0.1f
+            worldDirectionZ = 0.1f,
+            lastSeen = System.currentTimeMillis()
         )
         assertEquals("abc12345", update.peerId)
         assertEquals("Hot", update.proximity)
