@@ -114,7 +114,7 @@ fun HostSetupScreen(
             Spacer(Modifier.height(12.dp))
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("Use UWB", style = MaterialTheme.typography.titleMedium)
+                    Text("Ultra-wideband (UWB)", style = MaterialTheme.typography.titleMedium)
                     Text(
                         "High-precision ranging (if supported by devices).",
                         style = MaterialTheme.typography.bodyMedium
@@ -122,7 +122,6 @@ fun HostSetupScreen(
                 }
                 Switch(
                     checked = useUwb,
-                    enabled = discoveryRepository.isUwbSupported(),
                     onCheckedChange = {
                         useUwb = it
                         onEventChange(name.trim(), trackHost, it, useWifiDirect)

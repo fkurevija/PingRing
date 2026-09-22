@@ -69,7 +69,7 @@ fun EventSettingsScreen(
         Spacer(Modifier.height(12.dp))
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("Use UWB", style = MaterialTheme.typography.titleMedium)
+                Text("Ultra-wideband (UWB)", style = MaterialTheme.typography.titleMedium)
                 Text("High-precision ranging.", style = MaterialTheme.typography.bodySmall)
             }
             Switch(checked = useUwb, onCheckedChange = { useUwb = it })

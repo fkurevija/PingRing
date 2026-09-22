@@ -11,8 +11,8 @@ Google Nearby Connections to discover and track friends without an external serv
   directly between devices using Google Nearby Connections. No external server required.
 - **Intelligent Connectivity:** Automatically selects the best connection method 
   (UWB, Wi-Fi Direct, or Hotspot) based on device support and host preferences.
-- **Connectivity Controls:** Toggles for UWB and High Bandwidth (Wi-Fi) coordination 
-  available in both Host Setup and Event Settings for maximum compatibility.
+- **Connectivity Controls:** Toggles for Ultra-wideband (UWB) and High Bandwidth (Wi-Fi) 
+  coordination available in both Host Setup and Event Settings for maximum compatibility.
 - **Multi-Peer Tracking:** Simultaneous tracking of multiple friends on a single radar 
   using concurrent, non-blocking UWB sessions.
 - **Auto-Cleanup:** Automatic removal of stale peers from the radar after 15 seconds of 
@@ -50,7 +50,7 @@ Google Nearby Connections to discover and track friends without an external serv
 - JDK 17
 - Android 10 (API 29) or newer
 - Bluetooth and Wi-Fi enabled
-- UWB hardware is optional; the app falls back to BLE proximity/RSSI
+- Ultra-wideband (UWB) hardware is optional; the app falls back to BLE proximity/RSSI
 
 ## Build and test
 
