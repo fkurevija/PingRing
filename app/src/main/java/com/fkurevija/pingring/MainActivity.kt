@@ -23,8 +23,11 @@ import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
+import com.fkurevija.pingring.BuildConfig
 import com.fkurevija.pingring.data.AppearanceSettingsRepository
 import com.fkurevija.pingring.data.DiscoveryRepository
+import com.fkurevija.pingring.data.LanDebugConnectionsManager
+import com.fkurevija.pingring.data.NearbyTransport
 import com.fkurevija.pingring.data.Event
 import com.fkurevija.pingring.data.NearbyConnectionsManager
 import com.fkurevija.pingring.data.SessionManager
@@ -56,8 +59,18 @@ class MainActivity : ComponentActivity() {
             val themeMode by appearanceSettings.themeMode.collectAsState(
                 initial = ThemeMode.SYSTEM
             )
-            val nearbyConnectionsManager = remember(context) { NearbyConnectionsManager(context) }
-            val discoveryRepository = remember { DiscoveryRepository(context, sessionManager, nearbyConnectionsManager) }
+            val lanDebugEnabled by appearanceSettings.lanDebugEnabled.collectAsState(initial = false)
+            val lanDebugHost by appearanceSettings.lanDebugHost.collectAsState(initial = "10.0.2.2")
+            val nearbyConnectionsManager: NearbyTransport = remember(context, lanDebugEnabled, lanDebugHost) {
+                if (BuildConfig.DEBUG && lanDebugEnabled) {
+                    LanDebugConnectionsManager(host = lanDebugHost)
+                } else {
+                    NearbyConnectionsManager(context)
+                }
+            }
+            val discoveryRepository = remember(nearbyConnectionsManager) {
+                DiscoveryRepository(context, sessionManager, nearbyConnectionsManager)
+            }
 
             PingRingTheme(themeMode = themeMode) {
                 Surface(modifier = Modifier.fillMaxSize()) {
@@ -198,6 +211,7 @@ fun MainNavigation(
                     AppSettingsScreen(
                         themeMode = currentThemeMode,
                         onThemeModeChange = appearanceSettings::setThemeMode,
+                        appearanceSettings = appearanceSettings,
                         onBack = { backStack.popBack() }
                     )
                 }

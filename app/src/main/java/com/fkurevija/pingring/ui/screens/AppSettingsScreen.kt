@@ -18,6 +18,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Vibration
+import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenuItem
@@ -34,6 +35,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -42,6 +44,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.fkurevija.pingring.BuildConfig
+import com.fkurevija.pingring.data.AppearanceSettingsRepository
 import com.fkurevija.pingring.data.ThemeMode
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -49,6 +53,7 @@ import com.fkurevija.pingring.data.ThemeMode
 fun AppSettingsScreen(
     themeMode: ThemeMode,
     onThemeModeChange: (ThemeMode) -> Unit,
+    appearanceSettings: AppearanceSettingsRepository,
     onBack: () -> Unit
 ) {
     var hapticsEnabled by remember { mutableStateOf(true) }
@@ -168,6 +173,61 @@ fun AppSettingsScreen(
                             Text("Display alerts for nudges and active beacons", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Switch(checked = notificationsEnabled, onCheckedChange = { notificationsEnabled = it })
+                    }
+                }
+            }
+
+            if (BuildConfig.DEBUG) {
+                val lanDebugEnabled by appearanceSettings.lanDebugEnabled.collectAsState(initial = false)
+                val lanDebugHost by appearanceSettings.lanDebugHost.collectAsState(initial = "10.0.2.2")
+                var hostFieldValue by remember(lanDebugHost) { mutableStateOf(lanDebugHost) }
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                        Text(
+                            "Developer Options",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(Modifier.height(12.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Wifi, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text("Use LAN Debug Transport", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    "Route messages through a local relay instead of Nearby Connections, for testing between the Emulator and a real device",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Switch(checked = lanDebugEnabled, onCheckedChange = appearanceSettings::setLanDebugEnabled)
+                        }
+
+                        if (lanDebugEnabled) {
+                            Spacer(Modifier.height(12.dp))
+                            OutlinedTextField(
+                                value = hostFieldValue,
+                                onValueChange = {
+                                    hostFieldValue = it
+                                    appearanceSettings.setLanDebugHost(it)
+                                },
+                                label = { Text("Relay host") },
+                                supportingText = { Text("10.0.2.2 for Emulator, or 127.0.0.1 after `adb reverse` on a physical device") },
+                                shape = RoundedCornerShape(14.dp),
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
                     }
                 }
             }

@@ -50,7 +50,7 @@ data class ConnectivityStatus(
 class DiscoveryRepository(
     private val context: Context,
     private val sessionManager: SessionManager,
-    private val nearbyConnectionsManager: NearbyConnectionsManager
+    private val nearbyConnectionsManager: NearbyTransport
 ) : SensorEventListener {
 
     private val TAG = "DiscoveryRepository"

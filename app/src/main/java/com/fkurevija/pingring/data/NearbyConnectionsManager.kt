@@ -10,7 +10,7 @@ import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 
-class NearbyConnectionsManager(private val context: Context) {
+class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
     private val TAG = "NearbyConnections"
     private val connectionsClient = Nearby.getConnectionsClient(context)
     private val moshi = Moshi.Builder().addLast(KotlinJsonAdapterFactory()).build()
@@ -19,50 +19,50 @@ class NearbyConnectionsManager(private val context: Context) {
         extraBufferCapacity = 1,
         onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
-    val receivedPeerAddress = _receivedPeerAddress.asSharedFlow()
+    override val receivedPeerAddress = _receivedPeerAddress.asSharedFlow()
 
     private val _receivedControllerParams = MutableSharedFlow<UwbControllerParametersDto>(
         extraBufferCapacity = 1,
         onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
-    val receivedControllerParams = _receivedControllerParams.asSharedFlow()
+    override val receivedControllerParams = _receivedControllerParams.asSharedFlow()
 
     private val _receivedChatMessage = MutableSharedFlow<ChatPayloadDto>(
         extraBufferCapacity = 10,
         onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
-    val receivedChatMessage = _receivedChatMessage.asSharedFlow()
+    override val receivedChatMessage = _receivedChatMessage.asSharedFlow()
 
     private val _receivedChatHistory = MutableSharedFlow<ChatHistoryPayloadDto>(
         extraBufferCapacity = 1,
         onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
-    val receivedChatHistory = _receivedChatHistory.asSharedFlow()
+    override val receivedChatHistory = _receivedChatHistory.asSharedFlow()
 
     private val _connectionEstablished = MutableSharedFlow<String>(
         replay = 1,
         extraBufferCapacity = 4,
         onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
-    val connectionEstablished = _connectionEstablished.asSharedFlow()
+    override val connectionEstablished = _connectionEstablished.asSharedFlow()
 
     private val _receivedNudge = MutableSharedFlow<NudgePayloadDto>(
         extraBufferCapacity = 10,
         onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
-    val receivedNudge = _receivedNudge.asSharedFlow()
+    override val receivedNudge = _receivedNudge.asSharedFlow()
 
     private val _receivedBeacon = MutableSharedFlow<BeaconPayloadDto>(
         extraBufferCapacity = 10,
         onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
-    val receivedBeacon = _receivedBeacon.asSharedFlow()
+    override val receivedBeacon = _receivedBeacon.asSharedFlow()
 
     private val connectedEndpoints = mutableMapOf<String, String>()
     private val endpointToPeerId = mutableMapOf<String, String>()
     private var localPeerId: String = ""
 
-    fun startAdvertising(eventId: String, localPeerId: String, useWifiDirect: Boolean, useHotspot: Boolean) {
+    override fun startAdvertising(eventId: String, localPeerId: String, useWifiDirect: Boolean, useHotspot: Boolean) {
         this.localPeerId = localPeerId
         val optionsBuilder = AdvertisingOptions.Builder()
             .setStrategy(Strategy.P2P_STAR)
@@ -81,7 +81,7 @@ class NearbyConnectionsManager(private val context: Context) {
         }
     }
 
-    fun startDiscovery(eventId: String, localPeerId: String) {
+    override fun startDiscovery(eventId: String, localPeerId: String) {
         this.localPeerId = localPeerId
         val options = DiscoveryOptions.Builder()
             .setStrategy(Strategy.P2P_STAR)
@@ -96,7 +96,7 @@ class NearbyConnectionsManager(private val context: Context) {
         }
     }
 
-    fun stopAll() {
+    override fun stopAll() {
         connectionsClient.stopAdvertising()
         connectionsClient.stopDiscovery()
         connectionsClient.stopAllEndpoints()
@@ -104,7 +104,7 @@ class NearbyConnectionsManager(private val context: Context) {
         endpointToPeerId.clear()
     }
 
-    fun sendUwbParameters(peerId: String, params: Any) {
+    override fun sendUwbParameters(peerId: String, params: Any) {
         val endpointId = connectedEndpoints[peerId] ?: return
         sendPayloadToEndpoint(endpointId, params)
     }
@@ -113,13 +113,13 @@ class NearbyConnectionsManager(private val context: Context) {
      * Sends parameters to all connected endpoints. 
      * Useful for members to send their address to the host before they know the host's peerId.
      */
-    fun broadcastUwbParameters(params: Any) {
+    override fun broadcastUwbParameters(params: Any) {
         connectedEndpoints.values.forEach { endpointId ->
             sendPayloadToEndpoint(endpointId, params)
         }
     }
 
-    fun broadcastChatMessage(chatMsg: ChatPayloadDto) {
+    override fun broadcastChatMessage(chatMsg: ChatPayloadDto) {
         val endpoints = connectedEndpoints.values.toList()
         Log.d(TAG, "Broadcasting chat message ${chatMsg.id} to ${endpoints.size} endpoint(s)")
         endpoints.forEach { endpointId ->
@@ -127,7 +127,7 @@ class NearbyConnectionsManager(private val context: Context) {
         }
     }
 
-    fun sendChatHistoryToPeer(peerId: String, messages: List<ChatPayloadDto>) {
+    override fun sendChatHistoryToPeer(peerId: String, messages: List<ChatPayloadDto>) {
         val endpointId = connectedEndpoints[peerId]
         if (endpointId == null) {
             Log.w(TAG, "Cannot send chat history: peer $peerId is not connected")
@@ -136,28 +136,28 @@ class NearbyConnectionsManager(private val context: Context) {
         sendPayloadToEndpoint(endpointId, ChatHistoryPayloadDto(messages))
     }
 
-    fun sendChatMessageToPeer(peerId: String, chatMsg: ChatPayloadDto) {
+    override fun sendChatMessageToPeer(peerId: String, chatMsg: ChatPayloadDto) {
         val endpointId = connectedEndpoints[peerId] ?: return
         sendPayloadToEndpoint(endpointId, chatMsg)
     }
 
-    fun sendNudgeToPeer(peerId: String, nudge: NudgePayloadDto) {
+    override fun sendNudgeToPeer(peerId: String, nudge: NudgePayloadDto) {
         val endpointId = connectedEndpoints[peerId] ?: return
         sendPayloadToEndpoint(endpointId, nudge)
     }
 
-    fun broadcastNudge(nudge: NudgePayloadDto) {
+    override fun broadcastNudge(nudge: NudgePayloadDto) {
         connectedEndpoints.values.forEach { endpointId ->
             sendPayloadToEndpoint(endpointId, nudge)
         }
     }
 
-    fun sendBeaconToPeer(peerId: String, beacon: BeaconPayloadDto) {
+    override fun sendBeaconToPeer(peerId: String, beacon: BeaconPayloadDto) {
         val endpointId = connectedEndpoints[peerId] ?: return
         sendPayloadToEndpoint(endpointId, beacon)
     }
 
-    fun broadcastBeacon(beacon: BeaconPayloadDto) {
+    override fun broadcastBeacon(beacon: BeaconPayloadDto) {
         connectedEndpoints.values.forEach { endpointId ->
             sendPayloadToEndpoint(endpointId, beacon)
         }

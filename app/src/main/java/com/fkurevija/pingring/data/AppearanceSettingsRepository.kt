@@ -20,6 +20,8 @@ enum class ThemeMode {
 private val Context.appearanceDataStore by preferencesDataStore(name = "appearance")
 private val themeModeKey = stringPreferencesKey("theme_mode")
 private val userNameKey = stringPreferencesKey("user_name")
+private val lanDebugEnabledKey = androidx.datastore.preferences.core.booleanPreferencesKey("lan_debug_enabled")
+private val lanDebugHostKey = stringPreferencesKey("lan_debug_host")
 
 class AppearanceSettingsRepository(private val context: Context) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -46,6 +48,36 @@ class AppearanceSettingsRepository(private val context: Context) {
         scope.launch {
             context.appearanceDataStore.edit { preferences ->
                 preferences[userNameKey] = name
+            }
+        }
+    }
+
+    /**
+     * Debug-only LAN transport settings, used to test chat/discovery between
+     * the Android Emulator (which lacks real Bluetooth/Wi-Fi Direct radios)
+     * and a physical device via a small local relay server. See
+     * [LanDebugConnectionsManager] and tools/lan_debug_relay.py.
+     */
+    val lanDebugEnabled: Flow<Boolean> = context.appearanceDataStore.data.map { preferences ->
+        preferences[lanDebugEnabledKey] ?: false
+    }
+
+    val lanDebugHost: Flow<String> = context.appearanceDataStore.data.map { preferences ->
+        preferences[lanDebugHostKey] ?: "10.0.2.2"
+    }
+
+    fun setLanDebugEnabled(enabled: Boolean) {
+        scope.launch {
+            context.appearanceDataStore.edit { preferences ->
+                preferences[lanDebugEnabledKey] = enabled
+            }
+        }
+    }
+
+    fun setLanDebugHost(host: String) {
+        scope.launch {
+            context.appearanceDataStore.edit { preferences ->
+                preferences[lanDebugHostKey] = host
             }
         }
     }
