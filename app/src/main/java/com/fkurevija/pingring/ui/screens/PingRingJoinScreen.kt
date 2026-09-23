@@ -43,7 +43,7 @@ import java.util.concurrent.Executors
 
 @OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class)
 @Composable
-fun EventJoinScreen(
+fun PingRingJoinScreen(
     savedUsername: String = "",
     existingMembers: List<String> = emptyList(),
     onBack: () -> Unit,
@@ -65,7 +65,7 @@ fun EventJoinScreen(
             usernameError = "Username '$trimmedUsername' is already taken in this Ping-Ring."
             return
         }
-        val parsedEventCode = EventCodeParser.parse(codeToUse)
+        val parsedEventCode = PingRingCodeParser.parse(codeToUse)
         if (parsedEventCode == null) {
             inputError = "Enter a valid 6-character Ping-Ring code."
             return
@@ -281,7 +281,7 @@ private fun QrScannerScreen(
                     .weight(1f),
                 scanSessionId = scanSessionId,
                 onRawScanResult = { rawValue ->
-                    val parsedEventCode = EventCodeParser.parse(rawValue)
+                    val parsedEventCode = PingRingCodeParser.parse(rawValue)
                     if (parsedEventCode != null) {
                         onJoinEvent(parsedEventCode)
                         true
@@ -361,9 +361,9 @@ private fun PermissionDeniedCard(
 
 @Preview(showBackground = true)
 @Composable
-fun EventJoinScreenPreview() {
+fun PingRingJoinScreenPreview() {
     PingRingTheme {
-        EventJoinScreen(onBack = {}, onJoinEvent = { _, _ -> })
+        PingRingJoinScreen(onBack = {}, onJoinEvent = { _, _ -> })
     }
 }
 

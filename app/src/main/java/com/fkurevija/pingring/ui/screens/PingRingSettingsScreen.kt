@@ -47,7 +47,7 @@ import com.fkurevija.pingring.data.Event
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EventSettingsScreen(
+fun PingRingSettingsScreen(
     event: Event,
     onBack: () -> Unit,
     onSave: (Event) -> Unit

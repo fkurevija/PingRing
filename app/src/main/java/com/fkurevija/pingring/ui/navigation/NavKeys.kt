@@ -4,7 +4,7 @@ import androidx.navigation3.runtime.NavKey
 import kotlinx.serialization.Serializable
 
 @Serializable
-data object EventJoinKey : NavKey
+data object PingRingJoinKey : NavKey
 
 @Serializable
 data object HomeKey : NavKey
@@ -16,7 +16,7 @@ data class HostSetupKey(val eventCode: String) : NavKey
 data object AppSettingsKey : NavKey
 
 @Serializable
-data class EventSettingsKey(val eventId: String) : NavKey
+data class PingRingSettingsKey(val eventId: String) : NavKey
 
 @Serializable
 data class RadarKey(val eventId: String) : NavKey

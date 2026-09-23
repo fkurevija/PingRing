@@ -30,15 +30,15 @@ import com.fkurevija.pingring.data.NearbyConnectionsManager
 import com.fkurevija.pingring.data.SessionManager
 import com.fkurevija.pingring.data.ThemeMode
 import com.fkurevija.pingring.ui.navigation.AppSettingsKey
-import com.fkurevija.pingring.ui.navigation.EventJoinKey
-import com.fkurevija.pingring.ui.navigation.EventSettingsKey
+import com.fkurevija.pingring.ui.navigation.PingRingJoinKey
+import com.fkurevija.pingring.ui.navigation.PingRingSettingsKey
 import com.fkurevija.pingring.ui.navigation.HomeKey
 import com.fkurevija.pingring.ui.navigation.HostSetupKey
 import com.fkurevija.pingring.ui.navigation.RadarKey
 import com.fkurevija.pingring.ui.permissions.PermissionWrapper
 import com.fkurevija.pingring.ui.screens.AppSettingsScreen
-import com.fkurevija.pingring.ui.screens.EventJoinScreen
-import com.fkurevija.pingring.ui.screens.EventSettingsScreen
+import com.fkurevija.pingring.ui.screens.PingRingJoinScreen
+import com.fkurevija.pingring.ui.screens.PingRingSettingsScreen
 import com.fkurevija.pingring.ui.screens.HomeScreen
 import com.fkurevija.pingring.ui.screens.HostSetupScreen
 import com.fkurevija.pingring.ui.screens.RadarScreen
@@ -100,12 +100,14 @@ fun MainNavigation(
                 is HomeKey -> {
                     val currentEvent = sessionState.currentEvent
                     if (currentEvent != null) {
-                        LaunchedEffect(currentEvent) {
-                            backStack.clear()
-                            if (sessionState.isHost) {
-                                backStack.add(HostSetupKey(currentEvent.id))
+                        LaunchedEffect(currentEvent.id, sessionState.isHost) {
+                            val targetKey = if (sessionState.isHost) {
+                                HostSetupKey(currentEvent.id)
                             } else {
-                                backStack.add(RadarKey(currentEvent.id))
+                                RadarKey(currentEvent.id)
+                            }
+                            if (backStack.lastOrNull() != targetKey) {
+                                backStack.resetTo(targetKey)
                             }
                         }
                     }
@@ -129,7 +131,7 @@ fun MainNavigation(
                                 backStack.add(HostSetupKey(eventCode))
                             }
                         },
-                        onJoin = { backStack.add(EventJoinKey) },
+                        onJoin = { backStack.add(PingRingJoinKey) },
                         onSettings = { backStack.add(AppSettingsKey) }
                     )
                 }
@@ -138,8 +140,9 @@ fun MainNavigation(
                     val event = sessionState.currentEvent
                     if (event == null || event.id != key.eventCode || !sessionState.isHost) {
                         LaunchedEffect(key) {
-                            backStack.clear()
-                            backStack.add(HomeKey)
+                            if (backStack.lastOrNull() != HomeKey) {
+                                backStack.resetTo(HomeKey)
+                            }
                         }
                     } else HostSetupScreen(
                         eventCode = key.eventCode,
@@ -148,7 +151,7 @@ fun MainNavigation(
                         onBack = {
                             discoveryRepository.announceEventClosure(event)
                             sessionManager.endHostedEvent()
-                            backStack.removeLastOrNull()
+                            backStack.popBack()
                         },
                         onSaveUsername = { username ->
                             appearanceSettings.setUserName(username)
@@ -164,17 +167,16 @@ fun MainNavigation(
                             )
                         },
                         onView = {
-                            backStack.clear()
-                            backStack.add(RadarKey(key.eventCode))
+                            backStack.resetTo(RadarKey(key.eventCode))
                         }
                     )
                 }
 
-                is EventJoinKey -> {
-                    EventJoinScreen(
+                is PingRingJoinKey -> {
+                    PingRingJoinScreen(
                         savedUsername = savedUsername,
                         existingMembers = sessionState.friends.map { it.name },
-                        onBack = { backStack.removeLastOrNull() },
+                        onBack = { backStack.popBack() },
                         onJoinEvent = { eventCode, username ->
                             appearanceSettings.setUserName(username)
                             sessionManager.setUserName(username)
@@ -186,8 +188,7 @@ fun MainNavigation(
                                     expiryTimestamp = System.currentTimeMillis() + 3600000
                                 )
                             )) {
-                                backStack.clear()
-                                backStack.add(RadarKey(eventCode))
+                                backStack.resetTo(RadarKey(eventCode))
                             }
                         }
                     )
@@ -197,19 +198,19 @@ fun MainNavigation(
                     AppSettingsScreen(
                         themeMode = currentThemeMode,
                         onThemeModeChange = appearanceSettings::setThemeMode,
-                        onBack = { backStack.removeLastOrNull() }
+                        onBack = { backStack.popBack() }
                     )
                 }
 
-                is EventSettingsKey -> {
+                is PingRingSettingsKey -> {
                     val event = sessionState.currentEvent
                     if (event != null && event.id == key.eventId) {
-                        EventSettingsScreen(
+                        PingRingSettingsScreen(
                             event = event,
-                            onBack = { backStack.removeLastOrNull() },
+                            onBack = { backStack.popBack() },
                             onSave = {
                                 sessionManager.updateEvent(it)
-                                backStack.removeLastOrNull()
+                                backStack.popBack()
                             }
                         )
                     }
@@ -219,8 +220,9 @@ fun MainNavigation(
                     val event = sessionState.currentEvent
                     if (event == null || event.id != key.eventId) {
                         LaunchedEffect(key) {
-                            backStack.clear()
-                            backStack.add(HomeKey)
+                            if (backStack.lastOrNull() != HomeKey) {
+                                backStack.resetTo(HomeKey)
+                            }
                         }
                     } else RadarScreen(
                         eventId = key.eventId,
@@ -231,22 +233,35 @@ fun MainNavigation(
                         coordinationError = syncStatus.errorMessage,
                         sessionState = sessionState,
                         onVisibilityToggle = { sessionManager.setVisibility(it) },
-                        onEventSettings = { backStack.add(EventSettingsKey(key.eventId)) },
+                        onEventSettings = { backStack.add(PingRingSettingsKey(key.eventId)) },
                         onLeaveEvent = {
                             sessionManager.leaveEvent()
-                            backStack.clear()
-                            backStack.add(HomeKey)
+                            backStack.resetTo(HomeKey)
                         },
                         onEndEvent = {
                             discoveryRepository.announceEventClosure(event)
                             sessionManager.endHostedEvent()
-                            backStack.clear()
-                            backStack.add(HomeKey)
+                            backStack.resetTo(HomeKey)
                         }
                     )
                 }
             }
         }
+    }
+}
+
+private fun NavBackStack<NavKey>.resetTo(key: NavKey) {
+    add(key)
+    while (size > 1) {
+        removeAt(0)
+    }
+}
+
+private fun NavBackStack<NavKey>.popBack() {
+    if (size > 1) {
+        removeLastOrNull()
+    } else if (firstOrNull() != HomeKey) {
+        resetTo(HomeKey)
     }
 }
 

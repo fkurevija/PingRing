@@ -4,7 +4,7 @@ import java.net.URI
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 
-object EventCodeParser {
+object PingRingCodeParser {
     private val allowedEventCodePattern = Regex("^[A-Za-z0-9][A-Za-z0-9_-]{2,63}$")
     private val queryKeys = listOf("event", "eventCode", "code")
 
