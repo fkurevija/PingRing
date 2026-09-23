@@ -28,7 +28,7 @@
   - [📱 QR & Ping-Ring Code Join](#-qr--ping-ring-code-join)
   - [👋 Peer Nudges](#-peer-nudges)
   - [🚨 Customizable Peer Beacons](#-customizable-peer-beacons)
-  - [💬 Decentralized Mesh Chat](#-decentralized-mesh-chat)
+  - [💬 Decentralized Chat](#-decentralized-chat)
   - [🧭 Radar & Sensor Fusion Ranging](#-radar--sensor-fusion-ranging)
   - [🎨 Dynamic Theming & App Icon](#-dynamic-theming--app-icon)
   - [🔒 Privacy & Ephemeral Security](#-privacy--ephemeral-security)
@@ -101,9 +101,9 @@ graph TD
 - **Visual & Haptic Personalization**: Choose from 5 color palettes (Crimson, Amber, Emerald, Cyan, Purple) and custom hardware vibration rhythms (*SOS Morse*, *Rapid Alert*, *Steady Rhythm*, *Gentle Pulse*).
 - **Radar Highlighting**: Active beacons illuminate radar rings, peer pins, and wave animations on receiving devices.
 
-### 💬 Decentralized Mesh Chat
+### 💬 Decentralized Chat
 - **Offline Group Messaging**: Text chat across the Nearby Connections mesh without internet.
-- **Floating IME Input**: The chat window utilizes `.imePadding()` to smoothly float above the software keyboard when typing and return to position when dismissed.
+- **Floating IME Overlay**: The chat window floats directly over the radar canvas when typing, providing clear visibility of messages, and smoothly returns to its docked position when the soft keyboard closes.
 
 ### 🧭 Radar & Sensor Fusion Ranging
 - **Real-World Orientation**: Sensor fusion integrates rotation-vector, magnetometer, and accelerometer hardware to orient peer vectors into world space.

@@ -8,6 +8,9 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -27,7 +30,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Button
@@ -48,9 +50,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -89,7 +91,6 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import com.fkurevija.pingring.data.BeaconInfo
 import com.fkurevija.pingring.data.BeaconPreset
 import com.fkurevija.pingring.data.BeaconVibrationPattern
-import com.fkurevija.pingring.data.ChatMessage
 import com.fkurevija.pingring.data.ConnectivityStatus
 import com.fkurevija.pingring.data.DiscoveryRepository
 import com.fkurevija.pingring.data.RadarPeerUpdate
@@ -109,12 +110,11 @@ fun RadarScreen(
     onVisibilityToggle: (Boolean) -> Unit,
     onEventSettings: () -> Unit,
     onLeaveEvent: () -> Unit,
-    onEndEvent: () -> Unit
+    onEndEvent: () -> Unit,
 ) {
     var showEndConfirmation by remember { mutableStateOf(false) }
     var showBeaconSheet by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
 
     LaunchedEffect(isVisible, discoveryRepository) {
         if (isVisible) discoveryRepository?.startDiscovery() else discoveryRepository?.stopDiscovery()
@@ -126,7 +126,7 @@ fun RadarScreen(
     val peers by discoveryRepository?.peerUpdates?.collectAsState(initial = emptyList())
         ?: remember { mutableStateOf(emptyList<RadarPeerUpdate>()) }
     val connectivity by discoveryRepository?.connectivityStatus?.collectAsState()
-        ?: remember { mutableStateOf(ConnectivityStatus(true, true)) }
+        ?: remember { mutableStateOf(ConnectivityStatus(isBluetoothEnabled = true, isWifiEnabled = true)) }
     val activeBeacons by discoveryRepository?.activeBeacons?.collectAsState()
         ?: remember { mutableStateOf(emptyMap()) }
     val localBeacon by discoveryRepository?.localBeacon?.collectAsState()
@@ -136,7 +136,7 @@ fun RadarScreen(
 
     LaunchedEffect(nearest?.peerId, nearest?.distance) {
         val distance = nearest?.distance ?: return@LaunchedEffect
-        if (isVisible && distance < 2f) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+        if (isVisible && (distance < 2f)) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
     }
 
     // Collect incoming nudges — double haptic pulse + snackbar
@@ -144,7 +144,7 @@ fun RadarScreen(
         discoveryRepository?.receivedNudge?.collect { nudge ->
             if (nudge.senderPeerId != discoveryRepository.localPeerId) {
                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                delay(120)
+                delay(120L)
                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                 snackbarHostState.showSnackbar("👋 ${nudge.senderName} nudged you!")
             }
@@ -322,47 +322,26 @@ fun RadarScreen(
                         PeerList(peers, connectivity, discoveryRepository, activeBeacons, senderName, Modifier.width(paneWidth))
                     }
                 } else {
-                    Column(Modifier.fillMaxSize()) {
-                        RadarContent(
-                            focusedPeer,
-                            peers.isNotEmpty(),
-                            focusedBeacon,
-                            Modifier.fillMaxWidth().height(260.dp)
-                        )
+                    var chatText by remember { mutableStateOf("") }
+                    @OptIn(ExperimentalLayoutApi::class)
+                    val isImeVisible = WindowInsets.isImeVisible
 
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            OutlinedButton(
-                                onClick = { discoveryRepository?.sendNudge(null, senderName) },
-                                modifier = Modifier.weight(1f),
-                                enabled = peers.isNotEmpty()
-                            ) {
-                                Icon(Icons.Default.NotificationsActive, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(Modifier.width(6.dp))
-                                Text("Nudge All")
-                            }
-                            Button(
-                                onClick = { showBeaconSheet = true },
-                                modifier = Modifier.weight(1f),
-                                colors = if (localBeacon != null) ButtonDefaults.buttonColors(containerColor = Color(localBeacon!!.colorArgb)) else ButtonDefaults.buttonColors()
-                            ) {
-                                Icon(Icons.Default.Campaign, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(6.dp))
-                                Text(if (localBeacon != null) "My Beacon" else "Beacon")
-                            }
-                        }
-
-                        var chatText by remember { mutableStateOf("") }
+                    val renderChatCard: @Composable (Modifier) -> Unit = { cardModifier ->
                         Card(
-                            modifier = Modifier.fillMaxWidth().weight(1f).padding(vertical = 6.dp).imePadding(),
+                            modifier = cardModifier,
                             shape = RoundedCornerShape(20.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (isImeVisible) {
+                                    MaterialTheme.colorScheme.surface
+                                } else {
+                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                                }
+                            ),
+                            elevation = CardDefaults.cardElevation(defaultElevation = if (isImeVisible) 8.dp else 0.dp)
                         ) {
                             Column(Modifier.fillMaxSize().padding(12.dp)) {
                                 Text(
-                                    "Mesh Chat",
+                                    "Chat",
                                     style = MaterialTheme.typography.labelLarge,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.primary
@@ -466,6 +445,54 @@ fun RadarScreen(
                             }
                         }
                     }
+
+                    Box(Modifier.fillMaxSize()) {
+                        Column(Modifier.fillMaxSize()) {
+                            RadarContent(
+                                focusedPeer,
+                                peers.isNotEmpty(),
+                                focusedBeacon,
+                                Modifier.fillMaxWidth().height(260.dp)
+                            )
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                OutlinedButton(
+                                    onClick = { discoveryRepository?.sendNudge(null, senderName) },
+                                    modifier = Modifier.weight(1f),
+                                    enabled = peers.isNotEmpty()
+                                ) {
+                                    Icon(Icons.Default.NotificationsActive, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("Nudge All")
+                                }
+                                Button(
+                                    onClick = { showBeaconSheet = true },
+                                    modifier = Modifier.weight(1f),
+                                    colors = if (localBeacon != null) ButtonDefaults.buttonColors(containerColor = Color(localBeacon!!.colorArgb)) else ButtonDefaults.buttonColors()
+                                ) {
+                                    Icon(Icons.Default.Campaign, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(if (localBeacon != null) "My Beacon" else "Beacon")
+                                }
+                            }
+
+                            if (!isImeVisible) {
+                                renderChatCard(Modifier.fillMaxWidth().weight(1f).padding(vertical = 6.dp))
+                            }
+                        }
+
+                        if (isImeVisible) {
+                            renderChatCard(
+                                Modifier
+                                    .fillMaxSize()
+                                    .padding(vertical = 6.dp)
+                                    .imePadding()
+                            )
+                        }
+                    }
                 }
 
                 if (showEndConfirmation) {
@@ -515,7 +542,7 @@ private fun RadarContent(
     modifier: Modifier
 ) {
     val hotness = ((peer?.rssi ?: -100) + 100).coerceIn(0, 100) / 100f
-    val defaultRingColor = Color.Lerp(Color(0xFF3F51B5), Color(0xFF00C853), hotness)
+    val defaultRingColor = Color.lerp(Color(0xFF3F51B5), Color(0xFF00C853), hotness)
     val ringColor = beacon?.let { Color(it.colorArgb) } ?: defaultRingColor
 
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
@@ -753,7 +780,7 @@ fun BeaconCustomizationDialog(
 ) {
     var selectedPreset by remember { mutableStateOf(BeaconPreset.SOS) }
     var title by remember { mutableStateOf(localBeacon?.title ?: selectedPreset.defaultTitle) }
-    var selectedColor by remember { mutableStateOf(localBeacon?.colorArgb ?: selectedPreset.defaultColorArgb) }
+    var selectedColor by remember { mutableLongStateOf(localBeacon?.colorArgb ?: selectedPreset.defaultColorArgb) }
     var selectedPattern by remember {
         mutableStateOf(
             localBeacon?.let { BeaconVibrationPattern.fromName(it.vibrationPattern) } ?: selectedPreset.defaultPattern
@@ -928,7 +955,7 @@ private fun InvisibleState(modifier: Modifier) {
     }
 }
 
-private fun Color.Companion.Lerp(start: Color, end: Color, fraction: Float): Color {
+private fun Color.Companion.lerp(start: Color, end: Color, fraction: Float): Color {
     return Color(
         red = start.red + (end.red - start.red) * fraction,
         green = start.green + (end.green - start.green) * fraction,

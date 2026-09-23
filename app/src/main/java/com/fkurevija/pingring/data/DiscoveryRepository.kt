@@ -1,7 +1,6 @@
 package com.fkurevija.pingring.data
 
 import android.annotation.SuppressLint
-import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
 import android.bluetooth.le.*
 import android.content.Context
@@ -113,7 +112,7 @@ class DiscoveryRepository(
     private val controlScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
     // Sensor Fusion state
-    private val rotationMatrix = FloatArray(9) { 0f }.apply { this[0] = 1f; this[4] = 1f; this[8] = 1f }
+    private val rotationMatrix = FloatArray(9).apply { this[0] = 1f; this[4] = 1f; this[8] = 1f }
     private val geomagneticValues = FloatArray(3)
     private val gravityValues = FloatArray(3)
     private var hasRotationVector = false
@@ -344,13 +343,8 @@ class DiscoveryRepository(
     fun playVibrationPattern(pattern: LongArray) {
         if (pattern.isEmpty() || (pattern.size == 1 && pattern[0] == 0L)) return
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                val effect = VibrationEffect.createWaveform(pattern, -1)
-                vibrator?.vibrate(effect)
-            } else {
-                @Suppress("DEPRECATION")
-                vibrator?.vibrate(pattern, -1)
-            }
+            val effect = VibrationEffect.createWaveform(pattern, -1)
+            vibrator?.vibrate(effect)
         } catch (e: Exception) {
             Log.w(TAG, "Vibration playback failed", e)
         }
