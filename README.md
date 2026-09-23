@@ -1,116 +1,185 @@
-# PingRing
+<div align="center">
 
-PingRing is an Android crowd-finding prototype that helps people locate one
-another during a shared, short-lived event. It is a fully peer-to-peer (P2P) 
-application that uses Bluetooth Low Energy (BLE), Ultra-wideband (UWB), and 
-Google Nearby Connections to discover and track friends without an external server.
+# 🎯 PingRing
 
-## Feature overview
+**Serverless, Real-Time P2P Crowd-Finding & Peer Coordination for Android**
 
-### Networking & connectivity
+[![Platform](https://img.shields.io/badge/Platform-Android_10%2B_%28API_29%2B%29-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://developer.android.com)
+[![Language](https://img.shields.io/badge/Language-Kotlin-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)](https://kotlinlang.org)
+[![UI](https://img.shields.io/badge/UI-Jetpack_Compose_&_Material_3-4285F4?style=for-the-badge&logo=jetpackcompose&logoColor=white)](https://developer.android.com/jetpack/compose)
+[![Mesh](https://img.shields.io/badge/Mesh-Nearby_Connections-FF6F00?style=for-the-badge&logo=google&logoColor=white)](https://developers.google.com/nearby/connections/overview)
+[![Ranging](https://img.shields.io/badge/Precision-Ultra--Wideband_%28UWB%29-00599C?style=for-the-badge&logo=radar&logoColor=white)](https://developer.android.com/guide/topics/connectivity/uwb)
 
-- Tap **Create a Ping-Ring** to host a local mesh; nearby devices discover it automatically over BLE without any manual pairing or server sign-in.
-- The host advertises over Nearby Connections using the P2P_STAR strategy; guests discover and connect automatically on joining.
-- Toggle **Ultra-wideband (UWB)** and **High Bandwidth (Wi-Fi Direct / Hotspot)** from both the Host Setup and Event Settings screens to match the hardware available at your venue.
-- When UWB is unavailable the app falls back gracefully to BLE RSSI proximity — no configuration required.
+<p align="center">
+  Locate, nudge, chat, and coordinate with friends at crowded events, concerts, or festivals.<br/>
+  <b>100% Serverless & Offline &bull; Zero Server Sign-in &bull; Ephemeral & Privacy-First</b>
+</p>
 
-### Usernames & Persistent Profiles
+---
 
-- Host and joining users enter a custom username when setting up or joining a Ping-Ring.
-- Last entered usernames are saved locally via DataStore preferences and automatically pre-filled on future sessions to save typing.
-- Enforces username uniqueness within the active Ping-Ring session — notifying users with on-screen error alerts if a chosen username is already taken.
+</div>
 
-### QR & Ping-Ring Code Join Flow
+## 📌 Table of Contents
+- [Overview](#-overview)
+- [System Architecture](#-system-architecture)
+- [Key Features](#-key-features)
+  - [📡 Mesh Networking & Connectivity](#-mesh-networking--connectivity)
+  - [👤 User Profiles & Uniqueness](#-user-profiles--uniqueness)
+  - [📱 QR & Ping-Ring Code Join](#-qr--ping-ring-code-join)
+  - [👋 Peer Nudges](#-peer-nudges)
+  - [🚨 Customizable Peer Beacons](#-customizable-peer-beacons)
+  - [💬 Decentralized Mesh Chat](#-decentralized-mesh-chat)
+  - [🧭 Radar & Sensor Fusion Ranging](#-radar--sensor-fusion-ranging)
+  - [🎨 Dynamic Theming & App Icon](#-dynamic-theming--app-icon)
+  - [🔒 Privacy & Ephemeral Security](#-privacy--ephemeral-security)
+- [Tech Stack](#-tech-stack)
+- [Building & Testing](#-building--testing)
+- [Privacy Model](#-privacy-model)
 
-- Tap **Scan Host QR Code** from the join screen to open the camera scanner.
-- Scanned QR payloads and manual text inputs accept a 6-character **Ping-Ring Code**.
-- Text input fields feature smart keyboard capitalization options: Ping-Ring code fields trigger ALL CAPS input mode, while username and chat fields trigger word/sentence capitalization.
-- Fallback to manual code entry is always available if camera permissions are denied or unavailable.
+---
 
-### Real-time P2P Chat & Floating IME Input
+## 📖 Overview
 
-- Open the chat panel from the Radar screen to send text messages to everyone in the ring.
-- Messages travel over the existing Nearby Connections mesh — no internet connection needed.
-- The host automatically re-broadcasts every incoming message to all other peers, keeping the full group in sync.
-- The floating Mesh Chat window uses IME insets (`.imePadding()`) to float smoothly above the soft keyboard when typing and return seamlessly to position when the keyboard closes.
+**PingRing** is a native Android crowd-finding application designed for short-lived, high-density events (music festivals, conventions, sports venues, or rallies) where cellular networks are often congested or unavailable.
 
-### Peer Nudges
+By leveraging **Google Nearby Connections**, **Bluetooth Low Energy (BLE)**, and **Ultra-wideband (UWB)**, PingRing forms an ad-hoc local peer-to-peer mesh network directly between nearby smartphones. Participants can locate each other on a real-world radar, send haptic nudges, broadcast emergency/intent beacons, and chat in real time without cellular data or an external server.
 
-- Send quick, targeted alerts to specific peers (via the 👋 button on their card) or broadcast to everyone at once ("Nudge All").
-- Nudges trigger a distinctive double-haptic vibration pulse and an on-screen banner on recipient devices without requiring text input.
-- Routed peer-to-peer over the Nearby Connections mesh with automatic host re-broadcasting.
+---
 
-### Customizable Peer Beacons
+## 🏗 System Architecture
 
-- Broadcast active beacons calling other participants to your location with customizable intent presets (*🚨 SOS / Emergency*, *✨ Found Something*, *📍 Regroup Here*, *⚠️ Caution*, *⚡ Custom*).
-- Personalize beacon visual styling with selectable color palettes (Crimson, Amber, Emerald, Cyan, Purple) that dynamically illuminate radar rings, peer pins, and pulsating wave animations.
-- Transmit custom hardware vibration rhythms and intensities (*SOS Morse*, *Rapid Alert*, *Steady Rhythm*, *Gentle Pulse*, *Visual Only*) to receiving devices over the P2P mesh.
-- Active beacons render real-time alert banners with one-tap status and dismissal controls.
+PingRing uses a star/mesh hybrid architecture over Nearby Connections (`P2P_STAR` strategy) with BLE background discovery.
 
-### Radar & Ranging
+```mermaid
+graph TD
+    subgraph "Local Ad-Hoc Ping-Ring Mesh"
+        Host["👑 Host Node<br/>(Nearby Connections Advertiser)"]
+        PeerA["👤 Guest Peer A<br/>(Nearby Connections Discoverer)"]
+        PeerB["👤 Guest Peer B<br/>(Nearby Connections Discoverer)"]
+        PeerC["👤 Guest Peer C<br/>(Nearby Connections Discoverer)"]
 
-- The radar canvas shows all peers simultaneously, each rendered with a directional arrow, distance label, and RSSI indicator.
-- On UWB-capable hardware, sub-metre ranging data (distance, azimuth, elevation) is streamed at up to 30 FPS via concurrent Jetpack UWB sessions — one per peer.
-- Sensor fusion combines the rotation-vector, magnetometer, and accelerometer to rotate each peer arrow into world space so it always points in the correct real-world direction regardless of how you hold the phone.
-- Peers that stop advertising are automatically removed from the radar after 15 seconds of inactivity.
-- The layout is portrait-locked and adapts between compact and wide screen configurations; haptic feedback fires when a peer enters close proximity.
+        Host <-->|"Wi-Fi Direct / BLE Mesh"| PeerA
+        Host <-->|"Wi-Fi Direct / BLE Mesh"| PeerB
+        Host <-->|"Wi-Fi Direct / BLE Mesh"| PeerC
 
-### Adaptive & Themed App Icon
-
-- Custom vector adaptive app icon (`ic_launcher_background.xml` & `ic_launcher_foreground.xml`) featuring dark navy circular background layers and a crisp white radar target core.
-- Full Material You dynamic themed app icon support (`ic_launcher_monochrome.xml`) on Android 13+ (API 33+) system launchers.
-
-### Session & Privacy
-
-- Each session uses an ephemeral peer ID generated at join time; leaving or closing the ring rotates the ID and wipes all local peer data.
-- You never appear on your own radar — the app self-filters its own peer ID from all scan results.
-- The host can end the ring at any time; a BLE closure packet is broadcast to all nearby members, returning them to the Home screen automatically.
-- Visibility can be toggled mid-session from the radar toolbar without leaving the ring.
-
-### Permissions
-
-- A step-by-step rationale flow covers every runtime permission required on Android 12+: Bluetooth, Nearby Devices, Location, Camera, and UWB.
-- Fallback paths are available for every permission — for example, manual Ping-Ring code entry is always accessible if camera permission is denied.
-
-## Technology
-
-- Kotlin (2.4.20+)
-- Jetpack Compose and Material 3
-- Navigation 3
-- Kotlin Coroutines and Flow
-- **Google Nearby Connections API** (P2P coordination & Wi-Fi mesh)
-- `androidx.core.uwb`
-- Android Bluetooth LE APIs
-- Android Sensor Framework
-- Compose Material Adaptive dependencies
-
-## Requirements
-
-- Android Studio with Android SDK 37
-- JDK 17
-- Android 10 (API 29) or newer
-- Bluetooth and Wi-Fi enabled
-- Ultra-wideband (UWB) hardware is optional; the app falls back to BLE proximity/RSSI
-
-## Build and test
-
-From the repository root:
-
-```bash
-./gradlew testDebugUnitTest assembleDebug
+        PeerA -.->"Direct Jetpack UWB Ranging (30 FPS)"<.- PeerB
+        Host -.->"Direct Jetpack UWB Ranging (30 FPS)"<.- PeerA
+    end
 ```
 
-On Windows:
+### Protocol Flow
+1. **Discovery**: Host advertises the Ping-Ring over BLE Service UUID (`0000fa1b-0000-1000-8000-00805f9b34fb`).
+2. **P2P Handshake**: Guests discover the advertiser and establish an encrypted Nearby Connections session.
+3. **Data Sync**: Chat messages, nudges, and beacon payloads are brokered and re-broadcasted by the Host to all connected nodes.
+4. **Spatial Ranging**: High-precision UWB sessions run concurrently between nodes for sub-metre 3D positioning (distance, azimuth, elevation).
 
+---
+
+## ✨ Key Features
+
+### 📡 Mesh Networking & Connectivity
+- **One-Tap Hosting**: Instantly start a local Ping-Ring mesh without server registration.
+- **Hardware Toggles**: Enable or disable **Ultra-Wideband (UWB)** and **High-Bandwidth Wi-Fi Direct** on the fly.
+- **Automatic Fallback**: Gracefully falls back from sub-metre UWB ranging to BLE RSSI proximity if UWB is unsupported or unavailable.
+
+### 👤 User Profiles & Uniqueness
+- **Custom Usernames**: Easily set your display name when hosting or joining.
+- **Persistent Local Profile**: Saves your last entered username locally via DataStore preferences for automatic pre-filling on future sessions.
+- **Conflict Prevention**: Enforces name uniqueness within the active Ping-Ring session and alerts you if a chosen username is already taken.
+
+### 📱 QR & Ping-Ring Code Join
+- **Camera QR Scanner**: Join instantly by scanning the Host's on-screen QR code using ML Kit vision decoding.
+- **6-Character Ping-Ring Code**: Manual fallback entry for quick code typing (`e.g. AB12CD`).
+- **Context-Aware Keyboards**: Automatically opens the soft keyboard in **ALL CAPS** for code fields and **Word Capitalization** for usernames.
+
+### 👋 Peer Nudges
+- **Instant Haptic Alerts**: Send quick targeted nudges (`👋`) to specific peers or broadcast a **Nudge All** to the entire group.
+- **Double-Haptic Pulse**: Recipients receive a distinct double-vibration pulse and banner notification without typing text.
+
+### 🚨 Customizable Peer Beacons
+- **Intent Presets**: Broadcast active beacons with custom intents (*🚨 SOS*, *✨ Found Something*, *📍 Regroup Here*, *⚠️ Caution*, *⚡ Custom*).
+- **Visual & Haptic Personalization**: Choose from 5 color palettes (Crimson, Amber, Emerald, Cyan, Purple) and custom hardware vibration rhythms (*SOS Morse*, *Rapid Alert*, *Steady Rhythm*, *Gentle Pulse*).
+- **Radar Highlighting**: Active beacons illuminate radar rings, peer pins, and wave animations on receiving devices.
+
+### 💬 Decentralized Mesh Chat
+- **Offline Group Messaging**: Text chat across the Nearby Connections mesh without internet.
+- **Floating IME Input**: The chat window utilizes `.imePadding()` to smoothly float above the software keyboard when typing and return to position when dismissed.
+
+### 🧭 Radar & Sensor Fusion Ranging
+- **Real-World Orientation**: Sensor fusion integrates rotation-vector, magnetometer, and accelerometer hardware to orient peer vectors into world space.
+- **30 FPS Spatial Tracking**: Concurrent non-blocking Jetpack UWB sessions stream sub-metre distance, azimuth, and elevation.
+- **Proximity Alerts**: Haptic feedback triggers when a peer enters close range (< 2 meters).
+- **Auto-Cleanup**: Stale or disconnected peers expire from the radar canvas after 15 seconds of inactivity.
+
+### 🎨 Dynamic Theming & App Icon
+- **Adaptive Icon**: Modern dark navy background layers with a crisp white target radar vector.
+- **Material You Dynamic Icons**: Native monochrome app icon support (`ic_launcher_monochrome.xml`) on Android 13+ (API 33+) launchers.
+- **System Dark/Light Theme**: Fully respects system light/dark mode and Material 3 dynamic accent palettes.
+
+### 🔒 Privacy & Ephemeral Security
+- **Ephemeral Identifiers**: Every session generates a random peer ID. Leaving or closing a Ping-Ring rotates the ID and wipes local peer state.
+- **Self-Filtering**: Local peer IDs are filtered from scan results so you never appear on your own radar.
+- **Host Closure**: Host can end the event at any time, broadcasting a BLE closure packet to return all members safely to the home screen.
+
+---
+
+## 🛠 Tech Stack
+
+| Component | Library / Framework |
+| :--- | :--- |
+| **Language** | Kotlin 2.4+ |
+| **UI Framework** | Jetpack Compose + Material 3 |
+| **Navigation** | Navigation 3 (`androidx.navigation3`) |
+| **P2P Transport** | Google Nearby Connections API (`play-services-nearby`) |
+| **Spatial Ranging** | Jetpack UWB (`androidx.core.uwb`) |
+| **QR Scanning** | CameraX + Google ML Kit Barcode Scanning |
+| **Local Persistence** | Jetpack DataStore Preferences |
+| **Asynchrony** | Kotlin Coroutines & StateFlow |
+
+---
+
+## 🚀 Building & Testing
+
+### Prerequisites
+- **Android Studio** (Ladybug or newer)
+- **JDK 17**
+- **Android SDK 37**
+- Physical Android device running **Android 10 (API 29)** or newer (UWB features require supported hardware such as Pixel 6 Pro+, Galaxy S21 Ultra+, etc.).
+
+### Build Commands
+
+```bash
+# Clone the repository
+git clone https://github.com/fkurevija/PingRing.git
+cd PingRing
+
+# Run unit tests
+./gradlew testDebugUnitTest
+
+# Assemble Debug APK
+./gradlew assembleDebug
+```
+
+On **Windows (PowerShell)**:
 ```powershell
 .\gradlew.bat testDebugUnitTest assembleDebug
 ```
 
-The debug APK is generated at `app/build/outputs/apk/debug/app-debug.apk`.
+The compiled APK will be available at:
+`app/build/outputs/apk/debug/app-debug.apk`
 
-## Privacy model
+---
 
-Discovery is opt-in and strictly tied to the active event. The app advertises 
-ephemeral peer identifiers. Leaving an event rotates the identifier and clears 
-all local peer data. Because the app is P2P, no session data is ever uploaded 
-to a central server.
+## 🛡 Privacy Model
+
+PingRing is built from the ground up to respect user privacy:
+
+1. **No External Servers**: No account registration, email collection, or remote logging. All data stays local to the ad-hoc mesh.
+2. **Ephemeral Identity**: Peer identifiers rotate every session. No persistent tracking cross-event.
+3. **Session-Scoped Advertising**: BLE advertising is strictly opt-in and stops immediately when the app is closed or when leaving a Ping-Ring.
+
+---
+
+<div align="center">
+  <sub>Built with ❤️ for privacy-first, off-grid peer coordination.</sub>
+</div>
