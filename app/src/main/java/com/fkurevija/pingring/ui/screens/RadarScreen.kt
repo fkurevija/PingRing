@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -72,6 +73,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.Check
@@ -83,6 +85,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import com.fkurevija.pingring.data.BeaconInfo
 import com.fkurevija.pingring.data.BeaconPreset
 import com.fkurevija.pingring.data.BeaconVibrationPattern
@@ -353,7 +356,7 @@ fun RadarScreen(
 
                         var chatText by remember { mutableStateOf("") }
                         Card(
-                            modifier = Modifier.fillMaxWidth().weight(1f).padding(vertical = 6.dp),
+                            modifier = Modifier.fillMaxWidth().weight(1f).padding(vertical = 6.dp).imePadding(),
                             shape = RoundedCornerShape(20.dp),
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
                         ) {
@@ -435,7 +438,10 @@ fun RadarScreen(
                                         placeholder = { Text("Type a message…", style = MaterialTheme.typography.bodyMedium) },
                                         modifier = Modifier.weight(1f),
                                         shape = RoundedCornerShape(24.dp),
-                                        singleLine = true
+                                        singleLine = true,
+                                        keyboardOptions = KeyboardOptions(
+                                            capitalization = KeyboardCapitalization.Sentences
+                                        )
                                     )
                                     Spacer(Modifier.width(8.dp))
                                     Button(
@@ -809,7 +815,10 @@ fun BeaconCustomizationDialog(
                     onValueChange = { title = it },
                     label = { Text("Beacon Message / Intent") },
                     modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(
+                        capitalization = KeyboardCapitalization.Sentences
+                    )
                 )
 
                 Text("Beacon Color", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)

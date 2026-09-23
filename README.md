@@ -9,23 +9,30 @@ Google Nearby Connections to discover and track friends without an external serv
 
 ### Networking & connectivity
 
-- Tap **Host** to create a Ping-Ring; nearby devices discover it automatically over BLE without any manual pairing or server sign-in.
+- Tap **Create a Ping-Ring** to host a local mesh; nearby devices discover it automatically over BLE without any manual pairing or server sign-in.
 - The host advertises over Nearby Connections using the P2P_STAR strategy; guests discover and connect automatically on joining.
 - Toggle **Ultra-wideband (UWB)** and **High Bandwidth (Wi-Fi Direct / Hotspot)** from both the Host Setup and Event Settings screens to match the hardware available at your venue.
 - When UWB is unavailable the app falls back gracefully to BLE RSSI proximity — no configuration required.
 
-### QR join flow
+### Usernames & Persistent Profiles
 
-- Tap **Scan QR Code** from the join screen to open the scanner.
-- Scanned payloads must contain a valid event code.
-- Fallback to manual entry is always available if the camera is denied or unavailable.
+- Host and joining users enter a custom username when setting up or joining a Ping-Ring.
+- Last entered usernames are saved locally via DataStore preferences and automatically pre-filled on future sessions to save typing.
+- Enforces username uniqueness within the active Ping-Ring session — notifying users with on-screen error alerts if a chosen username is already taken.
 
-### Real-time P2P chat
+### QR & Ping-Ring Code Join Flow
+
+- Tap **Scan Host QR Code** from the join screen to open the camera scanner.
+- Scanned QR payloads and manual text inputs accept a 6-character **Ping-Ring Code**.
+- Text input fields feature smart keyboard capitalization options: Ping-Ring code fields trigger ALL CAPS input mode, while username and chat fields trigger word/sentence capitalization.
+- Fallback to manual code entry is always available if camera permissions are denied or unavailable.
+
+### Real-time P2P Chat & Floating IME Input
 
 - Open the chat panel from the Radar screen to send text messages to everyone in the ring.
 - Messages travel over the existing Nearby Connections mesh — no internet connection needed.
-- The host automatically re-broadcasts every incoming message to all other peers, so the full group stays in sync even though guests are only directly connected to the host.
-- Duplicate packets are deduplicated by message ID, so re-broadcasts never produce duplicate bubbles.
+- The host automatically re-broadcasts every incoming message to all other peers, keeping the full group in sync.
+- The floating Mesh Chat window uses IME insets (`.imePadding()`) to float smoothly above the soft keyboard when typing and return seamlessly to position when the keyboard closes.
 
 ### Peer Nudges
 
@@ -40,7 +47,7 @@ Google Nearby Connections to discover and track friends without an external serv
 - Transmit custom hardware vibration rhythms and intensities (*SOS Morse*, *Rapid Alert*, *Steady Rhythm*, *Gentle Pulse*, *Visual Only*) to receiving devices over the P2P mesh.
 - Active beacons render real-time alert banners with one-tap status and dismissal controls.
 
-### Radar & ranging
+### Radar & Ranging
 
 - The radar canvas shows all peers simultaneously, each rendered with a directional arrow, distance label, and RSSI indicator.
 - On UWB-capable hardware, sub-metre ranging data (distance, azimuth, elevation) is streamed at up to 30 FPS via concurrent Jetpack UWB sessions — one per peer.
@@ -48,7 +55,12 @@ Google Nearby Connections to discover and track friends without an external serv
 - Peers that stop advertising are automatically removed from the radar after 15 seconds of inactivity.
 - The layout is portrait-locked and adapts between compact and wide screen configurations; haptic feedback fires when a peer enters close proximity.
 
-### Session & privacy
+### Adaptive & Themed App Icon
+
+- Custom vector adaptive app icon (`ic_launcher_background.xml` & `ic_launcher_foreground.xml`) featuring dark navy circular background layers and a crisp white radar target core.
+- Full Material You dynamic themed app icon support (`ic_launcher_monochrome.xml`) on Android 13+ (API 33+) system launchers.
+
+### Session & Privacy
 
 - Each session uses an ephemeral peer ID generated at join time; leaving or closing the ring rotates the ID and wipes all local peer data.
 - You never appear on your own radar — the app self-filters its own peer ID from all scan results.
@@ -58,39 +70,7 @@ Google Nearby Connections to discover and track friends without an external serv
 ### Permissions
 
 - A step-by-step rationale flow covers every runtime permission required on Android 12+: Bluetooth, Nearby Devices, Location, Camera, and UWB.
-- Fallback paths are available for every permission — for example, manual event-code entry is always accessible if the camera permission is denied.
-
-
-## Implemented
-
-- **Fully Peer-to-Peer (P2P):** All coordination, chat messaging, and UWB parameter exchange occurs 
-  directly between devices using Google Nearby Connections. No external server required.
-- **Real-Time P2P Chat:** Decentralized group text messaging across hosted and joined 
-  Ping-Ring events. The host automatically brokers packets outward to all remote mesh nodes.
-- **Peer Nudges:** Lightweight haptic alerts sent individually or broadcast ring-wide over Nearby Connections.
-- **Customizable Peer Beacons:** Create active visual & haptic beacons with custom color palettes, intent presets, and rhythm vibrations.
-- **Intelligent Connectivity:** Automatically selects the best connection method 
-  (UWB, Wi-Fi Direct, or Hotspot) based on device support and host preferences.
-- **Connectivity Controls:** Toggles for Ultra-wideband (UWB) and High Bandwidth (Wi-Fi) 
-  coordination available in both Host Setup and Event Settings for maximum compatibility.
-- **Multi-Peer Tracking:** Simultaneous tracking of multiple friends on a single radar 
-  using concurrent, non-blocking UWB sessions.
-- **Auto-Cleanup:** Automatic removal of stale peers from the radar after 15 seconds of 
-  inactivity to ensure data accuracy.
-- **Event-code join flow:** Built with Jetpack Compose and Navigation 3.
-- **QR Scanning:** Camera-based join flow using CameraX and on-device ML Kit QR decoding.
-- **Session-scoped Privacy:** Ephemeral peer IDs and visibility controls. Self-filtering 
-  ensures you don't appear on your own radar.
-- **Host-only Event Closure:** Clear the event locally and broadcast closure to 
-  nearby members via BLE, returning them to the Home screen.
-- **High-Precision Ranging:** Real Jetpack UWB session setup on supported devices with 
-  throttled 30 FPS world-space vector updates for performance stability.
-- **Sensor Fusion:** Integration of rotation-vector, magnetometer, and accelerometer 
-  sensors for world-space direction calculation.
-- **Adaptive Radar UI:** Portrait-locked dynamic layout that adapts to compact and 
-  wide screens, featuring directional arrows, distance, RSSI, and haptic feedback.
-- **Android 12+ Permissions:** Comprehensive rationale flow for Bluetooth, 
-  Location, Nearby Devices, and UWB permissions.
+- Fallback paths are available for every permission — for example, manual Ping-Ring code entry is always accessible if camera permission is denied.
 
 ## Technology
 
@@ -134,4 +114,3 @@ Discovery is opt-in and strictly tied to the active event. The app advertises
 ephemeral peer identifiers. Leaving an event rotates the identifier and clears 
 all local peer data. Because the app is P2P, no session data is ever uploaded 
 to a central server.
-
