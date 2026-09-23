@@ -53,17 +53,17 @@ PingRing uses a star/mesh hybrid architecture over Nearby Connections (`P2P_STAR
 ```mermaid
 graph TD
     subgraph "Local Ad-Hoc Ping-Ring Mesh"
-        Host["👑 Host Node<br/>(Nearby Connections Advertiser)"]
-        PeerA["👤 Guest Peer A<br/>(Nearby Connections Discoverer)"]
-        PeerB["👤 Guest Peer B<br/>(Nearby Connections Discoverer)"]
-        PeerC["👤 Guest Peer C<br/>(Nearby Connections Discoverer)"]
+        Host["Host Node (Nearby Connections Advertiser)"]
+        PeerA["Guest Peer A (Nearby Connections Discoverer)"]
+        PeerB["Guest Peer B (Nearby Connections Discoverer)"]
+        PeerC["Guest Peer C (Nearby Connections Discoverer)"]
 
         Host <-->|"Wi-Fi Direct / BLE Mesh"| PeerA
         Host <-->|"Wi-Fi Direct / BLE Mesh"| PeerB
         Host <-->|"Wi-Fi Direct / BLE Mesh"| PeerC
 
-        PeerA -.->"Direct Jetpack UWB Ranging (30 FPS)"<.- PeerB
-        Host -.->"Direct Jetpack UWB Ranging (30 FPS)"<.- PeerA
+        PeerA -.-|"Direct Jetpack UWB Ranging (30 FPS)"| PeerB
+        Host -.-|"Direct Jetpack UWB Ranging (30 FPS)"| PeerA
     end
 ```
 
