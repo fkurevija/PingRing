@@ -33,6 +33,12 @@ class NearbyConnectionsManager(private val context: Context) {
     )
     val receivedChatMessage = _receivedChatMessage.asSharedFlow()
 
+    private val _receivedNudge = MutableSharedFlow<NudgePayloadDto>(
+        extraBufferCapacity = 10,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+    val receivedNudge = _receivedNudge.asSharedFlow()
+
     private val connectedEndpoints = mutableMapOf<String, String>()
     private val endpointToPeerId = mutableMapOf<String, String>()
 
@@ -102,11 +108,23 @@ class NearbyConnectionsManager(private val context: Context) {
         sendPayloadToEndpoint(endpointId, chatMsg)
     }
 
+    fun sendNudgeToPeer(peerId: String, nudge: NudgePayloadDto) {
+        val endpointId = connectedEndpoints[peerId] ?: return
+        sendPayloadToEndpoint(endpointId, nudge)
+    }
+
+    fun broadcastNudge(nudge: NudgePayloadDto) {
+        connectedEndpoints.values.forEach { endpointId ->
+            sendPayloadToEndpoint(endpointId, nudge)
+        }
+    }
+
     private fun sendPayloadToEndpoint(endpointId: String, params: Any) {
         val json = when (params) {
             is UwbControllerParametersDto -> moshi.adapter(UwbControllerParametersDto::class.java).toJson(params)
             is UwbPeerAddressDto -> moshi.adapter(UwbPeerAddressDto::class.java).toJson(params)
             is ChatPayloadDto -> moshi.adapter(ChatPayloadDto::class.java).toJson(params)
+            is NudgePayloadDto -> moshi.adapter(NudgePayloadDto::class.java).toJson(params)
             else -> return
         }
         val payload = Payload.fromBytes(json.toByteArray())
@@ -180,6 +198,15 @@ class NearbyConnectionsManager(private val context: Context) {
                     val chatMsg = moshi.adapter(ChatPayloadDto::class.java).fromJson(json)
                     if (chatMsg != null) {
                         _receivedChatMessage.tryEmit(chatMsg)
+                        return
+                    }
+                } catch (e: Exception) {}
+
+                // Then try as Nudge
+                try {
+                    val nudge = moshi.adapter(NudgePayloadDto::class.java).fromJson(json)
+                    if (nudge != null) {
+                        _receivedNudge.tryEmit(nudge)
                         return
                     }
                 } catch (e: Exception) {}

@@ -76,6 +76,9 @@ class DiscoveryRepository(
     private val _deviceHeading = MutableStateFlow(0f)
     val deviceHeading: StateFlow<Float> = _deviceHeading.asStateFlow()
 
+    // Forward nudge events from the transport layer (fire-and-forget, no state needed)
+    val receivedNudge = nearbyConnectionsManager.receivedNudge
+
     private var repositoryScope: CoroutineScope? = null
     private var bleAdvertiser: BluetoothLeAdvertiser? = null
     private var advertiseCallback: AdvertiseCallback? = null
@@ -176,6 +179,22 @@ class DiscoveryRepository(
             }
         }
 
+        // 2c. Host nudge re-routing: forward incoming nudges to their intended target(s)
+        repositoryScope?.launch {
+            nearbyConnectionsManager.receivedNudge.collect { nudge ->
+                if (sessionManager.sessionState.value.isHost) {
+                    val target = nudge.targetPeerId
+                    if (target == null) {
+                        nearbyConnectionsManager.broadcastNudge(nudge)
+                    } else {
+                        nearbyConnectionsManager.sendNudgeToPeer(target, nudge)
+                    }
+                }
+                // Note: the UI layer collects receivedNudge directly for haptic/snackbar —
+                // no session state update needed here.
+            }
+        }
+
         // 3. Start BLE Advertising & Scanning
         startBleAdvertising()
         startBleScanning()
@@ -238,6 +257,28 @@ class DiscoveryRepository(
 
         // Broadcast to P2P mesh endpoints
         nearbyConnectionsManager.broadcastChatMessage(dto)
+    }
+
+    fun sendNudge(targetPeerId: String?, senderName: String) {
+        val localPeerId = sessionManager.peerId.value
+        val nudge = NudgePayloadDto(
+            id = UUID.randomUUID().toString(),
+            senderPeerId = localPeerId,
+            senderName = senderName,
+            targetPeerId = targetPeerId,
+            timestamp = System.currentTimeMillis()
+        )
+        if (targetPeerId == null) {
+            nearbyConnectionsManager.broadcastNudge(nudge)
+        } else {
+            // Send directly if we have the peer connected, otherwise send to host to forward
+            val sentDirect = runCatching { nearbyConnectionsManager.sendNudgeToPeer(targetPeerId, nudge) }.isSuccess
+            if (!sentDirect || !sessionManager.sessionState.value.isHost) {
+                // Guest: send to host and let the host forward it
+                val hostPeerId = sessionManager.sessionState.value.currentEvent?.hostPeerId
+                if (hostPeerId != null) nearbyConnectionsManager.sendNudgeToPeer(hostPeerId, nudge)
+            }
+        }
     }
 
     @Synchronized

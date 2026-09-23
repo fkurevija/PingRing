@@ -27,6 +27,12 @@ Google Nearby Connections to discover and track friends without an external serv
 - The host automatically re-broadcasts every incoming message to all other peers, so the full group stays in sync even though guests are only directly connected to the host.
 - Duplicate packets are deduplicated by message ID, so re-broadcasts never produce duplicate bubbles.
 
+### Peer Nudges
+
+- Send quick, targeted alerts to specific peers (via the 👋 button on their card) or broadcast to everyone at once ("Nudge All").
+- Nudges trigger a distinctive double-haptic vibration pulse and an on-screen banner on recipient devices without requiring text input.
+- Routed peer-to-peer over the Nearby Connections mesh with automatic host re-broadcasting.
+
 ### Radar & ranging
 
 - The radar canvas shows all peers simultaneously, each rendered with a directional arrow, distance label, and RSSI indicator.
@@ -54,6 +60,7 @@ Google Nearby Connections to discover and track friends without an external serv
   directly between devices using Google Nearby Connections. No external server required.
 - **Real-Time P2P Chat:** Decentralized group text messaging across hosted and joined 
   Ping-Ring events. The host automatically brokers packets outward to all remote mesh nodes.
+- **Peer Nudges:** Lightweight haptic alerts sent individually or broadcast ring-wide over Nearby Connections.
 - **Intelligent Connectivity:** Automatically selects the best connection method 
   (UWB, Wi-Fi Direct, or Hotspot) based on device support and host preferences.
 - **Connectivity Controls:** Toggles for Ultra-wideband (UWB) and High Bandwidth (Wi-Fi) 

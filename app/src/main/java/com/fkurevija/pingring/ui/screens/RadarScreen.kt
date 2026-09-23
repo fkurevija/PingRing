@@ -23,7 +23,12 @@ import androidx.compose.material.icons.filled.BluetoothDisabled
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Send
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -44,6 +49,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -81,6 +87,9 @@ fun RadarScreen(
     onEndEvent: () -> Unit
 ) {
     var showEndConfirmation by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+
     LaunchedEffect(isVisible, discoveryRepository) {
         if (isVisible) discoveryRepository?.startDiscovery() else discoveryRepository?.stopDiscovery()
     }
@@ -100,6 +109,17 @@ fun RadarScreen(
         if (isVisible && distance < 2f) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
     }
 
+    // Collect incoming nudges — double haptic pulse + snackbar
+    LaunchedEffect(discoveryRepository) {
+        discoveryRepository?.receivedNudge?.collect { nudge ->
+            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+            kotlinx.coroutines.delay(120)
+            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+            snackbarHostState.showSnackbar("👋 ${nudge.senderName} nudged you!")
+        }
+    }
+
+    val senderName = if (isHost) "Host" else "Peer"
     Scaffold(
         topBar = {
             TopAppBar(
@@ -145,7 +165,8 @@ fun RadarScreen(
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                 ) { Text(if (isHost) "End Ping-Ring" else "Leave Ping-Ring") }
             }
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp)) {
             coordinationError?.let { message ->
@@ -174,7 +195,7 @@ fun RadarScreen(
                             peers.isNotEmpty(),
                             Modifier.width(paneWidth)
                         )
-                        PeerList(peers, connectivity, discoveryRepository, Modifier.width(paneWidth))
+                        PeerList(peers, connectivity, discoveryRepository, senderName, Modifier.width(paneWidth))
                     }
                 } else {
                     Column(Modifier.fillMaxSize()) {
@@ -183,7 +204,17 @@ fun RadarScreen(
                             peers.isNotEmpty(),
                             Modifier.fillMaxWidth().height(260.dp)
                         )
-                        
+
+                        OutlinedButton(
+                            onClick = { discoveryRepository?.sendNudge(null, senderName) },
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            enabled = peers.isNotEmpty()
+                        ) {
+                            Icon(Icons.Default.NotificationsActive, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Nudge All")
+                        }
+
                         var chatText by remember { mutableStateOf("") }
                         Card(
                             modifier = Modifier.fillMaxWidth().weight(1f).padding(vertical = 8.dp),
@@ -228,7 +259,7 @@ fun RadarScreen(
                                     Button(
                                         onClick = {
                                             if (chatText.isNotBlank()) {
-                                                discoveryRepository?.broadcastOutgoingChatMessage(chatText, if (isHost) "Host" else "Peer")
+                                                discoveryRepository?.broadcastOutgoingChatMessage(chatText, senderName)
                                                 chatText = ""
                                             }
                                         }
@@ -333,6 +364,7 @@ private fun PeerList(
     peers: List<RadarPeerUpdate>,
     connectivity: ConnectivityStatus,
     repository: DiscoveryRepository?,
+    senderName: String,
     modifier: Modifier
 ) {
     Column(modifier.padding(bottom = 8.dp)) {
@@ -351,7 +383,20 @@ private fun PeerList(
                 }
             }
         }
-        Text("Nearby (${peers.size})", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Nearby (${peers.size})", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            if (peers.isNotEmpty()) {
+                TextButton(onClick = { repository?.sendNudge(null, senderName) }) {
+                    Icon(Icons.Default.NotificationsActive, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Nudge All")
+                }
+            }
+        }
         Spacer(Modifier.height(8.dp))
         if (peers.isEmpty()) {
             Text(
@@ -367,11 +412,18 @@ private fun PeerList(
                         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                             Box(Modifier.size(12.dp).background(if (peer.proximity == "Hot") Color(0xFF00C853) else Color(0xFF3F51B5), CircleShape))
                             Spacer(Modifier.width(12.dp))
-                            Column(Modifier.fillMaxWidth()) {
+                            Column(Modifier.weight(1f)) {
                                 Text(peer.name, fontWeight = FontWeight.SemiBold)
                                 Text("${peer.proximity} · ${peer.rssi ?: 0} dBm", style = MaterialTheme.typography.bodySmall)
                             }
                             Text(peer.distance?.let { "%.1f m".format(it) } ?: "—", fontWeight = FontWeight.Bold)
+                            Spacer(Modifier.width(8.dp))
+                            IconButton(
+                                onClick = { repository?.sendNudge(peer.peerId, senderName) },
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Text("👋", style = MaterialTheme.typography.titleMedium)
+                            }
                         }
                     }
                 }
