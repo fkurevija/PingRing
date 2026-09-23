@@ -1,0 +1,7 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="app + LAN Debug Relay" type="CompoundRunConfigurationType" factoryName="Compound Run Configuration">
+    <toRun name="app" type="AndroidRunConfigurationType" />
+    <toRun name="LAN Debug Relay" type="GradleRunConfiguration" />
+    <method v="2" />
+  </configuration>
+</component>
