@@ -374,14 +374,16 @@ fun RadarScreen(
                                                     )
                                                 ) {
                                                     Column(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
-                                                        if (!isMe) {
-                                                            Text(
-                                                                msg.senderName,
-                                                                style = MaterialTheme.typography.labelSmall,
-                                                                fontWeight = FontWeight.Bold,
-                                                                color = MaterialTheme.colorScheme.primary
-                                                            )
-                                                        }
+                                                        Text(
+                                                            msg.senderName,
+                                                            style = MaterialTheme.typography.labelSmall,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = if (isMe) {
+                                                                MaterialTheme.colorScheme.onPrimaryContainer
+                                                            } else {
+                                                                MaterialTheme.colorScheme.primary
+                                                            }
+                                                        )
                                                         Text(
                                                             msg.messageText,
                                                             style = MaterialTheme.typography.bodyMedium,
