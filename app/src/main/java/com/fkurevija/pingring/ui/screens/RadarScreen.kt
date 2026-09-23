@@ -23,8 +23,8 @@ import androidx.compose.material.icons.filled.BluetoothDisabled
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.NotificationsActive
-import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
@@ -350,54 +350,108 @@ fun RadarScreen(
 
                         var chatText by remember { mutableStateOf("") }
                         Card(
-                            modifier = Modifier.fillMaxWidth().weight(1f).padding(vertical = 8.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                            modifier = Modifier.fillMaxWidth().weight(1f).padding(vertical = 6.dp),
+                            shape = RoundedCornerShape(20.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
                         ) {
-                            Column(Modifier.fillMaxSize().padding(8.dp)) {
-                                Text("Ping-Ring Chat", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                            Column(Modifier.fillMaxSize().padding(12.dp)) {
+                                Text(
+                                    "Mesh Chat",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(Modifier.height(6.dp))
                                 LazyColumn(
                                     modifier = Modifier.weight(1f).fillMaxWidth(),
-                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
-                                    items(sessionState.chatMessages) { msg ->
-                                        Column(
-                                            modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                                            horizontalAlignment = Alignment.Start
-                                        ) {
-                                            Card(
-                                                shape = RoundedCornerShape(8.dp),
-                                                colors = CardDefaults.cardColors(
-                                                    containerColor = MaterialTheme.colorScheme.secondaryContainer
-                                                )
+                                    if (sessionState.chatMessages.isEmpty()) {
+                                        item {
+                                            Box(
+                                                modifier = Modifier.fillParentMaxSize(),
+                                                contentAlignment = Alignment.Center
                                             ) {
-                                                Column(Modifier.padding(8.dp)) {
-                                                    Text(msg.senderName, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                                                    Text(msg.messageText, style = MaterialTheme.typography.bodyMedium)
+                                                Text(
+                                                    "No messages yet. Say hello!",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        }
+                                    } else {
+                                        items(sessionState.chatMessages) { msg ->
+                                            val isMe = msg.senderName == senderName
+                                            Column(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalAlignment = if (isMe) Alignment.End else Alignment.Start
+                                            ) {
+                                                Card(
+                                                    shape = RoundedCornerShape(
+                                                        topStart = 14.dp,
+                                                        topEnd = 14.dp,
+                                                        bottomStart = if (isMe) 14.dp else 4.dp,
+                                                        bottomEnd = if (isMe) 4.dp else 14.dp
+                                                    ),
+                                                    colors = CardDefaults.cardColors(
+                                                        containerColor = if (isMe) {
+                                                            MaterialTheme.colorScheme.primaryContainer
+                                                        } else {
+                                                            MaterialTheme.colorScheme.surface
+                                                        }
+                                                    )
+                                                ) {
+                                                    Column(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
+                                                        if (!isMe) {
+                                                            Text(
+                                                                msg.senderName,
+                                                                style = MaterialTheme.typography.labelSmall,
+                                                                fontWeight = FontWeight.Bold,
+                                                                color = MaterialTheme.colorScheme.primary
+                                                            )
+                                                        }
+                                                        Text(
+                                                            msg.messageText,
+                                                            style = MaterialTheme.typography.bodyMedium,
+                                                            color = if (isMe) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                                                        )
+                                                    }
                                                 }
                                             }
                                         }
                                     }
                                 }
+                                Spacer(Modifier.height(6.dp))
                                 Row(
-                                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                                    modifier = Modifier.fillMaxWidth(),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     OutlinedTextField(
                                         value = chatText,
                                         onValueChange = { chatText = it },
-                                        placeholder = { Text("Message...") },
-                                        modifier = Modifier.weight(1f).padding(end = 4.dp),
-                                        maxLines = 2
+                                        placeholder = { Text("Type a message…", style = MaterialTheme.typography.bodyMedium) },
+                                        modifier = Modifier.weight(1f),
+                                        shape = RoundedCornerShape(24.dp),
+                                        singleLine = true
                                     )
+                                    Spacer(Modifier.width(8.dp))
                                     Button(
                                         onClick = {
                                             if (chatText.isNotBlank()) {
-                                                discoveryRepository?.broadcastOutgoingChatMessage(chatText, senderName)
+                                                discoveryRepository?.broadcastOutgoingChatMessage(chatText.trim(), senderName)
                                                 chatText = ""
                                             }
-                                        }
+                                        },
+                                        shape = CircleShape,
+                                        contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
+                                        modifier = Modifier.size(46.dp),
+                                        enabled = chatText.isNotBlank()
                                     ) {
-                                        Text("Send")
+                                        Icon(
+                                            Icons.AutoMirrored.Filled.Send,
+                                            contentDescription = "Send",
+                                            modifier = Modifier.size(20.dp)
+                                        )
                                     }
                                 }
                             }
