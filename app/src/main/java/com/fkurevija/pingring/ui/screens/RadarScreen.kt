@@ -171,14 +171,9 @@ fun RadarScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { showBeaconSheet = true }) {
-                        Icon(
-                            Icons.Default.Campaign,
-                            contentDescription = "Beacon",
-                            tint = if (localBeacon != null) Color(localBeacon!!.colorArgb) else MaterialTheme.colorScheme.onSurface
-                        )
+                    if (isHost) {
+                        TextButton(onClick = onEventSettings) { Text("Settings") }
                     }
-                    TextButton(onClick = onEventSettings) { Text("Settings") }
                 }
             )
         },
