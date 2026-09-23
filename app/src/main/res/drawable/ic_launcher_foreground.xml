@@ -5,24 +5,31 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Center Radar Core Badge (Radius 17) -->
+    <!-- Outer Ring (Radius 15.5) -->
     <path
-        android:fillColor="#2A52BE"
-        android:strokeColor="#7C9DFF"
-        android:strokeWidth="1.2"
-        android:pathData="M37,54 a17,17 0 1,0 34,0 a17,17 0 1,0 -34,0" />
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.8"
+        android:pathData="M38.5,54 a15.5,15.5 0 1,0 31,0 a15.5,15.5 0 1,0 -31,0" />
 
-    <!-- Radar Material Icon (Centered at 54, 54) -->
-    <group
-        android:pivotX="12"
-        android:pivotY="12"
-        android:scaleX="0.88"
-        android:scaleY="0.88"
-        android:translateX="42"
-        android:translateY="42">
-        <path
-            android:fillColor="#FFFFFF"
-            android:pathData="M12,2C6.48,2 2,6.48 2,12s4.48,10 10,10 10,-4.48 10,-10S17.52,2 12,2zm0,18c-4.42,0 -8,-3.58 -8,-8s3.58,-8 8,-8 8,3.58 8,8 -3.58,8 -8,8zm0,-14c-3.31,0 -6,2.69 -6,6h2c0,-2.21 1.79,-4 4,-4V6zm0,4c-1.1,0 -2,0.9 -2,2h2V10z" />
-    </group>
+    <!-- Inner Ring (Radius 9.5) -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.8"
+        android:pathData="M44.5,54 a9.5,9.5 0 1,0 19,0 a9.5,9.5 0 1,0 -19,0" />
+
+    <!-- Center Dot (Radius 2.5) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M51.5,54 a2.5,2.5 0 1,0 5,0 a2.5,2.5 0 1,0 -5,0" />
+
+    <!-- Diagonal Spoke / Radar Line -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2.8"
+        android:strokeLineCap="round"
+        android:pathData="M54,54 L66,66" />
 
 </vector>

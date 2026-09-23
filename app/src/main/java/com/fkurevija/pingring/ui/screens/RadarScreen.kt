@@ -91,6 +91,7 @@ import com.fkurevija.pingring.data.ConnectivityStatus
 import com.fkurevija.pingring.data.DiscoveryRepository
 import com.fkurevija.pingring.data.RadarPeerUpdate
 import com.fkurevija.pingring.data.SessionState
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -138,10 +139,12 @@ fun RadarScreen(
     // Collect incoming nudges — double haptic pulse + snackbar
     LaunchedEffect(discoveryRepository) {
         discoveryRepository?.receivedNudge?.collect { nudge ->
-            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-            kotlinx.coroutines.delay(120)
-            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-            snackbarHostState.showSnackbar("👋 ${nudge.senderName} nudged you!")
+            if (nudge.senderPeerId != discoveryRepository.localPeerId) {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                delay(120)
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                snackbarHostState.showSnackbar("👋 ${nudge.senderName} nudged you!")
+            }
         }
     }
 

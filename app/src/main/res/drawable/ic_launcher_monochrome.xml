@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Outer Ring (Radius 15.5) -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#000000"
+        android:strokeWidth="2.8"
+        android:pathData="M38.5,54 a15.5,15.5 0 1,0 31,0 a15.5,15.5 0 1,0 -31,0" />
+
+    <!-- Inner Ring (Radius 9.5) -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#000000"
+        android:strokeWidth="2.8"
+        android:pathData="M44.5,54 a9.5,9.5 0 1,0 19,0 a9.5,9.5 0 1,0 -19,0" />
+
+    <!-- Center Dot (Radius 2.5) -->
+    <path
+        android:fillColor="#000000"
+        android:pathData="M51.5,54 a2.5,2.5 0 1,0 5,0 a2.5,2.5 0 1,0 -5,0" />
+
+    <!-- Diagonal Spoke / Radar Line -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#000000"
+        android:strokeWidth="2.8"
+        android:strokeLineCap="round"
+        android:pathData="M54,54 L66,66" />
+
+</vector>

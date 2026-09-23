@@ -87,6 +87,9 @@ class DiscoveryRepository(
     private val _localBeacon = MutableStateFlow<BeaconInfo?>(null)
     val localBeacon: StateFlow<BeaconInfo?> = _localBeacon.asStateFlow()
 
+    // Local peer ID
+    val localPeerId: String get() = sessionManager.peerId.value
+
     // Forward nudge events from the transport layer (fire-and-forget, no state needed)
     val receivedNudge = nearbyConnectionsManager.receivedNudge
 
