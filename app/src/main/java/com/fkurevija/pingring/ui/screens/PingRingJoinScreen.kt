@@ -62,12 +62,12 @@ fun PingRingJoinScreen(
             return
         }
         if (existingMembers.any { it.equals(trimmedUsername, ignoreCase = true) }) {
-            usernameError = "Username '$trimmedUsername' is already taken in this Ping-Ring."
+            usernameError = "Username '$trimmedUsername' is already taken in this PingRing."
             return
         }
         val parsedEventCode = PingRingCodeParser.parse(codeToUse)
         if (parsedEventCode == null) {
-            inputError = "Enter a valid 6-character Ping-Ring code."
+            inputError = "Enter a valid 6-character PingRing code."
             return
         }
         onJoinEvent(parsedEventCode, trimmedUsername)
@@ -89,7 +89,7 @@ fun PingRingJoinScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Join a Ping-Ring", fontWeight = FontWeight.Bold) },
+                title = { Text("Join a PingRing", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -133,12 +133,12 @@ fun PingRingJoinScreen(
 
                     Spacer(Modifier.height(16.dp))
                     Text(
-                        "Enter Ping-Ring Code",
+                        "Enter PingRing Code",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        "Ask the host for their 6-character Ping-Ring code",
+                        "Ask the host for their 6-character PingRing code",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -168,14 +168,14 @@ fun PingRingJoinScreen(
 
                     Spacer(Modifier.height(12.dp))
 
-                    // Ping-Ring Code Field
+                    // PingRing Code Field
                     OutlinedTextField(
                         value = eventCode,
                         onValueChange = {
                             eventCode = it.uppercase()
                             inputError = null
                         },
-                        label = { Text("Ping-Ring Code") },
+                        label = { Text("PingRing Code") },
                         placeholder = { Text("e.g. AB12CD") },
                         isError = inputError != null,
                         supportingText = {
@@ -244,7 +244,7 @@ private fun QrScannerScreen(
     onJoinEvent: (String) -> Unit
 ) {
     val permissionState = rememberPermissionState(Manifest.permission.CAMERA)
-    var scanMessage by remember { mutableStateOf("Align the Ping-Ring QR code within the frame.") }
+    var scanMessage by remember { mutableStateOf("Align the PingRing QR code within the frame.") }
     var scanSessionId by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(Unit) {
@@ -256,7 +256,7 @@ private fun QrScannerScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Scan Ping-Ring QR") },
+                title = { Text("Scan PingRing QR") },
                 navigationIcon = {
                     IconButton(onClick = onCancel) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -348,7 +348,7 @@ private fun PermissionDeniedCard(
             verticalArrangement = Arrangement.Center
         ) {
             Text(
-                "Camera permission is needed to scan QR codes. You can still join by typing the Ping-Ring code.",
+                "Camera permission is needed to scan QR codes. You can still join by typing the PingRing code.",
                 style = MaterialTheme.typography.bodyMedium
             )
             Spacer(modifier = Modifier.height(12.dp))

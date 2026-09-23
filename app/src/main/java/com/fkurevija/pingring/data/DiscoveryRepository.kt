@@ -534,7 +534,7 @@ class DiscoveryRepository(
                             closureAdvertisingActive = false
                         }
                     }
-                    Log.e(TAG, "Ping-Ring closure announcement failed to start: $errorCode")
+                    Log.e(TAG, "PingRing closure announcement failed to start: $errorCode")
                 }
             }
             closureAdvertiser = advertiser
@@ -555,7 +555,7 @@ class DiscoveryRepository(
             }
         } catch (exception: Exception) {
             stopClosureAdvertising()
-            Log.e(TAG, "Unable to announce Ping-Ring closure", exception)
+            Log.e(TAG, "Unable to announce PingRing closure", exception)
         }
     }
 
@@ -571,7 +571,7 @@ class DiscoveryRepository(
             try {
                 advertiser.stopAdvertising(callback)
             } catch (exception: Exception) {
-                Log.e(TAG, "Unable to stop Ping-Ring closure announcement", exception)
+                Log.e(TAG, "Unable to stop PingRing closure announcement", exception)
             }
         }
     }

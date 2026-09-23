@@ -36,7 +36,7 @@ class SessionManager(
 
     fun hostEvent(event: Event) {
         check(sessionState.value.currentEvent == null) {
-            "Leave the active Ping-Ring before hosting another one."
+            "Leave the active PingRing before hosting another one."
         }
         coordinationRepository.markSyncing()
         coordinationRepository.hostEvent(event, peerId.value)
@@ -57,7 +57,7 @@ class SessionManager(
     }
 
     fun endHostedEvent() {
-        check(sessionState.value.isHost) { "Only the host can end a Ping-Ring." }
+        check(sessionState.value.isHost) { "Only the host can end a PingRing." }
         leaveEvent()
     }
 

@@ -160,8 +160,7 @@ fun RadarScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text("PingRing", fontWeight = FontWeight.Bold)
-                        Text("Ping-Ring $eventId", style = MaterialTheme.typography.labelMedium)
+                        Text("RingRing Code: $eventId", style = MaterialTheme.typography.labelMedium)
                     }
                 },
                 navigationIcon = {
@@ -170,7 +169,7 @@ fun RadarScreen(
                     }) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = if (isHost) "End Ping-Ring" else "Leave Ping-Ring"
+                            contentDescription = if (isHost) "End PingRing" else "Leave PingRing"
                         )
                     }
                 },
@@ -205,7 +204,7 @@ fun RadarScreen(
                     modifier = Modifier.fillMaxWidth().height(52.dp),
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                ) { Text(if (isHost) "End Ping-Ring" else "Leave Ping-Ring") }
+                ) { Text(if (isHost) "End PingRing" else "Leave PingRing") }
             }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
@@ -498,15 +497,15 @@ fun RadarScreen(
                 if (showEndConfirmation) {
                     AlertDialog(
                         onDismissRequest = { showEndConfirmation = false },
-                        title = { Text("End this Ping-Ring?") },
+                        title = { Text("End this PingRing?") },
                         text = {
-                            Text("This removes every member from the Ping-Ring and returns them to the home page.")
+                            Text("This removes every member from the PingRing and returns them to the home page.")
                         },
                         confirmButton = {
                             Button(onClick = {
                                 showEndConfirmation = false
                                 onEndEvent()
-                            }) { Text("End Ping-Ring") }
+                            }) { Text("End PingRing") }
                         },
                         dismissButton = {
                             TextButton(onClick = { showEndConfirmation = false }) { Text("Cancel") }

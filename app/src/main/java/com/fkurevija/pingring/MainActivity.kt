@@ -119,7 +119,7 @@ fun MainNavigation(
                                 sessionManager.hostEvent(
                                     Event(
                                         id = eventCode,
-                                        name = "Ping-Ring $eventCode",
+                                        name = "PingRing $eventCode",
                                         description = "PingRing Event",
                                         expiryTimestamp = System.currentTimeMillis() + 3600000,
                                         hostPeerId = sessionManager.peerId.value,
@@ -183,7 +183,7 @@ fun MainNavigation(
                             if (sessionManager.joinEvent(
                                 Event(
                                     id = eventCode,
-                                    name = "Ping-Ring $eventCode",
+                                    name = "PingRing $eventCode",
                                     description = "PingRing Event",
                                     expiryTimestamp = System.currentTimeMillis() + 3600000
                                 )

@@ -82,7 +82,7 @@ fun HostSetupScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Host a Ping-Ring", fontWeight = FontWeight.Bold) },
+                title = { Text("Host a PingRing", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -145,13 +145,13 @@ fun HostSetupScreen(
                     ) {
                         Image(
                             bitmap = generateQrCode(eventCode).asImageBitmap(),
-                            contentDescription = "QR code for Ping-Ring $eventCode",
+                            contentDescription = "QR code for PingRing $eventCode",
                             modifier = Modifier.fillMaxSize()
                         )
                     }
                     Spacer(Modifier.height(14.dp))
                     Text(
-                        "Ping-Ring Code",
+                        "PingRing Code",
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurfaceVariant

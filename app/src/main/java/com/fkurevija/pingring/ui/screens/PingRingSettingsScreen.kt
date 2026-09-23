@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -28,7 +27,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -41,7 +39,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import com.fkurevija.pingring.data.Event
 
@@ -52,7 +49,6 @@ fun PingRingSettingsScreen(
     onBack: () -> Unit,
     onSave: (Event) -> Unit
 ) {
-    var name by remember(event) { mutableStateOf(event.name) }
     var visible by remember { mutableStateOf(true) }
     var useUwb by remember(event) { mutableStateOf(event.useUwb) }
     var useWifiDirect by remember(event) { mutableStateOf(event.useWifiDirect) }
@@ -60,7 +56,7 @@ fun PingRingSettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Event Settings", fontWeight = FontWeight.Bold) },
+                title = { Text("PingRing Settings", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -85,13 +81,11 @@ fun PingRingSettingsScreen(
                 Button(
                     onClick = {
                         onSave(event.copy(
-                            name = name.trim(),
                             description = if (visible) "PingRing Event" else "Closed",
                             useUwb = useUwb,
                             useWifiDirect = useWifiDirect
                         ))
                     },
-                    enabled = name.isNotBlank(),
                     modifier = Modifier.weight(1f).height(50.dp),
                     shape = RoundedCornerShape(14.dp)
                 ) {
@@ -108,18 +102,6 @@ fun PingRingSettingsScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                label = { Text("Ping-Ring Name") },
-                shape = RoundedCornerShape(14.dp),
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(
-                    capitalization = KeyboardCapitalization.Words
-                ),
-                modifier = Modifier.fillMaxWidth()
-            )
-
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(18.dp),

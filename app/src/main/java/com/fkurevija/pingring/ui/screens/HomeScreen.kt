@@ -179,7 +179,7 @@ fun HomeScreen(
                         Spacer(Modifier.width(16.dp))
                         Column {
                             Text(
-                                "Create a Ping-Ring",
+                                "Create a PingRing",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer
@@ -226,7 +226,7 @@ fun HomeScreen(
                         Spacer(Modifier.width(16.dp))
                         Column {
                             Text(
-                                "Join a Ping-Ring",
+                                "Join a PingRing",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant

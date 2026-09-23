@@ -25,7 +25,7 @@
 - [Key Features](#-key-features)
   - [📡 Mesh Networking & Connectivity](#-mesh-networking--connectivity)
   - [👤 User Profiles & Uniqueness](#-user-profiles--uniqueness)
-  - [📱 QR & Ping-Ring Code Join](#-qr--ping-ring-code-join)
+  - [📱 QR & PingRing Code Join](#-qr--pingring-code-join)
   - [👋 Peer Nudges](#-peer-nudges)
   - [🚨 Customizable Peer Beacons](#-customizable-peer-beacons)
   - [💬 Decentralized Chat](#-decentralized-chat)
@@ -52,7 +52,7 @@ PingRing uses a star/mesh hybrid architecture over Nearby Connections (`P2P_STAR
 
 ```mermaid
 graph TD
-    subgraph "Local Ad-Hoc Ping-Ring Mesh"
+    subgraph "Local Ad-Hoc PingRing Mesh"
         Host["Host Node (Nearby Connections Advertiser)"]
         PeerA["Guest Peer A (Nearby Connections Discoverer)"]
         PeerB["Guest Peer B (Nearby Connections Discoverer)"]
@@ -68,7 +68,7 @@ graph TD
 ```
 
 ### Protocol Flow
-1. **Discovery**: Host advertises the Ping-Ring over BLE Service UUID (`0000fa1b-0000-1000-8000-00805f9b34fb`).
+1. **Discovery**: Host advertises the PingRing over BLE Service UUID (`0000fa1b-0000-1000-8000-00805f9b34fb`).
 2. **P2P Handshake**: Guests discover the advertiser and establish an encrypted Nearby Connections session.
 3. **Data Sync**: Chat messages, nudges, and beacon payloads are brokered and re-broadcasted by the Host to all connected nodes.
 4. **Spatial Ranging**: High-precision UWB sessions run concurrently between nodes for sub-metre 3D positioning (distance, azimuth, elevation).
@@ -78,18 +78,18 @@ graph TD
 ## ✨ Key Features
 
 ### 📡 Mesh Networking & Connectivity
-- **One-Tap Hosting**: Instantly start a local Ping-Ring mesh without server registration.
+- **One-Tap Hosting**: Instantly start a local PingRing mesh without server registration.
 - **Hardware Toggles**: Enable or disable **Ultra-Wideband (UWB)** and **High-Bandwidth Wi-Fi Direct** on the fly.
 - **Automatic Fallback**: Gracefully falls back from sub-metre UWB ranging to BLE RSSI proximity if UWB is unsupported or unavailable.
 
 ### 👤 User Profiles & Uniqueness
 - **Custom Usernames**: Easily set your display name when hosting or joining.
 - **Persistent Local Profile**: Saves your last entered username locally via DataStore preferences for automatic pre-filling on future sessions.
-- **Conflict Prevention**: Enforces name uniqueness within the active Ping-Ring session and alerts you if a chosen username is already taken.
+- **Conflict Prevention**: Enforces name uniqueness within the active PingRing session and alerts you if a chosen username is already taken.
 
-### 📱 QR & Ping-Ring Code Join
+### 📱 QR & PingRing Code Join
 - **Camera QR Scanner**: Join instantly by scanning the Host's on-screen QR code using ML Kit vision decoding.
-- **6-Character Ping-Ring Code**: Manual fallback entry for quick code typing (`e.g. AB12CD`).
+- **6-Character PingRing Code**: Manual fallback entry for quick code typing (`e.g. AB12CD`).
 - **Context-Aware Keyboards**: Automatically opens the soft keyboard in **ALL CAPS** for code fields and **Word Capitalization** for usernames.
 
 ### 👋 Peer Nudges
@@ -117,7 +117,7 @@ graph TD
 - **System Dark/Light Theme**: Fully respects system light/dark mode and Material 3 dynamic accent palettes.
 
 ### 🔒 Privacy & Ephemeral Security
-- **Ephemeral Identifiers**: Every session generates a random peer ID. Leaving or closing a Ping-Ring rotates the ID and wipes local peer state.
+- **Ephemeral Identifiers**: Every session generates a random peer ID. Leaving or closing a PingRing rotates the ID and wipes local peer state.
 - **Self-Filtering**: Local peer IDs are filtered from scan results so you never appear on your own radar.
 - **Host Closure**: Host can end the event at any time, broadcasting a BLE closure packet to return all members safely to the home screen.
 
@@ -176,7 +176,7 @@ PingRing is built from the ground up to respect user privacy:
 
 1. **No External Servers**: No account registration, email collection, or remote logging. All data stays local to the ad-hoc mesh.
 2. **Ephemeral Identity**: Peer identifiers rotate every session. No persistent tracking cross-event.
-3. **Session-Scoped Advertising**: BLE advertising is strictly opt-in and stops immediately when the app is closed or when leaving a Ping-Ring.
+3. **Session-Scoped Advertising**: BLE advertising is strictly opt-in and stops immediately when the app is closed or when leaving a PingRing.
 
 ---
 
