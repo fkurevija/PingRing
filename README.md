@@ -34,6 +34,7 @@
   - [🔒 Privacy & Ephemeral Security](#-privacy--ephemeral-security)
 - [Tech Stack](#-tech-stack)
 - [Building & Testing](#-building--testing)
+  - [🧪 LAN Debug Transport (Emulator ↔ Physical Device Testing)](#-lan-debug-transport-emulator--physical-device-testing)
 - [Privacy Model](#-privacy-model)
 
 ---
@@ -91,10 +92,12 @@ graph TD
 - **Camera QR Scanner**: Join instantly by scanning the Host's on-screen QR code using ML Kit vision decoding.
 - **6-Character PingRing Code**: Manual fallback entry for quick code typing (`e.g. AB12CD`).
 - **Context-Aware Keyboards**: Automatically opens the soft keyboard in **ALL CAPS** for code fields and **Word Capitalization** for usernames.
+- **Late-Join QR Access**: A dedicated QR icon button on the Radar screen (next to Settings) re-opens the PingRing's QR code at any time, so latecomers can scan in mid-event without interrupting the host.
 
 ### 👋 Peer Nudges
 - **Instant Haptic Alerts**: Send quick targeted nudges (`👋`) to specific peers or broadcast a **Nudge All** to the entire group.
 - **Double-Haptic Pulse**: Recipients receive a distinct double-vibration pulse and banner notification without typing text.
+- **Always Available**: The Nudge button remains enabled regardless of connection or ranging state, so a nudge can always be attempted.
 
 ### 🚨 Customizable Peer Beacons
 - **Intent Presets**: Broadcast active beacons with custom intents (*🚨 SOS*, *✨ Found Something*, *📍 Regroup Here*, *⚠️ Caution*, *⚡ Custom*).
@@ -103,7 +106,9 @@ graph TD
 
 ### 💬 Decentralized Chat
 - **Offline Group Messaging**: Text chat across the Nearby Connections mesh without internet.
+- **Sender Labels**: Every chat bubble is labeled with the sender's display name for clear multi-peer conversations.
 - **Floating IME Overlay**: The chat window floats directly over the radar canvas when typing, providing clear visibility of messages, and smoothly returns to its docked position when the soft keyboard closes.
+- **Host-Preserved History**: The Host retains the full chat transcript for the life of the PingRing and replays it to newly joined or reconnecting peers, so latecomers can catch up on the conversation so far.
 
 ### 🧭 Radar & Sensor Fusion Ranging
 - **Real-World Orientation**: Sensor fusion integrates rotation-vector, magnetometer, and accelerometer hardware to orient peer vectors into world space.
@@ -167,6 +172,22 @@ On **Windows (PowerShell)**:
 
 The compiled APK will be available at:
 `app/build/outputs/apk/debug/app-debug.apk`
+
+### 🧪 LAN Debug Transport (Emulator ↔ Physical Device Testing)
+
+Google Nearby Connections cannot bridge an Android Emulator and a physical device, since the emulator has no real BLE/Wi-Fi Direct radio. For local development, PingRing ships a **debug-only** TCP transport that virtualizes a connection between them over your PC's LAN/loopback, so multi-device P2P flows can be tested without two physical phones:
+
+1. Start the relay server on your development PC:
+   ```powershell
+   python tools\lan_debug_relay.py
+   ```
+   Or use the bundled IDE run configurations **"LAN Debug Relay"** (relay only) or **"app + LAN Debug Relay"** (compound: launches the app and relay together).
+2. Enable **LAN Debug Transport** in the app's Home screen Settings (gear icon, before hosting/joining) on both the emulator and the physical device.
+   - The emulator reaches the relay automatically via `10.0.2.2`.
+   - A physical device needs a one-time `adb reverse tcp:8942 tcp:8942` (or a host/IP reachable on your LAN) so it can reach the relay running on your PC.
+3. Host on one device and join on the other as usual — messages are relayed over TCP instead of Nearby Connections.
+
+This transport is for local testing only and is excluded from release builds; it is not a substitute for testing on real hardware over Nearby Connections before shipping.
 
 ---
 
