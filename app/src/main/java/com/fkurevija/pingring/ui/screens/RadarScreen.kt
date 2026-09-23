@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -49,6 +50,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -81,12 +83,14 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.RadioButton
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.layout.onSizeChanged
 import com.fkurevija.pingring.data.BeaconInfo
 import com.fkurevija.pingring.data.BeaconPreset
 import com.fkurevija.pingring.data.BeaconVibrationPattern
@@ -429,8 +433,16 @@ fun RadarScreen(
                         }
                     }
 
+                    val density = LocalDensity.current
+                    var topContentHeightPx by remember { mutableIntStateOf(0) }
+                    val availableHeight = maxHeight
+
                     Box(Modifier.fillMaxSize()) {
-                        Column(Modifier.fillMaxSize()) {
+                        Column(
+                            Modifier
+                                .fillMaxWidth()
+                                .onSizeChanged { topContentHeightPx = it.height }
+                        ) {
                             RadarContent(
                                 focusedPeer,
                                 peers.isNotEmpty(),
@@ -461,20 +473,27 @@ fun RadarScreen(
                                     Text(if (localBeacon != null) "My Beacon" else "Beacon")
                                 }
                             }
-
-                            if (!isImeVisible) {
-                                renderChatCard(Modifier.fillMaxWidth().weight(1f).padding(vertical = 6.dp))
-                            }
                         }
 
-                        if (isImeVisible) {
-                            renderChatCard(
-                                Modifier
-                                    .fillMaxSize()
-                                    .padding(vertical = 6.dp)
-                                    .imePadding()
-                            )
+                        val topContentHeightDp = with(density) { topContentHeightPx.toDp() }
+                        val chatCardOffsetY = if (isImeVisible) 0.dp else topContentHeightDp
+                        val chatCardHeight = if (isImeVisible) {
+                            availableHeight
+                        } else {
+                            (availableHeight - topContentHeightDp).coerceAtLeast(0.dp)
                         }
+
+                        // Single stable call site keeps the chat text field's composition
+                        // identity intact across docked/floating states, preserving focus
+                        // and the IME connection when the keyboard opens.
+                        renderChatCard(
+                            Modifier
+                                .fillMaxWidth()
+                                .offset(y = chatCardOffsetY)
+                                .height(chatCardHeight)
+                                .padding(vertical = 6.dp)
+                                .then(if (isImeVisible) Modifier.imePadding() else Modifier)
+                        )
                     }
                 }
 
