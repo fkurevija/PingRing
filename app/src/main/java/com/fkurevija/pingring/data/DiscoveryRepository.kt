@@ -12,6 +12,9 @@ import android.hardware.SensorManager
 import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.ParcelUuid
+import android.os.Vibrator
+import android.os.VibratorManager
+import android.os.VibrationEffect
 import android.util.Log
 import android.util.Base64
 import androidx.core.uwb.*
@@ -76,8 +79,24 @@ class DiscoveryRepository(
     private val _deviceHeading = MutableStateFlow(0f)
     val deviceHeading: StateFlow<Float> = _deviceHeading.asStateFlow()
 
+    // Active Beacons map (peerId -> BeaconInfo)
+    private val _activeBeacons = MutableStateFlow<Map<String, BeaconInfo>>(emptyMap())
+    val activeBeacons: StateFlow<Map<String, BeaconInfo>> = _activeBeacons.asStateFlow()
+
+    // Local Beacon state (null if not active)
+    private val _localBeacon = MutableStateFlow<BeaconInfo?>(null)
+    val localBeacon: StateFlow<BeaconInfo?> = _localBeacon.asStateFlow()
+
     // Forward nudge events from the transport layer (fire-and-forget, no state needed)
     val receivedNudge = nearbyConnectionsManager.receivedNudge
+
+    private val vibrator: Vibrator? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
+        vibratorManager?.defaultVibrator
+    } else {
+        @Suppress("DEPRECATION")
+        context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+    }
 
     private var repositoryScope: CoroutineScope? = null
     private var bleAdvertiser: BluetoothLeAdvertiser? = null
@@ -195,6 +214,40 @@ class DiscoveryRepository(
             }
         }
 
+        // 2d. Start Beacon Processing Queue Flow Listener Loop
+        repositoryScope?.launch {
+            nearbyConnectionsManager.receivedBeacon.collect { dto ->
+                val localPeerId = sessionManager.peerId.value
+                // If message is from ourselves, ignore
+                if (dto.senderPeerId == localPeerId) return@collect
+
+                val info = BeaconInfo(
+                    id = dto.id,
+                    senderPeerId = dto.senderPeerId,
+                    senderName = dto.senderName,
+                    title = dto.title,
+                    colorArgb = dto.colorArgb,
+                    vibrationPattern = dto.vibrationPattern,
+                    isActive = dto.isActive,
+                    timestamp = dto.timestamp
+                )
+
+                if (dto.isActive) {
+                    _activeBeacons.update { it + (dto.senderPeerId to info) }
+                    // Trigger haptic vibration for this pattern on recipient device
+                    val patternEnum = BeaconVibrationPattern.fromName(dto.vibrationPattern)
+                    playVibrationPattern(patternEnum.pattern)
+                } else {
+                    _activeBeacons.update { it - dto.senderPeerId }
+                }
+
+                // If host, broker & re-broadcast outward to all other connected peers
+                if (sessionManager.sessionState.value.isHost) {
+                    nearbyConnectionsManager.broadcastBeacon(dto)
+                }
+            }
+        }
+
         // 3. Start BLE Advertising & Scanning
         startBleAdvertising()
         startBleScanning()
@@ -207,6 +260,9 @@ class DiscoveryRepository(
     }
 
     fun stopDiscovery() {
+        stopVibration()
+        _activeBeacons.value = emptyMap()
+        _localBeacon.value = null
         nearbyConnectionsManager.stopAll()
         stopBleAdvertising()
         stopBleScanning()
@@ -279,6 +335,81 @@ class DiscoveryRepository(
                 if (hostPeerId != null) nearbyConnectionsManager.sendNudgeToPeer(hostPeerId, nudge)
             }
         }
+    }
+
+    fun playVibrationPattern(pattern: LongArray) {
+        if (pattern.isEmpty() || (pattern.size == 1 && pattern[0] == 0L)) return
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val effect = VibrationEffect.createWaveform(pattern, -1)
+                vibrator?.vibrate(effect)
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator?.vibrate(pattern, -1)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Vibration playback failed", e)
+        }
+    }
+
+    fun stopVibration() {
+        try {
+            vibrator?.cancel()
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to cancel vibration", e)
+        }
+    }
+
+    fun activateBeacon(
+        title: String,
+        colorArgb: Long,
+        vibrationPattern: String,
+        senderName: String
+    ) {
+        val localPeerId = sessionManager.peerId.value
+        val beaconDto = BeaconPayloadDto(
+            id = UUID.randomUUID().toString(),
+            senderPeerId = localPeerId,
+            senderName = senderName,
+            title = title,
+            colorArgb = colorArgb,
+            vibrationPattern = vibrationPattern,
+            isActive = true,
+            timestamp = System.currentTimeMillis()
+        )
+        val info = BeaconInfo(
+            id = beaconDto.id,
+            senderPeerId = beaconDto.senderPeerId,
+            senderName = beaconDto.senderName,
+            title = beaconDto.title,
+            colorArgb = beaconDto.colorArgb,
+            vibrationPattern = beaconDto.vibrationPattern,
+            isActive = true,
+            timestamp = beaconDto.timestamp
+        )
+        _localBeacon.value = info
+        _activeBeacons.update { it + (localPeerId to info) }
+
+        nearbyConnectionsManager.broadcastBeacon(beaconDto)
+    }
+
+    fun cancelLocalBeacon() {
+        val current = _localBeacon.value ?: return
+        val beaconDto = BeaconPayloadDto(
+            id = current.id,
+            senderPeerId = current.senderPeerId,
+            senderName = current.senderName,
+            title = current.title,
+            colorArgb = current.colorArgb,
+            vibrationPattern = current.vibrationPattern,
+            isActive = false,
+            timestamp = System.currentTimeMillis()
+        )
+        _localBeacon.value = null
+        _activeBeacons.update { it - current.senderPeerId }
+        stopVibration()
+
+        nearbyConnectionsManager.broadcastBeacon(beaconDto)
     }
 
     @Synchronized

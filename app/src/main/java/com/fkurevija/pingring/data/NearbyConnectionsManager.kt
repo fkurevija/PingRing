@@ -39,6 +39,12 @@ class NearbyConnectionsManager(private val context: Context) {
     )
     val receivedNudge = _receivedNudge.asSharedFlow()
 
+    private val _receivedBeacon = MutableSharedFlow<BeaconPayloadDto>(
+        extraBufferCapacity = 10,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+    val receivedBeacon = _receivedBeacon.asSharedFlow()
+
     private val connectedEndpoints = mutableMapOf<String, String>()
     private val endpointToPeerId = mutableMapOf<String, String>()
 
@@ -119,12 +125,24 @@ class NearbyConnectionsManager(private val context: Context) {
         }
     }
 
+    fun sendBeaconToPeer(peerId: String, beacon: BeaconPayloadDto) {
+        val endpointId = connectedEndpoints[peerId] ?: return
+        sendPayloadToEndpoint(endpointId, beacon)
+    }
+
+    fun broadcastBeacon(beacon: BeaconPayloadDto) {
+        connectedEndpoints.values.forEach { endpointId ->
+            sendPayloadToEndpoint(endpointId, beacon)
+        }
+    }
+
     private fun sendPayloadToEndpoint(endpointId: String, params: Any) {
         val json = when (params) {
             is UwbControllerParametersDto -> moshi.adapter(UwbControllerParametersDto::class.java).toJson(params)
             is UwbPeerAddressDto -> moshi.adapter(UwbPeerAddressDto::class.java).toJson(params)
             is ChatPayloadDto -> moshi.adapter(ChatPayloadDto::class.java).toJson(params)
             is NudgePayloadDto -> moshi.adapter(NudgePayloadDto::class.java).toJson(params)
+            is BeaconPayloadDto -> moshi.adapter(BeaconPayloadDto::class.java).toJson(params)
             else -> return
         }
         val payload = Payload.fromBytes(json.toByteArray())
@@ -207,6 +225,15 @@ class NearbyConnectionsManager(private val context: Context) {
                     val nudge = moshi.adapter(NudgePayloadDto::class.java).fromJson(json)
                     if (nudge != null) {
                         _receivedNudge.tryEmit(nudge)
+                        return
+                    }
+                } catch (e: Exception) {}
+
+                // Then try as Beacon
+                try {
+                    val beacon = moshi.adapter(BeaconPayloadDto::class.java).fromJson(json)
+                    if (beacon != null) {
+                        _receivedBeacon.tryEmit(beacon)
                         return
                     }
                 } catch (e: Exception) {}

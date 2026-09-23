@@ -33,6 +33,13 @@ Google Nearby Connections to discover and track friends without an external serv
 - Nudges trigger a distinctive double-haptic vibration pulse and an on-screen banner on recipient devices without requiring text input.
 - Routed peer-to-peer over the Nearby Connections mesh with automatic host re-broadcasting.
 
+### Customizable Peer Beacons
+
+- Broadcast active beacons calling other participants to your location with customizable intent presets (*🚨 SOS / Emergency*, *✨ Found Something*, *📍 Regroup Here*, *⚠️ Caution*, *⚡ Custom*).
+- Personalize beacon visual styling with selectable color palettes (Crimson, Amber, Emerald, Cyan, Purple) that dynamically illuminate radar rings, peer pins, and pulsating wave animations.
+- Transmit custom hardware vibration rhythms and intensities (*SOS Morse*, *Rapid Alert*, *Steady Rhythm*, *Gentle Pulse*, *Visual Only*) to receiving devices over the P2P mesh.
+- Active beacons render real-time alert banners with one-tap status and dismissal controls.
+
 ### Radar & ranging
 
 - The radar canvas shows all peers simultaneously, each rendered with a directional arrow, distance label, and RSSI indicator.
@@ -61,6 +68,7 @@ Google Nearby Connections to discover and track friends without an external serv
 - **Real-Time P2P Chat:** Decentralized group text messaging across hosted and joined 
   Ping-Ring events. The host automatically brokers packets outward to all remote mesh nodes.
 - **Peer Nudges:** Lightweight haptic alerts sent individually or broadcast ring-wide over Nearby Connections.
+- **Customizable Peer Beacons:** Create active visual & haptic beacons with custom color palettes, intent presets, and rhythm vibrations.
 - **Intelligent Connectivity:** Automatically selects the best connection method 
   (UWB, Wi-Fi Direct, or Hotspot) based on device support and host preferences.
 - **Connectivity Controls:** Toggles for Ultra-wideband (UWB) and High Bandwidth (Wi-Fi) 
