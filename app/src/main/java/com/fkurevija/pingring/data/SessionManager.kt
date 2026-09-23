@@ -15,10 +15,6 @@ class SessionManager(
     private val _peerId = MutableStateFlow(generatePeerId())
     val peerId: StateFlow<String> = _peerId.asStateFlow()
 
-    fun setVisibility(visible: Boolean) {
-        coordinationRepository.setVisibility(visible)
-    }
-
     fun setUserName(name: String) {
         coordinationRepository.setUserName(name)
     }

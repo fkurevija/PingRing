@@ -25,7 +25,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BluetoothDisabled
 import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.NotificationsActive
@@ -101,13 +100,11 @@ import kotlinx.coroutines.delay
 @Composable
 fun RadarScreen(
     eventId: String,
-    isVisible: Boolean,
     isHost: Boolean,
     trackHost: Boolean,
     coordinationError: String?,
     discoveryRepository: DiscoveryRepository?,
     sessionState: SessionState,
-    onVisibilityToggle: (Boolean) -> Unit,
     onEventSettings: () -> Unit,
     onLeaveEvent: () -> Unit,
     onEndEvent: () -> Unit,
@@ -116,8 +113,8 @@ fun RadarScreen(
     var showBeaconSheet by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
 
-    LaunchedEffect(isVisible, discoveryRepository) {
-        if (isVisible) discoveryRepository?.startDiscovery() else discoveryRepository?.stopDiscovery()
+    LaunchedEffect(discoveryRepository) {
+        discoveryRepository?.startDiscovery()
     }
     DisposableEffect(Unit) {
         onDispose { discoveryRepository?.stopDiscovery() }
@@ -136,7 +133,7 @@ fun RadarScreen(
 
     LaunchedEffect(nearest?.peerId, nearest?.distance) {
         val distance = nearest?.distance ?: return@LaunchedEffect
-        if (isVisible && (distance < 2f)) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+        if (distance < 2f) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
     }
 
     // Collect incoming nudges — double haptic pulse + snackbar
@@ -182,12 +179,6 @@ fun RadarScreen(
                         )
                     }
                     TextButton(onClick = onEventSettings) { Text("Settings") }
-                    IconButton(onClick = { onVisibilityToggle(!isVisible) }) {
-                        Icon(
-                            if (isVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                            contentDescription = if (isVisible) "Go invisible" else "Go visible"
-                        )
-                    }
                 }
             )
         },
@@ -307,9 +298,7 @@ fun RadarScreen(
 
             BoxWithConstraints(modifier = Modifier.fillMaxWidth().weight(1f)) {
                 val wide = maxWidth >= 600.dp
-                if (!isVisible) {
-                    InvisibleState(Modifier.fillMaxSize())
-                } else if (wide) {
+                if (wide) {
                     val paneWidth = (maxWidth - 20.dp) / 2
                     Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                         RadarContent(
@@ -942,16 +931,6 @@ fun BeaconCustomizationDialog(
             }
         }
     )
-}
-
-@Composable
-private fun InvisibleState(modifier: Modifier) {
-    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-        Icon(Icons.Default.VisibilityOff, contentDescription = null, modifier = Modifier.size(56.dp))
-        Spacer(Modifier.height(16.dp))
-        Text("You are invisible", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-        Text("Turn visibility on when you are ready to be found.", textAlign = TextAlign.Center)
-    }
 }
 
 private fun Color.Companion.lerp(start: Color, end: Color, fraction: Float): Color {

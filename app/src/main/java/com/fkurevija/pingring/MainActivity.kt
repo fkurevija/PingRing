@@ -226,13 +226,11 @@ fun MainNavigation(
                         }
                     } else RadarScreen(
                         eventId = key.eventId,
-                        isVisible = sessionState.isVisible,
                         discoveryRepository = discoveryRepository,
                         isHost = sessionState.isHost,
                         trackHost = sessionState.currentEvent?.trackHost == true,
                         coordinationError = syncStatus.errorMessage,
                         sessionState = sessionState,
-                        onVisibilityToggle = { sessionManager.setVisibility(it) },
                         onEventSettings = { backStack.add(PingRingSettingsKey(key.eventId)) },
                         onLeaveEvent = {
                             sessionManager.leaveEvent()

@@ -48,7 +48,6 @@ data class BeaconInfo(
 data class SessionState(
     val currentEvent: Event? = null,
     val isHost: Boolean = false,
-    val isVisible: Boolean = false,
     val friends: List<Friend> = emptyList(),
     val chatMessages: List<ChatMessage> = emptyList(),
     val activeBeacons: Map<String, BeaconInfo> = emptyMap(),

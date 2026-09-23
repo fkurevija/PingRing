@@ -25,11 +25,9 @@ class InMemoryEventCoordinationRepositoryTest {
                 distance = 1.2
             )
         )
-        repository.setVisibility(false)
 
         val state = repository.sessionState.value
         assertEquals("E1", state.currentEvent?.id)
-        assertEquals(false, state.isVisible)
         assertEquals(1, state.friends.size)
         assertEquals(CoordinationSyncState.SYNCED, repository.syncStatus.value.state)
     }
@@ -49,7 +47,6 @@ class InMemoryEventCoordinationRepositoryTest {
 
         val state = repository.sessionState.value
         assertNull(state.currentEvent)
-        assertEquals(false, state.isVisible)
         assertEquals(emptyList<Friend>(), state.friends)
         assertEquals(CoordinationSyncState.IDLE, repository.syncStatus.value.state)
     }

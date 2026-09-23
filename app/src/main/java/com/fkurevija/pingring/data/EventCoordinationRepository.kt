@@ -22,7 +22,6 @@ interface EventCoordinationRepository {
     fun hostEvent(event: Event, peerId: String)
     fun updateEvent(event: Event)
     fun leaveEvent(peerId: String)
-    fun setVisibility(visible: Boolean)
     fun setUserName(name: String)
     fun updateMembers(newMembers: List<Friend>)
     fun upsertMember(member: Friend)

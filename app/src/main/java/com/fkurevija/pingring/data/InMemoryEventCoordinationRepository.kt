@@ -13,12 +13,12 @@ class InMemoryEventCoordinationRepository : EventCoordinationRepository {
     override val syncStatus: StateFlow<CoordinationSyncStatus> = _syncStatus.asStateFlow()
 
     override fun joinEvent(event: Event, peerId: String) {
-        _sessionState.update { it.copy(currentEvent = event, isHost = false, isVisible = true) }
+        _sessionState.update { it.copy(currentEvent = event, isHost = false) }
         markSynced()
     }
 
     override fun hostEvent(event: Event, peerId: String) {
-        _sessionState.update { it.copy(currentEvent = event, isHost = true, isVisible = true) }
+        _sessionState.update { it.copy(currentEvent = event, isHost = true) }
         markSynced()
     }
 
@@ -29,13 +29,9 @@ class InMemoryEventCoordinationRepository : EventCoordinationRepository {
 
     override fun leaveEvent(peerId: String) {
         _sessionState.update {
-            it.copy(currentEvent = null, isHost = false, isVisible = false, friends = emptyList(), chatMessages = emptyList())
+            it.copy(currentEvent = null, isHost = false, friends = emptyList(), chatMessages = emptyList())
         }
         _syncStatus.value = CoordinationSyncStatus()
-    }
-
-    override fun setVisibility(visible: Boolean) {
-        _sessionState.update { it.copy(isVisible = visible) }
     }
 
     override fun setUserName(name: String) {
