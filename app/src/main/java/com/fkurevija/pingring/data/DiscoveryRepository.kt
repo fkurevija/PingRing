@@ -166,7 +166,7 @@ class DiscoveryRepository(
                     event.useHotspot
                 )
             } else {
-                nearbyConnectionsManager.startDiscovery(event.id)
+                nearbyConnectionsManager.startDiscovery(event.id, localPeerId)
             }
         }
 
@@ -197,6 +197,41 @@ class DiscoveryRepository(
                 // If we are the Host, broker & re-broadcast the message outwards to all other connected peers
                 if (sessionManager.sessionState.value.isHost) {
                     nearbyConnectionsManager.broadcastChatMessage(dto)
+                }
+            }
+        }
+
+        // Deliver the host's current chat history to each newly connected peer.
+        repositoryScope?.launch {
+            nearbyConnectionsManager.connectionEstablished.collect { peerId ->
+                if (sessionManager.sessionState.value.isHost) {
+                    val history = sessionManager.sessionState.value.chatMessages.map { message ->
+                        ChatPayloadDto(
+                            id = message.id,
+                            senderPeerId = message.senderPeerId,
+                            senderName = message.senderName,
+                            text = message.messageText,
+                            timestamp = message.timestamp
+                        )
+                    }
+                    nearbyConnectionsManager.sendChatHistoryToPeer(peerId, history)
+                }
+            }
+        }
+
+        repositoryScope?.launch {
+            nearbyConnectionsManager.receivedChatHistory.collect { history ->
+                history.messages.forEach { dto ->
+                    updatePeerName(dto.senderPeerId, dto.senderName)
+                    sessionManager.receiveLocalChatMessage(
+                        ChatMessage(
+                            id = dto.id,
+                            senderPeerId = dto.senderPeerId,
+                            senderName = dto.senderName,
+                            messageText = dto.text,
+                            timestamp = dto.timestamp
+                        )
+                    )
                 }
             }
         }

@@ -12,6 +12,11 @@ data class ChatPayloadDto(
 )
 
 @JsonClass(generateAdapter = true)
+data class ChatHistoryPayloadDto(
+    val messages: List<ChatPayloadDto>
+)
+
+@JsonClass(generateAdapter = true)
 data class NudgePayloadDto(
     val id: String,
     val senderPeerId: String,

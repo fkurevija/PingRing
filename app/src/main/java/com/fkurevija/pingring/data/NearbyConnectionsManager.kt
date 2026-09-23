@@ -33,6 +33,19 @@ class NearbyConnectionsManager(private val context: Context) {
     )
     val receivedChatMessage = _receivedChatMessage.asSharedFlow()
 
+    private val _receivedChatHistory = MutableSharedFlow<ChatHistoryPayloadDto>(
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+    val receivedChatHistory = _receivedChatHistory.asSharedFlow()
+
+    private val _connectionEstablished = MutableSharedFlow<String>(
+        replay = 1,
+        extraBufferCapacity = 4,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+    val connectionEstablished = _connectionEstablished.asSharedFlow()
+
     private val _receivedNudge = MutableSharedFlow<NudgePayloadDto>(
         extraBufferCapacity = 10,
         onBufferOverflow = BufferOverflow.DROP_OLDEST
@@ -47,8 +60,10 @@ class NearbyConnectionsManager(private val context: Context) {
 
     private val connectedEndpoints = mutableMapOf<String, String>()
     private val endpointToPeerId = mutableMapOf<String, String>()
+    private var localPeerId: String = ""
 
     fun startAdvertising(eventId: String, localPeerId: String, useWifiDirect: Boolean, useHotspot: Boolean) {
+        this.localPeerId = localPeerId
         val optionsBuilder = AdvertisingOptions.Builder()
             .setStrategy(Strategy.P2P_STAR)
         
@@ -66,7 +81,8 @@ class NearbyConnectionsManager(private val context: Context) {
         }
     }
 
-    fun startDiscovery(eventId: String) {
+    fun startDiscovery(eventId: String, localPeerId: String) {
+        this.localPeerId = localPeerId
         val options = DiscoveryOptions.Builder()
             .setStrategy(Strategy.P2P_STAR)
             .build()
@@ -104,9 +120,20 @@ class NearbyConnectionsManager(private val context: Context) {
     }
 
     fun broadcastChatMessage(chatMsg: ChatPayloadDto) {
-        connectedEndpoints.values.forEach { endpointId ->
+        val endpoints = connectedEndpoints.values.toList()
+        Log.d(TAG, "Broadcasting chat message ${chatMsg.id} to ${endpoints.size} endpoint(s)")
+        endpoints.forEach { endpointId ->
             sendPayloadToEndpoint(endpointId, chatMsg)
         }
+    }
+
+    fun sendChatHistoryToPeer(peerId: String, messages: List<ChatPayloadDto>) {
+        val endpointId = connectedEndpoints[peerId]
+        if (endpointId == null) {
+            Log.w(TAG, "Cannot send chat history: peer $peerId is not connected")
+            return
+        }
+        sendPayloadToEndpoint(endpointId, ChatHistoryPayloadDto(messages))
     }
 
     fun sendChatMessageToPeer(peerId: String, chatMsg: ChatPayloadDto) {
@@ -141,12 +168,19 @@ class NearbyConnectionsManager(private val context: Context) {
             is UwbControllerParametersDto -> moshi.adapter(UwbControllerParametersDto::class.java).toJson(params)
             is UwbPeerAddressDto -> moshi.adapter(UwbPeerAddressDto::class.java).toJson(params)
             is ChatPayloadDto -> moshi.adapter(ChatPayloadDto::class.java).toJson(params)
+            is ChatHistoryPayloadDto -> moshi.adapter(ChatHistoryPayloadDto::class.java).toJson(params)
             is NudgePayloadDto -> moshi.adapter(NudgePayloadDto::class.java).toJson(params)
             is BeaconPayloadDto -> moshi.adapter(BeaconPayloadDto::class.java).toJson(params)
             else -> return
         }
         val payload = Payload.fromBytes(json.toByteArray())
         connectionsClient.sendPayload(endpointId, payload)
+            .addOnSuccessListener {
+                Log.d(TAG, "Payload sent to endpoint $endpointId")
+            }
+            .addOnFailureListener { error ->
+                Log.e(TAG, "Payload failed for endpoint $endpointId", error)
+            }
     }
 
     private val connectionLifecycleCallback = object : ConnectionLifecycleCallback() {
@@ -161,6 +195,7 @@ class NearbyConnectionsManager(private val context: Context) {
                 val peerId = endpointToPeerId[endpointId]
                 if (peerId != null) {
                     connectedEndpoints[peerId] = endpointId
+                    _connectionEstablished.tryEmit(peerId)
                 }
                 Log.d(TAG, "Connected to $endpointId (Peer: $peerId)")
             } else {
@@ -180,7 +215,7 @@ class NearbyConnectionsManager(private val context: Context) {
     private val endpointDiscoveryCallback = object : EndpointDiscoveryCallback() {
         override fun onEndpointFound(endpointId: String, info: DiscoveredEndpointInfo) {
             connectionsClient.requestConnection(
-                context.packageName,
+                localPeerId,
                 endpointId,
                 connectionLifecycleCallback
             )
@@ -207,6 +242,15 @@ class NearbyConnectionsManager(private val context: Context) {
                     val peerAddress = moshi.adapter(UwbPeerAddressDto::class.java).fromJson(json)
                     if (peerAddress != null) {
                         _receivedPeerAddress.tryEmit(peerAddress)
+                        return
+                    }
+                } catch (e: Exception) {}
+
+                // Then try as Chat History
+                try {
+                    val chatHistory = moshi.adapter(ChatHistoryPayloadDto::class.java).fromJson(json)
+                    if (chatHistory != null) {
+                        _receivedChatHistory.tryEmit(chatHistory)
                         return
                     }
                 } catch (e: Exception) {}

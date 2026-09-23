@@ -1,6 +1,7 @@
 package com.fkurevija.pingring.ui.screens
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -29,6 +30,7 @@ import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -58,11 +60,13 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -88,6 +92,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.layout.onSizeChanged
@@ -115,6 +120,7 @@ fun RadarScreen(
 ) {
     var showEndConfirmation by remember { mutableStateOf(false) }
     var showBeaconSheet by remember { mutableStateOf(false) }
+    var showQrCode by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(discoveryRepository) {
@@ -175,6 +181,12 @@ fun RadarScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { showQrCode = true }) {
+                        Icon(
+                            Icons.Default.QrCode2,
+                            contentDescription = "Show QR code to join this PingRing"
+                        )
+                    }
                     if (isHost) {
                         TextButton(onClick = onEventSettings) { Text("Settings") }
                     }
@@ -458,8 +470,7 @@ fun RadarScreen(
                             ) {
                                 OutlinedButton(
                                     onClick = { discoveryRepository?.sendNudge(null, senderName) },
-                                    modifier = Modifier.weight(1f),
-                                    enabled = peers.isNotEmpty()
+                                    modifier = Modifier.weight(1f)
                                 ) {
                                     Icon(Icons.Default.NotificationsActive, contentDescription = null, modifier = Modifier.size(16.dp))
                                     Spacer(Modifier.width(6.dp))
@@ -530,6 +541,44 @@ fun RadarScreen(
                         },
                         onTestVibrate = { pattern ->
                             discoveryRepository?.playVibrationPattern(pattern)
+                        }
+                    )
+                }
+
+                if (showQrCode) {
+                    AlertDialog(
+                        onDismissRequest = { showQrCode = false },
+                        title = { Text("Scan to Join") },
+                        text = {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(220.dp)
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .background(Color.White)
+                                        .padding(12.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Image(
+                                        bitmap = generateQrCode(eventId).asImageBitmap(),
+                                        contentDescription = "QR code for PingRing $eventId",
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                }
+                                Spacer(Modifier.height(12.dp))
+                                Text(
+                                    eventId,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 2.sp
+                                )
+                            }
+                        },
+                        confirmButton = {
+                            TextButton(onClick = { showQrCode = false }) { Text("Close") }
                         }
                     )
                 }

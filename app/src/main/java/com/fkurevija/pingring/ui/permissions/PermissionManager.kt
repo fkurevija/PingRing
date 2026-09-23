@@ -31,6 +31,10 @@ fun PermissionWrapper(
         permissions.add(Manifest.permission.NEARBY_WIFI_DEVICES)
     }
 
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
+        permissions.add(Manifest.permission.ACCESS_LOCAL_NETWORK)
+    }
+
     val permissionState = rememberMultiplePermissionsState(permissions)
 
     if (permissionState.allPermissionsGranted) {

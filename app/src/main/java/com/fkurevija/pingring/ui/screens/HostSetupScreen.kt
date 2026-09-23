@@ -1,6 +1,5 @@
 package com.fkurevija.pingring.ui.screens
 
-import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -53,8 +52,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import com.fkurevija.pingring.data.DiscoveryRepository
-import com.google.zxing.BarcodeFormat
-import com.google.zxing.MultiFormatWriter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -276,17 +273,6 @@ fun HostSetupScreen(
             }
 
             Spacer(Modifier.height(16.dp))
-        }
-    }
-}
-
-private fun generateQrCode(value: String): Bitmap {
-    val matrix = MultiFormatWriter().encode(value, BarcodeFormat.QR_CODE, 512, 512)
-    return Bitmap.createBitmap(matrix.width, matrix.height, Bitmap.Config.RGB_565).also { bitmap ->
-        for (x in 0 until matrix.width) {
-            for (y in 0 until matrix.height) {
-                bitmap.setPixel(x, y, if (matrix[x, y]) android.graphics.Color.BLACK else android.graphics.Color.WHITE)
-            }
         }
     }
 }
