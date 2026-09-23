@@ -19,6 +19,7 @@ enum class ThemeMode {
 
 private val Context.appearanceDataStore by preferencesDataStore(name = "appearance")
 private val themeModeKey = stringPreferencesKey("theme_mode")
+private val userNameKey = stringPreferencesKey("user_name")
 
 class AppearanceSettingsRepository(private val context: Context) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -29,10 +30,22 @@ class AppearanceSettingsRepository(private val context: Context) {
             ?: ThemeMode.SYSTEM
     }
 
+    val userName: Flow<String> = context.appearanceDataStore.data.map { preferences ->
+        preferences[userNameKey] ?: ""
+    }
+
     fun setThemeMode(mode: ThemeMode) {
         scope.launch {
             context.appearanceDataStore.edit { preferences ->
                 preferences[themeModeKey] = mode.name
+            }
+        }
+    }
+
+    fun setUserName(name: String) {
+        scope.launch {
+            context.appearanceDataStore.edit { preferences ->
+                preferences[userNameKey] = name
             }
         }
     }

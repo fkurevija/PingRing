@@ -51,5 +51,6 @@ data class SessionState(
     val isVisible: Boolean = false,
     val friends: List<Friend> = emptyList(),
     val chatMessages: List<ChatMessage> = emptyList(),
-    val activeBeacons: Map<String, BeaconInfo> = emptyMap()
+    val activeBeacons: Map<String, BeaconInfo> = emptyMap(),
+    val userName: String = ""
 )

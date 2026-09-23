@@ -9,15 +9,15 @@ import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview as CameraPreview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.VpnKey
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,21 +42,43 @@ import java.util.concurrent.Executors
 @OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun EventJoinScreen(
+    savedUsername: String = "",
+    existingMembers: List<String> = emptyList(),
     onBack: () -> Unit,
-    onJoinEvent: (String) -> Unit
+    onJoinEvent: (eventCode: String, username: String) -> Unit
 ) {
     var eventCode by remember { mutableStateOf("") }
+    var username by remember(savedUsername) { mutableStateOf(savedUsername) }
     var inputError by remember { mutableStateOf<String?>(null) }
+    var usernameError by remember { mutableStateOf<String?>(null) }
     var showScanner by remember { mutableStateOf(false) }
+
+    fun attemptJoin(codeToUse: String) {
+        val trimmedUsername = username.trim()
+        if (trimmedUsername.isBlank()) {
+            usernameError = "Please enter a username."
+            return
+        }
+        if (existingMembers.any { it.equals(trimmedUsername, ignoreCase = true) }) {
+            usernameError = "Username '$trimmedUsername' is already taken in this Ping-Ring."
+            return
+        }
+        val parsedEventCode = EventCodeParser.parse(codeToUse)
+        if (parsedEventCode == null) {
+            inputError = "Enter a valid 6-character Ping-Ring code."
+            return
+        }
+        onJoinEvent(parsedEventCode, trimmedUsername)
+    }
 
     if (showScanner) {
         QrScannerScreen(
             onCancel = { showScanner = false },
-            onJoinEvent = {
-                eventCode = it
+            onJoinEvent = { scannedCode ->
+                eventCode = scannedCode
                 showScanner = false
                 inputError = null
-                onJoinEvent(it)
+                attemptJoin(scannedCode)
             }
         )
         return
@@ -109,24 +131,46 @@ fun EventJoinScreen(
 
                     Spacer(Modifier.height(16.dp))
                     Text(
-                        "Enter Event Code",
+                        "Enter Ping-Ring Code",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        "Ask the host for their 6-character code",
+                        "Ask the host for their 6-character Ping-Ring code",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
                     Spacer(Modifier.height(20.dp))
+
+                    // Username Field
+                    OutlinedTextField(
+                        value = username,
+                        onValueChange = {
+                            username = it
+                            usernameError = null
+                        },
+                        label = { Text("Username") },
+                        placeholder = { Text("e.g. Alex") },
+                        isError = usernameError != null,
+                        supportingText = {
+                            usernameError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                        },
+                        shape = RoundedCornerShape(14.dp),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Spacer(Modifier.height(12.dp))
+
+                    // Ping-Ring Code Field
                     OutlinedTextField(
                         value = eventCode,
                         onValueChange = {
                             eventCode = it.uppercase()
                             inputError = null
                         },
-                        label = { Text("Event Code") },
+                        label = { Text("Ping-Ring Code") },
                         placeholder = { Text("e.g. AB12CD") },
                         isError = inputError != null,
                         supportingText = {
@@ -144,14 +188,7 @@ fun EventJoinScreen(
 
                     Spacer(Modifier.height(16.dp))
                     Button(
-                        onClick = {
-                            val parsedEventCode = EventCodeParser.parse(eventCode)
-                            if (parsedEventCode != null) {
-                                onJoinEvent(parsedEventCode)
-                            } else {
-                                inputError = "Enter a valid 6-character event code."
-                            }
-                        },
+                        onClick = { attemptJoin(eventCode) },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(50.dp),
@@ -199,7 +236,7 @@ private fun QrScannerScreen(
     onJoinEvent: (String) -> Unit
 ) {
     val permissionState = rememberPermissionState(Manifest.permission.CAMERA)
-    var scanMessage by remember { mutableStateOf("Align the event QR code within the frame.") }
+    var scanMessage by remember { mutableStateOf("Align the Ping-Ring QR code within the frame.") }
     var scanSessionId by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(Unit) {
@@ -211,7 +248,7 @@ private fun QrScannerScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Scan Event QR") },
+                title = { Text("Scan Ping-Ring QR") },
                 navigationIcon = {
                     IconButton(onClick = onCancel) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -303,7 +340,7 @@ private fun PermissionDeniedCard(
             verticalArrangement = Arrangement.Center
         ) {
             Text(
-                "Camera permission is needed to scan QR codes. You can still join by typing the event code.",
+                "Camera permission is needed to scan QR codes. You can still join by typing the Ping-Ring code.",
                 style = MaterialTheme.typography.bodyMedium
             )
             Spacer(modifier = Modifier.height(12.dp))
@@ -318,7 +355,7 @@ private fun PermissionDeniedCard(
 @Composable
 fun EventJoinScreenPreview() {
     PingRingTheme {
-        EventJoinScreen(onBack = {}, onJoinEvent = {})
+        EventJoinScreen(onBack = {}, onJoinEvent = { _, _ -> })
     }
 }
 

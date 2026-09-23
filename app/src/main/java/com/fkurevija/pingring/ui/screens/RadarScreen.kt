@@ -148,7 +148,7 @@ fun RadarScreen(
         }
     }
 
-    val senderName = if (isHost) "Host" else "Peer"
+    val senderName = sessionState.userName.ifBlank { if (isHost) "Host" else "Peer" }
     val focusedPeer = if (isHost || !trackHost) nearest else peers.firstOrNull()
     val focusedBeacon = focusedPeer?.let { activeBeacons[it.peerId] } ?: localBeacon
 

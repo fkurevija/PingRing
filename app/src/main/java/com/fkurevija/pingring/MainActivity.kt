@@ -4,18 +4,18 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.remember
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation3.runtime.NavBackStack
@@ -23,23 +23,24 @@ import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
+import com.fkurevija.pingring.data.AppearanceSettingsRepository
 import com.fkurevija.pingring.data.DiscoveryRepository
 import com.fkurevija.pingring.data.Event
-import com.fkurevija.pingring.data.AppearanceSettingsRepository
 import com.fkurevija.pingring.data.NearbyConnectionsManager
 import com.fkurevija.pingring.data.SessionManager
+import com.fkurevija.pingring.data.ThemeMode
+import com.fkurevija.pingring.ui.navigation.AppSettingsKey
 import com.fkurevija.pingring.ui.navigation.EventJoinKey
 import com.fkurevija.pingring.ui.navigation.EventSettingsKey
 import com.fkurevija.pingring.ui.navigation.HomeKey
 import com.fkurevija.pingring.ui.navigation.HostSetupKey
-import com.fkurevija.pingring.ui.navigation.AppSettingsKey
 import com.fkurevija.pingring.ui.navigation.RadarKey
 import com.fkurevija.pingring.ui.permissions.PermissionWrapper
+import com.fkurevija.pingring.ui.screens.AppSettingsScreen
 import com.fkurevija.pingring.ui.screens.EventJoinScreen
 import com.fkurevija.pingring.ui.screens.EventSettingsScreen
 import com.fkurevija.pingring.ui.screens.HomeScreen
 import com.fkurevija.pingring.ui.screens.HostSetupScreen
-import com.fkurevija.pingring.ui.screens.AppSettingsScreen
 import com.fkurevija.pingring.ui.screens.RadarScreen
 import com.fkurevija.pingring.ui.theme.PingRingTheme
 import java.util.UUID
@@ -53,7 +54,7 @@ class MainActivity : ComponentActivity() {
             val sessionManager = remember(context) { SessionManager(context = context) }
             val appearanceSettings = remember { AppearanceSettingsRepository(context) }
             val themeMode by appearanceSettings.themeMode.collectAsState(
-                initial = com.fkurevija.pingring.data.ThemeMode.SYSTEM
+                initial = ThemeMode.SYSTEM
             )
             val nearbyConnectionsManager = remember(context) { NearbyConnectionsManager(context) }
             val discoveryRepository = remember { DiscoveryRepository(context, sessionManager, nearbyConnectionsManager) }
@@ -85,10 +86,11 @@ fun MainNavigation(
     sessionManager: SessionManager,
     discoveryRepository: DiscoveryRepository,
     appearanceSettings: AppearanceSettingsRepository,
-    themeMode: com.fkurevija.pingring.data.ThemeMode
+    themeMode: ThemeMode
 ) {
     val backStack: NavBackStack<NavKey> = rememberNavBackStack(HomeKey)
     val currentThemeMode by rememberUpdatedState(themeMode)
+    val savedUsername by appearanceSettings.userName.collectAsState(initial = "")
 
     NavDisplay(backStack) { key ->
         NavEntry(key) {
@@ -115,7 +117,7 @@ fun MainNavigation(
                                 sessionManager.hostEvent(
                                     Event(
                                         id = eventCode,
-                                        name = "My Ping-Ring",
+                                        name = "Ping-Ring $eventCode",
                                         description = "PingRing Event",
                                         expiryTimestamp = System.currentTimeMillis() + 3600000,
                                         hostPeerId = sessionManager.peerId.value,
@@ -135,22 +137,26 @@ fun MainNavigation(
                 is HostSetupKey -> {
                     val event = sessionState.currentEvent
                     if (event == null || event.id != key.eventCode || !sessionState.isHost) {
-                        androidx.compose.runtime.LaunchedEffect(key) {
+                        LaunchedEffect(key) {
                             backStack.clear()
                             backStack.add(HomeKey)
                         }
                     } else HostSetupScreen(
                         eventCode = key.eventCode,
+                        savedUsername = savedUsername,
                         discoveryRepository = discoveryRepository,
                         onBack = {
                             discoveryRepository.announceEventClosure(event)
                             sessionManager.endHostedEvent()
                             backStack.removeLastOrNull()
                         },
-                        onEventChange = { name, trackHost, useUwb, useWifiDirect ->
+                        onSaveUsername = { username ->
+                            appearanceSettings.setUserName(username)
+                            sessionManager.setUserName(username)
+                        },
+                        onEventChange = { trackHost, useUwb, useWifiDirect ->
                             sessionManager.updateEvent(
                                 event.copy(
-                                    name = name, 
                                     trackHost = trackHost,
                                     useUwb = useUwb,
                                     useWifiDirect = useWifiDirect
@@ -166,12 +172,16 @@ fun MainNavigation(
 
                 is EventJoinKey -> {
                     EventJoinScreen(
+                        savedUsername = savedUsername,
+                        existingMembers = sessionState.friends.map { it.name },
                         onBack = { backStack.removeLastOrNull() },
-                        onJoinEvent = { eventCode ->
+                        onJoinEvent = { eventCode, username ->
+                            appearanceSettings.setUserName(username)
+                            sessionManager.setUserName(username)
                             if (sessionManager.joinEvent(
                                 Event(
                                     id = eventCode,
-                                    name = "Event $eventCode",
+                                    name = "Ping-Ring $eventCode",
                                     description = "PingRing Event",
                                     expiryTimestamp = System.currentTimeMillis() + 3600000
                                 )
@@ -208,7 +218,7 @@ fun MainNavigation(
                 is RadarKey -> {
                     val event = sessionState.currentEvent
                     if (event == null || event.id != key.eventId) {
-                        androidx.compose.runtime.LaunchedEffect(key) {
+                        LaunchedEffect(key) {
                             backStack.clear()
                             backStack.add(HomeKey)
                         }

@@ -38,6 +38,10 @@ class InMemoryEventCoordinationRepository : EventCoordinationRepository {
         _sessionState.update { it.copy(isVisible = visible) }
     }
 
+    override fun setUserName(name: String) {
+        _sessionState.update { it.copy(userName = name) }
+    }
+
     override fun updateMembers(newMembers: List<Friend>) {
         _sessionState.update { it.copy(friends = newMembers) }
         if (_sessionState.value.currentEvent != null) {

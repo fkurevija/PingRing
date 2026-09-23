@@ -19,6 +19,10 @@ class SessionManager(
         coordinationRepository.setVisibility(visible)
     }
 
+    fun setUserName(name: String) {
+        coordinationRepository.setUserName(name)
+    }
+
     fun joinEvent(event: Event): Boolean {
         val activeEvent = sessionState.value.currentEvent
         if (activeEvent != null && activeEvent.id != event.id) {

@@ -58,12 +58,14 @@ import com.google.zxing.MultiFormatWriter
 @Composable
 fun HostSetupScreen(
     eventCode: String,
+    savedUsername: String,
     discoveryRepository: DiscoveryRepository,
     onBack: () -> Unit,
-    onEventChange: (String, Boolean, Boolean, Boolean) -> Unit,
+    onSaveUsername: (String) -> Unit,
+    onEventChange: (Boolean, Boolean, Boolean) -> Unit,
     onView: () -> Unit
 ) {
-    var name by remember { mutableStateOf("My Ping-Ring") }
+    var username by remember(savedUsername) { mutableStateOf(savedUsername.ifBlank { "Host" }) }
     var trackHost by remember { mutableStateOf(false) }
     var useUwb by remember { mutableStateOf(discoveryRepository.isUwbSupported()) }
     var useWifiDirect by remember { mutableStateOf(true) }
@@ -89,8 +91,14 @@ fun HostSetupScreen(
         bottomBar = {
             Box(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                 Button(
-                    onClick = onView,
-                    enabled = name.isNotBlank(),
+                    onClick = {
+                        val trimmed = username.trim()
+                        if (trimmed.isNotBlank()) {
+                            onSaveUsername(trimmed)
+                            onView()
+                        }
+                    },
+                    enabled = username.isNotBlank(),
                     modifier = Modifier.fillMaxWidth().height(52.dp),
                     shape = RoundedCornerShape(16.dp)
                 ) {
@@ -140,6 +148,13 @@ fun HostSetupScreen(
                         )
                     }
                     Spacer(Modifier.height(14.dp))
+                    Text(
+                        "Ping-Ring Code",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(4.dp))
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(12.dp))
@@ -157,14 +172,18 @@ fun HostSetupScreen(
                 }
             }
 
-            // Name Field
+            // Username Field
             OutlinedTextField(
-                value = name,
-                onValueChange = {
-                    name = it
-                    onEventChange(it.trim(), trackHost, useUwb, useWifiDirect)
+                value = username,
+                onValueChange = { username = it },
+                label = { Text("Username") },
+                placeholder = { Text("e.g. Alex") },
+                isError = username.isBlank(),
+                supportingText = {
+                    if (username.isBlank()) {
+                        Text("Username cannot be empty", color = MaterialTheme.colorScheme.error)
+                    }
                 },
-                label = { Text("Ping-Ring Name") },
                 shape = RoundedCornerShape(14.dp),
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
@@ -200,7 +219,7 @@ fun HostSetupScreen(
                             checked = trackHost,
                             onCheckedChange = {
                                 trackHost = it
-                                onEventChange(name.trim(), it, useUwb, useWifiDirect)
+                                onEventChange(it, useUwb, useWifiDirect)
                             }
                         )
                     }
@@ -222,7 +241,7 @@ fun HostSetupScreen(
                             checked = useUwb,
                             onCheckedChange = {
                                 useUwb = it
-                                onEventChange(name.trim(), trackHost, it, useWifiDirect)
+                                onEventChange(trackHost, it, useWifiDirect)
                             }
                         )
                     }
@@ -244,7 +263,7 @@ fun HostSetupScreen(
                             checked = useWifiDirect,
                             onCheckedChange = {
                                 useWifiDirect = it
-                                onEventChange(name.trim(), trackHost, useUwb, it)
+                                onEventChange(trackHost, useUwb, it)
                             }
                         )
                     }

@@ -185,6 +185,7 @@ class DiscoveryRepository(
         // 2b. Start Chat Message Processing Queue Flow Listener Loop
         repositoryScope?.launch {
             nearbyConnectionsManager.receivedChatMessage.collect { dto ->
+                updatePeerName(dto.senderPeerId, dto.senderName)
                 val chatMessage = ChatMessage(
                     id = dto.id,
                     senderPeerId = dto.senderPeerId,
@@ -204,6 +205,7 @@ class DiscoveryRepository(
         // 2c. Host nudge re-routing: forward incoming nudges to their intended target(s)
         repositoryScope?.launch {
             nearbyConnectionsManager.receivedNudge.collect { nudge ->
+                updatePeerName(nudge.senderPeerId, nudge.senderName)
                 if (sessionManager.sessionState.value.isHost) {
                     val target = nudge.targetPeerId
                     if (target == null) {
@@ -212,8 +214,6 @@ class DiscoveryRepository(
                         nearbyConnectionsManager.sendNudgeToPeer(target, nudge)
                     }
                 }
-                // Note: the UI layer collects receivedNudge directly for haptic/snackbar —
-                // no session state update needed here.
             }
         }
 
@@ -236,6 +236,7 @@ class DiscoveryRepository(
                 )
 
                 if (dto.isActive) {
+                    updatePeerName(dto.senderPeerId, dto.senderName)
                     _activeBeacons.update { it + (dto.senderPeerId to info) }
                     // Trigger haptic vibration for this pattern on recipient device
                     val patternEnum = BeaconVibrationPattern.fromName(dto.vibrationPattern)
@@ -659,9 +660,10 @@ class DiscoveryRepository(
 
         // Find or create existing update
         val existing = _peerUpdates.value[peerId]
+        val peerName = existing?.name ?: "Peer $peerId"
         val updated = RadarPeerUpdate(
             peerId = peerId,
-            name = "Peer $peerId",
+            name = peerName,
             rssi = rssi,
             proximity = proximity,
             distance = existing?.distance ?: (2f + (rssi + 100) / 10f), // Initial distance estimate from RSSI
@@ -683,7 +685,7 @@ class DiscoveryRepository(
         if (!friendExists) {
             val updatedFriends = friends + Friend(
                 peerId = peerId,
-                name = "Peer $peerId",
+                name = peerName,
                 lastSeen = System.currentTimeMillis(),
                 distance = updated.distance?.toDouble()
             )
@@ -693,6 +695,22 @@ class DiscoveryRepository(
                 if (it.peerId == peerId) it.copy(lastSeen = System.currentTimeMillis(), distance = updated.distance?.toDouble()) else it
             }
             sessionManager.updateFriends(updatedFriends)
+        }
+    }
+
+    private fun updatePeerName(peerId: String, name: String) {
+        if (name.isBlank()) return
+        _peerUpdates.update { current ->
+            val existing = current[peerId]
+            if (existing != null) {
+                current + (peerId to existing.copy(name = name))
+            } else current
+        }
+        val friends = sessionManager.sessionState.value.friends
+        if (friends.any { it.peerId == peerId }) {
+            sessionManager.updateFriends(friends.map {
+                if (it.peerId == peerId) it.copy(name = name) else it
+            })
         }
     }
 
