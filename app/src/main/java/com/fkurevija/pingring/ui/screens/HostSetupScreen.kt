@@ -36,7 +36,6 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -72,9 +71,12 @@ fun HostSetupScreen(
     LaunchedEffect(discoveryRepository, trackHost, useUwb, useWifiDirect) {
         discoveryRepository.startDiscovery()
     }
-    DisposableEffect(discoveryRepository) {
-        onDispose { discoveryRepository.stopDiscovery() }
-    }
+    // Deliberately no onDispose-triggered stopDiscovery() here: HostSetupScreen
+    // and RadarScreen share the same DiscoveryRepository instance for the
+    // lifetime of an event, and navigating from this screen to RadarScreen
+    // must NOT tear down the connection RadarScreen just took over. Discovery
+    // is only stopped explicitly when the user actually leaves/ends the event
+    // (see onBack below and MainActivity's onLeaveEvent/onEndEvent).
 
     Scaffold(
         topBar = {

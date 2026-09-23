@@ -50,13 +50,13 @@ async def send(client, envelope):
         client.writer.write((json.dumps(envelope) + "\n").encode("utf-8"))
         await client.writer.drain()
     except Exception as exc:
-        print(f"[relay] failed to send to {client.peer_id}: {exc}")
+        print(f"[relay] failed to send to {client.peer_id}: {exc}", flush=True)
 
 
 async def handle_client(reader, writer):
     peer = writer.get_extra_info("peername")
     client = Client(reader, writer)
-    print(f"[relay] connection opened from {peer}")
+    print(f"[relay] connection opened from {peer}", flush=True)
     try:
         while True:
             line = await reader.readline()
@@ -88,7 +88,7 @@ async def handle_client(reader, writer):
                         "senderPeerId": other.peer_id,
                     })
                 group.append(client)
-                print(f"[relay] {client.peer_id} joined event {event_id} ({len(group)} member(s))")
+                print(f"[relay] {client.peer_id} joined event {event_id} ({len(group)} member(s))", flush=True)
 
             elif envelope_type == "data" and client.event_id:
                 group = groups.get(client.event_id, [])
@@ -100,18 +100,18 @@ async def handle_client(reader, writer):
                         continue
                     await send(other, envelope)
     except Exception as exc:
-        print(f"[relay] connection error: {exc}")
+        print(f"[relay] connection error: {exc}", flush=True)
     finally:
         if client.event_id and client.event_id in groups:
             groups[client.event_id] = [c for c in groups[client.event_id] if c is not client]
         writer.close()
-        print(f"[relay] connection closed from {peer} ({client.peer_id})")
+        print(f"[relay] connection closed from {peer} ({client.peer_id})", flush=True)
 
 
 async def main():
     port = int(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_PORT
     server = await asyncio.start_server(handle_client, host="0.0.0.0", port=port)
-    print(f"[relay] listening on 0.0.0.0:{port}")
+    print(f"[relay] listening on 0.0.0.0:{port}", flush=True)
     async with server:
         await server.serve_forever()
 

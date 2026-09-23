@@ -18,6 +18,7 @@ import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.net.Socket
 import java.net.SocketException
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Debug-only [NearbyTransport] implementation for testing PingRing between
@@ -74,6 +75,19 @@ class LanDebugConnectionsManager(
     private var writer: BufferedWriter? = null
     private val writeLock = Any()
 
+    // Bumped on every connect()/stopAll() call. A retrying/closing coroutine
+    // from a superseded connection attempt checks this before touching the
+    // shared socket/writer fields, so it can never clobber a newer, live
+    // connection that was already established by the time it wakes up from
+    // a blocking read that was interrupted by the old socket being closed.
+    private val connectionGeneration = AtomicInteger(0)
+
+    // Envelopes that couldn't be sent immediately (e.g. the relay connection
+    // was mid-reconnect) are queued here and flushed in order as soon as a
+    // new connection is established, so a brief drop never silently loses a
+    // chat message, nudge, or beacon.
+    private val pendingEnvelopes = ArrayDeque<RelayEnvelope>()
+
     private var localPeerId: String = ""
     private var localEventId: String = ""
 
@@ -86,29 +100,77 @@ class LanDebugConnectionsManager(
     }
 
     private fun connect(eventId: String, localPeerId: String) {
+        if (eventId == this.localEventId && localPeerId == this.localPeerId && connectionJob?.isActive == true) {
+            // Already connected/connecting for this exact event+peer (e.g.
+            // both HostSetupScreen and RadarScreen call startAdvertising/
+            // startDiscovery for the same session) — don't tear down a
+            // working connection and lose in-flight messages.
+            Log.d(TAG, "Already connecting/connected for event $eventId as $localPeerId, ignoring duplicate request")
+            return
+        }
+        Log.i(TAG, "connect() called for event $eventId as $localPeerId (was event=${this.localEventId} peer=${this.localPeerId})")
         this.localEventId = eventId
         this.localPeerId = localPeerId
         stopAll()
+        val myGeneration = connectionGeneration.incrementAndGet()
+        Log.i(TAG, "Starting connection attempt generation $myGeneration")
         connectionJob = scope.launch {
             while (isActive) {
                 try {
-                    Log.d(TAG, "Connecting to relay at $host:$port for event $eventId as $localPeerId")
+                    Log.d(TAG, "Connecting to relay at $host:$port for event $eventId as $localPeerId (gen $myGeneration)")
                     val newSocket = Socket(host, port)
+                    if (connectionGeneration.get() != myGeneration) {
+                        // A newer connect() call superseded us while we were
+                        // opening the socket; drop this one immediately.
+                        Log.w(TAG, "Generation $myGeneration superseded by ${connectionGeneration.get()} right after socket open, discarding")
+                        runCatching { newSocket.close() }
+                        break
+                    }
                     socket = newSocket
                     val newWriter = BufferedWriter(OutputStreamWriter(newSocket.getOutputStream()))
                     writer = newWriter
-                    sendEnvelope(RelayEnvelope(type = "join", eventId = eventId, senderPeerId = localPeerId))
+                    Log.i(TAG, "Connected to relay, joining event $eventId as $localPeerId (gen $myGeneration)")
+                    writeEnvelopeNow(newWriter, RelayEnvelope(type = "join", eventId = eventId, senderPeerId = localPeerId))
+                    flushPendingEnvelopes()
 
-                    val reader = BufferedReader(InputStreamReader(newSocket.getInputStream()))
-                    while (isActive) {
-                        val line = reader.readLine() ?: break
-                        handleLine(line)
+                    // Some network paths used for testing (the emulator's
+                    // virtual NAT, adb reverse over USB) silently drop TCP
+                    // connections that sit idle for a few seconds. A small
+                    // periodic heartbeat keeps traffic flowing so those idle
+                    // timeouts never trigger and the connection — and any
+                    // broadcast messages relying on it — stays alive.
+                    val heartbeatJob = scope.launch {
+                        while (isActive) {
+                            kotlinx.coroutines.delay(HEARTBEAT_INTERVAL_MILLIS)
+                            if (connectionGeneration.get() != myGeneration) break
+                            val currentWriter = writer ?: break
+                            if (!writeEnvelopeNow(currentWriter, RelayEnvelope(type = "ping", eventId = eventId, senderPeerId = localPeerId))) {
+                                break
+                            }
+                        }
                     }
-                    Log.w(TAG, "Relay connection closed, retrying…")
+                    try {
+                        val reader = BufferedReader(InputStreamReader(newSocket.getInputStream()))
+                        while (isActive) {
+                            val line = reader.readLine() ?: break
+                            Log.d(TAG, "Received from relay: $line")
+                            handleLine(line)
+                        }
+                        Log.w(TAG, "Relay connection closed, retrying… (gen $myGeneration)")
+                    } finally {
+                        heartbeatJob.cancel()
+                    }
                 } catch (e: SocketException) {
-                    Log.w(TAG, "Relay socket error: ${e.message}")
+                    Log.w(TAG, "Relay socket error: ${e.message} (gen $myGeneration)")
                 } catch (e: Exception) {
-                    Log.e(TAG, "Relay connection failed", e)
+                    Log.e(TAG, "Relay connection failed (gen $myGeneration)", e)
+                }
+                if (connectionGeneration.get() != myGeneration) {
+                    // Superseded by a newer connection attempt — don't null
+                    // out its (possibly already-live) socket/writer, and
+                    // don't keep retrying on its behalf.
+                    Log.w(TAG, "Generation $myGeneration superseded by ${connectionGeneration.get()} after disconnect, stopping retry loop")
+                    break
                 }
                 socket = null
                 writer = null
@@ -118,6 +180,8 @@ class LanDebugConnectionsManager(
     }
 
     override fun stopAll() {
+        val newGen = connectionGeneration.incrementAndGet()
+        Log.i(TAG, "stopAll() called, bumping generation to $newGen")
         connectionJob?.cancel()
         connectionJob = null
         runCatching { socket?.close() }
@@ -129,6 +193,7 @@ class LanDebugConnectionsManager(
         val envelope = runCatching { envelopeAdapter.fromJson(line) }.getOrNull() ?: return
         when (envelope.type) {
             "peer-joined" -> {
+                Log.i(TAG, "Peer joined: ${envelope.senderPeerId}")
                 envelope.senderPeerId?.let { _connectionEstablished.tryEmit(it) }
             }
             "data" -> {
@@ -189,17 +254,51 @@ class LanDebugConnectionsManager(
     }
 
     private fun sendEnvelope(envelope: RelayEnvelope) {
-        val activeWriter = writer ?: return
+        // Socket writes must never happen on the caller's thread (often the
+        // UI thread from a Compose click handler), so hop onto the IO scope.
+        scope.launch {
+            val activeWriter = writer
+            if (activeWriter == null) {
+                // Not connected right now (e.g. mid-reconnect) — queue it so
+                // it's flushed as soon as a connection comes back up instead
+                // of silently disappearing.
+                Log.w(TAG, "Not connected to relay, queuing envelope: $envelope")
+                synchronized(writeLock) { pendingEnvelopes.addLast(envelope) }
+                return@launch
+            }
+            if (!writeEnvelopeNow(activeWriter, envelope)) {
+                synchronized(writeLock) { pendingEnvelopes.addLast(envelope) }
+            }
+        }
+    }
+
+    /** Writes synchronously on the calling (IO) thread/coroutine. Returns false on failure. */
+    private fun writeEnvelopeNow(activeWriter: BufferedWriter, envelope: RelayEnvelope): Boolean {
         val json = envelopeAdapter.toJson(envelope)
         synchronized(writeLock) {
-            try {
+            return try {
                 activeWriter.write(json)
                 activeWriter.newLine()
                 activeWriter.flush()
+                Log.d(TAG, "Sent to relay: $json")
+                true
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to send to relay", e)
+                Log.e(TAG, "Failed to send to relay, queuing for retry", e)
+                false
             }
         }
+    }
+
+    private fun flushPendingEnvelopes() {
+        val toFlush = synchronized(writeLock) {
+            val copy = pendingEnvelopes.toList()
+            pendingEnvelopes.clear()
+            copy
+        }
+        if (toFlush.isNotEmpty()) {
+            Log.i(TAG, "Flushing ${toFlush.size} queued envelope(s) after reconnect")
+        }
+        toFlush.forEach { sendEnvelope(it) }
     }
 
     private fun sendPayload(targetPeerId: String?, dtoJson: String) {
@@ -263,5 +362,6 @@ class LanDebugConnectionsManager(
     companion object {
         const val DEFAULT_PORT = 8942
         private const val RECONNECT_DELAY_MILLIS = 2000L
+        private const val HEARTBEAT_INTERVAL_MILLIS = 1500L
     }
 }

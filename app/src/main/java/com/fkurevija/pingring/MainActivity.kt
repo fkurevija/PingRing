@@ -163,6 +163,7 @@ fun MainNavigation(
                         discoveryRepository = discoveryRepository,
                         onBack = {
                             discoveryRepository.announceEventClosure(event)
+                            discoveryRepository.stopDiscovery()
                             sessionManager.endHostedEvent()
                             backStack.popBack()
                         },
@@ -247,11 +248,13 @@ fun MainNavigation(
                         sessionState = sessionState,
                         onEventSettings = { backStack.add(PingRingSettingsKey(key.eventId)) },
                         onLeaveEvent = {
+                            discoveryRepository.stopDiscovery()
                             sessionManager.leaveEvent()
                             backStack.resetTo(HomeKey)
                         },
                         onEndEvent = {
                             discoveryRepository.announceEventClosure(event)
+                            discoveryRepository.stopDiscovery()
                             sessionManager.endHostedEvent()
                             backStack.resetTo(HomeKey)
                         }

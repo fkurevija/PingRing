@@ -101,6 +101,14 @@ class DiscoveryRepository(
     }
 
     private var repositoryScope: CoroutineScope? = null
+    // Tracks which event/peer/role discovery is currently running for, so a
+    // redundant startDiscovery() call for the exact same session (e.g. both
+    // HostSetupScreen and RadarScreen call this when navigating between
+    // them) doesn't tear down and re-establish transport connections it
+    // doesn't need to — that churn was dropping in-flight chat messages.
+    private var activeDiscoveryEventId: String? = null
+    private var activeDiscoveryPeerId: String? = null
+    private var activeDiscoveryIsHost: Boolean? = null
     private var bleAdvertiser: BluetoothLeAdvertiser? = null
     private var advertiseCallback: AdvertiseCallback? = null
     private var advertisingActive = false
@@ -150,15 +158,30 @@ class DiscoveryRepository(
     }
 
     fun startDiscovery() {
+        val event = sessionManager.sessionState.value.currentEvent
+        val localPeerId = sessionManager.peerId.value
+        val isHost = sessionManager.sessionState.value.isHost
+        if (event != null &&
+            event.id == activeDiscoveryEventId &&
+            localPeerId == activeDiscoveryPeerId &&
+            isHost == activeDiscoveryIsHost &&
+            repositoryScope?.isActive == true
+        ) {
+            // Already actively discovering for this exact session — skip the
+            // teardown/restart to avoid unnecessary transport reconnects.
+            Log.d(TAG, "Discovery already active for event ${event.id}, ignoring duplicate startDiscovery()")
+            return
+        }
+        activeDiscoveryEventId = event?.id
+        activeDiscoveryPeerId = localPeerId
+        activeDiscoveryIsHost = isHost
         stopDiscovery()
         repositoryScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
         refreshConnectivityStatus()
 
         // 1. Start Nearby Connections
-        val event = sessionManager.sessionState.value.currentEvent
-        val localPeerId = sessionManager.peerId.value
         if (event != null) {
-            if (sessionManager.sessionState.value.isHost) {
+            if (isHost) {
                 nearbyConnectionsManager.startAdvertising(
                     event.id, 
                     localPeerId, 
@@ -298,6 +321,9 @@ class DiscoveryRepository(
     }
 
     fun stopDiscovery() {
+        activeDiscoveryEventId = null
+        activeDiscoveryPeerId = null
+        activeDiscoveryIsHost = null
         stopVibration()
         _activeBeacons.value = emptyMap()
         _localBeacon.value = null

@@ -126,9 +126,12 @@ fun RadarScreen(
     LaunchedEffect(discoveryRepository) {
         discoveryRepository?.startDiscovery()
     }
-    DisposableEffect(Unit) {
-        onDispose { discoveryRepository?.stopDiscovery() }
-    }
+    // Deliberately no onDispose-triggered stopDiscovery() here: HostSetupScreen
+    // and RadarScreen share the same DiscoveryRepository instance for the
+    // lifetime of an event (e.g. navigating to the event settings screen and
+    // back must not drop the connection). Discovery is only stopped
+    // explicitly when the user actually leaves/ends the event, via
+    // onLeaveEvent/onEndEvent in MainActivity.
 
     val peers by discoveryRepository?.peerUpdates?.collectAsState(initial = emptyList())
         ?: remember { mutableStateOf(emptyList<RadarPeerUpdate>()) }
