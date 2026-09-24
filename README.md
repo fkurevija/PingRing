@@ -104,7 +104,7 @@ graph TD
 
 ### 🚨 Customizable Peer Beacons
 - **Intent Presets**: Broadcast active beacons with custom intents (*🚨 SOS*, *✨ Found Something*, *📍 Regroup Here*, *⚠️ Caution*, *⚡ Custom*).
-- **Visual & Haptic Personalization**: Choose from 5 color palettes (Crimson, Amber, Emerald, Cyan, Purple) and custom hardware vibration rhythms (*SOS Morse*, *Rapid Alert*, *Steady Rhythm*, *Gentle Pulse*).
+- **Visual & Haptic Personalization**: Choose from 5 color palettes (Crimson, Amber, Emerald, Cyan, Purple) and select custom hardware vibration rhythms from a single-select dropdown (*SOS Morse*, *Rapid Alert*, *Steady Rhythm*, *Gentle Pulse*).
 - **Radar Highlighting**: Active beacons illuminate radar rings, peer pins, and wave animations on receiving devices.
 
 ### 💬 Decentralized Chat

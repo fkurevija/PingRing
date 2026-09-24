@@ -48,6 +48,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -77,15 +80,12 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.RadioButton
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -855,6 +855,7 @@ fun BeaconCustomizationDialog(
     onStop: () -> Unit,
     onTestVibrate: (LongArray) -> Unit
 ) {
+    var isVibrationMenuExpanded by remember { mutableStateOf(false) }
     var selectedPreset by remember { mutableStateOf(BeaconPreset.SOS) }
     var title by remember { mutableStateOf(localBeacon?.title ?: selectedPreset.defaultTitle) }
     var selectedColor by remember { mutableLongStateOf(localBeacon?.colorArgb ?: selectedPreset.defaultColorArgb) }
@@ -958,24 +959,29 @@ fun BeaconCustomizationDialog(
                 }
 
                 Text("Vibration Rhythm & Intensity", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-                Column(modifier = Modifier.selectableGroup()) {
-                    BeaconVibrationPattern.entries.forEach { pattern ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(38.dp)
-                                .selectable(
-                                    selected = (selectedPattern == pattern),
-                                    onClick = { selectedPattern = pattern }
-                                ),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = (selectedPattern == pattern),
-                                onClick = null
+                ExposedDropdownMenuBox(
+                    expanded = isVibrationMenuExpanded,
+                    onExpandedChange = { isVibrationMenuExpanded = !isVibrationMenuExpanded }
+                ) {
+                    OutlinedTextField(
+                        value = selectedPattern.displayName,
+                        onValueChange = {},
+                        readOnly = true,
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isVibrationMenuExpanded) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = isVibrationMenuExpanded,
+                        onDismissRequest = { isVibrationMenuExpanded = false }
+                    ) {
+                        BeaconVibrationPattern.entries.forEach { pattern ->
+                            DropdownMenuItem(
+                                text = { Text(pattern.displayName) },
+                                onClick = {
+                                    selectedPattern = pattern
+                                    isVibrationMenuExpanded = false
+                                }
                             )
-                            Spacer(Modifier.width(8.dp))
-                            Text(pattern.displayName, style = MaterialTheme.typography.bodyMedium)
                         }
                     }
                 }
