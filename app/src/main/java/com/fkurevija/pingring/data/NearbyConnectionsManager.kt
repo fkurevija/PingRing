@@ -202,6 +202,12 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
     private val connectionLifecycleCallback = object : ConnectionLifecycleCallback() {
         override fun onConnectionInitiated(endpointId: String, info: ConnectionInfo) {
             Log.i(TAG, "Connection initiated from endpoint $endpointId, name: '${info.endpointName}'")
+            val currentConnectedCount = connectedEndpoints.values.toSet().size
+            if ((currentConnectedCount + 1) >= MAX_PARTICIPANTS) {
+                Log.w(TAG, "PingRing is full ($currentConnectedCount connected peers + host >= $MAX_PARTICIPANTS). Rejecting endpoint $endpointId")
+                connectionsClient.rejectConnection(endpointId)
+                return
+            }
             endpointToPeerId[endpointId] = info.endpointName
             connectionsClient.acceptConnection(endpointId, payloadCallback)
         }

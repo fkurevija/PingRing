@@ -54,6 +54,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import com.fkurevija.pingring.data.DiscoveryRepository
+import com.fkurevija.pingring.data.MAX_PARTICIPANTS
 import com.fkurevija.pingring.ui.permissions.rememberUwbAvailability
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -297,6 +298,20 @@ fun HostSetupScreen(
                                 onEventChange(trackHost, useUwb, it)
                             }
                         )
+                    }
+
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.GpsFixed, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("Max Capacity", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                            Text("Limited to ${MAX_PARTICIPANTS} members (1 Host + 7 Guests) for radio performance.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
                 }
             }

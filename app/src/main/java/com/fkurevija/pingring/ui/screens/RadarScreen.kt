@@ -101,6 +101,7 @@ import com.fkurevija.pingring.data.BeaconPreset
 import com.fkurevija.pingring.data.BeaconVibrationPattern
 import com.fkurevija.pingring.data.ConnectivityStatus
 import com.fkurevija.pingring.data.DiscoveryRepository
+import com.fkurevija.pingring.data.MAX_PARTICIPANTS
 import com.fkurevija.pingring.data.RadarPeerUpdate
 import com.fkurevija.pingring.data.SessionState
 import kotlinx.coroutines.delay
@@ -170,7 +171,11 @@ fun RadarScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text("RingRing Code: $eventId", style = MaterialTheme.typography.labelMedium)
+                        Text("PingRing", fontWeight = FontWeight.Bold)
+                        Text(
+                            "Code: $eventId · ${peers.size + 1}/${MAX_PARTICIPANTS} Members",
+                            style = MaterialTheme.typography.labelMedium
+                        )
                     }
                 },
                 navigationIcon = {
@@ -755,7 +760,12 @@ private fun PeerList(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Nearby (${peers.size})", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            val isFull = (peers.size + 1) >= MAX_PARTICIPANTS
+            Text(
+                if (isFull) "Members (${peers.size + 1}/${MAX_PARTICIPANTS} - Full)" else "Members (${peers.size + 1}/${MAX_PARTICIPANTS})",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
             if (peers.isNotEmpty()) {
                 TextButton(onClick = { repository?.sendNudge(null, senderName) }) {
                     Icon(Icons.Default.NotificationsActive, contentDescription = null, modifier = Modifier.size(18.dp))

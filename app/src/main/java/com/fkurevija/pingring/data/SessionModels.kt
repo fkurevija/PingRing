@@ -2,6 +2,8 @@ package com.fkurevija.pingring.data
 
 import kotlinx.serialization.Serializable
 
+const val MAX_PARTICIPANTS = 8
+
 @Serializable
 data class Event(
     val id: String,

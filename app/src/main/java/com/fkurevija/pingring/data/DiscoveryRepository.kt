@@ -60,6 +60,7 @@ class DiscoveryRepository(
     private val eventClosedFlag = 1 shl 2
     private val useUwbFlag = 1 shl 3
     private val useWifiFlag = 1 shl 4
+    private val pingRingFullFlag = 1 shl 5
 
     private val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
     private val bluetoothAdapter = bluetoothManager?.adapter
@@ -479,10 +480,13 @@ class DiscoveryRepository(
         val currentEvent = sessionManager.sessionState.value.currentEvent ?: return
         val advertiser = adapter.bluetoothLeAdvertiser ?: return
         val peerIdBytes = currentPeerId.toByteArray(StandardCharsets.UTF_8).copyOf(8)
+        val currentMemberCount = sessionManager.sessionState.value.friends.size + 1
+        val isFull = currentMemberCount >= MAX_PARTICIPANTS
         val flags = (if (sessionManager.sessionState.value.isHost) hostFlag else 0) or
             (if (currentEvent.trackHost) trackHostFlag else 0) or
             (if (currentEvent.useUwb) useUwbFlag else 0) or
-            (if (currentEvent.useWifiDirect) useWifiFlag else 0)
+            (if (currentEvent.useWifiDirect) useWifiFlag else 0) or
+            (if (isFull) pingRingFullFlag else 0)
         val servicePayload = buildServicePayload(currentEvent.id.hashCode(), flags, peerIdBytes)
 
         val settings = AdvertiseSettings.Builder()

@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.fkurevija.pingring.data.MAX_PARTICIPANTS
 import com.fkurevija.pingring.ui.theme.PingRingTheme
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
@@ -63,6 +64,10 @@ fun PingRingJoinScreen(
         }
         if (existingMembers.any { it.equals(trimmedUsername, ignoreCase = true) }) {
             usernameError = "Username '$trimmedUsername' is already taken in this PingRing."
+            return
+        }
+        if (existingMembers.size + 1 >= MAX_PARTICIPANTS) {
+            inputError = "This PingRing is full (maximum ${MAX_PARTICIPANTS} participants allowed)."
             return
         }
         val parsedEventCode = PingRingCodeParser.parse(codeToUse)

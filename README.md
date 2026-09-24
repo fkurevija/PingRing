@@ -82,6 +82,7 @@ graph TD
 ### 📡 Mesh Networking & Connectivity
 - **One-Tap Hosting**: Instantly start a local PingRing mesh without server registration.
 - **Hardware Toggles**: Enable or disable **Ultra-Wideband (UWB)** and **High-Bandwidth Wi-Fi Direct** on the fly.
+- **Bounded Participant Capacity**: Enforces a maximum capacity limit of **8 participants** (1 Host + 7 Guests) per PingRing. Prevents Android radio/socket starvation and guarantees high-performance 30 FPS UWB ranging and instant P2P messaging. The Host automatically rejects connection attempts once full (`8/8 - Full`).
 - **Automatic Fallback**: Gracefully falls back from sub-metre UWB ranging to BLE RSSI proximity if UWB is unsupported or unavailable.
 
 ### 👤 User Profiles & Uniqueness
