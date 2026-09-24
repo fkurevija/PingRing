@@ -55,7 +55,7 @@ fun PingRingSettingsScreen(
     onBack: () -> Unit,
     onSave: (Event) -> Unit
 ) {
-    var visible by remember { mutableStateOf(true) }
+    var acceptsNewMembers by remember(event) { mutableStateOf(event.acceptsNewMembers) }
     val uwbAvailability = rememberUwbAvailability(uwbHardwareSupported)
     var useUwb by remember(event, uwbAvailability.isUsable) { mutableStateOf(event.useUwb && uwbAvailability.isUsable) }
     var useWifiDirect by remember(event) { mutableStateOf(event.useWifiDirect) }
@@ -88,7 +88,8 @@ fun PingRingSettingsScreen(
                 Button(
                     onClick = {
                         onSave(event.copy(
-                            description = if (visible) "PingRing Event" else "Closed",
+                            acceptsNewMembers = acceptsNewMembers,
+                            description = if (acceptsNewMembers) "PingRing Event" else "Closed",
                             useUwb = useUwb,
                             useWifiDirect = useWifiDirect
                         ))
@@ -133,7 +134,7 @@ fun PingRingSettingsScreen(
                             Text("Accept New Members", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                             Text("Allow nearby users to discover and join", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        Switch(checked = visible, onCheckedChange = { visible = it })
+                        Switch(checked = acceptsNewMembers, onCheckedChange = { acceptsNewMembers = it })
                     }
 
                     HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))

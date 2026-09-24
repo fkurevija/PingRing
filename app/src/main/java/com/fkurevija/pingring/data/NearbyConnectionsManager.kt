@@ -62,6 +62,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
     private val connectedEndpoints = mutableMapOf<String, String>()
     private val endpointToPeerId = mutableMapOf<String, String>()
     private var localPeerId: String = ""
+    override var acceptsNewMembers: Boolean = true
 
     private fun getServiceId(eventId: String): String = "com.fkurevija.pingring.$eventId"
 
@@ -202,6 +203,11 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
     private val connectionLifecycleCallback = object : ConnectionLifecycleCallback() {
         override fun onConnectionInitiated(endpointId: String, info: ConnectionInfo) {
             Log.i(TAG, "Connection initiated from endpoint $endpointId, name: '${info.endpointName}'")
+            if (!acceptsNewMembers) {
+                Log.w(TAG, "Host is currently not accepting new members. Rejecting connection from $endpointId")
+                connectionsClient.rejectConnection(endpointId)
+                return
+            }
             val currentConnectedCount = connectedEndpoints.values.toSet().size
             if ((currentConnectedCount + 1) >= MAX_PARTICIPANTS) {
                 Log.w(TAG, "PingRing is full ($currentConnectedCount connected peers + host >= $MAX_PARTICIPANTS). Rejecting endpoint $endpointId")

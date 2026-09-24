@@ -42,6 +42,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -49,7 +50,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -88,6 +88,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.RadioButton
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -123,6 +124,11 @@ fun RadarScreen(
     var showBeaconSheet by remember { mutableStateOf(false) }
     var showQrCode by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
+    val focusManager = LocalFocusManager.current
+
+    LaunchedEffect(Unit) {
+        focusManager.clearFocus()
+    }
 
     LaunchedEffect(discoveryRepository) {
         discoveryRepository?.startDiscovery()
@@ -173,8 +179,8 @@ fun RadarScreen(
                     Column {
                         Text("PingRing", fontWeight = FontWeight.Bold)
                         Text(
-                            "Code: $eventId · ${peers.size + 1}/${MAX_PARTICIPANTS} Members",
-                            style = MaterialTheme.typography.labelMedium
+                            "Code: $eventId · ${peers.size + 1}/$MAX_PARTICIPANTS Members",
+                            style = MaterialTheme.typography.labelMedium,
                         )
                     }
                 },
@@ -189,10 +195,15 @@ fun RadarScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { showQrCode = true }) {
+                    val acceptsNewMembers = sessionState.currentEvent?.acceptsNewMembers ?: true
+                    IconButton(
+                        onClick = { if (acceptsNewMembers) showQrCode = true },
+                        enabled = acceptsNewMembers
+                    ) {
                         Icon(
                             Icons.Default.QrCode2,
-                            contentDescription = "Show QR code to join this PingRing"
+                            contentDescription = if (acceptsNewMembers) "Show QR code to join this PingRing" else "New member joins disabled",
+                            tint = if (acceptsNewMembers) LocalContentColor.current else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
                         )
                     }
                     if (isHost) {
@@ -437,6 +448,7 @@ fun RadarScreen(
                                             if (chatText.isNotBlank()) {
                                                 discoveryRepository?.broadcastOutgoingChatMessage(chatText.trim(), senderName)
                                                 chatText = ""
+                                                focusManager.clearFocus()
                                             }
                                         },
                                         shape = CircleShape,
@@ -634,12 +646,14 @@ private fun RadarContent(
             }
         }
 
-        Text(
-            if (hasPeers) peer?.name ?: "Nearby peer" else "Looking for your people…",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold
-        )
-        Spacer(Modifier.height(16.dp))
+        if (hasPeers && (peer != null)) {
+            Text(
+                peer.name,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(Modifier.height(16.dp))
+        }
         ProximityRing(
             progress = hotness,
             color = ringColor,

@@ -22,6 +22,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.GpsFixed
+import androidx.compose.material.icons.filled.GroupAdd
 import androidx.compose.material.icons.filled.Sensors
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.Button
@@ -65,16 +66,17 @@ fun HostSetupScreen(
     discoveryRepository: DiscoveryRepository,
     onBack: () -> Unit,
     onSaveUsername: (String) -> Unit,
-    onEventChange: (Boolean, Boolean, Boolean) -> Unit,
+    onEventChange: (Boolean, Boolean, Boolean, Boolean) -> Unit,
     onView: () -> Unit
 ) {
     var username by remember(savedUsername) { mutableStateOf(savedUsername.ifBlank { "Host" }) }
+    var acceptsNewMembers by remember { mutableStateOf(true) }
     var trackHost by remember { mutableStateOf(false) }
     val uwbAvailability = rememberUwbAvailability(discoveryRepository.isUwbSupported())
     var useUwb by remember(uwbAvailability.isUsable) { mutableStateOf(uwbAvailability.isUsable) }
     var useWifiDirect by remember { mutableStateOf(true) }
 
-    LaunchedEffect(discoveryRepository, trackHost, useUwb, useWifiDirect) {
+    LaunchedEffect(discoveryRepository, acceptsNewMembers, trackHost, useUwb, useWifiDirect) {
         discoveryRepository.startDiscovery()
     }
     // Deliberately no onDispose-triggered stopDiscovery() here: HostSetupScreen
@@ -214,6 +216,28 @@ fun HostSetupScreen(
                     )
                     Spacer(Modifier.height(12.dp))
 
+                    // Accept New Members switch
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.GroupAdd, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("Accept New Members", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                            Text("Allow nearby users to discover and join this PingRing.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Switch(
+                            checked = acceptsNewMembers,
+                            onCheckedChange = {
+                                acceptsNewMembers = it
+                                onEventChange(it, trackHost, useUwb, useWifiDirect)
+                            }
+                        )
+                    }
+
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
                     // Track host switch
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -229,7 +253,7 @@ fun HostSetupScreen(
                             checked = trackHost,
                             onCheckedChange = {
                                 trackHost = it
-                                onEventChange(it, useUwb, useWifiDirect)
+                                onEventChange(acceptsNewMembers, it, useUwb, useWifiDirect)
                             }
                         )
                     }
@@ -262,7 +286,7 @@ fun HostSetupScreen(
                             enabled = uwbAvailability.isUsable,
                             onCheckedChange = {
                                 useUwb = it
-                                onEventChange(trackHost, it, useWifiDirect)
+                                onEventChange(acceptsNewMembers, trackHost, it, useWifiDirect)
                             }
                         )
                     }
@@ -295,7 +319,7 @@ fun HostSetupScreen(
                             enabled = wifiDirectSupported,
                             onCheckedChange = {
                                 useWifiDirect = it
-                                onEventChange(trackHost, useUwb, it)
+                                onEventChange(acceptsNewMembers, trackHost, useUwb, it)
                             }
                         )
                     }
@@ -310,7 +334,7 @@ fun HostSetupScreen(
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
                             Text("Max Capacity", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                            Text("Limited to ${MAX_PARTICIPANTS} members (1 Host + 7 Guests) for radio performance.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("Limited to $MAX_PARTICIPANTS members (1 Host + 7 Guests) for radio performance.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }

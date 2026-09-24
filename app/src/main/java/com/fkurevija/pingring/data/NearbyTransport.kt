@@ -21,6 +21,7 @@ interface NearbyTransport {
     val connectionEstablished: SharedFlow<String>
     val receivedNudge: SharedFlow<NudgePayloadDto>
     val receivedBeacon: SharedFlow<BeaconPayloadDto>
+    var acceptsNewMembers: Boolean
 
     fun startAdvertising(eventId: String, localPeerId: String, useWifiDirect: Boolean, useHotspot: Boolean)
     fun startDiscovery(eventId: String, localPeerId: String)

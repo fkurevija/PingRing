@@ -14,7 +14,8 @@ data class Event(
     val trackHost: Boolean = false,
     val useUwb: Boolean = true,
     val useWifiDirect: Boolean = true,
-    val useHotspot: Boolean = false
+    val useHotspot: Boolean = false,
+    val acceptsNewMembers: Boolean = true
 )
 
 @Serializable

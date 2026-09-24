@@ -61,6 +61,7 @@ class DiscoveryRepository(
     private val useUwbFlag = 1 shl 3
     private val useWifiFlag = 1 shl 4
     private val pingRingFullFlag = 1 shl 5
+    private val acceptsNewMembersFlag = 1 shl 6
 
     private val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
     private val bluetoothAdapter = bluetoothManager?.adapter
@@ -182,6 +183,7 @@ class DiscoveryRepository(
 
         // 1. Start Nearby Connections
         if (event != null) {
+            nearbyConnectionsManager.acceptsNewMembers = event.acceptsNewMembers
             if (isHost) {
                 nearbyConnectionsManager.startAdvertising(
                     event.id, 
@@ -486,7 +488,8 @@ class DiscoveryRepository(
             (if (currentEvent.trackHost) trackHostFlag else 0) or
             (if (currentEvent.useUwb) useUwbFlag else 0) or
             (if (currentEvent.useWifiDirect) useWifiFlag else 0) or
-            (if (isFull) pingRingFullFlag else 0)
+            (if (isFull) pingRingFullFlag else 0) or
+            (if (currentEvent.acceptsNewMembers) acceptsNewMembersFlag else 0)
         val servicePayload = buildServicePayload(currentEvent.id.hashCode(), flags, peerIdBytes)
 
         val settings = AdvertiseSettings.Builder()

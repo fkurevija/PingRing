@@ -171,9 +171,10 @@ fun MainNavigation(
                             appearanceSettings.setUserName(username)
                             sessionManager.setUserName(username)
                         },
-                        onEventChange = { trackHost, useUwb, useWifiDirect ->
+                        onEventChange = { acceptsNewMembers, trackHost, useUwb, useWifiDirect ->
                             sessionManager.updateEvent(
                                 event.copy(
+                                    acceptsNewMembers = acceptsNewMembers,
                                     trackHost = trackHost,
                                     useUwb = useUwb,
                                     useWifiDirect = useWifiDirect

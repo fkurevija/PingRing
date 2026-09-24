@@ -68,6 +68,7 @@ class LanDebugConnectionsManager(
 
     private val _receivedBeacon = MutableSharedFlow<BeaconPayloadDto>(extraBufferCapacity = 10, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     override val receivedBeacon = _receivedBeacon.asSharedFlow()
+    override var acceptsNewMembers: Boolean = true
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var connectionJob: Job? = null
