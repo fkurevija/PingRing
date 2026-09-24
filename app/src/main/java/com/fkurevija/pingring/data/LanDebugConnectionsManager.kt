@@ -198,6 +198,24 @@ class LanDebugConnectionsManager(
             }
             "data" -> {
                 val json = envelope.payload ?: return
+                val innerEnvelope = runCatching { envelopeAdapter.fromJson(json) }.getOrNull()
+                if (innerEnvelope != null && innerEnvelope.payload != null) {
+                    when (innerEnvelope.type) {
+                        "chat" -> runCatching { moshi.adapter(ChatPayloadDto::class.java).fromJson(innerEnvelope.payload) }
+                            .getOrNull()?.let { _receivedChatMessage.tryEmit(it) }
+                        "chat-history" -> runCatching { moshi.adapter(ChatHistoryPayloadDto::class.java).fromJson(innerEnvelope.payload) }
+                            .getOrNull()?.let { _receivedChatHistory.tryEmit(it) }
+                        "nudge" -> runCatching { moshi.adapter(NudgePayloadDto::class.java).fromJson(innerEnvelope.payload) }
+                            .getOrNull()?.let { _receivedNudge.tryEmit(it) }
+                        "beacon" -> runCatching { moshi.adapter(BeaconPayloadDto::class.java).fromJson(innerEnvelope.payload) }
+                            .getOrNull()?.let { _receivedBeacon.tryEmit(it) }
+                        "uwb-address" -> runCatching { moshi.adapter(UwbPeerAddressDto::class.java).fromJson(innerEnvelope.payload) }
+                            .getOrNull()?.let { _receivedPeerAddress.tryEmit(it) }
+                        "uwb-params" -> runCatching { moshi.adapter(UwbControllerParametersDto::class.java).fromJson(innerEnvelope.payload) }
+                            .getOrNull()?.let { _receivedControllerParams.tryEmit(it) }
+                    }
+                    return
+                }
                 parseAndEmitPayload(json)
             }
         }
