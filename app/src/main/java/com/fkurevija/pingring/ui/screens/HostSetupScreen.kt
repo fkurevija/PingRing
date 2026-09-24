@@ -2,6 +2,7 @@ package com.fkurevija.pingring.ui.screens
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -51,6 +52,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import com.fkurevija.pingring.data.DiscoveryRepository
+import com.fkurevija.pingring.ui.permissions.rememberUwbAvailability
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -65,7 +67,8 @@ fun HostSetupScreen(
 ) {
     var username by remember(savedUsername) { mutableStateOf(savedUsername.ifBlank { "Host" }) }
     var trackHost by remember { mutableStateOf(false) }
-    var useUwb by remember { mutableStateOf(discoveryRepository.isUwbSupported()) }
+    val uwbAvailability = rememberUwbAvailability(discoveryRepository.isUwbSupported())
+    var useUwb by remember(uwbAvailability.isUsable) { mutableStateOf(uwbAvailability.isUsable) }
     var useWifiDirect by remember { mutableStateOf(true) }
 
     LaunchedEffect(discoveryRepository, trackHost, useUwb, useWifiDirect) {
@@ -232,17 +235,28 @@ fun HostSetupScreen(
 
                     // UWB switch
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(enabled = !uwbAvailability.isUsable) { uwbAvailability.onRequestAccess() },
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(Icons.Default.Sensors, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
                             Text("Ultra-wideband (UWB)", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                            Text("Sub-metre ranging on supported hardware.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                when {
+                                    !uwbAvailability.hardwareSupported -> "Not supported on this device"
+                                    !uwbAvailability.permissionGranted -> "Tap to grant UWB permission"
+                                    else -> "Sub-metre ranging on supported hardware."
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                         Switch(
                             checked = useUwb,
+                            enabled = uwbAvailability.isUsable,
                             onCheckedChange = {
                                 useUwb = it
                                 onEventChange(trackHost, it, useWifiDirect)

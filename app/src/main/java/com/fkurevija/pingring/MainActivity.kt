@@ -222,6 +222,7 @@ fun MainNavigation(
                     if (event != null && event.id == key.eventId) {
                         PingRingSettingsScreen(
                             event = event,
+                            uwbHardwareSupported = discoveryRepository.isUwbSupported(),
                             onBack = { backStack.popBack() },
                             onSave = {
                                 sessionManager.updateEvent(it)

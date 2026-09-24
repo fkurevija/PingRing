@@ -1,6 +1,7 @@
 package com.fkurevija.pingring.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -41,16 +42,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.fkurevija.pingring.data.Event
+import com.fkurevija.pingring.ui.permissions.rememberUwbAvailability
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PingRingSettingsScreen(
     event: Event,
+    uwbHardwareSupported: Boolean,
     onBack: () -> Unit,
     onSave: (Event) -> Unit
 ) {
     var visible by remember { mutableStateOf(true) }
-    var useUwb by remember(event) { mutableStateOf(event.useUwb) }
+    val uwbAvailability = rememberUwbAvailability(uwbHardwareSupported)
+    var useUwb by remember(event, uwbAvailability.isUsable) { mutableStateOf(event.useUwb && uwbAvailability.isUsable) }
     var useWifiDirect by remember(event) { mutableStateOf(event.useWifiDirect) }
 
     Scaffold(
@@ -132,16 +136,26 @@ fun PingRingSettingsScreen(
                     HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(enabled = !uwbAvailability.isUsable) { uwbAvailability.onRequestAccess() },
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(Icons.Default.Sensors, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
                             Text("Ultra-wideband (UWB)", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                            Text("High-precision spatial ranging", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                when {
+                                    !uwbAvailability.hardwareSupported -> "Not supported on this device"
+                                    !uwbAvailability.permissionGranted -> "Tap to grant UWB permission"
+                                    else -> "High-precision spatial ranging"
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
-                        Switch(checked = useUwb, onCheckedChange = { useUwb = it })
+                        Switch(checked = useUwb, enabled = uwbAvailability.isUsable, onCheckedChange = { useUwb = it })
                     }
 
                     HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
