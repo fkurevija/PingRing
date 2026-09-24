@@ -30,6 +30,7 @@ import com.fkurevija.pingring.data.LanDebugConnectionsManager
 import com.fkurevija.pingring.data.NearbyTransport
 import com.fkurevija.pingring.data.Event
 import com.fkurevija.pingring.data.NearbyConnectionsManager
+import com.fkurevija.pingring.data.PingRingService
 import com.fkurevija.pingring.data.SessionManager
 import com.fkurevija.pingring.data.ThemeMode
 import com.fkurevija.pingring.ui.navigation.AppSettingsKey
@@ -46,6 +47,7 @@ import com.fkurevija.pingring.ui.screens.HomeScreen
 import com.fkurevija.pingring.ui.screens.HostSetupScreen
 import com.fkurevija.pingring.ui.screens.RadarScreen
 import com.fkurevija.pingring.ui.theme.PingRingTheme
+import com.fkurevija.pingring.data.PingRingRuntime
 import java.util.UUID
 
 class MainActivity : ComponentActivity() {
@@ -70,6 +72,18 @@ class MainActivity : ComponentActivity() {
             }
             val discoveryRepository = remember(nearbyConnectionsManager) {
                 DiscoveryRepository(context, sessionManager, nearbyConnectionsManager)
+            }
+            PingRingRuntime.configure(discoveryRepository)
+
+            val sessionState by sessionManager.sessionState.collectAsState()
+            val currentEvent = sessionState.currentEvent
+
+            LaunchedEffect(currentEvent?.id) {
+                if (currentEvent != null) {
+                    PingRingService.start(context, currentEvent.id)
+                } else {
+                    PingRingService.stop(context)
+                }
             }
 
             PingRingTheme(themeMode = themeMode) {

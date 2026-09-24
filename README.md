@@ -204,7 +204,15 @@ PingRing is built from the ground up to respect user privacy:
 
 1. **No External Servers**: No account registration, email collection, or remote logging. All data stays local to the ad-hoc mesh.
 2. **Ephemeral Identity**: Peer identifiers rotate every session. No persistent tracking cross-event.
-3. **Session-Scoped Advertising**: BLE advertising is strictly opt-in and stops immediately when the app is closed or when leaving a PingRing.
+3. **Session-Scoped Advertising**: BLE advertising is strictly opt-in and stops when leaving or ending a PingRing.
+
+## Background operation
+
+While a PingRing is active, PingRing runs discovery, advertising, nearby transport, and supported
+UWB work from an Android foreground service. The Activity may be placed in the background or its task
+may be removed without ending the active PingRing; the persistent notification can reopen the radar.
+Android still stops work after a force-stop, process kill, reboot, or revoked runtime permission. A
+new session must be started after those cases.
 
 ---
 

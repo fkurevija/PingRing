@@ -65,6 +65,9 @@ fun PermissionWrapper(
         if (hasWifi && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             list.add(Manifest.permission.NEARBY_WIFI_DEVICES)
         }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            list.add(Manifest.permission.POST_NOTIFICATIONS)
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA &&
             isPermissionDeclaredOnDevice(packageManager, Manifest.permission.ACCESS_LOCAL_NETWORK)
         ) {
