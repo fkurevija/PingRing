@@ -31,6 +31,7 @@
   - [💬 Decentralized Chat](#-decentralized-chat)
   - [🧭 Radar & Sensor Fusion Ranging](#-radar--sensor-fusion-ranging)
   - [🎨 Dynamic Theming & App Icon](#-dynamic-theming--app-icon)
+  - [🛡 Hardware Adaptation & Device-Aware Permissions](#-hardware-adaptation--device-aware-permissions)
   - [🔒 Privacy & Ephemeral Security](#-privacy--ephemeral-security)
 - [Tech Stack](#-tech-stack)
 - [Building & Testing](#-building--testing)
@@ -120,6 +121,10 @@ graph TD
 - **Adaptive Icon**: Modern dark navy background layers with a crisp white target radar vector.
 - **Material You Dynamic Icons**: Native monochrome app icon support (`ic_launcher_monochrome.xml`) on Android 13+ (API 33+) launchers.
 - **System Dark/Light Theme**: Fully respects system light/dark mode and Material 3 dynamic accent palettes.
+
+### 🛡 Hardware Adaptation & Device-Aware Permissions
+- **Selective Permission Requests**: Upfront permissions check hardware features (`FEATURE_BLUETOOTH`, `FEATURE_WIFI`, `FEATURE_LOCATION`) on the physical device. Unsupported hardware features skip permission prompts entirely.
+- **Graceful UI Disabling**: Features requiring missing hardware (e.g. Camera for QR scanning, UWB radio for precision ranging, Wi-Fi Direct for high bandwidth, or Vibrator motor for haptics) are gracefully disabled with informative status labels instead of stranding users with ungrantable permission dialogs.
 
 ### 🔒 Privacy & Ephemeral Security
 - **Ephemeral Identifiers**: Every session generates a random peer ID. Leaving or closing a PingRing rotates the ID and wipes local peer state.
