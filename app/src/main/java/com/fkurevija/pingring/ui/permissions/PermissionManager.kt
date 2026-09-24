@@ -1,21 +1,43 @@
 package com.fkurevija.pingring.ui.permissions
 
 import android.Manifest
+import android.content.pm.PackageManager
 import android.os.Build
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.google.accompanist.permissions.*
+
+/**
+ * Whether [permission] is actually a recognized, requestable permission on
+ * this device. Some permissions (e.g. android.permission.ACCESS_LOCAL_NETWORK)
+ * are gated on [Build.VERSION.SDK_INT] in code, but individual OEM builds can
+ * report a matching SDK level while still lacking the permission itself
+ * (it may only exist on certain preview/canary builds of that API level).
+ * Requesting an unrecognized permission can never be granted by the system,
+ * which would permanently strand the user on the permissions gate - so any
+ * such permission must be verified to exist before it's required upfront.
+ */
+private fun isPermissionDeclaredOnDevice(packageManager: PackageManager, permission: String): Boolean {
+    return try {
+        packageManager.getPermissionInfo(permission, 0)
+        true
+    } catch (e: PackageManager.NameNotFoundException) {
+        false
+    }
+}
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun PermissionWrapper(
     content: @Composable () -> Unit
 ) {
+    val packageManager = LocalContext.current.packageManager
     val permissions = mutableListOf(
         Manifest.permission.ACCESS_FINE_LOCATION
     )
@@ -36,7 +58,9 @@ fun PermissionWrapper(
         permissions.add(Manifest.permission.NEARBY_WIFI_DEVICES)
     }
 
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA &&
+        isPermissionDeclaredOnDevice(packageManager, Manifest.permission.ACCESS_LOCAL_NETWORK)
+    ) {
         permissions.add(Manifest.permission.ACCESS_LOCAL_NETWORK)
     }
 
