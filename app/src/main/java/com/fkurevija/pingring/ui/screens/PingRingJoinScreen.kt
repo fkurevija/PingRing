@@ -1,6 +1,7 @@
 package com.fkurevija.pingring.ui.screens
 
 import android.Manifest
+import android.content.pm.PackageManager
 import androidx.annotation.OptIn as AndroidXOptIn
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ExperimentalGetImage
@@ -218,8 +219,14 @@ fun PingRingJoinScreen(
                     }
 
                     Spacer(Modifier.height(20.dp))
+                    val context = LocalContext.current
+                    val hasCamera = remember(context) {
+                        context.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY)
+                    }
+
                     OutlinedButton(
-                        onClick = { showScanner = true },
+                        onClick = { if (hasCamera) showScanner = true },
+                        enabled = hasCamera,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(50.dp),
@@ -227,7 +234,10 @@ fun PingRingJoinScreen(
                     ) {
                         Icon(Icons.Default.QrCodeScanner, contentDescription = null, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text("Scan Host QR Code", fontWeight = FontWeight.SemiBold)
+                        Text(
+                            if (hasCamera) "Scan Host QR Code" else "Camera not available on this device",
+                            fontWeight = FontWeight.SemiBold
+                        )
                     }
                 }
             }

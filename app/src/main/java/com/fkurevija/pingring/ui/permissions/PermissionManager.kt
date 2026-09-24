@@ -27,7 +27,7 @@ private fun isPermissionDeclaredOnDevice(packageManager: PackageManager, permiss
     return try {
         packageManager.getPermissionInfo(permission, 0)
         true
-    } catch (e: PackageManager.NameNotFoundException) {
+    } catch (_: PackageManager.NameNotFoundException) {
         false
     }
 }
@@ -35,33 +35,47 @@ private fun isPermissionDeclaredOnDevice(packageManager: PackageManager, permiss
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun PermissionWrapper(
-    content: @Composable () -> Unit
+    content: @Composable () -> Unit,
 ) {
     val packageManager = LocalContext.current.packageManager
-    val permissions = mutableListOf(
-        Manifest.permission.ACCESS_FINE_LOCATION
-    )
-
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        permissions.add(Manifest.permission.BLUETOOTH_SCAN)
-        permissions.add(Manifest.permission.BLUETOOTH_CONNECT)
-        permissions.add(Manifest.permission.BLUETOOTH_ADVERTISE)
-        // UWB_RANGING is deliberately NOT requested here: on devices without a
-        // UWB radio, the permission can never be granted, which would
-        // permanently strand the user on this screen. UWB is an optional
-        // enhancement, so its permission is requested lazily, only on
-        // hardware that actually reports support, via rememberUwbAvailability()
-        // at the point of use (see HostSetupScreen/PingRingSettingsScreen).
+    val hasBluetooth = remember(packageManager) {
+        packageManager.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH) ||
+                packageManager.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)
+    }
+    val hasWifi = remember(packageManager) {
+        packageManager.hasSystemFeature(PackageManager.FEATURE_WIFI) ||
+                packageManager.hasSystemFeature(PackageManager.FEATURE_WIFI_DIRECT)
+    }
+    val hasLocation = remember(packageManager) {
+        packageManager.hasSystemFeature(PackageManager.FEATURE_LOCATION) ||
+                packageManager.hasSystemFeature(PackageManager.FEATURE_LOCATION_GPS) ||
+                packageManager.hasSystemFeature(PackageManager.FEATURE_LOCATION_NETWORK)
     }
 
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        permissions.add(Manifest.permission.NEARBY_WIFI_DEVICES)
+    val permissions = remember(hasBluetooth, hasWifi, hasLocation) {
+        val list = mutableListOf<String>()
+        if (hasLocation) {
+            list.add(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+        if (hasBluetooth && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            list.add(Manifest.permission.BLUETOOTH_SCAN)
+            list.add(Manifest.permission.BLUETOOTH_CONNECT)
+            list.add(Manifest.permission.BLUETOOTH_ADVERTISE)
+        }
+        if (hasWifi && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            list.add(Manifest.permission.NEARBY_WIFI_DEVICES)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA &&
+            isPermissionDeclaredOnDevice(packageManager, Manifest.permission.ACCESS_LOCAL_NETWORK)
+        ) {
+            list.add(Manifest.permission.ACCESS_LOCAL_NETWORK)
+        }
+        list
     }
 
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA &&
-        isPermissionDeclaredOnDevice(packageManager, Manifest.permission.ACCESS_LOCAL_NETWORK)
-    ) {
-        permissions.add(Manifest.permission.ACCESS_LOCAL_NETWORK)
+    if (permissions.isEmpty()) {
+        content()
+        return
     }
 
     val permissionState = rememberMultiplePermissionsState(permissions)

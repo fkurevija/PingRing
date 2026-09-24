@@ -1,5 +1,6 @@
 package com.fkurevija.pingring.ui.screens
 
+import android.content.pm.PackageManager
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -39,6 +40,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.fkurevija.pingring.data.Event
@@ -160,6 +162,12 @@ fun PingRingSettingsScreen(
 
                     HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 
+                    val context = LocalContext.current
+                    val wifiDirectSupported = remember(context) {
+                        context.packageManager.hasSystemFeature(PackageManager.FEATURE_WIFI_DIRECT) ||
+                                context.packageManager.hasSystemFeature(PackageManager.FEATURE_WIFI)
+                    }
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
@@ -168,9 +176,13 @@ fun PingRingSettingsScreen(
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
                             Text("High Bandwidth (Wi-Fi)", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                            Text("Wi-Fi Direct mesh for fast sync", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                if (wifiDirectSupported) "Wi-Fi Direct mesh for fast sync" else "Not supported on this device",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
-                        Switch(checked = useWifiDirect, onCheckedChange = { useWifiDirect = it })
+                        Switch(checked = useWifiDirect && wifiDirectSupported, enabled = wifiDirectSupported, onCheckedChange = { useWifiDirect = it })
                     }
                 }
             }
