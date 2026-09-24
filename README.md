@@ -81,6 +81,7 @@ graph TD
 
 ### 📡 Mesh Networking & Connectivity
 - **One-Tap Hosting**: Instantly start a local PingRing mesh without server registration.
+- **Accept New Members Control**: Host can toggle whether new members can join at creation or mid-event from PingRing Settings. When disabled, incoming connection attempts are rejected, BLE status flags update, and the top bar QR Code button on the Radar screen is hidden until re-enabled.
 - **Hardware Toggles**: Enable or disable **Ultra-Wideband (UWB)** and **High-Bandwidth Wi-Fi Direct** on the fly.
 - **Bounded Participant Capacity**: Enforces a maximum capacity limit of **8 participants** (1 Host + 7 Guests) per PingRing. Prevents Android radio/socket starvation and guarantees high-performance 30 FPS UWB ranging and instant P2P messaging. The Host automatically rejects connection attempts once full (`8/8 - Full`).
 - **Automatic Fallback**: Gracefully falls back from sub-metre UWB ranging to BLE RSSI proximity if UWB is unsupported or unavailable.
@@ -94,7 +95,7 @@ graph TD
 - **Camera QR Scanner**: Join instantly by scanning the Host's on-screen QR code using ML Kit vision decoding.
 - **6-Character PingRing Code**: Manual fallback entry for quick code typing (`e.g. AB12CD`).
 - **Context-Aware Keyboards**: Automatically opens the soft keyboard in **ALL CAPS** for code fields and **Word Capitalization** for usernames.
-- **Late-Join QR Access**: A dedicated QR icon button on the Radar screen (next to Settings) re-opens the PingRing's QR code at any time, so latecomers can scan in mid-event without interrupting the host.
+- **Late-Join QR Access**: When new member acceptance is enabled, a dedicated QR icon button on the Radar screen re-opens the PingRing's QR code at any time so latecomers can scan in mid-event without interrupting the host. If new member acceptance is disabled, the QR button is hidden.
 
 ### 👋 Peer Nudges
 - **Instant Haptic Alerts**: Send quick targeted nudges (`👋`) to specific peers or broadcast a **Nudge All** to the entire group.

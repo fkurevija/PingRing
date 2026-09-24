@@ -42,7 +42,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -196,15 +195,13 @@ fun RadarScreen(
                 },
                 actions = {
                     val acceptsNewMembers = sessionState.currentEvent?.acceptsNewMembers ?: true
-                    IconButton(
-                        onClick = { if (acceptsNewMembers) showQrCode = true },
-                        enabled = acceptsNewMembers
-                    ) {
-                        Icon(
-                            Icons.Default.QrCode2,
-                            contentDescription = if (acceptsNewMembers) "Show QR code to join this PingRing" else "New member joins disabled",
-                            tint = if (acceptsNewMembers) LocalContentColor.current else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                        )
+                    if (acceptsNewMembers) {
+                        IconButton(onClick = { showQrCode = true }) {
+                            Icon(
+                                Icons.Default.QrCode2,
+                                contentDescription = "Show QR code to join this PingRing"
+                            )
+                        }
                     }
                     if (isHost) {
                         TextButton(onClick = onEventSettings) { Text("Settings") }
