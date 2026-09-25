@@ -51,6 +51,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -960,33 +961,33 @@ fun BeaconCustomizationDialog(
                 }
 
                 Text("Vibration Rhythm & Intensity", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-                Text("Vibration Rhythm & Intensity", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-ExposedDropdownMenuBox(
-    expanded = isVibrationMenuExpanded,
-    onExpandedChange = { isVibrationMenuExpanded = !isVibrationMenuExpanded }
-) {
-    OutlinedTextField(
-        value = selectedPattern.displayName,
-        onValueChange = {},
-        readOnly = true,
-        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isVibrationMenuExpanded) },
-        modifier = Modifier.fillMaxWidth()
-    )
-    ExposedDropdownMenu(
-        expanded = isVibrationMenuExpanded,
-        onDismissRequest = { isVibrationMenuExpanded = false }
-    ) {
-        BeaconVibrationPattern.entries.forEach { pattern ->
-            DropdownMenuItem(
-                text = { Text(pattern.displayName) },
-                onClick = {
-                    selectedPattern = pattern
-                    isVibrationMenuExpanded = false // Close menu on selection
-                }
-            )
-        }
-    }
-}
+                ExposedDropdownMenuBox(
+                    expanded = isVibrationMenuExpanded,
+                    onExpandedChange = { isVibrationMenuExpanded = !isVibrationMenuExpanded }
+                ) {
+                    OutlinedTextField(
+                        value = selectedPattern.displayName,
+                        onValueChange = {},
+                        readOnly = true,
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isVibrationMenuExpanded) },
+                        modifier = Modifier
+                            .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                            .fillMaxWidth()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = isVibrationMenuExpanded,
+                        onDismissRequest = { isVibrationMenuExpanded = false }
+                    ) {
+                        BeaconVibrationPattern.entries.forEach { pattern ->
+                            DropdownMenuItem(
+                                text = { Text(pattern.displayName) },
+                                onClick = {
+                                    selectedPattern = pattern
+                                    isVibrationMenuExpanded = false
+                                }
+                            )
+                        }
+                    }
                 }
 
                 OutlinedButton(
