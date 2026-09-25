@@ -42,7 +42,7 @@ enum class BeaconVibrationPattern(val displayName: String, val pattern: LongArra
     RAPID_ALERT("Rapid Alert", longArrayOf(0, 200, 100, 200, 400, 200, 100, 200)),
     STEADY_PULSE("Steady Pulse", longArrayOf(0, 350, 300, 350, 300, 350)),
     GENTLE_PULSE("Gentle Pulse", longArrayOf(0, 120, 150, 120, 600)),
-    SILENT("Visual Only", longArrayOf(0));
+    SILENT("No Vibration", longArrayOf(0));
 
     companion object {
         fun fromName(name: String): BeaconVibrationPattern =
@@ -57,7 +57,7 @@ enum class BeaconPreset(
     val defaultColorArgb: Long,
     val defaultPattern: BeaconVibrationPattern
 ) {
-    SOS("SOS / Emergency", "🚨", "SOS / Emergency!", 0xFFFF1744, BeaconVibrationPattern.SOS_URGENT),
+    SOS("Emergency", "🚨", "Emergency!", 0xFFFF1744, BeaconVibrationPattern.SOS_URGENT),
     FOUND("Found Something", "✨", "Found Something!", 0xFF00E676, BeaconVibrationPattern.STEADY_PULSE),
     REGROUP("Regroup Here", "📍", "Regroup at my location", 0xFF00E5FF, BeaconVibrationPattern.RAPID_ALERT),
     CAUTION("Caution / Notice", "⚠️", "Caution / Look Here", 0xFFFF9100, BeaconVibrationPattern.GENTLE_PULSE),

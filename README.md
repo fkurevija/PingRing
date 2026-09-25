@@ -103,8 +103,8 @@ graph TD
 - **Always Available**: The Nudge button remains enabled regardless of connection or ranging state, so a nudge can always be attempted.
 
 ### 🚨 Customizable Peer Beacons
-- **Intent Presets**: Broadcast active beacons with custom intents (*🚨 SOS*, *✨ Found Something*, *📍 Regroup Here*, *⚠️ Caution*, *⚡ Custom*).
-- **Visual & Haptic Personalization**: Choose from 5 color palettes (Crimson, Amber, Emerald, Cyan, Purple) and select custom hardware vibration rhythms from a single-select dropdown (*SOS Morse*, *Rapid Alert*, *Steady Rhythm*, *Gentle Pulse*).
+- **Intent Presets**: Broadcast active beacons with custom intents (*🚨 Emergency*, *✨ Found Something*, *📍 Regroup Here*, *⚠️ Caution*, *⚡ Custom*).
+- **Visual & Haptic Personalization**: Choose from 5 color palettes (Crimson, Amber, Emerald, Cyan, Purple) and select custom hardware vibration rhythms from a single-select dropdown (*SOS / Urgent*, *Rapid Alert*, *Steady Pulse*, *Gentle Pulse*, *No Vibration*).
 - **Radar Highlighting**: Active beacons illuminate radar rings, peer pins, and wave animations on receiving devices.
 
 ### 💬 Decentralized Chat
