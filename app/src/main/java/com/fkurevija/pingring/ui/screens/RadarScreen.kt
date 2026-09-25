@@ -909,6 +909,7 @@ fun BeaconCustomizationDialog(
                                 title = preset.defaultTitle
                                 selectedColor = preset.defaultColorArgb
                                 selectedPattern = preset.defaultPattern
+                                isVibrationMenuExpanded = false // Close menu on selection
                             },
                             label = { Text("${preset.iconEmoji} ${preset.label}") }
                         )
@@ -959,31 +960,33 @@ fun BeaconCustomizationDialog(
                 }
 
                 Text("Vibration Rhythm & Intensity", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-                ExposedDropdownMenuBox(
-                    expanded = isVibrationMenuExpanded,
-                    onExpandedChange = { isVibrationMenuExpanded = !isVibrationMenuExpanded }
-                ) {
-                    OutlinedTextField(
-                        value = selectedPattern.displayName,
-                        onValueChange = {},
-                        readOnly = true,
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isVibrationMenuExpanded) },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    ExposedDropdownMenu(
-                        expanded = isVibrationMenuExpanded,
-                        onDismissRequest = { isVibrationMenuExpanded = false }
-                    ) {
-                        BeaconVibrationPattern.entries.forEach { pattern ->
-                            DropdownMenuItem(
-                                text = { Text(pattern.displayName) },
-                                onClick = {
-                                    selectedPattern = pattern
-                                    isVibrationMenuExpanded = false
-                                }
-                            )
-                        }
-                    }
+                Text("Vibration Rhythm & Intensity", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+ExposedDropdownMenuBox(
+    expanded = isVibrationMenuExpanded,
+    onExpandedChange = { isVibrationMenuExpanded = !isVibrationMenuExpanded }
+) {
+    OutlinedTextField(
+        value = selectedPattern.displayName,
+        onValueChange = {},
+        readOnly = true,
+        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isVibrationMenuExpanded) },
+        modifier = Modifier.fillMaxWidth()
+    )
+    ExposedDropdownMenu(
+        expanded = isVibrationMenuExpanded,
+        onDismissRequest = { isVibrationMenuExpanded = false }
+    ) {
+        BeaconVibrationPattern.entries.forEach { pattern ->
+            DropdownMenuItem(
+                text = { Text(pattern.displayName) },
+                onClick = {
+                    selectedPattern = pattern
+                    isVibrationMenuExpanded = false // Close menu on selection
+                }
+            )
+        }
+    }
+}
                 }
 
                 OutlinedButton(
