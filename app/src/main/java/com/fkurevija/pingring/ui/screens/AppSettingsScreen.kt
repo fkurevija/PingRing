@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Build
 import android.os.Vibrator
 import android.os.VibratorManager
+import android.provider.Settings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -39,6 +40,8 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -49,6 +52,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.fkurevija.pingring.BuildConfig
 import com.fkurevija.pingring.data.AppearanceSettingsRepository
 import com.fkurevija.pingring.data.ThemeMode
@@ -65,6 +71,8 @@ fun AppSettingsScreen(
     var notificationsEnabled by remember { mutableStateOf(true) }
     var themeMenuExpanded by remember { mutableStateOf(false) }
     var selectedTheme by remember(themeMode) { mutableStateOf(themeMode) }
+    val lanDebugEnabled by appearanceSettings.lanDebugEnabled.collectAsState(initial = false)
+    val systemDeveloperOptionsEnabled by rememberSystemDeveloperOptionsEnabled()
 
     Scaffold(
         topBar = {
@@ -197,8 +205,12 @@ fun AppSettingsScreen(
                 }
             }
 
-            if (BuildConfig.DEBUG) {
-                val lanDebugEnabled by appearanceSettings.lanDebugEnabled.collectAsState(initial = false)
+            // PingRing's developer tools mirror the device's own developer
+            // options: the card stays hidden until Developer options are
+            // unlocked in system Settings. It is still shown while LAN Debug
+            // Transport is on, so a relay left enabled can always be turned
+            // back off.
+            if (BuildConfig.DEBUG && (systemDeveloperOptionsEnabled || lanDebugEnabled)) {
                 val lanDebugHost by appearanceSettings.lanDebugHost.collectAsState(initial = "10.0.2.2")
                 var hostFieldValue by remember(lanDebugHost) { mutableStateOf(lanDebugHost) }
 
@@ -261,3 +273,37 @@ private val ThemeMode.label: String
         ThemeMode.LIGHT -> "Light Theme"
         ThemeMode.DARK -> "Dark Theme"
     }
+
+/**
+ * Tracks whether the device's own Developer options (Settings > System >
+ * Developer options) are enabled, re-reading the flag every time the screen
+ * resumes so a change made outside the app is picked up. Reading this global
+ * setting requires no permission, but it can throw on unusual builds, so any
+ * failure is treated as "disabled" and the developer tools stay hidden.
+ */
+@Composable
+private fun rememberSystemDeveloperOptionsEnabled(): State<Boolean> {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val developerOptionsEnabled = remember { mutableStateOf(isSystemDeveloperOptionsEnabled(context)) }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                developerOptionsEnabled.value = isSystemDeveloperOptionsEnabled(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    return developerOptionsEnabled
+}
+
+private fun isSystemDeveloperOptionsEnabled(context: Context): Boolean = runCatching {
+    Settings.Global.getInt(
+        context.contentResolver,
+        Settings.Global.DEVELOPMENT_SETTINGS_ENABLED,
+        0
+    ) == 1
+}.getOrDefault(false)
