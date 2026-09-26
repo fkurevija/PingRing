@@ -189,6 +189,12 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
     override fun broadcastChatMessage(chatMsg: ChatPayloadDto) {
         val endpoints = connectedEndpoints.values.toSet()
         Log.i(TAG, "Broadcasting chat message '${chatMsg.text}' (id=${chatMsg.id}) to ${endpoints.size} endpoint(s): $endpoints")
+        if (endpoints.isEmpty()) {
+            // The single most useful line when "chat does not work": it means
+            // the transport never got this far, so no amount of parsing on the
+            // other device can be the problem.
+            Log.w(TAG, "No connected endpoints: this chat message goes nowhere. The peers visible on the radar come from BLE, which is independent of the Nearby connection.")
+        }
         endpoints.forEach { endpointId ->
             sendPayloadToEndpoint(endpointId, chatMsg)
         }
@@ -254,10 +260,14 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
         val payload = Payload.fromBytes(envelopeJson.toByteArray())
         connectionsClient.sendPayload(endpointId, payload)
             .addOnSuccessListener {
-                Log.d(TAG, "Payload ($type) sent to endpoint $endpointId")
+                Log.d(TAG, "Sent $type (${envelopeJson.length} chars) to $endpointId [peer=${endpointToPeerId[endpointId] ?: "?"}]")
             }
             .addOnFailureListener { error ->
-                Log.e(TAG, "Payload ($type) failed for endpoint $endpointId", error)
+                // The status code is what says why, and guessing from the UI is
+                // hopeless: 4003 is "no such connection", 4006 "advertising or
+                // discovery is not running", 5xxx "we rejected it ourselves".
+                val status = (error as? com.google.android.gms.common.api.ApiException)?.statusCode
+                Log.e(TAG, "sendPayload($type) to $endpointId failed, status=$status: ${error.message}", error)
             }
     }
 
@@ -401,111 +411,126 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
         }
     }
 
+    /**
+     * Decodes a payload body, or says out loud why it could not.
+     *
+     * The whole transport used to swallow these failures (`runCatching { }
+     * .getOrNull()`), so a malformed or unexpected payload looked exactly like
+     * a device that simply never sent anything - which is the worst possible
+     * outcome when debugging "messages are not arriving".
+     */
+    private inline fun <reified T> decodeOrNull(type: String, endpointId: String, json: String): T? = try {
+        moshi.adapter(T::class.java).fromJson(json)
+    } catch (e: Exception) {
+        Log.e(TAG, "Could not parse a '$type' payload from $endpointId: ${e.message}", e)
+        null
+    }
+
+    /**
+     * Emits the envelope's body onto the matching flow. Returns false when the
+     * type is unknown or the body would not decode, so the caller can tell
+     * "handled" from "dropped".
+     */
+    private fun dispatchEnvelope(envelope: RelayEnvelope, endpointId: String): Boolean {
+        val body = envelope.payload ?: return false
+        return when (envelope.type) {
+            "chat" -> decodeOrNull<ChatPayloadDto>(envelope.type, endpointId, body)?.also {
+                Log.i(TAG, "Received chat message '${it.text}' from ${it.senderName} (peer ${it.senderPeerId})")
+                _receivedChatMessage.tryEmit(it)
+            } != null
+            "chat-history" -> decodeOrNull<ChatHistoryPayloadDto>(envelope.type, endpointId, body)?.also {
+                Log.i(TAG, "Received chat history with ${it.messages.size} msgs")
+                _receivedChatHistory.tryEmit(it)
+            } != null
+            "nudge" -> decodeOrNull<NudgePayloadDto>(envelope.type, endpointId, body)?.also {
+                Log.i(TAG, "Received nudge from ${it.senderName}")
+                _receivedNudge.tryEmit(it)
+            } != null
+            "beacon" -> decodeOrNull<BeaconPayloadDto>(envelope.type, endpointId, body)?.also {
+                Log.i(TAG, "Received beacon '${it.title}' from ${it.senderName}")
+                _receivedBeacon.tryEmit(it)
+            } != null
+            "uwb-address" -> decodeOrNull<UwbPeerAddressDto>(envelope.type, endpointId, body)?.also {
+                _receivedPeerAddress.tryEmit(it)
+            } != null
+            "uwb-params" -> decodeOrNull<UwbControllerParametersDto>(envelope.type, endpointId, body)?.also {
+                _receivedControllerParams.tryEmit(it)
+            } != null
+            else -> false
+        }
+    }
+
     private val payloadCallback = object : PayloadCallback() {
         override fun onPayloadReceived(endpointId: String, payload: Payload) {
-            payload.asBytes()?.let { bytes ->
-                val json = String(bytes)
-                Log.d(TAG, "Received payload from $endpointId: $json")
+            val bytes = payload.asBytes()
+            if (bytes == null) {
+                Log.w(TAG, "Ignoring a non-bytes payload (type=${payload.type}) from $endpointId")
+                return
+            }
+            // Explicit UTF-8, matching how it was written with toByteArray().
+            // String(ByteArray) would use the platform default charset, which
+            // is only ever accidentally right.
+            val json = bytes.toString(Charsets.UTF_8)
+            val peer = endpointToPeerId[endpointId] ?: "?"
+            Log.d(TAG, "Received ${bytes.size} bytes from $endpointId [peer=$peer]: $json")
 
-                // First try parsing as structured RelayEnvelope
-                val envelope = runCatching { envelopeAdapter.fromJson(json) }.getOrNull()
-                if (envelope != null && envelope.payload != null) {
-                    when (envelope.type) {
-                        "chat" -> {
-                            runCatching { moshi.adapter(ChatPayloadDto::class.java).fromJson(envelope.payload) }
-                                .getOrNull()?.let {
-                                    Log.i(TAG, "Received chat message '${it.text}' from ${it.senderName}")
-                                    _receivedChatMessage.tryEmit(it)
-                                }
-                        }
-                        "chat-history" -> {
-                            runCatching { moshi.adapter(ChatHistoryPayloadDto::class.java).fromJson(envelope.payload) }
-                                .getOrNull()?.let {
-                                    Log.i(TAG, "Received chat history with ${it.messages.size} msgs")
-                                    _receivedChatHistory.tryEmit(it)
-                                }
-                        }
-                        "nudge" -> {
-                            runCatching { moshi.adapter(NudgePayloadDto::class.java).fromJson(envelope.payload) }
-                                .getOrNull()?.let {
-                                    Log.i(TAG, "Received nudge from ${it.senderName}")
-                                    _receivedNudge.tryEmit(it)
-                                }
-                        }
-                        "beacon" -> {
-                            runCatching { moshi.adapter(BeaconPayloadDto::class.java).fromJson(envelope.payload) }
-                                .getOrNull()?.let {
-                                    Log.i(TAG, "Received beacon '${it.title}' from ${it.senderName}")
-                                    _receivedBeacon.tryEmit(it)
-                                }
-                        }
-                        "uwb-address" -> {
-                            runCatching { moshi.adapter(UwbPeerAddressDto::class.java).fromJson(envelope.payload) }
-                                .getOrNull()?.let { _receivedPeerAddress.tryEmit(it) }
-                        }
-                        "uwb-params" -> {
-                            runCatching { moshi.adapter(UwbControllerParametersDto::class.java).fromJson(envelope.payload) }
-                                .getOrNull()?.let { _receivedControllerParams.tryEmit(it) }
-                        }
-                    }
-                    return
+            // First try parsing as structured RelayEnvelope
+            val envelope = try {
+                envelopeAdapter.fromJson(json)
+            } catch (e: Exception) {
+                Log.e(TAG, "Could not parse the envelope from $endpointId: ${e.message}", e)
+                null
+            }
+            if (envelope != null && envelope.payload != null) {
+                if (dispatchEnvelope(envelope, endpointId)) return
+                // A known type that would not decode is a bug on one of the two
+                // sides; an unknown type may just be a newer build. Say which.
+                if (envelope.type in KNOWN_PAYLOAD_TYPES) {
+                    Log.w(TAG, "Payload of known type '${envelope.type}' from $endpointId decoded to null; dropped")
+                } else {
+                    Log.w(TAG, "Unknown payload type '${envelope.type}' from $endpointId; dropped")
                 }
+                return
+            }
 
-                // Fallback for raw legacy JSON
-                parseRawLegacyJson(json)
+            // Fallback for raw legacy JSON
+            if (!parseRawLegacyJson(json)) {
+                Log.w(TAG, "Unrecognised payload from $endpointId, dropped: $json")
             }
         }
 
         override fun onPayloadTransferUpdate(endpointId: String, update: PayloadTransferUpdate) {}
     }
 
-    private fun parseRawLegacyJson(json: String) {
-        try {
-            val chatMsg = moshi.adapter(ChatPayloadDto::class.java).fromJson(json)
-            if (chatMsg != null && chatMsg.id.isNotEmpty() && chatMsg.text.isNotEmpty()) {
-                _receivedChatMessage.tryEmit(chatMsg)
-                return
-            }
-        } catch (e: Exception) {}
+    /**
+     * The last resort for a payload sent without its envelope wrapper. Returns
+     * whether anything was recognised, so the caller can complain about the
+     * ones that were not instead of dropping them in silence.
+     */
+    private fun parseRawLegacyJson(json: String): Boolean {
+        decodeOrNull<ChatPayloadDto>("chat", "?", json)
+            ?.takeIf { it.id.isNotEmpty() && it.text.isNotEmpty() }
+            ?.let { _receivedChatMessage.tryEmit(it); return true }
+        decodeOrNull<ChatHistoryPayloadDto>("chat-history", "?", json)
+            ?.let { _receivedChatHistory.tryEmit(it); return true }
+        decodeOrNull<NudgePayloadDto>("nudge", "?", json)
+            ?.takeIf { it.id.isNotEmpty() }
+            ?.let { _receivedNudge.tryEmit(it); return true }
+        decodeOrNull<BeaconPayloadDto>("beacon", "?", json)
+            ?.takeIf { it.id.isNotEmpty() }
+            ?.let { _receivedBeacon.tryEmit(it); return true }
+        decodeOrNull<UwbControllerParametersDto>("uwb-params", "?", json)
+            ?.takeIf { it.hostPeerId.isNotEmpty() }
+            ?.let { _receivedControllerParams.tryEmit(it); return true }
+        decodeOrNull<UwbPeerAddressDto>("uwb-address", "?", json)
+            ?.takeIf { it.peerId.isNotEmpty() }
+            ?.let { _receivedPeerAddress.tryEmit(it); return true }
+        return false
+    }
 
-        try {
-            val chatHistory = moshi.adapter(ChatHistoryPayloadDto::class.java).fromJson(json)
-            if (chatHistory != null) {
-                _receivedChatHistory.tryEmit(chatHistory)
-                return
-            }
-        } catch (e: Exception) {}
-
-        try {
-            val nudge = moshi.adapter(NudgePayloadDto::class.java).fromJson(json)
-            if (nudge != null && nudge.id.isNotEmpty()) {
-                _receivedNudge.tryEmit(nudge)
-                return
-            }
-        } catch (e: Exception) {}
-
-        try {
-            val beacon = moshi.adapter(BeaconPayloadDto::class.java).fromJson(json)
-            if (beacon != null && beacon.id.isNotEmpty()) {
-                _receivedBeacon.tryEmit(beacon)
-                return
-            }
-        } catch (e: Exception) {}
-
-        try {
-            val controllerParams = moshi.adapter(UwbControllerParametersDto::class.java).fromJson(json)
-            if (controllerParams != null && controllerParams.hostPeerId.isNotEmpty()) {
-                _receivedControllerParams.tryEmit(controllerParams)
-                return
-            }
-        } catch (e: Exception) {}
-
-        try {
-            val peerAddress = moshi.adapter(UwbPeerAddressDto::class.java).fromJson(json)
-            if (peerAddress != null && peerAddress.peerId.isNotEmpty()) {
-                _receivedPeerAddress.tryEmit(peerAddress)
-                return
-            }
-        } catch (e: Exception) {}
+    private companion object {
+        // Payload types this build understands inside an envelope. Anything else
+        // is dropped on purpose (a newer peer may send more) but says so.
+        val KNOWN_PAYLOAD_TYPES = setOf("chat", "chat-history", "nudge", "beacon", "uwb-address", "uwb-params")
     }
 }
