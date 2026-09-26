@@ -108,9 +108,19 @@ class DiscoveryRepository(
     // HostSetupScreen and RadarScreen call this when navigating between
     // them) doesn't tear down and re-establish transport connections it
     // doesn't need to — that churn was dropping in-flight chat messages.
+    //
+    // The radio settings are part of the identity on purpose: flipping the UWB
+    // or Wi-Fi switch on the host screen really does have to rebuild the
+    // subsystems that were started with the old values. What must never happen
+    // is a restart when nothing changed, which is the common case: the service,
+    // the host screen and the radar screen each call this on their own, and
+    // restarting tore the transport down and dropped every live connection.
     private var activeDiscoveryEventId: String? = null
     private var activeDiscoveryPeerId: String? = null
     private var activeDiscoveryIsHost: Boolean? = null
+    private var activeDiscoveryUseUwb: Boolean? = null
+    private var activeDiscoveryUseWifiDirect: Boolean? = null
+    private var activeDiscoveryUseHotspot: Boolean? = null
     private var bleAdvertiser: BluetoothLeAdvertiser? = null
     private var advertiseCallback: AdvertiseCallback? = null
     private var advertisingActive = false
@@ -163,10 +173,22 @@ class DiscoveryRepository(
         val event = sessionManager.sessionState.value.currentEvent
         val localPeerId = sessionManager.peerId.value
         val isHost = sessionManager.sessionState.value.isHost
+
+        // The host's admission switch has to be applied even when discovery is
+        // already running: the host screen calls this again on every toggle, and
+        // restarting the transport just to apply a switch would drop the peers
+        // that are already connected.
+        if (event != null) {
+            nearbyConnectionsManager.acceptsNewMembers = event.acceptsNewMembers
+        }
+
         if (event != null &&
             event.id == activeDiscoveryEventId &&
             localPeerId == activeDiscoveryPeerId &&
             isHost == activeDiscoveryIsHost &&
+            event.useUwb == activeDiscoveryUseUwb &&
+            event.useWifiDirect == activeDiscoveryUseWifiDirect &&
+            event.useHotspot == activeDiscoveryUseHotspot &&
             repositoryScope?.isActive == true
         ) {
             // Already actively discovering for this exact session — skip the
@@ -174,16 +196,28 @@ class DiscoveryRepository(
             Log.d(TAG, "Discovery already active for event ${event.id}, ignoring duplicate startDiscovery()")
             return
         }
+
+        // Tear down whatever was running *before* recording the new state.
+        // stopDiscovery() clears these markers, so setting them first wiped them
+        // again and left the guard above permanently broken: every call became a
+        // full stop/start of the transport. That is not cosmetic - stopping
+        // clears connectedEndpoints and tears down the Nearby listeners, so a
+        // guest's requestConnection would land on a host that was momentarily
+        // not listening (ACCEPT_CONNECTION_FAILED / SOCKET_CLOSED), the peer
+        // list on the radar comes from BLE so it still looked fine, and no
+        // message could ever be delivered.
+        stopDiscovery()
         activeDiscoveryEventId = event?.id
         activeDiscoveryPeerId = localPeerId
         activeDiscoveryIsHost = isHost
-        stopDiscovery()
+        activeDiscoveryUseUwb = event?.useUwb
+        activeDiscoveryUseWifiDirect = event?.useWifiDirect
+        activeDiscoveryUseHotspot = event?.useHotspot
         repositoryScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
         refreshConnectivityStatus()
 
         // 1. Start Nearby Connections
         if (event != null) {
-            nearbyConnectionsManager.acceptsNewMembers = event.acceptsNewMembers
             if (isHost) {
                 nearbyConnectionsManager.startAdvertising(
                     event.id, 
@@ -360,6 +394,9 @@ class DiscoveryRepository(
         activeDiscoveryEventId = null
         activeDiscoveryPeerId = null
         activeDiscoveryIsHost = null
+        activeDiscoveryUseUwb = null
+        activeDiscoveryUseWifiDirect = null
+        activeDiscoveryUseHotspot = null
         stopVibration()
         _activeBeacons.value = emptyMap()
         _localBeacon.value = null
