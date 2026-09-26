@@ -1,6 +1,7 @@
 package com.fkurevija.pingring.ui.screens
 
 import android.content.pm.PackageManager
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -64,7 +65,7 @@ fun HostSetupScreen(
     eventCode: String,
     savedUsername: String,
     discoveryRepository: DiscoveryRepository,
-    onBack: () -> Unit,
+    onEndEvent: () -> Unit,
     onSaveUsername: (String) -> Unit,
     onEventChange: (Boolean, Boolean, Boolean, Boolean) -> Unit,
     onView: () -> Unit
@@ -75,6 +76,14 @@ fun HostSetupScreen(
     val uwbAvailability = rememberUwbAvailability(discoveryRepository.isUwbSupported())
     var useUwb by remember(uwbAvailability.isUsable) { mutableStateOf(uwbAvailability.isUsable) }
     var useWifiDirect by remember { mutableStateOf(true) }
+    var showEndConfirmation by remember { mutableStateOf(false) }
+
+    // The PingRing is already live on this screen - the host is advertising as
+    // soon as it opens - so system back must not slip past the question. The
+    // radar is reached from here, and the default pop would otherwise either
+    // drop the user out of the app or quietly return to Home with the event
+    // still running and nobody told.
+    BackHandler { showEndConfirmation = true }
 
     LaunchedEffect(discoveryRepository, acceptsNewMembers, trackHost, useUwb, useWifiDirect) {
         discoveryRepository.startDiscovery()
@@ -83,16 +92,18 @@ fun HostSetupScreen(
     // and RadarScreen share the same DiscoveryRepository instance for the
     // lifetime of an event, and navigating from this screen to RadarScreen
     // must NOT tear down the connection RadarScreen just took over. Discovery
-    // is only stopped explicitly when the user actually leaves/ends the event
-    // (see onBack below and MainActivity's onLeaveEvent/onEndEvent).
+    // is only stopped explicitly when the user actually ends the event, via
+    // onEndEvent (MainActivity) once the confirmation above is accepted.
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Host a PingRing", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    // Same confirmation as the system back, so the arrow and the
+                    // gesture can never disagree about what back means.
+                    IconButton(onClick = { showEndConfirmation = true }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "End PingRing")
                     }
                 }
             )
@@ -341,6 +352,19 @@ fun HostSetupScreen(
             }
 
             Spacer(Modifier.height(16.dp))
+        }
+
+        if (showEndConfirmation) {
+            // Only ever reached by the host: MainActivity sends anyone else back
+            // to Home before this screen is shown.
+            EndPingRingDialog(
+                isHost = true,
+                onConfirm = {
+                    showEndConfirmation = false
+                    onEndEvent()
+                },
+                onDismiss = { showEndConfirmation = false }
+            )
         }
     }
 }

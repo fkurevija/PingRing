@@ -175,11 +175,18 @@ fun MainNavigation(
                         eventCode = key.eventCode,
                         savedUsername = savedUsername,
                         discoveryRepository = discoveryRepository,
-                        onBack = {
+                        // Confirmed by the End PingRing dialog on that screen,
+                        // whichever way the user asked to leave it.
+                        onEndEvent = {
                             discoveryRepository.announceEventClosure(event)
                             discoveryRepository.stopDiscovery()
                             sessionManager.endHostedEvent()
-                            backStack.popBack()
+                            // resetTo, not popBack: this screen can also be the
+                            // only entry on the stack (Home redirects here while
+                            // an event is live), and popping the last entry
+                            // would drop the user out of the app instead of
+                            // back to Home.
+                            backStack.resetTo(HomeKey)
                         },
                         onSaveUsername = { username ->
                             appearanceSettings.setUserName(username)
@@ -205,7 +212,9 @@ fun MainNavigation(
                     PingRingJoinScreen(
                         savedUsername = savedUsername,
                         existingMembers = sessionState.friends.map { it.name },
-                        onBack = { backStack.popBack() },
+                        // Back from here (arrow or system) always lands on Home,
+                        // whatever is underneath on the stack.
+                        onBack = { backStack.resetTo(HomeKey) },
                         onJoinEvent = { eventCode, username ->
                             appearanceSettings.setUserName(username)
                             sessionManager.setUserName(username)

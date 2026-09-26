@@ -1,5 +1,6 @@
 package com.fkurevija.pingring.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -126,6 +127,25 @@ fun RadarScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val focusManager = LocalFocusManager.current
 
+    // The radar is the screen a live PingRing runs on, so the system back
+    // (button or gesture) must not quietly drop the user out of the app: that
+    // pops the only entry off the back stack and leaves the activity, which
+    // looks like the app closing while members are still being tracked. Ask
+    // first, and let the user decide.
+    //
+    // Only the back event is intercepted. The home and recents buttons are not
+    // routed through the back dispatcher, so they keep backgrounding the app
+    // with the PingRing still running on in the foreground service - which is
+    // the point of [com.fkurevija.pingring.data.PingRingService] - and the
+    // persistent notification brings the user back to this screen.
+    //
+    // While this dialog is up it is a real dialog window, so a further back
+    // press dismisses it instead of re-opening it, and an open keyboard still
+    // consumes back first to dismiss itself.
+    BackHandler {
+        showEndConfirmation = true
+    }
+
     LaunchedEffect(Unit) {
         focusManager.clearFocus()
     }
@@ -185,9 +205,7 @@ fun RadarScreen(
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = {
-                        if (isHost) showEndConfirmation = true else onLeaveEvent()
-                    }) {
+                    IconButton(onClick = { showEndConfirmation = true }) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = if (isHost) "End PingRing" else "Leave PingRing"
@@ -217,9 +235,11 @@ fun RadarScreen(
                     .padding(16.dp)
             ) {
                 Button(
-                    onClick = {
-                        if (isHost) showEndConfirmation = true else onLeaveEvent()
-                    },
+                    // Every way out of a live PingRing asks first: the system
+                    // back handler above, this button and the back arrow all
+                    // land on the same confirmation, so a guest is never
+                    // dropped out of the group by a single stray tap.
+                    onClick = { showEndConfirmation = true },
                     modifier = Modifier.fillMaxWidth().height(52.dp),
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
@@ -529,21 +549,13 @@ fun RadarScreen(
                 }
 
                 if (showEndConfirmation) {
-                    AlertDialog(
-                        onDismissRequest = { showEndConfirmation = false },
-                        title = { Text("End this PingRing?") },
-                        text = {
-                            Text("This removes every member from the PingRing and returns them to the home page.")
+                    EndPingRingDialog(
+                        isHost = isHost,
+                        onConfirm = {
+                            showEndConfirmation = false
+                            if (isHost) onEndEvent() else onLeaveEvent()
                         },
-                        confirmButton = {
-                            Button(onClick = {
-                                showEndConfirmation = false
-                                onEndEvent()
-                            }) { Text("End PingRing") }
-                        },
-                        dismissButton = {
-                            TextButton(onClick = { showEndConfirmation = false }) { Text("Cancel") }
-                        }
+                        onDismiss = { showEndConfirmation = false }
                     )
                 }
 

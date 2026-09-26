@@ -2,6 +2,7 @@ package com.fkurevija.pingring.ui.screens
 
 import android.Manifest
 import android.content.pm.PackageManager
+import androidx.activity.compose.BackHandler
 import androidx.annotation.OptIn as AndroidXOptIn
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ExperimentalGetImage
@@ -55,6 +56,12 @@ fun PingRingJoinScreen(
     var inputError by remember { mutableStateOf<String?>(null) }
     var usernameError by remember { mutableStateOf<String?>(null) }
     var showScanner by remember { mutableStateOf(false) }
+
+    // Nothing is live yet on this screen, so back simply means "never mind" -
+    // but say so explicitly instead of leaning on the navigation default, which
+    // pops whatever is underneath and would take the user out of the app
+    // entirely if this screen were ever the only entry on the stack.
+    BackHandler { onBack() }
 
     fun attemptJoin(codeToUse: String) {
         val trimmedUsername = username.trim()
