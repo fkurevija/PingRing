@@ -11,6 +11,24 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 
+/**
+ * Whether a connection this device has just been notified about has to be
+ * turned down.
+ *
+ * "Allow nearby users to discover and join" and the [MAX_PARTICIPANTS] limit
+ * are the *host's* admission policy, so they only get a say over a device
+ * asking to join, which is what [isIncoming] reports. Answering the host's half
+ * of a handshake this device started itself must never be gated by them: a
+ * guest whose own copy of the event has the switch off would otherwise refuse
+ * the host it just joined, be left with a connection that never establishes,
+ * and receive nothing at all - which is indistinguishable from broken chat.
+ */
+internal fun shouldRefuseConnection(
+    isIncoming: Boolean,
+    acceptsNewMembers: Boolean,
+    connectedPeerCount: Int
+): Boolean = isIncoming && (!acceptsNewMembers || connectedPeerCount + 1 >= MAX_PARTICIPANTS)
+
 class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
     private val TAG = "NearbyConnections"
     private val connectionsClient = Nearby.getConnectionsClient(context)
@@ -84,6 +102,16 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
 
     private val connectedEndpoints = mutableMapOf<String, String>()
     private val endpointToPeerId = mutableMapOf<String, String>()
+
+    // Endpoints this device has accepted, i.e. the ones a PayloadCallback is
+    // registered for. Nearby only hands payloads to an accepted connection, and
+    // a dropped connection has to be accepted again to get a new callback.
+    private val acceptedEndpoints = mutableSetOf<String>()
+
+    // Endpoints a connection has already been requested for, so a repeated
+    // discovery callback (advertisements come in continuously) does not keep
+    // re-requesting a connection that is already up.
+    private val requestedEndpoints = mutableSetOf<String>()
     private var localPeerId: String = ""
     override var acceptsNewMembers: Boolean = true
 
@@ -134,6 +162,8 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
         connectionsClient.stopAllEndpoints()
         connectedEndpoints.clear()
         endpointToPeerId.clear()
+        acceptedEndpoints.clear()
+        requestedEndpoints.clear()
     }
 
     /**
@@ -231,26 +261,82 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
             }
     }
 
+    /**
+     * Accepts [endpointId] and thereby registers [payloadCallback] for it.
+     *
+     * This is the whole ball game for chat: Nearby delivers payloads only to
+     * connections this app has accepted, and *both* ends of a connection have
+     * to accept before any data can move. The host accepts in
+     * [ConnectionLifecycleCallback.onConnectionInitiated] because it received
+     * the request, but a guest is the side that called `requestConnection()`,
+     * so accepting there and there alone left the guest with no payload
+     * callback at all: it could send chat to the host, and would then never
+     * see the host's messages, the chat the host relays from other guests, or
+     * the chat history replayed on join. The LAN debug transport is unaffected
+     * by any of this, which is exactly why this only ever showed up on real
+     * devices.
+     *
+     * Accepting an already-accepted endpoint is a no-op here, so it is safe to
+     * call from both the initiation and the result callback.
+     */
+    private fun acceptWithPayloadCallback(endpointId: String, reason: String) {
+        if (!acceptedEndpoints.add(endpointId)) {
+            Log.d(TAG, "Endpoint $endpointId already accepted; nothing to do ($reason)")
+            return
+        }
+        connectionsClient.acceptConnection(endpointId, payloadCallback)
+            .addOnSuccessListener {
+                Log.i(TAG, "Accepted $endpointId ($reason): payload callback registered")
+            }
+            .addOnFailureListener { error ->
+                // Let a later attempt try again rather than pretending this
+                // endpoint is covered when it is not.
+                acceptedEndpoints.remove(endpointId)
+                Log.w(TAG, "acceptConnection for $endpointId ($reason) failed: ${error.message}")
+            }
+    }
+
     private val connectionLifecycleCallback = object : ConnectionLifecycleCallback() {
         override fun onConnectionInitiated(endpointId: String, info: ConnectionInfo) {
-            Log.i(TAG, "Connection initiated from endpoint $endpointId, name: '${info.endpointName}'")
-            if (!acceptsNewMembers) {
-                Log.w(TAG, "Host is currently not accepting new members. Rejecting connection from $endpointId")
-                connectionsClient.rejectConnection(endpointId)
-                return
-            }
-            val currentConnectedCount = connectedEndpoints.values.toSet().size
-            if ((currentConnectedCount + 1) >= MAX_PARTICIPANTS) {
-                Log.w(TAG, "PingRing is full ($currentConnectedCount connected peers + host >= $MAX_PARTICIPANTS). Rejecting endpoint $endpointId")
+            val isIncoming = info.isIncomingConnection
+            Log.i(
+                TAG,
+                "Connection initiated for $endpointId " +
+                    "(${if (isIncoming) "requested by peer" else "answering our own request"}), " +
+                    "name: '${info.endpointName}'"
+            )
+            // "Accepts new members" and the capacity limit are the *host's*
+            // admission policy, so they only get a say over a device asking to
+            // join. Answering the host's half of the handshake must never be
+            // gated by them, or a guest whose local event copy happens to have
+            // the switch off would refuse the host it just joined, sit on a
+            // connection that never establishes, and receive nothing at all -
+            // which looks exactly like broken chat. See [shouldRefuseConnection].
+            val connectedPeerCount = connectedEndpoints.values.toSet().size
+            if (shouldRefuseConnection(isIncoming, acceptsNewMembers, connectedPeerCount)) {
+                Log.w(
+                    TAG,
+                    if (!acceptsNewMembers) {
+                        "Host is currently not accepting new members. Rejecting connection from $endpointId"
+                    } else {
+                        "PingRing is full ($connectedPeerCount connected peers + host >= $MAX_PARTICIPANTS). " +
+                            "Rejecting endpoint $endpointId"
+                    }
+                )
                 connectionsClient.rejectConnection(endpointId)
                 return
             }
             endpointToPeerId[endpointId] = info.endpointName
-            connectionsClient.acceptConnection(endpointId, payloadCallback)
+            acceptWithPayloadCallback(endpointId, if (isIncoming) "connection initiated by peer" else "answering our own request")
         }
 
         override fun onConnectionResult(endpointId: String, result: ConnectionResolution) {
             if (result.status.isSuccess) {
+                // Both sides have to accept for payloads to flow, and on the
+                // side that requested the connection this is the only place
+                // left to do it. Idempotent, so a host that already accepted in
+                // onConnectionInitiated is unaffected.
+                acceptWithPayloadCallback(endpointId, "connection established")
                 val peerId = endpointToPeerId[endpointId]?.ifBlank { null } ?: endpointId
                 connectedEndpoints[peerId] = endpointId
                 connectedEndpoints[endpointId] = endpointId
@@ -258,6 +344,9 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
                 Log.i(TAG, "Connection SUCCESS to $endpointId (Peer ID: $peerId). Active connected endpoints: $connectedEndpoints")
             } else {
                 endpointToPeerId.remove(endpointId)
+                // A failed attempt is not "already requested": let the next
+                // advertisement try again.
+                requestedEndpoints.remove(endpointId)
                 Log.w(TAG, "Connection FAILED to $endpointId: status code ${result.status.statusCode}")
             }
         }
@@ -268,6 +357,10 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
                 connectedEndpoints.remove(peerId)
             }
             connectedEndpoints.remove(endpointId)
+            // The payload callback died with the connection, and a reconnect
+            // has to be accepted again to get a working one.
+            acceptedEndpoints.remove(endpointId)
+            requestedEndpoints.remove(endpointId)
             Log.i(TAG, "Disconnected from endpoint $endpointId (Peer: $peerId)")
             // Let the radar drop this peer immediately rather than waiting for
             // the staleness timeout to notice it went quiet.
@@ -280,6 +373,17 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
     private val endpointDiscoveryCallback = object : EndpointDiscoveryCallback() {
         override fun onEndpointFound(endpointId: String, info: DiscoveredEndpointInfo) {
             Log.i(TAG, "Endpoint found: $endpointId, name: '${info.endpointName}', serviceId: '${info.serviceId}'")
+            // Remember the advertised peer id straight away. This is the only
+            // place a requester can learn it, and without it the endpoint has
+            // to be keyed by its opaque Nearby id, which then no longer matches
+            // the peer ids used everywhere else (the host peer id learned from
+            // the BLE advertisement, say) - so anything addressed to that peer
+            // by id, such as the chat history replayed on join, is dropped.
+            endpointToPeerId.putIfAbsent(endpointId, info.endpointName)
+            if (!requestedEndpoints.add(endpointId)) {
+                Log.d(TAG, "Connection to $endpointId already requested; ignoring this advertisement")
+                return
+            }
             connectionsClient.requestConnection(
                 localPeerId,
                 endpointId,
@@ -287,6 +391,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
             ).addOnSuccessListener {
                 Log.i(TAG, "Requested connection to $endpointId")
             }.addOnFailureListener { e ->
+                requestedEndpoints.remove(endpointId)
                 Log.e(TAG, "Request connection failed to $endpointId", e)
             }
         }
