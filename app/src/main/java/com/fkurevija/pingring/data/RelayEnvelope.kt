@@ -8,12 +8,34 @@ import com.squareup.moshi.JsonClass
  * connected clients by [eventId] and fans messages out based on
  * [targetPeerId]: null means "broadcast to everyone else in the group",
  * non-null means "deliver only to that peerId".
+ *
+ * Envelopes this device sends: [JOIN] (with [role]), [DATA], [LEAVE], [END]
+ * and [PING]. Envelopes the relay sends back: [PEER_JOINED], [PEER_LEFT],
+ * [EVENT_CLOSED] and forwarded [DATA]. [role] is only meaningful on a join:
+ * a host tells the relay it owns the event, and the relay closes the event for
+ * everyone else when that host ends it or fails to come back after a drop.
  */
 @JsonClass(generateAdapter = true)
 data class RelayEnvelope(
-    val type: String, // "join", "peer-joined", or "data"
+    val type: String,
     val eventId: String? = null,
     val senderPeerId: String? = null,
     val targetPeerId: String? = null, // null = broadcast
-    val payload: String? = null // JSON-encoded DTO, only present when type == "data"
-)
+    val payload: String? = null, // JSON-encoded DTO, only present when type == "data"
+    val role: String? = null // "host" or "member", only present when type == "join"
+) {
+    companion object {
+        const val JOIN = "join"
+        const val DATA = "data"
+        const val LEAVE = "leave"
+        const val END = "end"
+        const val PING = "ping"
+
+        const val PEER_JOINED = "peer-joined"
+        const val PEER_LEFT = "peer-left"
+        const val EVENT_CLOSED = "event-closed"
+
+        const val ROLE_HOST = "host"
+        const val ROLE_MEMBER = "member"
+    }
+}

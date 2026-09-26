@@ -19,6 +19,8 @@ interface NearbyTransport {
     val receivedChatMessage: SharedFlow<ChatPayloadDto>
     val receivedChatHistory: SharedFlow<ChatHistoryPayloadDto>
     val connectionEstablished: SharedFlow<String>
+    val peerDisconnected: SharedFlow<String>
+    val eventClosed: SharedFlow<Unit>
     val receivedNudge: SharedFlow<NudgePayloadDto>
     val receivedBeacon: SharedFlow<BeaconPayloadDto>
     var acceptsNewMembers: Boolean
@@ -26,6 +28,14 @@ interface NearbyTransport {
     fun startAdvertising(eventId: String, localPeerId: String, useWifiDirect: Boolean, useHotspot: Boolean)
     fun startDiscovery(eventId: String, localPeerId: String)
     fun stopAll()
+
+    /**
+     * Announces that this host is ending the PingRing, so peers can leave it
+     * too. [NearbyConnectionsManager] has nothing to do here - nearby devices
+     * see the host's BLE closure advertisement - while the LAN debug transport
+     * asks the relay to close the event and disconnect its members.
+     */
+    fun announceEventClosed()
 
     fun sendUwbParameters(peerId: String, params: Any)
     fun broadcastUwbParameters(params: Any)

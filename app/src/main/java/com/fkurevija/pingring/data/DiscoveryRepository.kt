@@ -245,6 +245,29 @@ class DiscoveryRepository(
             }
         }
 
+        // A peer whose transport connection dropped is gone: drop its pin, its
+        // beacon and its entry in the member list straight away, instead of
+        // leaving a ghost on the radar until the staleness sweep catches up.
+        repositoryScope?.launch {
+            nearbyConnectionsManager.peerDisconnected.collect { peerId ->
+                Log.i(TAG, "Peer $peerId disconnected; removing it from the radar")
+                removePeer(peerId)
+            }
+        }
+
+        // The host ended the PingRing. Over real hardware that arrives as the
+        // host's BLE closure advertisement (see handleScanResult); the LAN debug
+        // transport reports it here instead, because the emulator has no BLE
+        // radio to hear that advertisement with. Either way the result is the
+        // same: leave the event, which clears the session and sends navigation
+        // back to Home.
+        repositoryScope?.launch {
+            nearbyConnectionsManager.eventClosed.collect {
+                Log.i(TAG, "Host ended the PingRing; leaving the event")
+                sessionManager.endEventFromHost()
+            }
+        }
+
         repositoryScope?.launch {
             nearbyConnectionsManager.receivedChatHistory.collect { history ->
                 history.messages.forEach { dto ->
@@ -562,8 +585,13 @@ class DiscoveryRepository(
     /**
      * Sends a terminal host packet before the host clears its local session. Nearby members
      * receiving this packet clear their session and navigation returns them to Home.
+     *
+     * The LAN debug transport has no BLE radio to advertise with (the emulator
+     * has none at all), so it is told through [NearbyTransport.announceEventClosed]
+     * instead, which makes the relay close the event for its connected members.
      */
     fun announceEventClosure(event: Event) {
+        nearbyConnectionsManager.announceEventClosed()
         val adapter = bluetoothAdapter ?: return
         if (!adapter.isEnabled) return
         val advertiser = adapter.bluetoothLeAdvertiser ?: return
@@ -757,6 +785,19 @@ class DiscoveryRepository(
                 if (it.peerId == peerId) it.copy(lastSeen = System.currentTimeMillis(), distance = updated.distance?.toDouble()) else it
             }
             sessionManager.updateFriends(updatedFriends)
+        }
+    }
+
+    /**
+     * Forgets everything about a peer that is no longer connected: its radar
+     * pin, any beacon it was broadcasting, and its place in the member list.
+     */
+    private fun removePeer(peerId: String) {
+        _peerUpdates.update { current -> current - peerId }
+        _activeBeacons.update { current -> current - peerId }
+        val friends = sessionManager.sessionState.value.friends
+        if (friends.any { it.peerId == peerId }) {
+            sessionManager.updateFriends(friends.filterNot { it.peerId == peerId })
         }
     }
 

@@ -8,6 +8,7 @@ import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 
 class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
@@ -46,6 +47,20 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
         onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
     override val connectionEstablished = _connectionEstablished.asSharedFlow()
+
+    private val _peerDisconnected = MutableSharedFlow<String>(
+        extraBufferCapacity = 4,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+    override val peerDisconnected = _peerDisconnected.asSharedFlow()
+
+    /**
+     * Nearby Connections has no server-side equivalent of "the event is over":
+     * peers learn it from the host's BLE closure advertisement, which
+     * [DiscoveryRepository] already watches for, so nothing is ever emitted
+     * here.
+     */
+    override val eventClosed: SharedFlow<Unit> = MutableSharedFlow()
 
     private val _receivedNudge = MutableSharedFlow<NudgePayloadDto>(
         extraBufferCapacity = 10,
@@ -112,6 +127,14 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
         connectedEndpoints.clear()
         endpointToPeerId.clear()
     }
+
+    /**
+     * Nothing to do: peers of a real host find out the PingRing is over from the
+     * BLE closure advertisement that [DiscoveryRepository.announceEventClosure]
+     * broadcasts. The LAN debug transport is the one that needs to tell the
+     * relay instead.
+     */
+    override fun announceEventClosed() = Unit
 
     override fun sendUwbParameters(peerId: String, params: Any) {
         val endpointId = connectedEndpoints[peerId] ?: return
@@ -238,6 +261,11 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
             }
             connectedEndpoints.remove(endpointId)
             Log.i(TAG, "Disconnected from endpoint $endpointId (Peer: $peerId)")
+            // Let the radar drop this peer immediately rather than waiting for
+            // the staleness timeout to notice it went quiet.
+            if (!peerId.isNullOrBlank()) {
+                _peerDisconnected.tryEmit(peerId)
+            }
         }
     }
 

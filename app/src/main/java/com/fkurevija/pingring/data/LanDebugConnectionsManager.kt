@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import java.io.BufferedReader
 import java.io.BufferedWriter
 import java.io.InputStreamReader
@@ -63,6 +64,12 @@ class LanDebugConnectionsManager(
     private val _connectionEstablished = MutableSharedFlow<String>(replay = 1, extraBufferCapacity = 4, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     override val connectionEstablished = _connectionEstablished.asSharedFlow()
 
+    private val _peerDisconnected = MutableSharedFlow<String>(extraBufferCapacity = 4, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+    override val peerDisconnected = _peerDisconnected.asSharedFlow()
+
+    private val _eventClosed = MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+    override val eventClosed = _eventClosed.asSharedFlow()
+
     private val _receivedNudge = MutableSharedFlow<NudgePayloadDto>(extraBufferCapacity = 10, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     override val receivedNudge = _receivedNudge.asSharedFlow()
 
@@ -92,16 +99,53 @@ class LanDebugConnectionsManager(
     private var localPeerId: String = ""
     private var localEventId: String = ""
 
+    // Told to the relay in the join envelope so it knows which connection owns
+    // the event and can therefore end it for everyone else.
+    private var localRole: String = RelayEnvelope.ROLE_MEMBER
+
+    // Set when the relay reports that the event was closed by its host. The
+    // retry loop checks it so a booted client can never silently rejoin the
+    // event it was just thrown out of.
+    @Volatile
+    private var eventClosedByRelay = false
+
     override fun startAdvertising(eventId: String, localPeerId: String, useWifiDirect: Boolean, useHotspot: Boolean) {
-        connect(eventId, localPeerId)
+        connect(eventId, localPeerId, RelayEnvelope.ROLE_HOST)
     }
 
     override fun startDiscovery(eventId: String, localPeerId: String) {
-        connect(eventId, localPeerId)
+        connect(eventId, localPeerId, RelayEnvelope.ROLE_MEMBER)
     }
 
-    private fun connect(eventId: String, localPeerId: String) {
-        if (eventId == this.localEventId && localPeerId == this.localPeerId && connectionJob?.isActive == true) {
+    /**
+     * Tells the relay this host is ending the PingRing. The relay answers by
+     * telling the members the event is closed and disconnecting them, which is
+     * the LAN debug equivalent of the BLE closure advertisement the real
+     * transport relies on.
+     */
+    override fun announceEventClosed() {
+        eventClosedByRelay = true
+        val envelope = RelayEnvelope(
+            type = RelayEnvelope.END,
+            eventId = localEventId,
+            senderPeerId = localPeerId
+        )
+        // The app tears this connection down on the very click that ends the
+        // event, so the envelope has to be on the wire before this returns --
+        // but clicks arrive on the UI thread, where Android forbids socket
+        // writes (NetworkOnMainThreadException), so hand the write to an IO
+        // thread and wait for it to land.
+        val activeWriter = writer
+        val sent = if (activeWriter == null) {
+            false
+        } else {
+            runBlocking(Dispatchers.IO) { writeEnvelopeNow(activeWriter, envelope) }
+        }
+        Log.i(TAG, "Announced event closure for $localEventId (sent=$sent)")
+    }
+
+    private fun connect(eventId: String, localPeerId: String, role: String) {
+        if (eventId == this.localEventId && localPeerId == this.localPeerId && role == this.localRole && connectionJob?.isActive == true) {
             // Already connected/connecting for this exact event+peer (e.g.
             // both HostSetupScreen and RadarScreen call startAdvertising/
             // startDiscovery for the same session) — don't tear down a
@@ -109,9 +153,11 @@ class LanDebugConnectionsManager(
             Log.d(TAG, "Already connecting/connected for event $eventId as $localPeerId, ignoring duplicate request")
             return
         }
-        Log.i(TAG, "connect() called for event $eventId as $localPeerId (was event=${this.localEventId} peer=${this.localPeerId})")
+        Log.i(TAG, "connect() called for event $eventId as $localPeerId/$role (was event=${this.localEventId} peer=${this.localPeerId} role=${this.localRole})")
         this.localEventId = eventId
         this.localPeerId = localPeerId
+        this.localRole = role
+        eventClosedByRelay = false
         stopAll()
         val myGeneration = connectionGeneration.incrementAndGet()
         Log.i(TAG, "Starting connection attempt generation $myGeneration")
@@ -130,8 +176,16 @@ class LanDebugConnectionsManager(
                     socket = newSocket
                     val newWriter = BufferedWriter(OutputStreamWriter(newSocket.getOutputStream()))
                     writer = newWriter
-                    Log.i(TAG, "Connected to relay, joining event $eventId as $localPeerId (gen $myGeneration)")
-                    writeEnvelopeNow(newWriter, RelayEnvelope(type = "join", eventId = eventId, senderPeerId = localPeerId))
+                    Log.i(TAG, "Connected to relay, joining event $eventId as $localPeerId/$localRole (gen $myGeneration)")
+                    writeEnvelopeNow(
+                        newWriter,
+                        RelayEnvelope(
+                            type = RelayEnvelope.JOIN,
+                            eventId = eventId,
+                            senderPeerId = localPeerId,
+                            role = localRole
+                        )
+                    )
                     flushPendingEnvelopes()
 
                     // Some network paths used for testing (the emulator's
@@ -145,7 +199,7 @@ class LanDebugConnectionsManager(
                             kotlinx.coroutines.delay(HEARTBEAT_INTERVAL_MILLIS)
                             if (connectionGeneration.get() != myGeneration) break
                             val currentWriter = writer ?: break
-                            if (!writeEnvelopeNow(currentWriter, RelayEnvelope(type = "ping", eventId = eventId, senderPeerId = localPeerId))) {
+                            if (!writeEnvelopeNow(currentWriter, RelayEnvelope(type = RelayEnvelope.PING, eventId = eventId, senderPeerId = localPeerId))) {
                                 break
                             }
                         }
@@ -156,6 +210,13 @@ class LanDebugConnectionsManager(
                             val line = reader.readLine() ?: break
                             Log.d(TAG, "Received from relay: $line")
                             handleLine(line)
+                            if (eventClosedByRelay) {
+                                // The host ended the event; the relay is closing
+                                // this connection too, so stop reading instead of
+                                // treating the close as a drop to retry.
+                                Log.i(TAG, "Relay closed event $eventId; not retrying (gen $myGeneration)")
+                                break
+                            }
                         }
                         Log.w(TAG, "Relay connection closed, retrying… (gen $myGeneration)")
                     } finally {
@@ -165,6 +226,13 @@ class LanDebugConnectionsManager(
                     Log.w(TAG, "Relay socket error: ${e.message} (gen $myGeneration)")
                 } catch (e: Exception) {
                     Log.e(TAG, "Relay connection failed (gen $myGeneration)", e)
+                }
+                if (eventClosedByRelay) {
+                    // Booted from an event that no longer exists; the app is
+                    // already leaving it, and rejoining would only resurrect a
+                    // dead session on the radar.
+                    Log.i(TAG, "Event was closed by its host, stopping retry loop (gen $myGeneration)")
+                    break
                 }
                 if (connectionGeneration.get() != myGeneration) {
                     // Superseded by a newer connection attempt — don't null
@@ -193,11 +261,25 @@ class LanDebugConnectionsManager(
     private fun handleLine(line: String) {
         val envelope = runCatching { envelopeAdapter.fromJson(line) }.getOrNull() ?: return
         when (envelope.type) {
-            "peer-joined" -> {
+            RelayEnvelope.PEER_JOINED -> {
                 Log.i(TAG, "Peer joined: ${envelope.senderPeerId}")
                 envelope.senderPeerId?.let { _connectionEstablished.tryEmit(it) }
             }
-            "data" -> {
+            RelayEnvelope.PEER_LEFT -> {
+                // The relay drops a peer from the event the moment its
+                // connection goes away, so the radar can forget it right away
+                // instead of waiting for the staleness sweep.
+                Log.i(TAG, "Peer left: ${envelope.senderPeerId}")
+                envelope.senderPeerId?.let { _peerDisconnected.tryEmit(it) }
+            }
+            RelayEnvelope.EVENT_CLOSED -> {
+                // The host ended the PingRing. This is the LAN debug stand-in
+                // for the BLE closure advertisement a real device would see.
+                Log.i(TAG, "Event ${envelope.eventId} was closed by host ${envelope.senderPeerId}")
+                eventClosedByRelay = true
+                _eventClosed.tryEmit(Unit)
+            }
+            RelayEnvelope.DATA -> {
                 val json = envelope.payload ?: return
                 val innerEnvelope = runCatching { envelopeAdapter.fromJson(json) }.getOrNull()
                 if (innerEnvelope != null && innerEnvelope.payload != null) {
