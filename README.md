@@ -195,7 +195,7 @@ Google Nearby Connections cannot bridge an Android Emulator and a physical devic
 3. Host on one device and join on the other as usual — messages are relayed over TCP instead of Nearby Connections.
 4. Stop the relay with `Ctrl+C` when you are done: the listening socket and every open client connection are closed cleanly, so the port is immediately free for the next run.
 
-The **Developer Options** card that holds the **LAN Debug Transport** toggle is only shown in debug builds *and* only when the device's own *Developer options* (Settings → System → Developer options) are enabled. It stays visible while LAN Debug Transport is on, so the relay can always be switched back off.
+The **Developer Options** card that holds the **LAN Debug Transport** toggle only appears in debug builds, and only while the device looks like it is set up for development (ADB over Wi-Fi or USB, a USB cable attached, or an emulator). It stays visible while LAN Debug Transport is on, so the relay can always be switched back off.
 
 This transport is for local testing only and is excluded from release builds; it is not a substitute for testing on real hardware over Nearby Connections before shipping.
 

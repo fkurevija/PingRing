@@ -1,6 +1,9 @@
 package com.fkurevija.pingring.ui.screens
 
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.os.BatteryManager
 import android.os.Build
 import android.os.Vibrator
 import android.os.VibratorManager
@@ -72,7 +75,7 @@ fun AppSettingsScreen(
     var themeMenuExpanded by remember { mutableStateOf(false) }
     var selectedTheme by remember(themeMode) { mutableStateOf(themeMode) }
     val lanDebugEnabled by appearanceSettings.lanDebugEnabled.collectAsState(initial = false)
-    val systemDeveloperOptionsEnabled by rememberSystemDeveloperOptionsEnabled()
+    val debuggingActive by rememberDebuggingActive()
 
     Scaffold(
         topBar = {
@@ -205,12 +208,12 @@ fun AppSettingsScreen(
                 }
             }
 
-            // PingRing's developer tools mirror the device's own developer
-            // options: the card stays hidden until Developer options are
-            // unlocked in system Settings. It is still shown while LAN Debug
-            // Transport is on, so a relay left enabled can always be turned
-            // back off.
-            if (BuildConfig.DEBUG && (systemDeveloperOptionsEnabled || lanDebugEnabled)) {
+            // PingRing's developer tools are shown in debug builds on a device
+            // that is set up for development, i.e. with USB or wireless
+            // debugging active (see isDebuggingActive). The card stays visible
+            // while LAN Debug Transport is on, so a relay left enabled can
+            // always be turned back off.
+            if (BuildConfig.DEBUG && (debuggingActive || lanDebugEnabled)) {
                 val lanDebugHost by appearanceSettings.lanDebugHost.collectAsState(initial = "10.0.2.2")
                 var hostFieldValue by remember(lanDebugHost) { mutableStateOf(lanDebugHost) }
 
@@ -275,35 +278,67 @@ private val ThemeMode.label: String
     }
 
 /**
- * Tracks whether the device's own Developer options (Settings > System >
- * Developer options) are enabled, re-reading the flag every time the screen
- * resumes so a change made outside the app is picked up. Reading this global
- * setting requires no permission, but it can throw on unusual builds, so any
- * failure is treated as "disabled" and the developer tools stay hidden.
+ * Tracks whether development debugging is active on this device, re-checking
+ * every time the screen resumes so toggling USB/wireless debugging, plugging in
+ * a cable, or changing Developer options outside the app is picked up.
  */
 @Composable
-private fun rememberSystemDeveloperOptionsEnabled(): State<Boolean> {
+private fun rememberDebuggingActive(): State<Boolean> {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    val developerOptionsEnabled = remember { mutableStateOf(isSystemDeveloperOptionsEnabled(context)) }
+    val debuggingActive = remember { mutableStateOf(isDebuggingActive(context)) }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                developerOptionsEnabled.value = isSystemDeveloperOptionsEnabled(context)
+                debuggingActive.value = isDebuggingActive(context)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    return developerOptionsEnabled
+    return debuggingActive
 }
 
-private fun isSystemDeveloperOptionsEnabled(context: Context): Boolean = runCatching {
-    Settings.Global.getInt(
-        context.contentResolver,
-        Settings.Global.DEVELOPMENT_SETTINGS_ENABLED,
-        0
-    ) == 1
+// `Settings.Global.ADB_WIFI_ENABLED` is @hide in the SDK, so the wireless
+// debugging flag is read through its platform string value instead.
+private const val ADB_WIFI_ENABLED_KEY = "adb_wifi_enabled"
+
+/**
+ * Whether this device is set up for development: ADB over Wi-Fi, ADB over USB,
+ * the Developer options master switch, a USB cable to a development machine, or
+ * an emulator.
+ *
+ * Android 15 and later filter `adb_enabled` and `development_settings_enabled`
+ * out of `Settings.Global` for apps on some devices - the reads silently return
+ * the default value instead of throwing - so those two only report the truth
+ * where the platform still exposes them; `adb_wifi_enabled` is readable on the
+ * devices checked so far. A debug build on an emulator or with a USB cable
+ * attached therefore covers the remaining cases. Every read is defensive: any
+ * failure simply means "not detected".
+ */
+private fun isDebuggingActive(context: Context): Boolean =
+    isGlobalFlagEnabled(context, ADB_WIFI_ENABLED_KEY) ||
+        isGlobalFlagEnabled(context, Settings.Global.ADB_ENABLED) ||
+        isGlobalFlagEnabled(context, Settings.Global.DEVELOPMENT_SETTINGS_ENABLED) ||
+        isUsbPowered(context) ||
+        isEmulator()
+
+private fun isGlobalFlagEnabled(context: Context, key: String): Boolean = runCatching {
+    Settings.Global.getInt(context.contentResolver, key, 0) == 1
 }.getOrDefault(false)
+
+/** True while the device is powered over USB, i.e. by a cable to a dev machine. */
+private fun isUsbPowered(context: Context): Boolean = runCatching {
+    context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        ?.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) == BatteryManager.BATTERY_PLUGGED_USB
+}.getOrDefault(false)
+
+/** Emulator images report sdk_gphone hardware and usually run userdebug/eng builds. */
+private fun isEmulator(): Boolean =
+    Build.TYPE == "userdebug" ||
+        Build.TYPE == "eng" ||
+        Build.MODEL.startsWith("sdk_gphone") ||
+        Build.MODEL.contains("Android SDK built for") ||
+        Build.FINGERPRINT.startsWith("generic")
