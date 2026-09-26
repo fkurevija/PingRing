@@ -199,6 +199,29 @@ The **Developer Options** card that holds the **LAN Debug Transport** toggle onl
 
 This transport is for local testing only and is excluded from release builds; it is not a substitute for testing on real hardware over Nearby Connections before shipping.
 
+#### 📡 Scripted Distance (Testing the Radar Remotely)
+
+Over this transport nothing in the app can measure a distance: the emulator has no UWB radio and no BLE radio, and neither does the relay, so peers arrive on the radar with no distance, no bearing, no arrow and no hot/cold ring. To exercise the ranging features anyway, `tools/mock_radar.py` joins the same event as a third, invisible participant and streams scripted range reports to the other devices, which the app renders through its normal ranging path (only the measurement is fake, never the rendering):
+
+```powershell
+# with the relay already running, and the app(s) hosting/joining the event
+python tools\mock_radar.py <event-id> --pattern approach
+python tools\mock_radar.py <event-id> --pattern orbit --distance 3
+python tools\mock_radar.py <event-id> --peer a1b2c3d4 --name "Alice"
+```
+
+| Option | What it does |
+| --- | --- |
+| `--pattern approach` | Walks between `--start` and `--end` metres in place, crossing the sub-2 m proximity haptic twice per cycle (the default) |
+| `--pattern orbit` | Holds `--distance` while the bearing sweeps a full circle, to check the compass-corrected arrow |
+| `--pattern walk` | Both at once: circling *and* closing in |
+| `--pattern static` | A frozen reading, to check a steady state |
+| `--peer` | Only drive these peer ids (repeatable). Default: every member of the event |
+| `--name` | Display name for the driven peer(s), so two scripted pins are told apart |
+| `--period`, `--rate`, `--azimuth`, `--elevation`, `--spread` | Cycle length, reports/second, starting bearing, elevation, and one bearing slice per peer |
+
+The radar reacts exactly as it would to real UWB ranging: the distance readout, the "Direction locked" line, the rings, the arrow, the haptics and the 15 s staleness sweep all follow the script. Run `python tools/test_mock_radar.py` to check the script and the relay path without any device attached.
+
 ---
 
 ## 🛡 Privacy Model

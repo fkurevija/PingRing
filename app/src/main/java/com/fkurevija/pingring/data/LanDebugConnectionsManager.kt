@@ -40,6 +40,11 @@ import java.util.concurrent.atomic.AtomicInteger
  *
  * This is a testing aid only; it is never used unless explicitly enabled in
  * Settings on a debug build.
+ *
+ * It also gives the development machine a way to feed the app something it
+ * otherwise could never measure: tools/mock_radar.py scripts distance/azimuth
+ * reports and the relay forwards them, so the radar can be tested on an
+ * emulator that has no UWB or BLE radio.
  */
 class LanDebugConnectionsManager(
     private val host: String,
@@ -75,6 +80,13 @@ class LanDebugConnectionsManager(
 
     private val _receivedBeacon = MutableSharedFlow<BeaconPayloadDto>(extraBufferCapacity = 10, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     override val receivedBeacon = _receivedBeacon.asSharedFlow()
+
+    // Scripted ranges arrive at a much higher rate than any real message (up to
+    // a few per second per peer), and a dropped sample is worthless, so a
+    // deeper buffer that keeps the newest ones.
+    private val _receivedMockRanging = MutableSharedFlow<MockRangingDto>(extraBufferCapacity = 32, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+    override val receivedMockRanging = _receivedMockRanging.asSharedFlow()
+
     override var acceptsNewMembers: Boolean = true
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -296,6 +308,10 @@ class LanDebugConnectionsManager(
                             .getOrNull()?.let { _receivedPeerAddress.tryEmit(it) }
                         "uwb-params" -> runCatching { moshi.adapter(UwbControllerParametersDto::class.java).fromJson(innerEnvelope.payload) }
                             .getOrNull()?.let { _receivedControllerParams.tryEmit(it) }
+                        // A scripted range report from tools/mock_radar.py, the
+                        // LAN-only stand-in for a UWB ranging result.
+                        "mock-range" -> runCatching { moshi.adapter(MockRangingDto::class.java).fromJson(innerEnvelope.payload) }
+                            .getOrNull()?.let { _receivedMockRanging.tryEmit(it) }
                     }
                     return
                 }
@@ -349,6 +365,17 @@ class LanDebugConnectionsManager(
             val beacon = moshi.adapter(BeaconPayloadDto::class.java).fromJson(json)
             if (beacon != null) {
                 _receivedBeacon.tryEmit(beacon)
+                return
+            }
+        } catch (e: Exception) {}
+
+        // Last, because every other field is optional here: a range report has
+        // to be tried only once the DTOs that own a "peerId" field have had
+        // their chance, or it would swallow them.
+        try {
+            val mockRanging = moshi.adapter(MockRangingDto::class.java).fromJson(json)
+            if (mockRanging != null) {
+                _receivedMockRanging.tryEmit(mockRanging)
                 return
             }
         } catch (e: Exception) {}

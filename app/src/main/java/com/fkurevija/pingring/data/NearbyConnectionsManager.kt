@@ -74,6 +74,14 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
     )
     override val receivedBeacon = _receivedBeacon.asSharedFlow()
 
+    /**
+     * Nearby Connections has no way of being told a distance that was not
+     * measured by this device's own UWB/BLE radios, so nothing is ever emitted
+     * here. Scripted ranges only exist for the LAN debug transport, which gets
+     * them from tools/mock_radar.py.
+     */
+    override val receivedMockRanging: SharedFlow<MockRangingDto> = MutableSharedFlow()
+
     private val connectedEndpoints = mutableMapOf<String, String>()
     private val endpointToPeerId = mutableMapOf<String, String>()
     private var localPeerId: String = ""

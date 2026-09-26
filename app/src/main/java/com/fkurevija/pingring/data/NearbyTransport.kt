@@ -23,6 +23,17 @@ interface NearbyTransport {
     val eventClosed: SharedFlow<Unit>
     val receivedNudge: SharedFlow<NudgePayloadDto>
     val receivedBeacon: SharedFlow<BeaconPayloadDto>
+
+    /**
+     * Debug-only: scripted range reports for a peer, as produced by
+     * tools/mock_radar.py.
+     *
+     * Real devices never send these, so [NearbyConnectionsManager] never
+     * emits any; only the LAN debug transport can deliver them, and only
+     * while its relay is being fed a script. Anything consuming this flow must
+     * therefore be a debug-only path as well.
+     */
+    val receivedMockRanging: SharedFlow<MockRangingDto>
     var acceptsNewMembers: Boolean
 
     fun startAdvertising(eventId: String, localPeerId: String, useWifiDirect: Boolean, useHotspot: Boolean)

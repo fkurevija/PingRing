@@ -41,6 +41,12 @@ The relay groups connections by eventId. "data" envelopes with a
 targetPeerId are forwarded only to that peer; envelopes with no
 targetPeerId are broadcast to every other peer in the same event.
 
+Payloads are opaque to the relay: it only ever looks at the envelope, so a
+new kind of message needs no relay support at all. That is how the debug
+ranging channel works - tools/mock_radar.py sends ordinary "data" envelopes
+whose payload is a "mock-range" report, and the relay passes each one through
+to the peer it is addressed to.
+
 To stand in for a real connection, the relay also mimics how a session
 ends rather than just fanning messages out:
 

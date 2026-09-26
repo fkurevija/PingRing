@@ -255,6 +255,16 @@ class DiscoveryRepository(
             }
         }
 
+        // Debug-only: scripted ranges from tools/mock_radar.py, forwarded by the
+        // LAN debug relay. The emulator has no UWB or BLE radio, so without
+        // these the radar would have no distance to draw and the only thing
+        // testable between two devices would be chat and beacons.
+        repositoryScope?.launch {
+            nearbyConnectionsManager.receivedMockRanging.collect { dto ->
+                updateMockRanging(dto)
+            }
+        }
+
         // The host ended the PingRing. Over real hardware that arrives as the
         // host's BLE closure advertisement (see handleScanResult); the LAN debug
         // transport reports it here instead, because the emulator has no BLE
@@ -769,20 +779,29 @@ class DiscoveryRepository(
             current + (peerId to updated)
         }
 
-        // Maintain friend list in SessionManager
+        syncFriend(updated)
+    }
+
+    /**
+     * Mirrors the latest radar reading of [peer] into the SessionManager's
+     * friend list: added on first sight, then only its last-seen time and
+     * distance are refreshed.
+     */
+    private fun syncFriend(peer: RadarPeerUpdate) {
         val friends = sessionManager.sessionState.value.friends
-        val friendExists = friends.any { it.peerId == peerId }
+        val distance = peer.distance?.toDouble()
+        val friendExists = friends.any { it.peerId == peer.peerId }
         if (!friendExists) {
             val updatedFriends = friends + Friend(
-                peerId = peerId,
-                name = peerName,
-                lastSeen = System.currentTimeMillis(),
-                distance = updated.distance?.toDouble()
+                peerId = peer.peerId,
+                name = peer.name,
+                lastSeen = peer.lastSeen,
+                distance = distance
             )
             sessionManager.updateFriends(updatedFriends)
         } else {
             val updatedFriends = friends.map {
-                if (it.peerId == peerId) it.copy(lastSeen = System.currentTimeMillis(), distance = updated.distance?.toDouble()) else it
+                if (it.peerId == peer.peerId) it.copy(lastSeen = peer.lastSeen, distance = distance) else it
             }
             sessionManager.updateFriends(updatedFriends)
         }
@@ -1028,6 +1047,60 @@ class DiscoveryRepository(
                 )
             )
         }
+        updateWorldVectors()
+    }
+
+    /**
+     * Applies a scripted range report received over the LAN debug transport
+     * (see tools/mock_radar.py).
+     *
+     * This performs exactly the update [updateUwbPosition] would for a real
+     * report, so the code under test is the production one: the rings, the
+     * compass-corrected arrow, the distance readout, the "Direction locked" /
+     * "BLE proximity mode" switch, the sub-2 m haptic and the staleness sweep
+     * all react to a scripted walk just as they would to a real one. Only the
+     * measurement is fake, never the rendering.
+     *
+     * Unlike a UWB update this also *creates* the peer entry when it is
+     * missing, because a device on the LAN debug transport never sees a BLE
+     * scan result for the other device: without that, the radar would stay
+     * empty on the emulator and the injected distances would be dropped.
+     */
+    private fun updateMockRanging(dto: MockRangingDto) {
+        val peerId = dto.peerId
+        if (peerId.isEmpty() || peerId == sessionManager.peerId.value) return
+        if (sessionManager.sessionState.value.currentEvent == null) return
+
+        // A scripted report has a distance but no real signal strength, so an
+        // RSSI is derived from the same curve the BLE scan path uses to turn
+        // RSSI into a distance in the first place (distance = 2 + (rssi+100)/10).
+        // Without it the hot/cold ring and the dBm readout would sit at their
+        // "no signal" values and stop reacting to the scripted movement, which
+        // is half of what the radar has to be tested for.
+        val rssi = dto.distance?.let { ((it - 2f) * 10f - 100f).coerceIn(-100f, -30f) }?.toInt()
+        val existing = _peerUpdates.value[peerId]
+        val updated = RadarPeerUpdate(
+            peerId = peerId,
+            name = dto.name?.takeIf { it.isNotBlank() } ?: existing?.name ?: "Peer $peerId",
+            rssi = rssi,
+            proximity = when {
+                rssi == null -> "Unknown"
+                rssi >= -70 -> "Hot"
+                else -> "Cold"
+            },
+            distance = dto.distance ?: existing?.distance,
+            azimuth = dto.azimuth ?: existing?.azimuth,
+            elevation = dto.elevation ?: existing?.elevation,
+            worldDirectionX = existing?.worldDirectionX,
+            worldDirectionY = existing?.worldDirectionY,
+            worldDirectionZ = existing?.worldDirectionZ,
+            lastSeen = System.currentTimeMillis()
+        )
+
+        _peerUpdates.update { current ->
+            current + (peerId to updated)
+        }
+        syncFriend(updated)
         updateWorldVectors()
     }
 
