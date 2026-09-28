@@ -75,6 +75,8 @@ graph TD
 ### 🧭 Radar, Theming & Hardware Adaptation
 - **30 FPS sensor-fusion tracking**: rotation-vector, magnetometer and accelerometer orient peer vectors into world space while concurrent non-blocking UWB sessions stream sub-metre distance, azimuth and elevation.
 - **Proximity haptics** under 2 m; **stale peers expire** from the radar after 15 s.
+- **Single tracked member**: pick one person to follow, so the radar and the one UWB session both stay on someone instead of all seven. Switching focus moves the session after a 750 ms settle. Everyone still *receives* every message regardless of who is tracked.
+- **UWB sessions survive a transport drop**: if a member walks out of BLE range while still being tracked, the ranging session is held open for 45 s so walking back is instant instead of renegotiating. Ending or leaving the ring discards every retained address.
 - **Theming**: Material You dynamic colour, system light/dark, an adaptive navy-and-white radar icon, and a monochrome `ic_launcher_monochrome.xml` for Android 13+ launchers.
 - **Device-aware permissions**: unsupported hardware (`FEATURE_BLUETOOTH`, `FEATURE_WIFI`, `FEATURE_LOCATION`, camera, UWB, vibrator) skips its permission prompt, and its UI is disabled with an explanatory label instead of an ungrantable dialog.
 
@@ -180,11 +182,13 @@ Two kinds of item: things that are **built but unverified**, and things **not bu
 - **Relayed UWB offers are not end-to-end.** The STS key travels via the host. Same trust model as relayed chat — a host already brokers everything — but guest-to-guest ranging is not private against the host.
 - **Wi-Fi Direct / hotspot switches are inert.** `useWifiDirect` and `useHotspot` are carried into `AdvertisingOptions.Builder`, which sets neither, so both UI controls toggle a field with no effect. Hotspot mode itself is never implemented. This is the one item here that can actively mislead a user rather than merely be unfinished.
 - **Advert flags are one bit from trouble.** `acceptsNewMembers` sits at bit 6; current combinations stay under 128, but any flag above bit 6 would truncate the byte silently.
+- **A retained member cannot be confirmed gone.** Holding a UWB session open across a transport drop buys an instant reconnect, but the far end stopping to range is indistinguishable from it having left the ring or from the host having ended it — all three produce the same silence. The app therefore reports a silent session as *unreachable* and says so, rather than claiming the member left. A real fix needs both sides to agree on a farewell message, which needs the transport that has just dropped.
 - **The `latest` release rolls on every non-tag push**, feature branches included. Restrict to `master` if releases should track it.
 
 ### Out of scope
 
-- **UWB ranging-initiated discovery** — waking a peer already out of BLE range. The architecturally correct fix for the ceiling, and how production UWB apps work, but it needs a discovery path that does not require BLE contact first.
+- **UWB ranging-initiated discovery** — waking a peer already out of BLE range, so UWB rather than BLE sets the reach ceiling. **Not possible on Android.** `androidx.core.uwb` exposes no discovery API at all: `UwbManager` has only the three session scopes plus availability, and `UwbControllerSessionScope` only accepts a `UwbAddress` you already hold. The spec's discovery exchange happens *inside* an established session and the platform does not expose it, so there is no way to learn a peer's 2-byte address before hearing from them. Reaching beyond BLE needs a different radio, not a different UWB API.
+- **Retained members cannot be confirmed gone.** While a member is held on UWB after a transport drop, the app cannot tell "walked out of range" from "left the ring" or "the host ended the ring" — a stopped UWB session is the only signal, and all three look the same. The retention window and the unreachable report are the mitigation, not a fix; see the entry under *Known limitations*.
 - **Release signing.** Only debug APKs are built and published.
 
 ### Planned work
