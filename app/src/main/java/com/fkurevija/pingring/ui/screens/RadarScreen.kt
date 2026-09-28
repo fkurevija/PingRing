@@ -96,6 +96,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -541,7 +542,11 @@ fun RadarScreen(
                                 focusedPeer,
                                 peers.isNotEmpty(),
                                 focusedBeacon,
-                                Modifier.fillMaxWidth().height(260.dp)
+                                // Height is left to the content: a fixed height
+                                // clipped the ring, since the ring plus the name
+                                // above it and the readout below need more room
+                                // than any single fixed value can promise.
+                                Modifier.fillMaxWidth()
                             )
 
                             Row(
@@ -670,7 +675,21 @@ private fun RadarContent(
     val defaultRingColor = Color.lerp(Color(0xFF3F51B5), Color(0xFF00C853), hotness)
     val ringColor = beacon?.let { Color(it.colorArgb) } ?: defaultRingColor
 
-    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+    // Fill the width, but stay inside it: the caller measures this composable
+    // before it is laid out, so onSizeChanged would give 0 for the first frame.
+    // Constraining to the parent width and deriving the diameter from it avoids
+    // a fixed height that the surrounding text can overflow.
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val available = maxWidth
+        val radarDiameter = if (available == Dp.Unspecified || available <= 0.dp) {
+            240.dp
+        } else {
+            // Leave a margin so the ring never touches the screen edge, and cap
+            // it so the radar does not become enormous on a tablet.
+            (available * 0.82f).coerceIn(160.dp, 320.dp)
+        }
+
+        Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         if (beacon != null) {
             Card(
                 colors = CardDefaults.cardColors(containerColor = ringColor.copy(alpha = 0.15f)),
@@ -711,7 +730,13 @@ private fun RadarContent(
             color = ringColor,
             arrowDegrees = peer?.azimuth ?: 0f,
             beacon = beacon,
-            modifier = Modifier.size(260.dp)
+            // Sized from the available width rather than fixed. The caller used
+            // to pin this column to 260.dp while the ring inside it was also
+            // 260.dp, so the name above and the distance readout below had
+            // nowhere to go: the Column overflowed and the ring was clipped top
+            // and bottom. Deriving the diameter from the width leaves room for
+            // the surrounding text and still fits a narrow phone.
+            modifier = Modifier.size(radarDiameter)
         )
         Spacer(Modifier.height(16.dp))
         if (peer != null) {
@@ -728,6 +753,7 @@ private fun RadarContent(
             )
         } else {
             Text("Keep PingRing open while others join", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
         }
     }
 }
