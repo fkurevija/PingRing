@@ -576,6 +576,8 @@ class DiscoveryRepository(
         // right to it.
         retainedRangingPeerIds.clear()
         lastUwbMeasurementAt.clear()
+        // Numbering restarts for the next event; no membership is carried over.
+        peerDisplayNames.clear()
         _focusedPeerId.value = null
         repositoryScope?.cancel()
         repositoryScope = null
@@ -990,7 +992,9 @@ class DiscoveryRepository(
 
         // Find or create existing update
         val existing = _peerUpdates.value[peerId]
-        val peerName = existing?.name ?: "Peer $peerId"
+        // Never fall back to the peer id: it is an internal routing key, not
+        // something a person can read or act on.
+        val peerName = existing?.name ?: peerDisplayNames.labelFor(peerId)
 
         // A UWB measurement is real ranging, so it always wins over an RSSI
         // guess. Only peers that have never been ranged fall back to the
@@ -1063,6 +1067,9 @@ class DiscoveryRepository(
         estimatedDistances.remove(peerId)
         lastUwbMeasurementAt.remove(peerId)
         retainedRangingPeerIds.remove(peerId)
+        // Forget the label too, so a member who leaves and rejoins is numbered
+        // afresh rather than claiming a number nobody else can see.
+        peerDisplayNames.forget(peerId)
         val friends = sessionManager.sessionState.value.friends
         if (friends.any { it.peerId == peerId }) {
             sessionManager.updateFriends(friends.filterNot { it.peerId == peerId })
@@ -1072,7 +1079,9 @@ class DiscoveryRepository(
     private fun addConnectedPeer(peerId: String) {
         if (peerId.isBlank() || peerId == sessionManager.peerId.value) return
         val existing = _peerUpdates.value[peerId]
-        val peerName = existing?.name ?: "Peer $peerId"
+        // Never fall back to the peer id: it is an internal routing key, not
+        // something a person can read or act on.
+        val peerName = existing?.name ?: peerDisplayNames.labelFor(peerId)
         val updated = RadarPeerUpdate(
             peerId = peerId,
             name = peerName,
@@ -1392,6 +1401,12 @@ class DiscoveryRepository(
     private val retainedRangingPeerIds = mutableMapOf<String, Long>()
 
     /**
+     * Positional labels for members with no display name yet, so a peer id is
+     * never shown to a user. See [PeerDisplayNames].
+     */
+    private val peerDisplayNames = PeerDisplayNames()
+
+    /**
      * When each peer last produced a real UWB ranging result.
      *
      * Consulted to decide whether a retained peer's session is still alive; see
@@ -1661,7 +1676,7 @@ class DiscoveryRepository(
         }
         val updated = RadarPeerUpdate(
             peerId = peerId,
-            name = dto.name?.takeIf { it.isNotBlank() } ?: existing?.name ?: "Peer $peerId",
+            name = dto.name?.takeIf { it.isNotBlank() } ?: existing?.name ?: peerDisplayNames.labelFor(peerId),
             rssi = rssi,
             proximity = when {
                 rssi == null -> "Unknown"
