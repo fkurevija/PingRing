@@ -110,6 +110,7 @@ import com.fkurevija.pingring.data.ConnectivityStatus
 import com.fkurevija.pingring.data.DiscoveryRepository
 import com.fkurevija.pingring.data.FocusPolicy
 import com.fkurevija.pingring.data.MAX_PARTICIPANTS
+import com.fkurevija.pingring.data.RadarDirectionPolicy
 import com.fkurevija.pingring.data.RadarPeerUpdate
 import com.fkurevija.pingring.data.SessionState
 import kotlinx.coroutines.delay
@@ -728,7 +729,8 @@ private fun RadarContent(
         ProximityRing(
             progress = hotness,
             color = ringColor,
-            arrowDegrees = peer?.azimuth ?: 0f,
+            arrowDegrees = peer?.azimuth,
+            distanceMeters = peer?.distance,
             beacon = beacon,
             // Sized from the available width rather than fixed. The caller used
             // to pin this column to 260.dp while the ring inside it was also
@@ -762,7 +764,8 @@ private fun RadarContent(
 private fun ProximityRing(
     progress: Float,
     color: Color,
-    arrowDegrees: Float,
+    arrowDegrees: Float?,
+    distanceMeters: Float?,
     beacon: BeaconInfo?,
     modifier: Modifier
 ) {
@@ -816,22 +819,64 @@ private fun ProximityRing(
             }
 
             drawCircle(color.copy(alpha = if (beacon != null) 0.25f else .12f), style = Stroke(stroke))
-            drawArc(
-                brush = Brush.sweepGradient(listOf(color.copy(alpha = .35f), color)),
-                startAngle = -90f,
-                sweepAngle = 360f * progress.coerceAtLeast(.08f),
-                useCenter = false,
-                style = Stroke(stroke, cap = StrokeCap.Round)
-            )
+
+            // The directional segment: a lit arc of the ring pointing at the
+            // tracked member, widening as they approach. Null when there is no
+            // azimuth, i.e. the member is being tracked by RSSI alone and no
+            // bearing is known - drawing a direction then would point at a
+            // made-up bearing, so the ring stays plain instead.
+            val segment = RadarDirectionPolicy.segment(arrowDegrees, distanceMeters)
+            if (segment != null) {
+                if (segment.isFullyLit) {
+                    // Within arms reach: the whole ring is lit rather than a
+                    // 360-degree round-capped arc, which would render as a
+                    // heavy blob at the seam.
+                    drawCircle(color, style = Stroke(stroke))
+                } else {
+                    drawArc(
+                        color = color,
+                        startAngle = segment.startAngleDegrees,
+                        sweepAngle = segment.sweepAngleDegrees,
+                        useCenter = false,
+                        style = Stroke(stroke, cap = StrokeCap.Round)
+                    )
+                }
+            } else {
+                // No bearing available: fall back to the plain proximity arc so
+                // the ring still shows signal strength rather than nothing.
+                drawArc(
+                    brush = Brush.sweepGradient(listOf(color.copy(alpha = .35f), color)),
+                    startAngle = -90f,
+                    sweepAngle = 360f * progress.coerceAtLeast(.08f),
+                    useCenter = false,
+                    style = Stroke(stroke, cap = StrokeCap.Round)
+                )
+            }
         }
-        Box(
-            Modifier.size(104.dp).rotate(arrowDegrees),
-            contentAlignment = Alignment.TopCenter
-        ) {
-            Canvas(Modifier.fillMaxSize()) {
-                val center = Offset(size.width / 2, size.height / 2)
-                drawLine(color, center, Offset(center.x, 8f), 8f, StrokeCap.Round)
-                drawCircle(color, 9f, Offset(center.x, 8f))
+        // The needle points at the tracked member. It is drawn from the centre
+        // outwards so the bearing and the lit segment read from the same origin,
+        // and it is omitted when no azimuth is available rather than pointing at
+        // an arbitrary default bearing.
+        val needleRotation = RadarDirectionPolicy.needleRotationDegrees(arrowDegrees)
+        if (needleRotation != null) {
+            Box(
+                Modifier.size(104.dp).rotate(needleRotation),
+                contentAlignment = Alignment.TopCenter
+            ) {
+                Canvas(Modifier.fillMaxSize()) {
+                    val center = Offset(size.width / 2, size.height / 2)
+                    // Tapered: thick at the hub, thin at the tip, so the point
+                    // reads as a direction rather than a spoke.
+                    val tip = Offset(center.x, 8f)
+                    drawLine(
+                        color = color,
+                        start = center,
+                        end = tip,
+                        strokeWidth = 8f,
+                        cap = StrokeCap.Round
+                    )
+                    drawCircle(color, 9f, tip)
+                }
             }
         }
         Box(Modifier.size(74.dp).background(color.copy(alpha = if (beacon != null) .30f else .14f), CircleShape))
