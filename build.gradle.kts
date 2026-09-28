@@ -1,3 +1,5 @@
+import java.util.concurrent.TimeUnit
+
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 plugins {
     alias(libs.plugins.android.application) apply false
@@ -7,15 +9,42 @@ plugins {
     alias(libs.plugins.kotlin.jvm) apply false
 }
 
-// Runs the debug-only LAN relay server (tools/lan_debug_relay.py) used to
-// bridge chat/discovery between the Android Emulator and a physical device
-// when the app's "Use LAN Debug Transport" developer setting is enabled.
-// Kept running for the lifetime of the task since the relay serves forever;
-// intended to be launched via the "LAN Debug Relay" run configuration,
-// typically alongside the "app" configuration in a Compound configuration.
-tasks.register<Exec>("runLanDebugRelay") {
+fun getAdbExecutable(): String {
+    val androidHome = System.getenv("ANDROID_HOME") ?: System.getenv("ANDROID_SDK_ROOT")
+    if (androidHome != null) {
+        val osName = System.getProperty("os.name").lowercase()
+        val adbName = if (osName.contains("win")) "platform-tools/adb.exe" else "platform-tools/adb"
+        val adbFile = File(androidHome, adbName)
+        if (adbFile.exists()) return adbFile.absolutePath
+    }
+    return "adb"
+}
+
+// Runs adb reverse and the debug-only LAN relay server (tools/lan_debug_relay.py)
+tasks.register("runLanDebugRelay") {
     group = "debug tools"
-    description = "Runs tools/lan_debug_relay.py so the Emulator and a physical device can exchange PingRing messages during testing."
-    workingDir = rootDir
-    commandLine("python", "tools/lan_debug_relay.py")
+    description = "Automatically runs adb reverse and tools/lan_debug_relay.py for physical device testing."
+    doFirst {
+        val adb = getAdbExecutable()
+        try {
+            println("[PingRing] Executing adb reverse tcp:8942 tcp:8942...")
+            ProcessBuilder(adb, "reverse", "tcp:8942", "tcp:8942")
+                .directory(rootDir)
+                .start()
+                .waitFor(3, TimeUnit.SECONDS)
+        } catch (e: Exception) {
+            println("[PingRing] Warning: adb reverse failed (is device connected?): ${e.message}")
+        }
+    }
+    doLast {
+        val relayScript = File(rootDir, "tools/lan_debug_relay.py")
+        if (relayScript.exists()) {
+            val pythonCmd = if (System.getProperty("os.name").lowercase().contains("win")) "python" else "python3"
+            println("[PingRing] Starting LAN debug relay server...")
+            ProcessBuilder(pythonCmd, relayScript.absolutePath, "8942")
+                .directory(rootDir)
+                .start()
+                .waitFor()
+        }
+    }
 }
