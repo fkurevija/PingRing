@@ -280,9 +280,10 @@ class DiscoveryRepository(
             }
         }
 
-        // Deliver the host's current chat history to each newly connected peer.
+        // Register newly connected peers and deliver the host's current chat history.
         repositoryScope?.launch {
             nearbyConnectionsManager.connectionEstablished.collect { peerId ->
+                addConnectedPeer(peerId)
                 if (sessionManager.sessionState.value.isHost) {
                     val history = sessionManager.sessionState.value.chatMessages.map { message ->
                         ChatPayloadDto(
@@ -878,20 +879,49 @@ class DiscoveryRepository(
         }
     }
 
+    private fun addConnectedPeer(peerId: String) {
+        if (peerId.isBlank() || peerId == sessionManager.peerId.value) return
+        val existing = _peerUpdates.value[peerId]
+        val peerName = existing?.name ?: "Peer $peerId"
+        val updated = RadarPeerUpdate(
+            peerId = peerId,
+            name = peerName,
+            rssi = existing?.rssi ?: -60,
+            proximity = existing?.proximity ?: "Hot",
+            distance = existing?.distance,
+            azimuth = existing?.azimuth,
+            elevation = existing?.elevation,
+            worldDirectionX = existing?.worldDirectionX,
+            worldDirectionY = existing?.worldDirectionY,
+            worldDirectionZ = existing?.worldDirectionZ,
+            lastSeen = System.currentTimeMillis()
+        )
+        _peerUpdates.update { current -> current + (peerId to updated) }
+        syncFriend(updated)
+    }
+
     private fun updatePeerName(peerId: String, name: String) {
-        if (name.isBlank()) return
-        _peerUpdates.update { current ->
-            val existing = current[peerId]
-            if (existing != null) {
-                current + (peerId to existing.copy(name = name))
-            } else current
+        if (name.isBlank() || peerId == sessionManager.peerId.value) return
+        val existing = _peerUpdates.value[peerId]
+        val updated = if (existing != null) {
+            existing.copy(name = name)
+        } else {
+            RadarPeerUpdate(
+                peerId = peerId,
+                name = name,
+                rssi = -60,
+                proximity = "Hot",
+                distance = null,
+                azimuth = null,
+                elevation = null,
+                worldDirectionX = null,
+                worldDirectionY = null,
+                worldDirectionZ = null,
+                lastSeen = System.currentTimeMillis()
+            )
         }
-        val friends = sessionManager.sessionState.value.friends
-        if (friends.any { it.peerId == peerId }) {
-            sessionManager.updateFriends(friends.map {
-                if (it.peerId == peerId) it.copy(name = name) else it
-            })
-        }
+        _peerUpdates.update { current -> current + (peerId to updated) }
+        syncFriend(updated)
     }
 
     private fun registerSensors() {

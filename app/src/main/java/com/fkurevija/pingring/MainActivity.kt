@@ -14,10 +14,18 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import android.widget.Toast
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.runtime.NavKey
@@ -210,24 +218,54 @@ fun MainNavigation(
                 }
 
                 is PingRingJoinKey -> {
+                    val context = LocalContext.current
+                    var isConnecting by remember { mutableStateOf(false) }
+                    val coroutineScope = rememberCoroutineScope()
+
                     PingRingJoinScreen(
                         savedUsername = savedUsername,
                         existingMembers = sessionState.friends.map { it.name },
+                        isConnecting = isConnecting,
                         // Back from here (arrow or system) always lands on Home,
                         // whatever is underneath on the stack.
-                        onBack = { backStack.resetTo(HomeKey) },
+                        onBack = { if (!isConnecting) backStack.resetTo(HomeKey) },
                         onJoinEvent = { eventCode, username ->
-                            appearanceSettings.setUserName(username)
-                            sessionManager.setUserName(username)
-                            if (sessionManager.joinEvent(
-                                Event(
+                            if (!isConnecting) {
+                                isConnecting = true
+                                appearanceSettings.setUserName(username)
+                                sessionManager.setUserName(username)
+                                val event = Event(
                                     id = eventCode,
                                     name = "PingRing $eventCode",
                                     description = "PingRing Event",
                                     expiryTimestamp = System.currentTimeMillis() + 3600000
                                 )
-                            )) {
-                                backStack.resetTo(RadarKey(eventCode))
+                                if (sessionManager.joinEvent(event)) {
+                                    coroutineScope.launch {
+                                        val connected = runCatching {
+                                            withTimeout(2500L) {
+                                                sessionManager.sessionState
+                                                    .map { it.friends }
+                                                    .first { it.isNotEmpty() }
+                                            }
+                                        }.isSuccess || sessionManager.sessionState.value.friends.isNotEmpty()
+
+                                        if (connected) {
+                                            isConnecting = false
+                                            backStack.resetTo(RadarKey(eventCode))
+                                        } else {
+                                            sessionManager.leaveEvent()
+                                            Toast.makeText(
+                                                context,
+                                                "Failed to join PingRing: Host not found or event unavailable.",
+                                                Toast.LENGTH_LONG
+                                            ).show()
+                                            isConnecting = false
+                                        }
+                                    }
+                                } else {
+                                    isConnecting = false
+                                }
                             }
                         }
                     )

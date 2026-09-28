@@ -48,6 +48,7 @@ import java.util.concurrent.Executors
 fun PingRingJoinScreen(
     savedUsername: String = "",
     existingMembers: List<String> = emptyList(),
+    isConnecting: Boolean = false,
     onBack: () -> Unit,
     onJoinEvent: (eventCode: String, username: String) -> Unit
 ) {
@@ -208,12 +209,23 @@ fun PingRingJoinScreen(
                     Spacer(Modifier.height(16.dp))
                     Button(
                         onClick = { attemptJoin(eventCode) },
+                        enabled = !isConnecting,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(50.dp),
                         shape = RoundedCornerShape(14.dp)
                     ) {
-                        Text("Connect", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        if (isConnecting) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text("Connecting...", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        } else {
+                            Text("Connect", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        }
                     }
 
                     Spacer(Modifier.height(20.dp))

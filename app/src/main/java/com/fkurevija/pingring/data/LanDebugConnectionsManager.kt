@@ -429,62 +429,63 @@ class LanDebugConnectionsManager(
         toFlush.forEach { sendEnvelope(it) }
     }
 
-    private fun sendPayload(targetPeerId: String?, dtoJson: String) {
+    private fun sendPayload(targetPeerId: String?, params: Any) {
+        val (type, json) = when (params) {
+            is UwbControllerParametersDto -> "uwb-params" to moshi.adapter(UwbControllerParametersDto::class.java).toJson(params)
+            is UwbPeerAddressDto -> "uwb-address" to moshi.adapter(UwbPeerAddressDto::class.java).toJson(params)
+            is ChatPayloadDto -> "chat" to moshi.adapter(ChatPayloadDto::class.java).toJson(params)
+            is ChatHistoryPayloadDto -> "chat-history" to moshi.adapter(ChatHistoryPayloadDto::class.java).toJson(params)
+            is NudgePayloadDto -> "nudge" to moshi.adapter(NudgePayloadDto::class.java).toJson(params)
+            is BeaconPayloadDto -> "beacon" to moshi.adapter(BeaconPayloadDto::class.java).toJson(params)
+            else -> return
+        }
+        val innerEnvelope = RelayEnvelope(type = type, payload = json)
+        val innerJson = envelopeAdapter.toJson(innerEnvelope)
         sendEnvelope(
             RelayEnvelope(
-                type = "data",
+                type = RelayEnvelope.DATA,
                 eventId = localEventId,
                 senderPeerId = localPeerId,
                 targetPeerId = targetPeerId,
-                payload = dtoJson
+                payload = innerJson
             )
         )
     }
 
-    private fun toJson(params: Any): String? = when (params) {
-        is UwbControllerParametersDto -> moshi.adapter(UwbControllerParametersDto::class.java).toJson(params)
-        is UwbPeerAddressDto -> moshi.adapter(UwbPeerAddressDto::class.java).toJson(params)
-        is ChatPayloadDto -> moshi.adapter(ChatPayloadDto::class.java).toJson(params)
-        is ChatHistoryPayloadDto -> moshi.adapter(ChatHistoryPayloadDto::class.java).toJson(params)
-        is NudgePayloadDto -> moshi.adapter(NudgePayloadDto::class.java).toJson(params)
-        is BeaconPayloadDto -> moshi.adapter(BeaconPayloadDto::class.java).toJson(params)
-        else -> null
-    }
-
     override fun sendUwbParameters(peerId: String, params: Any) {
-        toJson(params)?.let { sendPayload(peerId, it) }
+        sendPayload(peerId, params)
     }
 
     override fun broadcastUwbParameters(params: Any) {
-        toJson(params)?.let { sendPayload(null, it) }
+        sendPayload(null, params)
     }
 
     override fun broadcastChatMessage(chatMsg: ChatPayloadDto) {
-        sendPayload(null, moshi.adapter(ChatPayloadDto::class.java).toJson(chatMsg))
+        sendPayload(null, chatMsg)
     }
 
     override fun sendChatHistoryToPeer(peerId: String, messages: List<ChatPayloadDto>) {
-        sendPayload(peerId, moshi.adapter(ChatHistoryPayloadDto::class.java).toJson(ChatHistoryPayloadDto(messages)))
+        sendPayload(peerId, ChatHistoryPayloadDto(messages))
     }
 
     override fun sendChatMessageToPeer(peerId: String, chatMsg: ChatPayloadDto) {
-        sendPayload(peerId, moshi.adapter(ChatPayloadDto::class.java).toJson(chatMsg))
+        sendPayload(peerId, chatMsg)
     }
 
     override fun sendNudgeToPeer(peerId: String, nudge: NudgePayloadDto) {
-        sendPayload(peerId, moshi.adapter(NudgePayloadDto::class.java).toJson(nudge))
+        sendPayload(peerId, nudge)
     }
 
     override fun broadcastNudge(nudge: NudgePayloadDto) {
-        sendPayload(null, moshi.adapter(NudgePayloadDto::class.java).toJson(nudge))
+        sendPayload(null, nudge)
     }
 
     override fun sendBeaconToPeer(peerId: String, beacon: BeaconPayloadDto) {
-        sendPayload(peerId, moshi.adapter(BeaconPayloadDto::class.java).toJson(beacon))
+        sendPayload(peerId, beacon)
     }
 
     override fun broadcastBeacon(beacon: BeaconPayloadDto) {
-        sendPayload(null, moshi.adapter(BeaconPayloadDto::class.java).toJson(beacon))
+        sendPayload(null, beacon)
     }
 
     companion object {
