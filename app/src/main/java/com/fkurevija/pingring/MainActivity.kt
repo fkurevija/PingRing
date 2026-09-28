@@ -42,6 +42,7 @@ import com.fkurevija.pingring.data.DiscoveryRepository
 import com.fkurevija.pingring.data.LanDebugConnectionsManager
 import com.fkurevija.pingring.data.NearbyTransport
 import com.fkurevija.pingring.data.Event
+import com.fkurevija.pingring.data.ForegroundPresenceTracker
 import com.fkurevija.pingring.data.NearbyConnectionsManager
 import com.fkurevija.pingring.data.PingRingService
 import com.fkurevija.pingring.data.SessionManager
@@ -100,6 +101,18 @@ class MainActivity : ComponentActivity() {
                         Lifecycle.Event.ON_RESUME -> discoveryRepository.resumeSensors()
                         else -> {}
                     }
+                    // Chat notifications are suppressed while the user is
+                    // actually watching the radar, so the activity's own
+                    // foreground state has to be published. ON_START/ON_STOP
+                    // rather than ON_RESUME/ON_PAUSE: a permission dialog or
+                    // the end-event dialog pauses the activity, but the
+                    // user has not left the app, and the radar is still what
+                    // is on screen behind it.
+                    when (event) {
+                        Lifecycle.Event.ON_START -> ForegroundPresenceTracker.onActivityForegroundChanged(true)
+                        Lifecycle.Event.ON_STOP -> ForegroundPresenceTracker.onActivityForegroundChanged(false)
+                        else -> {}
+                    }
                 }
                 lifecycleOwner.lifecycle.addObserver(observer)
                 onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
@@ -148,6 +161,20 @@ fun MainNavigation(
     val backStack: NavBackStack<NavKey> = rememberNavBackStack(HomeKey)
     val currentThemeMode by rememberUpdatedState(themeMode)
     val savedUsername by appearanceSettings.userName.collectAsState(initial = "")
+
+    // Chat notifications are suppressed only while the radar/chat window is
+    // the destination actually on top. Being inside the app is not enough:
+    // from home, host setup or the settings screens a chat message is still
+    // something the user cannot see arrive, so it has to notify.
+    //
+    // The top entry is derived from the back stack rather than from whether
+    // RadarScreen happens to be composed, because NavDisplay keeps composing
+    // entries that are buried in the stack.
+    val topKey = backStack.lastOrNull()
+    DisposableEffect(topKey) {
+        ForegroundPresenceTracker.onRadarWindowVisibilityChanged(topKey is RadarKey)
+        onDispose { ForegroundPresenceTracker.onRadarWindowVisibilityChanged(false) }
+    }
 
     NavDisplay(backStack) { key ->
         NavEntry(key) {

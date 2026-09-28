@@ -23,6 +23,8 @@ private val Context.appearanceDataStore by preferencesDataStore(name = "appearan
 private val themeModeKey = stringPreferencesKey("theme_mode")
 private val userNameKey = stringPreferencesKey("user_name")
 private val chatNotificationsEnabledKey = booleanPreferencesKey("chat_notifications_enabled")
+private val notificationSoundEnabledKey = booleanPreferencesKey("notification_sound_enabled")
+private val notificationVibrationEnabledKey = booleanPreferencesKey("notification_vibration_enabled")
 private val lanDebugEnabledKey = booleanPreferencesKey("lan_debug_enabled")
 private val lanDebugHostKey = stringPreferencesKey("lan_debug_host")
 
@@ -41,6 +43,20 @@ class AppearanceSettingsRepository(private val context: Context) {
 
     val chatNotificationsEnabled: Flow<Boolean> = context.appearanceDataStore.data.map { preferences ->
         preferences[chatNotificationsEnabledKey] ?: true
+    }
+
+    /**
+     * Whether incoming chat notifications make a sound. Both this and
+     * [notificationVibrationEnabled] default to on: an incoming message while
+     * the app is closed should be as loud as the platform default, and the
+     * user opts out rather than in.
+     */
+    val notificationSoundEnabled: Flow<Boolean> = context.appearanceDataStore.data.map { preferences ->
+        preferences[notificationSoundEnabledKey] ?: true
+    }
+
+    val notificationVibrationEnabled: Flow<Boolean> = context.appearanceDataStore.data.map { preferences ->
+        preferences[notificationVibrationEnabledKey] ?: true
     }
 
     fun setThemeMode(mode: ThemeMode) {
@@ -63,6 +79,22 @@ class AppearanceSettingsRepository(private val context: Context) {
         scope.launch {
             context.appearanceDataStore.edit { preferences ->
                 preferences[chatNotificationsEnabledKey] = enabled
+            }
+        }
+    }
+
+    fun setNotificationSoundEnabled(enabled: Boolean) {
+        scope.launch {
+            context.appearanceDataStore.edit { preferences ->
+                preferences[notificationSoundEnabledKey] = enabled
+            }
+        }
+    }
+
+    fun setNotificationVibrationEnabled(enabled: Boolean) {
+        scope.launch {
+            context.appearanceDataStore.edit { preferences ->
+                preferences[notificationVibrationEnabledKey] = enabled
             }
         }
     }

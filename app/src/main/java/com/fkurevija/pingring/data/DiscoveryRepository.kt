@@ -14,12 +14,16 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
+import android.media.AudioAttributes
+import android.media.RingtoneManager
+import android.net.Uri
 import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.ParcelUuid
 import android.os.Vibrator
 import android.os.VibratorManager
 import android.os.VibrationEffect
+import android.provider.Settings
 import android.util.Log
 import android.util.Base64
 import androidx.core.app.ActivityCompat
@@ -274,7 +278,7 @@ class DiscoveryRepository(
                     val appWideEnabled = appearanceSettings.chatNotificationsEnabled.first()
                     val eventEnabled = sessionManager.sessionState.value.currentEvent?.chatNotificationsEnabled ?: true
                     if (appWideEnabled && eventEnabled) {
-                        postChatNotification(chatMessage)
+                        handleIncomingChatMessage(chatMessage)
                     }
                 }
             }
@@ -755,6 +759,9 @@ class DiscoveryRepository(
         const val PEER_EXPIRY_TIMEOUT_MILLIS = 15_000L
         const val CHAT_CHANNEL_ID = "pingring_chat_channel"
         const val CHAT_NOTIFICATION_GROUP = "com.fkurevija.pingring.CHAT_NOTIFICATION"
+
+        /** Two short pulses: distinguishable from a chat message, not a nuisance. */
+        val CHAT_VIBRATION_PATTERN = longArrayOf(0, 120, 90, 120)
     }
 
     private fun startBleScanning() {
@@ -1215,29 +1222,116 @@ class DiscoveryRepository(
         updateWorldVectors()
     }
 
-    private fun createChatNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHAT_CHANNEL_ID,
-                "PingRing Chat Notifications",
-                NotificationManager.IMPORTANCE_HIGH
-            ).apply {
-                description = "Notifications for incoming chat messages in PingRing"
-                enableVibration(true)
+    /**
+     * Creates (or re-creates) the chat notification channel to match the
+     * user's sound/vibration preferences.
+     *
+     * A [NotificationChannel]'s sound and vibration are fixed at creation time
+     * and cannot be changed afterwards, so honouring a settings toggle means
+     * comparing the desired configuration against the live channel and
+     * deleting it when they disagree. Deleting also drops the user's own
+     * system-level customisation of that channel, which is unavoidable here
+     * and is preferable to silently ignoring the in-app setting.
+     */
+    private fun createChatNotificationChannel(soundEnabled: Boolean, vibrationEnabled: Boolean) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val desiredSound: Uri? = if (soundEnabled) Settings.System.DEFAULT_NOTIFICATION_URI else null
+        val desiredVibration: LongArray? = if (vibrationEnabled) CHAT_VIBRATION_PATTERN else null
+
+        // LongArray is compared by content, not identity: vibrationPattern
+        // hands back a fresh array on every read, so == would never match and
+        // the channel would be needlessly recreated on every message.
+        manager.getNotificationChannel(CHAT_CHANNEL_ID)?.let { existing ->
+            val soundMatches = existing.sound == desiredSound
+            val vibrationMatches = existing.vibrationPattern.contentEqualsOrNull(desiredVibration)
+            if (!soundMatches || !vibrationMatches) {
+                manager.deleteNotificationChannel(CHAT_CHANNEL_ID)
             }
-            val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            manager.createNotificationChannel(channel)
+        }
+
+        val channel = NotificationChannel(
+            CHAT_CHANNEL_ID,
+            "PingRing Chat Notifications",
+            NotificationManager.IMPORTANCE_HIGH
+        ).apply {
+            description = "Notifications for incoming chat messages in PingRing"
+            enableVibration(vibrationEnabled)
+            if (desiredVibration != null) {
+                vibrationPattern = desiredVibration
+            }
+            setSound(
+                desiredSound,
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build()
+            )
+        }
+        manager.createNotificationChannel(channel)
+    }
+
+    /**
+     * Entry point for an incoming chat message from another peer.
+     *
+     * When the user is already watching the radar/chat window the shade
+     * notification is redundant noise, so it is dropped — but the device is
+     * still allowed to vibrate and/or make a sound, because a message can
+     * still be worth a haptic while the user's eyes are on the radar. Those
+     * two channels are controlled independently from app settings.
+     */
+    private suspend fun handleIncomingChatMessage(chatMessage: ChatMessage) {
+        val soundEnabled = appearanceSettings.notificationSoundEnabled.first()
+        val vibrationEnabled = appearanceSettings.notificationVibrationEnabled.first()
+
+        if (ForegroundPresenceTracker.shouldSuppressChatNotification(context)) {
+            if (vibrationEnabled) playChatVibration()
+            if (soundEnabled) playChatSound()
+            return
+        }
+
+        postChatNotification(chatMessage, soundEnabled, vibrationEnabled)
+    }
+
+    private fun playChatVibration() {
+        val deviceVibrator = vibrator ?: return
+        try {
+            val effect = VibrationEffect.createWaveform(CHAT_VIBRATION_PATTERN, -1)
+            deviceVibrator.vibrate(effect)
+        } catch (e: Exception) {
+            Log.w(TAG, "Chat vibration playback failed", e)
         }
     }
 
-    private fun postChatNotification(chatMessage: ChatMessage) {
+    /**
+     * Plays the same tone the notification would have used, straight through
+     * the media stack. Respects the device's notification volume and mute
+     * state because it is the notification stream that is used.
+     */
+    private fun playChatSound() {
+        val uri: Uri = Settings.System.DEFAULT_NOTIFICATION_URI
+        try {
+            RingtoneManager.getRingtone(context, uri)?.apply {
+                if (!isPlaying) play()
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Chat notification sound playback failed", e)
+        }
+    }
+
+    private fun postChatNotification(
+        chatMessage: ChatMessage,
+        soundEnabled: Boolean,
+        vibrationEnabled: Boolean
+    ) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                 return
             }
         }
 
-        createChatNotificationChannel()
+        createChatNotificationChannel(soundEnabled, vibrationEnabled)
 
         val notificationIntent = Intent(context, MainActivity::class.java).apply {
             action = Intent.ACTION_MAIN
@@ -1267,5 +1361,15 @@ class DiscoveryRepository(
 
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.notify(chatMessage.id.hashCode(), notification)
+    }
+
+    /**
+     * Content comparison that treats "no pattern" and "no pattern" as equal,
+     * so a channel created with vibration off is not recreated forever.
+     */
+    private fun LongArray?.contentEqualsOrNull(other: LongArray?): Boolean = when {
+        this == null && other == null -> true
+        this == null || other == null -> false
+        else -> this.contentEquals(other)
     }
 }
