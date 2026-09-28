@@ -103,6 +103,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import com.fkurevija.pingring.data.BeaconInfo
 import com.fkurevija.pingring.data.BeaconPreset
 import com.fkurevija.pingring.data.BeaconVibrationPattern
+import com.fkurevija.pingring.data.ChatMessageOwnership
 import com.fkurevija.pingring.data.ConnectivityStatus
 import com.fkurevija.pingring.data.DiscoveryRepository
 import com.fkurevija.pingring.data.FocusPolicy
@@ -433,7 +434,16 @@ fun RadarScreen(
                                         }
                                     } else {
                                         items(sessionState.chatMessages) { msg ->
-                                            val isMe = msg.senderName == senderName
+                                            // Identity, not display name: a
+                                            // name comparison put the host's own
+                                            // messages on the wrong side, because
+                                            // the local fallback name is "Host"
+                                            // and names are neither unique nor
+                                            // stable. See ChatMessageOwnership.
+                                            val isMe = ChatMessageOwnership.isOwnMessage(
+                                                msg.senderPeerId,
+                                                discoveryRepository?.localPeerId
+                                            )
                                             Column(
                                                 modifier = Modifier.fillMaxWidth(),
                                                 horizontalAlignment = if (isMe) Alignment.End else Alignment.Start
