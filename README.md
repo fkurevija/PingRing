@@ -159,89 +159,65 @@ Android still stops work after a force-stop, process kill, reboot, or revoked ru
 
 ---
 
-## 📋 TODO: Open Unknowns
+## 📋 TODO
 
-Everything here is **unverified on real hardware**. It is written down so the gaps are not mistaken for settled behaviour, and so the next person does not re-derive them. Nothing on this list is known to be broken; it is simply not known to be right.
+Two kinds of item: things that are **built but unverified**, and things **not built yet**. Nothing here is known to be broken.
 
-### Needs multiple physical devices
+### Unverified — needs real hardware
 
-- **Guest→guest UWB ranging.** Implemented over a relay: one guest offers itself as controller, the host forwards the channel and STS key, the peer named becomes the controlee. Never tested against two real UWB phones. Unverified specifically: whether the radio completes a handshake across a relay-hopped setup, what happens when two guests focus each other simultaneously, and whether one controller scope copes with a guest ranging two different peers at once. Watch `Relaying a UWB ranging offer` / `Accepting a UWB ranging offer` in logcat.
-- **UWB at full capacity.** The focus filter reduced the host to one ranging session, which should have removed the old seven-concurrent-sessions risk, but the 8-member case is still unmeasured.
-- **The "30 FPS UWB ranging" claim** in Key Features is a design target, not a measurement. Nothing has confirmed it holds at 8 members.
-- **BLE reach.** The second scan pass is a reliability improvement, not a range multiplier. At what distance a peer actually disappears, and whether the focus filter changes that, are both unmeasured.
-- **RSSI distance accuracy.** `RssiDistanceEstimator` uses `RSSI_AT_ONE_METER = -59` and `PATH_LOSS_EXPONENT = 2.2`. These are reasonable defaults, **not measured values**, and the whole model's accuracy rests on them. They need calibrating against known distances on real devices.
+- **Guest→guest UWB ranging.** Relayed through the host, never tested between two UWB phones. Check: does the handshake complete across a relay hop, what happens when two guests focus each other at once, can one controller scope range two peers. Logcat: `Relaying a UWB ranging offer`, `Accepting a UWB ranging offer`.
+- **UWB at 8 members.** The focus filter cut the host to one ranging session, which should have removed the old 7-session risk, but the full case is unmeasured — and the "30 FPS ranging" claim in Key Features is a design target, not a result.
+- **BLE reach.** The second scan pass is a reliability gain, not a range multiplier. At what distance a peer actually disappears is unmeasured.
+- **RSSI distance accuracy.** `RSSI_AT_ONE_METER = -59` and `PATH_LOSS_EXPONENT = 2.2` are defaults, not measurements; the model's accuracy rests on both. Needs calibrating at known distances.
+- **LAN relay teardown.** `Ctrl+C` and host-drop handling read as complete, but have only been exercised by `test_lan_debug_relay.py` — never a real dropped connection or killed host.
+- **The scripted radar is too clean.** `mock_radar.py` produces exact trajectories, so the radar never meets radio noise. Adding jitter would properly exercise the `RssiDistanceEstimator` smoothing.
 
-### Known limitations, not yet fixed
 
-- **Coded PHY is unreachable.** It is the only BLE setting that genuinely multiplies range (~4×), and the public SDK does not expose it: `ScanSettings` offers only `PHY_LE_ALL_SUPPORTED` and `AdvertiseSettings.Builder` has no public `setPreferredPhy`. Verified against the API 37 `android.jar`. Getting it needs hidden APIs or reflection, which is a deliberate non-goal here. Consequence: **the practical range ceiling is the BLE scan radius**, and a peer beyond it is invisible to UWB too, because UWB never transports data — chat, beacons and nudges all travel over Nearby Connections (BLE discovery, then Wi-Fi Direct).
-- **No mesh extension.** Adding members does not extend coverage. Every link is host↔guest under `P2P_STAR`, so two people who can each reach the host but not each other still cannot see one another. A guest-to-guest link is only ever established *after* both are already in contact with the host, which does not help at the moment it would have mattered.
-- **The relayed UWB offer is not end-to-end.** The STS key travels over the encrypted connection to the host, which forwards it verbatim. This matches the existing trust model — a host already brokers and re-broadcasts every message — but guest-to-guest ranging is not private against the host.
-- **The LAN debug transport does not test the relay.** Its relay already routes by `targetPeerId`, so a UWB offer arrives with no host hop at all. The debug path cannot reproduce real host-relay behaviour.
-- **Advert flags are near their limit.** The flag byte packs `acceptsNewMembers` at bit 6. Current combinations stay under 128 so the masks test correctly, but adding any flag above bit 6 would truncate the byte and corrupt them silently.
+### Known limitations
 
-### Deliberately out of scope
+- **The range ceiling is the BLE scan radius.** Coded PHY (~4×) is the only BLE setting that genuinely multiplies range, and the public SDK does not expose it — `ScanSettings` has only `PHY_LE_ALL_SUPPORTED` and `AdvertiseSettings.Builder` has no `setPreferredPhy` (verified against the API 37 `android.jar`). Getting it needs hidden APIs, a deliberate non-goal here. UWB does not widen this: it never transports data, so a peer past the BLE radius is invisible to it too.
+- **No mesh extension.** Adding members adds density, not reach. Every link is host↔guest under `P2P_STAR`, and a guest-to-guest link forms only *after* both already reach the host.
+- **Relayed UWB offers are not end-to-end.** The STS key travels via the host. Same trust model as relayed chat — a host already brokers everything — but guest-to-guest ranging is not private against the host.
+- **Wi-Fi Direct / hotspot switches are inert.** `useWifiDirect` and `useHotspot` are carried into `AdvertisingOptions.Builder`, which sets neither, so both UI controls toggle a field with no effect. Hotspot mode itself is never implemented. This is the one item here that can actively mislead a user rather than merely be unfinished.
+- **Advert flags are one bit from trouble.** `acceptsNewMembers` sits at bit 6; current combinations stay under 128, but any flag above bit 6 would truncate the byte silently.
+- **The `latest` release rolls on every non-tag push**, feature branches included. Restrict to `master` if releases should track it.
 
-- **UWB ranging-initiated discovery** — waking a peer by UWB when it is already out of BLE range. This is the architecturally correct fix for the range ceiling and how production UWB apps work, but it needs a discovery path that does not require BLE contact first.
+### Out of scope
+
+- **UWB ranging-initiated discovery** — waking a peer already out of BLE range. The architecturally correct fix for the ceiling, and how production UWB apps work, but it needs a discovery path that does not require BLE contact first.
 - **Release signing.** Only debug APKs are built and published.
-- **The `latest` release rolls on every non-tag push**, including from feature branches. Worth restricting to `master` if releases are meant to track it.
 
-### Carried over from the feature list
+### Planned work
 
-Checked against the code, not assumed. These are the ones that are **not** actually done.
+Grouped by area. ✅ = already shipped, kept for reference.
 
-- **The Wi-Fi Direct / hotspot settings are accepted but do nothing.** `useWifiDirect` and `useHotspot` are threaded from the `Event` model through `startAdvertising()` into `AdvertisingOptions.Builder`, which sets neither — Nearby Connections picks the transport itself. So both switches in the session and host screens currently toggle a field that has no effect, and the "High Bandwidth Wi-Fi Direct" control is misleading. Either wire the settings to the real Nearby options or remove the controls.
-- **Connection method is not chosen intelligently.** UWB is defaulted from `isUwbSupported()` when hosting, and Wi-Fi Direct is hard-coded `true`, but nothing considers API level, hardware, or what the *members* can do beyond the UWB feature flag. Related: there is no dropdown or checkbox list for connectivity — just two boolean switches.
-- **Hotspot mode is not implemented at all.** There is no `startLocalHotspot` or SoftAP usage anywhere. The `useHotspot` flag exists on the model and is carried through, but nothing consumes it.
+**Global**
+- ✅ Theme colour applied app-wide, including to chat bubbles.
+- **Design the logo**, then match the theme colour to it. The colour currently has no logo to be derived from.
 
-### Worth verifying rather than implementing
+**Home — Host / Join**
+- **Per-user chat bubble colour**: 4–6 presets plus a "custom" option opening a colour wheel. Beacon toasts in chat keep their own styling; the radar stays on the global colour.
 
-- **The scripted radar produces perfectly smooth distance.** `mock_radar.py` moves a peer along exact trajectories, so the radar is never exercised against the noise a real radio produces. Adding a little random jitter to the scripted distance would test the smoothing in `RssiDistanceEstimator` and the staleness sweep properly. This is a test-fidelity gap, not a product bug.
-- **The LAN relay's teardown and host-failure handling are implemented but unverified against a real interruption.** The relay closes the event for everyone when the host ends it or fails to return within `HOST_RECONNECT_GRACE_SECONDS`, and `Ctrl+C` tears down every socket. Both read as complete, but only exercised by `test_lan_debug_relay.py` — never against an actual dropped connection or a killed host.
+**Connectivity**
+- **Wire up the Wi-Fi Direct / hotspot settings** — see Known limitations.
+- **Choose the connection method by capability.** UWB defaults from `isUwbSupported()` and Wi-Fi Direct is hard-coded `true`; nothing considers API level or what members support. No dropdown or checkbox list exists, only two switches.
+- **Optionally make sessions discoverable** to nearby devices behind a setting, with the host approving individual joins rather than the current all-or-nothing switch.
 
----
+**Radar**
+- **Hide End / Leave PingRing while the keyboard is open.** The chat card already reacts to `isImeVisible`; the buttons do not.
+- **Replace Nudge with a favourite beacon.** Needs a way to mark a favourite in the beacon screen first — no such concept exists.
+- **Fix radar rendering.** The defect is not described anywhere, so this needs a description before it can be picked up.
+- **Default the host's focus to the first member to join** rather than the nearest. No join order is recorded on peers yet, so this needs a join timestamp or an ordered friend list.
+- ✅ Track one member at a time; the UWB session follows the selection.
 
-## 🗂 Planned Work
+**Radar — Chat**
+- ✅ Push notifications for chat, per-PingRing and app-wide, with independent sound and vibration.
 
-Grouped by the area of the app each item belongs to. ✅ marks work that is already done and does not need picking up again.
+**Radar — Beacon**
+- **Move Emergency off the first preset slot.** Presets render in enum order and `SOS` is first, so Emergency is the default selection when the sheet opens.
+- **Embed an active beacon in the chat** so it stands out from ordinary messages. A beacon currently shows twice: a banner above the radar *and* a card in the remote-alerts list.
 
-### Global
-
-- ✅ Define and apply a theme colour throughout the app.
-- **Design the logo**, and match the theme colour to it. The colour currently has no logo to be derived from, so this is the blocker for the item below.
-- ✅ Theme colour applies app-wide, including to chat bubbles.
-
-### Home — Host / Join PingRing
-
-- **Let the user pick their chat bubble colour**: 4–6 predefined colours plus a "custom" option opening a colour wheel or similar selector for any colour. A beacon toast in chat keeps its own styling and is unaffected; the radar also stays on the global colour rather than adopting the user's.
-
-### Connectivity
-
-- **Make the Wi-Fi Direct / hotspot settings real.** Currently `useWifiDirect` and `useHotspot` are carried through the model into `AdvertisingOptions.Builder`, which sets neither, so both switches are inert. See Coded PHY / no mesh extension above.
-- **Consider making sessions discoverable to nearby devices**, gated on a setting, with the host approving or denying individual joins rather than only the current all-or-nothing admission switch.
-
-### Radar
-
-- **Hide End / Leave PingRing while the keyboard is open** for chat, or move it. The chat card already reacts to `isImeVisible`; the buttons do not.
-- **Remove Nudge and replace it with a favourite beacon.** Needs a way to mark a favourite in the beacon screen first; no such concept exists yet.
-- **Fix radar rendering.** Not yet diagnosed — the specific defect is not recorded anywhere, so this needs a description before it can be picked up.
-- ✅ **Track one member at a time.** The focus filter is in, and the UWB session follows the selection.
-- **Change the host's default focus to the first member to join**, rather than the nearest. Clients already default to the host. No join-order is recorded on a peer yet, so this needs a join timestamp or an ordering on the friend list.
-
-### Radar — Chat
-
-- ✅ **Push notifications for chat, toggleable per PingRing and app-wide**, with independent sound and vibration controls. (Listed here because it was an open item; it landed in `45f5094` and `1fd7812`.)
-
-### Radar — Beacon
-
-- **Move Emergency off the first position** in the preset list. The presets render in enum order and `SOS` is first, so Emergency is currently the default selection on opening the beacon sheet.
-- **Embed an active beacon in the chat** so it stands out from ordinary messages, instead of showing a second toast beneath the beacon banner. At the moment a beacon shows as both a banner above the radar and a card in the remote-alerts list.
-
-### Radar Settings
-
-- No items yet.
-
-### App Settings
-
+**Radar Settings · App Settings**
 - No items yet.
 
 ---
