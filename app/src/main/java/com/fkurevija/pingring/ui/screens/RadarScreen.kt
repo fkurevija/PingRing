@@ -70,6 +70,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
@@ -114,6 +115,8 @@ import com.fkurevija.pingring.data.RadarDirectionPolicy
 import com.fkurevija.pingring.data.RadarPeerUpdate
 import com.fkurevija.pingring.data.SessionState
 import kotlinx.coroutines.delay
+import kotlin.math.cos
+import kotlin.math.sin
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -800,9 +803,10 @@ private fun ProximityRing(
                 .clipToBounds()
         ) {
             val stroke = size.minDimension * .08f
-            // The outermost drawable extent, so nothing is clipped mid-stroke
-            // and the ring keeps its full width against the edge.
-            val maxRadius = (size.minDimension - stroke) / 2f
+            // The radius the ring is actually drawn at. Half the stroke is
+            // inset from the canvas edge so the whole band fits inside it.
+            val ringRadius = (size.minDimension - stroke) / 2f
+            val center = Offset(size.width / 2, size.height / 2)
 
             // Pulsing beacon wave if active. The animated radius is clamped to
             // the drawable extent: the wave still grows as it fades, but it
@@ -811,12 +815,22 @@ private fun ProximityRing(
             if (beacon != null) {
                 drawCircle(
                     color = color.copy(alpha = beaconPulseAlpha),
-                    radius = maxRadius * beaconPulseRadius.coerceAtMost(1f),
+                    radius = ringRadius * beaconPulseRadius.coerceAtMost(1f),
                     style = Stroke(stroke * 0.7f)
                 )
             }
 
-            drawCircle(color.copy(alpha = if (beacon != null) 0.25f else .12f), style = Stroke(stroke))
+            // The base ring. radius must be given explicitly: drawCircle
+            // defaults it to half the smaller canvas dimension, which puts the
+            // centre line of the stroke exactly on the canvas edge and clips
+            // the outer half of it away - leaving the chamfered-square shape
+            // rather than a circle. Subtracting the stroke width pulls the
+            // centre line in by half a stroke, so the full width fits.
+            drawCircle(
+                color = color.copy(alpha = if (beacon != null) 0.25f else .12f),
+                radius = ringRadius,
+                style = Stroke(stroke)
+            )
 
             // The directional segment: a lit arc of the ring pointing at the
             // tracked member, widening as they approach. Null when there is no
@@ -828,14 +842,17 @@ private fun ProximityRing(
                 if (segment.isFullyLit) {
                     // Within arms reach: the whole ring is lit rather than a
                     // 360-degree round-capped arc, which would render as a
-                    // heavy blob at the seam.
-                    drawCircle(color, style = Stroke(stroke))
+                    // heavy blob at the seam. radius given explicitly for the
+                    // same reason as the base ring.
+                    drawCircle(color, radius = ringRadius, style = Stroke(stroke))
                 } else {
                     drawArc(
                         color = color,
                         startAngle = segment.startAngleDegrees,
                         sweepAngle = segment.sweepAngleDegrees,
                         useCenter = false,
+                        topLeft = Offset(ringRadius, ringRadius),
+                        size = Size(ringRadius * 2, ringRadius * 2),
                         style = Stroke(stroke, cap = StrokeCap.Round)
                     )
                 }
@@ -847,35 +864,46 @@ private fun ProximityRing(
                     startAngle = -90f,
                     sweepAngle = 360f * progress.coerceAtLeast(.08f),
                     useCenter = false,
+                    topLeft = Offset(ringRadius, ringRadius),
+                    size = Size(ringRadius * 2, ringRadius * 2),
                     style = Stroke(stroke, cap = StrokeCap.Round)
                 )
             }
-        }
-        // The needle points at the tracked member. It is drawn from the centre
-        // outwards so the bearing and the lit segment read from the same origin,
-        // and it is omitted when no azimuth is available rather than pointing at
-        // an arbitrary default bearing.
-        val needleRotation = RadarDirectionPolicy.needleRotationDegrees(arrowDegrees)
-        if (needleRotation != null) {
-            Box(
-                Modifier.size(104.dp).rotate(needleRotation),
-                contentAlignment = Alignment.TopCenter
-            ) {
-                Canvas(Modifier.fillMaxSize()) {
-                    val center = Offset(size.width / 2, size.height / 2)
-                    // Tapered: thick at the hub, thin at the tip, so the point
-                    // reads as a direction rather than a spoke.
-                    val tip = Offset(center.x, 8f)
-                    drawLine(
-                        color = color,
-                        start = center,
-                        end = tip,
-                        strokeWidth = 8f,
-                        cap = StrokeCap.Round
-                    )
-                    drawCircle(color, 9f, tip)
-                }
-            }
+
+            // The needle always points somewhere. With no bearing - nobody
+            // joined, no member selected, or the member is tracked by RSSI
+            // alone - it rests pointing straight up rather than vanishing, so
+            // the radar reads as idle-and-ready rather than broken. A missing
+            // bearing is not a bearing of north, so it is drawn dimmed to show
+            // it is resting rather than pointing at someone.
+            //
+            // Drawn here rather than as a fixed-size child Box: the ring is
+            // sized from the available width, so a hardcoded 104.dp needle
+            // spanned only a third of it on a phone and was swallowed entirely
+            // by the hub in the middle.
+            val needleRotation = RadarDirectionPolicy.needleRotationDegrees(arrowDegrees) ?: 0f
+            val hasBearing = arrowDegrees != null && arrowDegrees.isFinite()
+            val needleColor = if (hasBearing) color else color.copy(alpha = 0.45f)
+            val needleLength = ringRadius - stroke * 0.5f
+            val radians = Math.toRadians(needleRotation.toDouble())
+            val needleTip = Offset(
+                x = center.x + (sin(radians) * needleLength).toFloat(),
+                y = center.y - (cos(radians) * needleLength).toFloat(),
+            )
+            // Starts at the edge of the hub rather than the very centre, so the
+            // hub dot reads as the pivot and not as part of the needle.
+            val needleBase = Offset(
+                x = center.x + (sin(radians) * ringRadius * 0.14f).toFloat(),
+                y = center.y - (cos(radians) * ringRadius * 0.14f).toFloat(),
+            )
+            drawLine(
+                color = needleColor,
+                start = needleBase,
+                end = needleTip,
+                strokeWidth = stroke * 0.22f,
+                cap = StrokeCap.Round,
+            )
+            drawCircle(needleColor, stroke * 0.26f, needleTip)
         }
         Box(Modifier.size(74.dp).background(color.copy(alpha = if (beacon != null) .30f else .14f), CircleShape))
     }
