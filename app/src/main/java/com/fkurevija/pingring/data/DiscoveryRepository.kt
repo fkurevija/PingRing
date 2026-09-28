@@ -282,6 +282,11 @@ class DiscoveryRepository(
 
         // 1. Start Nearby Connections
         if (event != null) {
+            // Lets the transport route a guest's UWB ranging offer to the host
+            // without this class reaching into the session itself.
+            (nearbyConnectionsManager as? NearbyConnectionsManager)?.hostPeerIdProvider = {
+                sessionManager.sessionState.value.currentEvent?.hostPeerId
+            }
             if (isHost) {
                 nearbyConnectionsManager.startAdvertising(
                     event.id, 
@@ -353,6 +358,16 @@ class DiscoveryRepository(
                     }
                     nearbyConnectionsManager.sendChatHistoryToPeer(peerId, history)
                 }
+            }
+        }
+
+        // A relayed ranging offer makes this device the controlee for a
+        // guest-to-guest session. The host consumes offers rather than emitting
+        // them (see NearbyConnectionsManager.dispatchEnvelope), so a host
+        // simply sees nothing here.
+        repositoryScope?.launch {
+            nearbyConnectionsManager.receivedUwbRangingOffer.collect { offer ->
+                acceptIncomingRangingOffer(offer)
             }
         }
 
@@ -1237,18 +1252,54 @@ class DiscoveryRepository(
                         )
                     ).collect { result -> updateUwbPosition(targetId, result) }
                 } else {
-                    // A guest ranging a *guest*. The transport only carries
-                    // controller parameters from the host, so there is no way
-                    // for one guest to hand another the channel and STS key
-                    // they must both agree on. Until the transport can relay
-                    // that handshake peer-to-peer, this stays unsupported
-                    // rather than silently ranging against parameters the two
-                    // sides would not share.
-                    Log.w(
-                        TAG,
-                        "UWB: cannot range $targetId; the transport only supports " +
-                            "host-to-member ranging, and this device is a guest targeting another guest"
+                    // A guest ranging another guest. Neither side is the host,
+                    // so the parameters one of them invents have to reach the
+                    // other over a link that does not exist: P2P_STAR leaves
+                    // guests connected only to the host. This device therefore
+                    // offers itself as controller and sends the offer up to the
+                    // host, which forwards it to the peer it names. The peer
+                    // that receives it becomes the controlee (see
+                    // [acceptIncomingRangingOffer]) using the exact channel and
+                    // STS key sent here, which is what makes the two ends
+                    // agree.
+                    val controller = manager.controllerSessionScope()
+                    val sessionKey = ByteArray(8).also(SecureRandom()::nextBytes)
+                    val eventId = sessionManager.sessionState.value.currentEvent?.id
+                    if (eventId == null) {
+                        Log.w(TAG, "UWB: no event to derive a session id from; skipping $targetId")
+                        return@launch
+                    }
+                    // Both ends must end up on the same session id. The
+                    // controlee takes this value verbatim from the offer, so
+                    // agreement is guaranteed in that direction; deriving it
+                    // from the unordered pair anyway means two guests that
+                    // offer each other simultaneously still land on one id
+                    // rather than two sessions that interleave on a channel.
+                    val sessionId = (31L * eventId.hashCode() +
+                        17L * (targetId.hashCode().toLong() + localPeerId().hashCode())).toInt()
+                    nearbyConnectionsManager.sendUwbRangingOfferToHost(
+                        UwbRangingOfferDto(
+                            fromPeerId = localPeerId(),
+                            targetPeerId = targetId,
+                            controllerAddress = controller.localAddress.toString(),
+                            channel = controller.uwbComplexChannel.channel,
+                            preambleIndex = controller.uwbComplexChannel.preambleIndex,
+                            sessionId = sessionId,
+                            staticStsKey = Base64.encodeToString(sessionKey, Base64.NO_WRAP)
+                        )
                     )
+                    controller.prepareSession(
+                        RangingParameters(
+                            RangingParameters.CONFIG_UNICAST_DS_TWR,
+                            sessionId,
+                            0,
+                            sessionKey,
+                            null,
+                            null,
+                            listOf(UwbDevice.createForAddress(address)),
+                            RangingParameters.RANGING_UPDATE_RATE_FREQUENT
+                        )
+                    ).collect { result -> updateUwbPosition(targetId, result) }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "UWB focus session with $targetId failed; peer falls back to RSSI", e)
@@ -1259,6 +1310,67 @@ class DiscoveryRepository(
     private var activeFocusRangingTarget: String? = null
 
     private fun localPeerId(): String = sessionManager.peerId.value
+
+    /**
+     * Takes the controlee side of a ranging session another guest has offered.
+     *
+     * This is the other half of guest-to-guest ranging: [onFocusChanged] offers
+     * itself as controller and sends the offer up to the host, and whoever is
+     * named in it ends up here. Using the channel and STS key from the offer
+     * verbatim is the whole point - they were generated by the other end, and
+     * inventing different ones is exactly what produced silently wrong ranges
+     * before this path existed.
+     *
+     * The session runs in its own coroutine rather than replacing
+     * [activeFocusRangingJob], because the two roles are held by different
+     * devices: this one is the controlee here even though it may
+     * simultaneously be the controller for a different peer it is tracking.
+     */
+    private fun acceptIncomingRangingOffer(offer: UwbRangingOfferDto) {
+        val manager = uwbManager ?: return
+        val scope = repositoryScope ?: return
+        val state = sessionManager.sessionState.value
+        val event = state.currentEvent ?: return
+        if (!event.useUwb) return
+        // Only act on offers actually meant for this device, and never on one
+        // this device sent.
+        if (offer.targetPeerId != localPeerId() || offer.fromPeerId == localPeerId()) {
+            return
+        }
+        // The offerer is only worth ranging if it is a member of this event.
+        if (offer.fromPeerId != event.hostPeerId && offer.fromPeerId !in connectedPeerIds) {
+            Log.w(
+                TAG,
+                "Ignoring a UWB ranging offer from ${offer.fromPeerId}: not a member of this event"
+            )
+            return
+        }
+
+        Log.i(
+            TAG,
+            "Accepting a UWB ranging offer from ${offer.fromPeerId} " +
+                "(session ${offer.sessionId}, channel ${offer.channel})"
+        )
+        scope.launch {
+            try {
+                val controlee = manager.controleeSessionScope()
+                controlee.prepareSession(
+                    RangingParameters(
+                        RangingParameters.CONFIG_UNICAST_DS_TWR,
+                        offer.sessionId,
+                        0,
+                        Base64.decode(offer.staticStsKey, Base64.NO_WRAP),
+                        null,
+                        UwbComplexChannel(offer.channel, offer.preambleIndex),
+                        listOf(UwbDevice.createForAddress(offer.controllerAddress)),
+                        RangingParameters.RANGING_UPDATE_RATE_FREQUENT
+                    )
+                ).collect { result -> updateUwbPosition(offer.fromPeerId, result) }
+            } catch (e: Exception) {
+                Log.e(TAG, "UWB ranging as controlee for ${offer.fromPeerId} failed", e)
+            }
+        }
+    }
 
     private fun startUwbRangingSession() {
         val manager = uwbManager

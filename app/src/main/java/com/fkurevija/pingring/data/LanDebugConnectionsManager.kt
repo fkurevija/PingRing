@@ -60,6 +60,9 @@ class LanDebugConnectionsManager(
     private val _receivedControllerParams = MutableSharedFlow<UwbControllerParametersDto>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     override val receivedControllerParams = _receivedControllerParams.asSharedFlow()
 
+    private val _receivedUwbRangingOffer = MutableSharedFlow<UwbRangingOfferDto>(extraBufferCapacity = 4, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+    override val receivedUwbRangingOffer = _receivedUwbRangingOffer.asSharedFlow()
+
     private val _receivedChatMessage = MutableSharedFlow<ChatPayloadDto>(extraBufferCapacity = 10, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     override val receivedChatMessage = _receivedChatMessage.asSharedFlow()
 
@@ -308,6 +311,8 @@ class LanDebugConnectionsManager(
                             .getOrNull()?.let { _receivedPeerAddress.tryEmit(it) }
                         "uwb-params" -> runCatching { moshi.adapter(UwbControllerParametersDto::class.java).fromJson(innerEnvelope.payload) }
                             .getOrNull()?.let { _receivedControllerParams.tryEmit(it) }
+                        "uwb-offer" -> runCatching { moshi.adapter(UwbRangingOfferDto::class.java).fromJson(innerEnvelope.payload) }
+                            .getOrNull()?.let { _receivedUwbRangingOffer.tryEmit(it) }
                         // A scripted range report from tools/mock_radar.py, the
                         // LAN-only stand-in for a UWB ranging result.
                         "mock-range" -> runCatching { moshi.adapter(MockRangingDto::class.java).fromJson(innerEnvelope.payload) }
@@ -431,6 +436,7 @@ class LanDebugConnectionsManager(
 
     private fun sendPayload(targetPeerId: String?, params: Any) {
         val (type, json) = when (params) {
+            is UwbRangingOfferDto -> "uwb-offer" to moshi.adapter(UwbRangingOfferDto::class.java).toJson(params)
             is UwbControllerParametersDto -> "uwb-params" to moshi.adapter(UwbControllerParametersDto::class.java).toJson(params)
             is UwbPeerAddressDto -> "uwb-address" to moshi.adapter(UwbPeerAddressDto::class.java).toJson(params)
             is ChatPayloadDto -> "chat" to moshi.adapter(ChatPayloadDto::class.java).toJson(params)
@@ -454,6 +460,24 @@ class LanDebugConnectionsManager(
 
     override fun sendUwbParameters(peerId: String, params: Any) {
         sendPayload(peerId, params)
+    }
+
+    /**
+     * Sends a guest's UWB ranging offer to the guest it names.
+     *
+     * On the LAN transport the relay already routes by targetPeerId, so the
+     * offer reaches its destination with no host hop at all. That is a
+     * simplification of the real transport, where two guests have no direct
+     * link and the host has to make the hop, so this path is not a faithful
+     * test of the real relay behaviour.
+     */
+    override fun sendUwbRangingOfferToHost(params: Any) {
+        val target = (params as? UwbRangingOfferDto)?.targetPeerId
+        if (target == null) {
+            Log.w(TAG, "Cannot send a UWB ranging offer without a target peer")
+            return
+        }
+        sendPayload(target, params)
     }
 
     override fun broadcastUwbParameters(params: Any) {

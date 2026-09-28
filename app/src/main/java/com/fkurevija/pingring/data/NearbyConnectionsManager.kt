@@ -47,6 +47,12 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
     )
     override val receivedControllerParams = _receivedControllerParams.asSharedFlow()
 
+    private val _receivedUwbRangingOffer = MutableSharedFlow<UwbRangingOfferDto>(
+        extraBufferCapacity = 4,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+    override val receivedUwbRangingOffer = _receivedUwbRangingOffer.asSharedFlow()
+
     private val _receivedChatMessage = MutableSharedFlow<ChatPayloadDto>(
         extraBufferCapacity = 10,
         onBufferOverflow = BufferOverflow.DROP_OLDEST
@@ -102,6 +108,15 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
 
     private val connectedEndpoints = mutableMapOf<String, String>()
     private val endpointToPeerId = mutableMapOf<String, String>()
+
+    /**
+     * Supplies the current event's host peer id, set by [DiscoveryRepository].
+     *
+     * Injected rather than read from the session here so this class stays a
+     * pure transport: it needs to know *which* peer is the host only to route
+     * a guest's UWB ranging offer to it.
+     */
+    var hostPeerIdProvider: (() -> String?)? = null
 
     // Endpoints this device has accepted, i.e. the ones a PayloadCallback is
     // registered for. Nearby only hands payloads to an accepted connection, and
@@ -186,6 +201,30 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
         }
     }
 
+    /**
+     * Sends a guest's ranging offer up to the host, which is the only peer a
+     * guest can actually reach under P2P_STAR.
+     *
+     * The host is identified by the event's host peer id, which
+     * DiscoveryRepository has already learned from the host's BLE advertisement
+     * and applied to the local event copy. If it is not known yet the offer is
+     * dropped rather than broadcast, because broadcasting it would hand the
+     * STS key to every member instead of the one guest it was meant for.
+     */
+    override fun sendUwbRangingOfferToHost(params: Any) {
+        val hostPeerId = hostPeerIdProvider?.invoke()
+        if (hostPeerId.isNullOrBlank()) {
+            Log.w(TAG, "Cannot relay a UWB ranging offer: the host peer id is not known yet")
+            return
+        }
+        val endpointId = connectedEndpoints[hostPeerId]
+        if (endpointId == null) {
+            Log.w(TAG, "Cannot relay a UWB ranging offer: no connection to the host ($hostPeerId)")
+            return
+        }
+        sendPayloadToEndpoint(endpointId, params)
+    }
+
     override fun broadcastChatMessage(chatMsg: ChatPayloadDto) {
         val endpoints = connectedEndpoints.values.toSet()
         Log.i(TAG, "Broadcasting chat message '${chatMsg.text}' (id=${chatMsg.id}) to ${endpoints.size} endpoint(s): $endpoints")
@@ -253,6 +292,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
             is BeaconPayloadDto -> "beacon" to moshi.adapter(BeaconPayloadDto::class.java).toJson(params)
             is UwbPeerAddressDto -> "uwb-address" to moshi.adapter(UwbPeerAddressDto::class.java).toJson(params)
             is UwbControllerParametersDto -> "uwb-params" to moshi.adapter(UwbControllerParametersDto::class.java).toJson(params)
+            is UwbRangingOfferDto -> "uwb-offer" to moshi.adapter(UwbRangingOfferDto::class.java).toJson(params)
             else -> return
         }
         val envelope = RelayEnvelope(type = type, payload = dtoJson)
@@ -456,6 +496,29 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
             "uwb-params" -> decodeOrNull<UwbControllerParametersDto>(envelope.type, endpointId, body)?.also {
                 _receivedControllerParams.tryEmit(it)
             } != null
+            "uwb-offer" -> decodeOrNull<UwbRangingOfferDto>(envelope.type, endpointId, body)?.also { offer ->
+                // The host is the only hop that can carry one guest's offer to
+                // another, since P2P_STAR leaves guests with no direct link.
+                // It forwards verbatim to the single guest that was named and
+                // never consumes it itself.
+                val targetEndpoint = connectedEndpoints[offer.targetPeerId]
+                if (targetEndpoint == null) {
+                    Log.w(
+                        TAG,
+                        "UWB ranging offer from ${offer.fromPeerId} cannot be relayed: " +
+                            "no connection to ${offer.targetPeerId}"
+                    )
+                } else {
+                    Log.i(
+                        TAG,
+                        "Relaying a UWB ranging offer from ${offer.fromPeerId} to ${offer.targetPeerId}"
+                    )
+                    sendPayloadToEndpoint(targetEndpoint, offer)
+                }
+                // Consumed either way: a host has no UWB session of its own for
+                // this offer, and returning true keeps it off every other flow.
+                true
+            } != null
             else -> false
         }
     }
@@ -531,6 +594,6 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
     private companion object {
         // Payload types this build understands inside an envelope. Anything else
         // is dropped on purpose (a newer peer may send more) but says so.
-        val KNOWN_PAYLOAD_TYPES = setOf("chat", "chat-history", "nudge", "beacon", "uwb-address", "uwb-params")
+        val KNOWN_PAYLOAD_TYPES = setOf("chat", "chat-history", "nudge", "beacon", "uwb-address", "uwb-params", "uwb-offer")
     }
 }

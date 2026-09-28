@@ -159,6 +159,71 @@ class FocusPolicyTest {
         assertEquals(FocusPolicy.RangingTarget.None, target)
     }
 
+    /**
+     * The session id a guest-to-guest ranging offer and the session opened on
+     * the far side must agree on, or the two ends never complete a handshake.
+     *
+     * This is the crux of the relay path: the offerer invents the id, sends it
+     * up to the host, and the host forwards it verbatim. The receiving side
+     * then re-derives the same value from the same inputs, so both ends are
+     * looking at one session rather than two unrelated ones.
+     *
+     * [SessionKey] mirrors the formula in DiscoveryRepository.onFocusChanged.
+     * It is duplicated rather than imported because the production function
+     * is private to that class and reads its inputs from live session state;
+     * this copy is the contract the two ends are held to.
+     */
+    object SessionKey {
+        fun forPair(eventId: String, targetPeerId: String, localPeerId: String): Int {
+            val event = 31L * eventId.hashCode()
+            // The two peer ids are summed rather than weighted separately, so
+            // the key is the same whichever guest derives it. A weighted pair
+            // would give Alice and Bob different ids for their own exchange.
+            val peers = 17L * (targetPeerId.hashCode().toLong() + localPeerId.hashCode())
+            return (event + peers).toInt()
+        }
+    }
+
+    @Test
+    fun anOfferAndItsReceiverAgreeOnTheSessionId() {
+        // Alice offers to range Bob. The controlee takes the id from the offer
+        // verbatim, so agreement is structural - but the key is derived from
+        // the unordered pair so that *both* ends computing it independently
+        // also land on the same session. A weighted pair would not: Alice and
+        // Bob would derive different ids for their own exchange.
+        val event = "event-42"
+        val fromAlice = SessionKey.forPair(eventId = event, targetPeerId = bob, localPeerId = alice)
+        val fromBob = SessionKey.forPair(eventId = event, targetPeerId = alice, localPeerId = bob)
+        assertEquals(
+            "both ends must derive the same session id for a guest-to-guest session",
+            fromAlice,
+            fromBob
+        )
+    }
+
+    @Test
+    fun theSessionIdIsStableForTheSamePair() {
+        val first = SessionKey.forPair("e", bob, alice)
+        val second = SessionKey.forPair("e", bob, alice)
+        assertEquals(first, second)
+    }
+
+    @Test
+    fun differentPairsDoNotCollideOnOneSession() {
+        // Two guests ranging each other at the same time must not land on one
+        // session id, or their exchanges would interleave on a single channel.
+        val aliceToBob = SessionKey.forPair("e", bob, alice)
+        val aliceToCarol = SessionKey.forPair("e", "carol", alice)
+        assertTrue("a peer ranging two others collided on a session", aliceToBob != aliceToCarol)
+    }
+
+    @Test
+    fun differentEventsDoNotCollide() {
+        assertTrue(
+            SessionKey.forPair("event-a", bob, alice) != SessionKey.forPair("event-b", bob, alice)
+        )
+    }
+
     @Test
     fun atMostOnePeerIsRangedNoMatterHowManyArePresent() {
         // The whole point of the filter: seven members present, one session.

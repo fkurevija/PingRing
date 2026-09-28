@@ -51,6 +51,23 @@ interface NearbyTransport {
     fun sendUwbParameters(peerId: String, params: Any)
     fun broadcastUwbParameters(params: Any)
 
+    /**
+     * A UWB ranging offer forwarded by the host on behalf of one guest and
+     * aimed at another.
+     *
+     * Only a guest ever sends one, and only ever to the host, which is the
+     * only peer it has a transport connection to under P2P_STAR.
+     */
+    val receivedUwbRangingOffer: SharedFlow<UwbRangingOfferDto>
+
+    /**
+     * Sends a [UwbRangingOfferDto] up to the host, which forwards it to the
+     * guest named in its targetPeerId. This is how two guests agree on the
+     * channel and STS key a UWB session needs without a direct connection
+     * between them.
+     */
+    fun sendUwbRangingOfferToHost(params: Any)
+
     fun broadcastChatMessage(chatMsg: ChatPayloadDto)
     fun sendChatHistoryToPeer(peerId: String, messages: List<ChatPayloadDto>)
     fun sendChatMessageToPeer(peerId: String, chatMsg: ChatPayloadDto)
