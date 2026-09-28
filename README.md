@@ -222,7 +222,7 @@ Grouped by area. ✅ = already shipped, kept for reference.
 - **Optionally make sessions discoverable** to nearby devices behind a setting, with the host approving individual joins rather than the current all-or-nothing switch.
 
 **Radar**
-- **Hide End / Leave PingRing while the keyboard is open.** The chat card already reacts to `isImeVisible`; the buttons do not.
+- ~~**Hide End / Leave PingRing while the keyboard is open.**~~ Resolved: the button moved to the **PingRing Settings** screen, and the radar keeps the navigation bar back arrow as the exit route.
 - **Replace Nudge with a favourite beacon.** Needs a way to mark a favourite in the beacon screen first — no such concept exists.
 - **Fix radar rendering.** The defect is not described anywhere, so this needs a description before it can be picked up.
 - **Default the host's focus to the first member to join** rather than the nearest. No join order is recorded on peers yet, so this needs a join timestamp or an ordered friend list.

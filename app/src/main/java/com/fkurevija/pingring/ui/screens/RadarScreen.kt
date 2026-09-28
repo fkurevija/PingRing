@@ -257,24 +257,11 @@ fun RadarScreen(
                 }
             )
         },
-        bottomBar = {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
-            ) {
-                Button(
-                    // Every way out of a live PingRing asks first: the system
-                    // back handler above, this button and the back arrow all
-                    // land on the same confirmation, so a guest is never
-                    // dropped out of the group by a single stray tap.
-                    onClick = { showEndConfirmation = true },
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                ) { Text(if (isHost) "End PingRing" else "Leave PingRing") }
-            }
-        },
+        // No bottomBar: End/Leave moved to the PingRing Settings screen, where
+        // it sits with the other destructive actions instead of occupying a
+        // permanent bar above the chat. The navigation bar's back arrow still
+        // opens the same confirmation, so there is a way out from the radar
+        // itself and the two can never disagree about what leaving means.
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp)) {

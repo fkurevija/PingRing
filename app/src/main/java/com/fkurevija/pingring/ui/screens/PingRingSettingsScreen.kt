@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Sensors
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -53,14 +54,18 @@ import com.fkurevija.pingring.ui.permissions.rememberUwbAvailability
 fun PingRingSettingsScreen(
     event: Event,
     uwbHardwareSupported: Boolean,
+    isHost: Boolean,
     onBack: () -> Unit,
-    onSave: (Event) -> Unit
+    onSave: (Event) -> Unit,
+    onEndEvent: () -> Unit,
+    onLeaveEvent: () -> Unit,
 ) {
     var acceptsNewMembers by remember(event) { mutableStateOf(event.acceptsNewMembers) }
     val uwbAvailability = rememberUwbAvailability(uwbHardwareSupported)
     var useUwb by remember(event, uwbAvailability.isUsable) { mutableStateOf(event.useUwb && uwbAvailability.isUsable) }
     var useWifiDirect by remember(event) { mutableStateOf(event.useWifiDirect) }
     var chatNotificationsEnabled by remember(event) { mutableStateOf(event.chatNotificationsEnabled) }
+    var showEndConfirmation by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -220,6 +225,61 @@ fun PingRingSettingsScreen(
                     }
                 }
             }
+
+            // End/Leave live here rather than on the radar, next to the other
+            // settings for a live PingRing. It is destructive and awkward to
+            // undo, so it reads better grouped with settings than sitting in a
+            // permanent bar above the chat where a stray tap could reach it.
+            // The radar's navigation bar back arrow still offers the same
+            // action, so the two routes cannot disagree.
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f)
+                )
+            ) {
+                Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                    Text(
+                        "Danger Zone",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        if (isHost) {
+                            "Ending the PingRing removes every member and returns them all to the home page."
+                        } else {
+                            "Leaving stops you sharing your position. The host and the other members are not affected."
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedButton(
+                        onClick = { showEndConfirmation = true },
+                        modifier = Modifier.fillMaxWidth().height(50.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        )
+                    ) {
+                        Text(if (isHost) "End PingRing" else "Leave PingRing")
+                    }
+                }
+            }
         }
+    }
+
+    if (showEndConfirmation) {
+        EndPingRingDialog(
+            isHost = isHost,
+            onConfirm = {
+                showEndConfirmation = false
+                if (isHost) onEndEvent() else onLeaveEvent()
+            },
+            onDismiss = { showEndConfirmation = false }
+        )
     }
 }

@@ -333,13 +333,31 @@ fun MainNavigation(
                 is PingRingSettingsKey -> {
                     val event = sessionState.currentEvent
                     if (event != null && event.id == key.eventId) {
+                        val isHost = sessionState.isHost
                         PingRingSettingsScreen(
                             event = event,
                             uwbHardwareSupported = discoveryRepository.isUwbSupported(),
+                            isHost = isHost,
                             onBack = { backStack.popBack() },
                             onSave = {
                                 sessionManager.updateEvent(it)
                                 backStack.popBack()
+                            },
+                            // Ending announces closure first so every member is
+                            // told, then tears the session down and returns to
+                            // home. Leaving only affects this device - the
+                            // transport reports the disconnect itself, which is
+                            // what tells the others.
+                            onEndEvent = {
+                                discoveryRepository.announceEventClosure(event)
+                                discoveryRepository.stopDiscovery()
+                                sessionManager.endHostedEvent()
+                                backStack.resetTo(HomeKey)
+                            },
+                            onLeaveEvent = {
+                                discoveryRepository.stopDiscovery()
+                                sessionManager.leaveEvent()
+                                backStack.resetTo(HomeKey)
                             }
                         )
                     }
