@@ -157,6 +157,16 @@ class DiscoveryRepository(
     private var uwbSessionJob: Job? = null
     private val activeRangingJobs = mutableMapOf<String, Job>()
 
+    // Peers that have a real UWB measurement, whose distance must not be
+    // overwritten by an RSSI estimate. Tracked explicitly because a UWB
+    // report can legitimately carry a null azimuth or elevation, so the
+    // presence of those fields is not a reliable "has been ranged" signal.
+    private val uwbRangedPeers = mutableSetOf<String>()
+
+    // Running RSSI distance estimate per peer, fed through an exponential
+    // moving average so the readout does not jitter with every advertisement.
+    private val estimatedDistances = mutableMapOf<String, Float?>()
+
     init {
         rotationMatrix[0] = 1f
         rotationMatrix[4] = 1f
@@ -830,12 +840,24 @@ class DiscoveryRepository(
         // Find or create existing update
         val existing = _peerUpdates.value[peerId]
         val peerName = existing?.name ?: "Peer $peerId"
+
+        // A UWB measurement is real ranging, so it always wins over an RSSI
+        // guess. Only peers that have never been ranged fall back to the
+        // estimate, and it is recomputed on every scan so it tracks a peer who
+        // is walking rather than freezing on first contact.
+        val rssiEstimate = RssiDistanceEstimator.smooth(
+            previous = estimatedDistances[peerId],
+            rawEstimate = RssiDistanceEstimator.estimate(rssi)
+        )
+        estimatedDistances[peerId] = rssiEstimate
+        val hasUwbFix = uwbRangedPeers.contains(peerId)
+
         val updated = RadarPeerUpdate(
             peerId = peerId,
             name = peerName,
             rssi = rssi,
             proximity = proximity,
-            distance = existing?.distance ?: (2f + (rssi + 100) / 10f), // Initial distance estimate from RSSI
+            distance = if (hasUwbFix) existing?.distance else rssiEstimate ?: existing?.distance,
             azimuth = existing?.azimuth,
             elevation = existing?.elevation,
             worldDirectionX = existing?.worldDirectionX,
@@ -883,6 +905,11 @@ class DiscoveryRepository(
     private fun removePeer(peerId: String) {
         _peerUpdates.update { current -> current - peerId }
         _activeBeacons.update { current -> current - peerId }
+        // A peer that reconnects must be re-ranged from scratch: keeping the
+        // old flags would suppress its RSSI estimate, and keeping the old
+        // average would seed it with a distance from a session that is over.
+        uwbRangedPeers.remove(peerId)
+        estimatedDistances.remove(peerId)
         val friends = sessionManager.sessionState.value.friends
         if (friends.any { it.peerId == peerId }) {
             sessionManager.updateFriends(friends.filterNot { it.peerId == peerId })
@@ -1082,9 +1109,27 @@ class DiscoveryRepository(
                         if (activeRangingJobs[peer.peerId]?.isActive == true) return@collect
 
                         activeRangingJobs[peer.peerId] = launch {
+                            // Declared outside the try so the catch below can
+                            // report how long the session survived.
+                            val startedAt = System.currentTimeMillis()
                             try {
                                 // Send our controller parameters back to the member
                                 nearbyConnectionsManager.sendUwbParameters(peer.peerId, parameters)
+
+                                // Instrumented because a full PingRing opens one
+                                // session per guest on this single controller
+                                // scope. Whether the platform tolerates several
+                                // concurrent prepareSession calls is hardware
+                                // dependent and undocumented, and a refusal shows
+                                // up only as a peer that silently stops ranging.
+                                // The count and the first-failure reason are what
+                                // tell the two behaviours apart in a logcat
+                                // capture, so log both.
+                                Log.i(
+                                    TAG,
+                                    "Starting UWB session for peer ${peer.peerId} " +
+                                        "(active sessions: ${activeRangingJobs.size}/${MAX_PARTICIPANTS - 1})"
+                                )
 
                                 // Start ranging with the member in a non-blocking flow
                                 controller.prepareSession(
@@ -1100,7 +1145,13 @@ class DiscoveryRepository(
                                     )
                                 ).collect { result -> updateUwbPosition(peer.peerId, result) }
                             } catch (e: Exception) {
-                                Log.e(TAG, "UWB session failed for peer ${peer.peerId}", e)
+                                Log.e(
+                                    TAG,
+                                    "UWB session failed for peer ${peer.peerId} " +
+                                        "after ${System.currentTimeMillis() - startedAt} ms; " +
+                                        "this peer will fall back to RSSI-only distance",
+                                    e
+                                )
                             } finally {
                                 activeRangingJobs.remove(peer.peerId)
                             }
@@ -1154,6 +1205,10 @@ class DiscoveryRepository(
 
     private fun updateUwbPosition(peerId: String, result: RangingResult) {
         val position = (result as? RangingResult.RangingResultPosition)?.position ?: return
+        // From here on this peer has a real measurement, so later BLE
+        // advertisements must not replace it with an estimate.
+        uwbRangedPeers.add(peerId)
+        estimatedDistances.remove(peerId)
         _peerUpdates.update { peers ->
             val current = peers[peerId] ?: return@update peers
             peers + (
@@ -1190,13 +1245,18 @@ class DiscoveryRepository(
         if (sessionManager.sessionState.value.currentEvent == null) return
 
         // A scripted report has a distance but no real signal strength, so an
-        // RSSI is derived from the same curve the BLE scan path uses to turn
-        // RSSI into a distance in the first place (distance = 2 + (rssi+100)/10).
-        // Without it the hot/cold ring and the dBm readout would sit at their
-        // "no signal" values and stop reacting to the scripted movement, which
-        // is half of what the radar has to be tested for.
-        val rssi = dto.distance?.let { ((it - 2f) * 10f - 100f).coerceIn(-100f, -30f) }?.toInt()
+        // RSSI is derived by inverting the curve the BLE scan path uses, via
+        // RssiDistanceEstimator. Without it the hot/cold ring and the dBm
+        // readout would sit at their "no signal" values and stop reacting to
+        // the scripted movement, which is half of what the radar has to be
+        // tested for. A scripted report is a real measurement, so it also
+        // pins the peer the way a UWB fix would.
+        val rssi = dto.distance?.let { RssiDistanceEstimator.rssiForDistance(it) }?.toInt()
         val existing = _peerUpdates.value[peerId]
+        if (dto.distance != null) {
+            uwbRangedPeers.add(peerId)
+            estimatedDistances.remove(peerId)
+        }
         val updated = RadarPeerUpdate(
             peerId = peerId,
             name = dto.name?.takeIf { it.isNotBlank() } ?: existing?.name ?: "Peer $peerId",
