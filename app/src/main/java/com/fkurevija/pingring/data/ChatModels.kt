@@ -2,6 +2,10 @@ package com.fkurevija.pingring.data
 
 import com.squareup.moshi.JsonClass
 
+const val MAX_CHAT_LENGTH = 500
+const val MAX_BEACON_TITLE_LENGTH = 100
+const val MAX_USERNAME_LENGTH = 30
+
 @JsonClass(generateAdapter = true)
 data class ChatPayloadDto(
     val id: String,

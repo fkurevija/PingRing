@@ -155,6 +155,9 @@ fun HostSetupScreen(
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(Modifier.height(12.dp))
+                    val qrCodeBitmap = remember(eventCode) {
+                        generateQrCode(eventCode).asImageBitmap()
+                    }
                     Box(
                         modifier = Modifier
                             .size(200.dp)
@@ -164,7 +167,7 @@ fun HostSetupScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Image(
-                            bitmap = generateQrCode(eventCode).asImageBitmap(),
+                            bitmap = qrCodeBitmap,
                             contentDescription = "QR code for PingRing $eventCode",
                             modifier = Modifier.fillMaxSize()
                         )

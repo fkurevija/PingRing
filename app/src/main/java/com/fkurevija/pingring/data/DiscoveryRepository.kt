@@ -448,12 +448,15 @@ class DiscoveryRepository(
     }
 
     fun broadcastOutgoingChatMessage(text: String, senderName: String) {
+        val sanitizedText = text.take(MAX_CHAT_LENGTH).trim()
+        val sanitizedName = senderName.take(MAX_USERNAME_LENGTH).trim()
+        if (sanitizedText.isBlank() || sanitizedName.isBlank()) return
         val localPeerId = sessionManager.peerId.value
         val dto = ChatPayloadDto(
             id = UUID.randomUUID().toString(),
             senderPeerId = localPeerId,
-            senderName = senderName,
-            text = text,
+            senderName = sanitizedName,
+            text = sanitizedText,
             timestamp = System.currentTimeMillis()
         )
         
@@ -924,7 +927,10 @@ class DiscoveryRepository(
         syncFriend(updated)
     }
 
+    private var sensorsRegistered = false
+
     private fun registerSensors() {
+        if (sensorsRegistered) return
         val sm = sensorManager ?: return
         val rotVector = sm.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
         if (rotVector != null) {
@@ -936,11 +942,28 @@ class DiscoveryRepository(
             if (mag != null) sm.registerListener(this, mag, SensorManager.SENSOR_DELAY_UI)
             if (acc != null) sm.registerListener(this, acc, SensorManager.SENSOR_DELAY_UI)
         }
+        sensorsRegistered = true
     }
 
     private fun unregisterSensors() {
+        if (!sensorsRegistered) return
         sensorManager?.unregisterListener(this)
         hasRotationVector = false
+        sensorsRegistered = false
+    }
+
+    fun pauseSensors() {
+        if (sensorsRegistered) {
+            sensorManager?.unregisterListener(this)
+            hasRotationVector = false
+            sensorsRegistered = false
+        }
+    }
+
+    fun resumeSensors() {
+        if (!sensorsRegistered && sessionManager.sessionState.value.currentEvent != null) {
+            registerSensors()
+        }
     }
 
     override fun onSensorChanged(event: SensorEvent?) {

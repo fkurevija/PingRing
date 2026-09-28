@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -21,6 +22,9 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import android.widget.Toast
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -82,6 +86,19 @@ class MainActivity : ComponentActivity() {
                 DiscoveryRepository(context, sessionManager, nearbyConnectionsManager)
             }
             PingRingRuntime.configure(discoveryRepository)
+
+            val lifecycleOwner = LocalLifecycleOwner.current
+            DisposableEffect(lifecycleOwner, discoveryRepository) {
+                val observer = LifecycleEventObserver { _, event ->
+                    when (event) {
+                        Lifecycle.Event.ON_STOP -> discoveryRepository.pauseSensors()
+                        Lifecycle.Event.ON_RESUME -> discoveryRepository.resumeSensors()
+                        else -> {}
+                    }
+                }
+                lifecycleOwner.lifecycle.addObserver(observer)
+                onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+            }
 
             val sessionState by sessionManager.sessionState.collectAsState()
             val currentEvent = sessionState.currentEvent
