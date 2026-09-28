@@ -18,24 +18,105 @@ tasks.register("runLanDebugRelay") {
 
     doFirst {
         val rootDirPath = projectDir.asFile.absolutePath
-        val androidHome = System.getenv("ANDROID_HOME") ?: System.getenv("ANDROID_SDK_ROOT")
-        val adbExecutablePath = if (androidHome != null) {
-            val osName = System.getProperty("os.name").lowercase()
-            val adbName = if (osName.contains("win")) "platform-tools/adb.exe" else "platform-tools/adb"
-            val adbFile = File(androidHome, adbName)
-            if (adbFile.exists()) adbFile.absolutePath else "adb"
-        } else {
-            "adb"
+        val osName = System.getProperty("os.name").lowercase()
+        val adbName = if (osName.contains("win")) "platform-tools/adb.exe" else "platform-tools/adb"
+
+        // Android Studio does not put the SDK's platform-tools on the PATH of a
+        // Gradle daemon, and ANDROID_HOME/ANDROID_SDK_ROOT are often unset
+        // there even when they are set in the shell that launched Studio. So
+        // the env vars are only the first place to look: local.properties is
+        // what Android Studio itself writes and always keeps current, and
+        // $HOME/Library/Android/sdk is the macOS default.
+        val sdkRoots = buildList {
+            System.getenv("ANDROID_HOME")?.let { add(it) }
+            System.getenv("ANDROID_SDK_ROOT")?.let { add(it) }
+            File(rootDirPath, "local.properties")
+                .takeIf { it.isFile }
+                ?.let { props ->
+                    // Values are escaped for a .properties file (\: and \\), so
+                    // unescape before using the path.
+                    runCatching {
+                        java.util.Properties().apply { props.inputStream().use { load(it) } }
+                            .getProperty("sdk.dir")
+                            ?.replace("\\:", ":")
+                            ?.replace("\\\\", "\\")
+                    }.getOrNull()
+                }
+                ?.let { add(it) }
+            if (osName.contains("mac")) {
+                System.getProperty("user.home")?.let { add("$it/Library/Android/sdk") }
+            }
+        }.distinct()
+
+        val adbExecutablePath = sdkRoots
+            .map { File(it, adbName) }
+            .firstOrNull { it.isFile }
+            ?.absolutePath
+            ?: "adb"
+
+        /**
+         * Runs `adb <args>` and returns its trimmed stdout, or null if adb could
+         * not be run or exited non-zero.
+         *
+         * The exit code matters and used to be thrown away: `adb reverse`
+         * without `-s` fails with "more than one device/emulator" whenever an
+         * emulator and a physical phone are both attached, which is exactly the
+         * setup the LAN debug transport exists for. The failure was invisible
+         * because a non-zero exit is not an exception, so the tunnel silently
+         * never got created and the phone could not reach the relay.
+         */
+        fun adb(vararg args: String): String? = try {
+            val process = ProcessBuilder(listOf(adbExecutablePath) + args)
+                .directory(File(rootDirPath))
+                .redirectErrorStream(true)
+                .start()
+            val output = process.inputStream.bufferedReader().readText()
+            if (!process.waitFor(5, TimeUnit.SECONDS)) {
+                process.destroy()
+                null
+            } else if (process.exitValue() == 0) {
+                output.trim()
+            } else {
+                println("[PingRing] adb ${args.joinToString(" ")} failed: ${output.trim()}")
+                null
+            }
+        } catch (e: Exception) {
+            println("[PingRing] adb ${args.joinToString(" ")} could not run: ${e.message}")
+            null
         }
 
-        try {
-            println("[PingRing] Executing adb reverse tcp:8942 tcp:8942...")
-            ProcessBuilder(adbExecutablePath, "reverse", "tcp:8942", "tcp:8942")
-                .directory(File(rootDirPath))
-                .start()
-                .waitFor(3, TimeUnit.SECONDS)
-        } catch (e: Exception) {
-            println("[PingRing] Warning: adb reverse failed (is device connected?): ${e.message}")
+        // One tunnel per device, addressed explicitly by serial. `adb reverse`
+        // with no -s is ambiguous as soon as two targets are attached, and it
+        // would only ever have configured whichever one adb happened to pick.
+        //
+        // Emulators are included: they normally reach the relay through
+        // 10.0.2.2, so the tunnel is harmless there, and it means a device that
+        // falls back to 127.0.0.1 still works.
+        val devices = adb("devices")
+            ?.lineSequence()
+            ?.map { it.trim() }
+            ?.filter { it.isNotEmpty() && !it.startsWith("*") }
+            ?.mapNotNull { line ->
+                val serial = line.split(Regex("\\s+")).firstOrNull()
+                val state = line.split(Regex("\\s+")).getOrNull(1)
+                if (serial != null && state == "device") serial else null
+            }
+            ?.toList()
+            .orEmpty()
+
+        if (devices.isEmpty()) {
+            println("[PingRing] No adb devices in state 'device'. Attach a phone or emulator, then run this again.")
+        } else {
+            var configured = 0
+            devices.forEach { serial ->
+                if (adb("-s", serial, "reverse", "tcp:8942", "tcp:8942") != null) {
+                    println("[PingRing] adb reverse tcp:8942 set on $serial")
+                    configured++
+                } else {
+                    println("[PingRing] Could not set adb reverse on $serial; it cannot reach the relay on 127.0.0.1")
+                }
+            }
+            println("[PingRing] adb reverse configured on $configured of ${devices.size} device(s): ${devices.joinToString(", ")}")
         }
     }
     doLast {
