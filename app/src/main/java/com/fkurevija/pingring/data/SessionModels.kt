@@ -15,7 +15,8 @@ data class Event(
     val useUwb: Boolean = true,
     val useWifiDirect: Boolean = true,
     val useHotspot: Boolean = false,
-    val acceptsNewMembers: Boolean = true
+    val acceptsNewMembers: Boolean = true,
+    val chatNotificationsEnabled: Boolean = true,
 )
 
 @Serializable

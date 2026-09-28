@@ -72,6 +72,7 @@ fun AppSettingsScreen(
 ) {
     var hapticsEnabled by remember { mutableStateOf(true) }
     var notificationsEnabled by remember { mutableStateOf(true) }
+    val chatNotificationsEnabled by appearanceSettings.chatNotificationsEnabled.collectAsState(initial = true)
     var themeMenuExpanded by remember { mutableStateOf(false) }
     var selectedTheme by remember(themeMode) { mutableStateOf(themeMode) }
     val lanDebugEnabled by appearanceSettings.lanDebugEnabled.collectAsState(initial = false)
@@ -204,6 +205,24 @@ fun AppSettingsScreen(
                             Text("Display alerts for nudges and active beacons", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Switch(checked = notificationsEnabled, onCheckedChange = { notificationsEnabled = it })
+                    }
+
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Notifications, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("Chat Push Notifications", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                            Text("Receive system notifications for incoming messages", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Switch(
+                            checked = chatNotificationsEnabled,
+                            onCheckedChange = appearanceSettings::setChatNotificationsEnabled
+                        )
                     }
                 }
             }

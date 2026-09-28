@@ -1,9 +1,15 @@
 package com.fkurevija.pingring.data
 
+import android.Manifest
 import android.annotation.SuppressLint
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.bluetooth.BluetoothManager
 import android.bluetooth.le.*
 import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
@@ -16,7 +22,11 @@ import android.os.VibratorManager
 import android.os.VibrationEffect
 import android.util.Log
 import android.util.Base64
+import androidx.core.app.ActivityCompat
+import androidx.core.app.NotificationCompat
 import androidx.core.uwb.*
+import com.fkurevija.pingring.MainActivity
+import com.fkurevija.pingring.R
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import java.nio.charset.StandardCharsets
@@ -50,7 +60,8 @@ data class ConnectivityStatus(
 class DiscoveryRepository(
     private val context: Context,
     private val sessionManager: SessionManager,
-    private val nearbyConnectionsManager: NearbyTransport
+    private val nearbyConnectionsManager: NearbyTransport,
+    private val appearanceSettings: AppearanceSettingsRepository = AppearanceSettingsRepository(context)
 ) : SensorEventListener {
 
     private val TAG = "DiscoveryRepository"
@@ -257,6 +268,14 @@ class DiscoveryRepository(
                 // If we are the Host, broker & re-broadcast the message outwards to all other connected peers
                 if (sessionManager.sessionState.value.isHost) {
                     nearbyConnectionsManager.broadcastChatMessage(dto)
+                }
+
+                if (dto.senderPeerId != sessionManager.peerId.value) {
+                    val appWideEnabled = appearanceSettings.chatNotificationsEnabled.first()
+                    val eventEnabled = sessionManager.sessionState.value.currentEvent?.chatNotificationsEnabled ?: true
+                    if (appWideEnabled && eventEnabled) {
+                        postChatNotification(chatMessage)
+                    }
                 }
             }
         }
@@ -730,6 +749,8 @@ class DiscoveryRepository(
         const val CLOSURE_ANNOUNCEMENT_DURATION_MILLIS = 5_000L
         const val PEER_CLEANUP_INTERVAL_MILLIS = 5_000L
         const val PEER_EXPIRY_TIMEOUT_MILLIS = 15_000L
+        const val CHAT_CHANNEL_ID = "pingring_chat_channel"
+        const val CHAT_NOTIFICATION_GROUP = "com.fkurevija.pingring.CHAT_NOTIFICATION"
     }
 
     private fun startBleScanning() {
@@ -1141,4 +1162,57 @@ class DiscoveryRepository(
         updateWorldVectors()
     }
 
+    private fun createChatNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHAT_CHANNEL_ID,
+                "PingRing Chat Notifications",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Notifications for incoming chat messages in PingRing"
+                enableVibration(true)
+            }
+            val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            manager.createNotificationChannel(channel)
+        }
+    }
+
+    private fun postChatNotification(chatMessage: ChatMessage) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                return
+            }
+        }
+
+        createChatNotificationChannel()
+
+        val notificationIntent = Intent(context, MainActivity::class.java).apply {
+            action = Intent.ACTION_MAIN
+            addCategory(Intent.CATEGORY_LAUNCHER)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            chatMessage.id.hashCode(),
+            notificationIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val currentEvent = sessionManager.sessionState.value.currentEvent
+        val eventName = currentEvent?.name ?: "PingRing"
+
+        val notification = NotificationCompat.Builder(context, CHAT_CHANNEL_ID)
+            .setContentTitle("$eventName • ${chatMessage.senderName}")
+            .setContentText(chatMessage.messageText)
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
+            .setGroup(CHAT_NOTIFICATION_GROUP)
+            .build()
+
+        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        notificationManager.notify(chatMessage.id.hashCode(), notification)
+    }
 }

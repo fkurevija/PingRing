@@ -24,6 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.GpsFixed
 import androidx.compose.material.icons.filled.GroupAdd
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Sensors
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.Button
@@ -67,7 +68,7 @@ fun HostSetupScreen(
     discoveryRepository: DiscoveryRepository,
     onEndEvent: () -> Unit,
     onSaveUsername: (String) -> Unit,
-    onEventChange: (Boolean, Boolean, Boolean, Boolean) -> Unit,
+    onEventChange: (Boolean, Boolean, Boolean, Boolean, Boolean) -> Unit,
     onView: () -> Unit
 ) {
     var username by remember(savedUsername) { mutableStateOf(savedUsername.ifBlank { "Host" }) }
@@ -76,6 +77,7 @@ fun HostSetupScreen(
     val uwbAvailability = rememberUwbAvailability(discoveryRepository.isUwbSupported())
     var useUwb by remember(uwbAvailability.isUsable) { mutableStateOf(uwbAvailability.isUsable) }
     var useWifiDirect by remember { mutableStateOf(true) }
+    var chatNotificationsEnabled by remember { mutableStateOf(true) }
     var showEndConfirmation by remember { mutableStateOf(false) }
 
     // The PingRing is already live on this screen - the host is advertising as
@@ -242,7 +244,7 @@ fun HostSetupScreen(
                             checked = acceptsNewMembers,
                             onCheckedChange = {
                                 acceptsNewMembers = it
-                                onEventChange(it, trackHost, useUwb, useWifiDirect)
+                                onEventChange(it, trackHost, useUwb, useWifiDirect, chatNotificationsEnabled)
                             }
                         )
                     }
@@ -264,7 +266,7 @@ fun HostSetupScreen(
                             checked = trackHost,
                             onCheckedChange = {
                                 trackHost = it
-                                onEventChange(acceptsNewMembers, it, useUwb, useWifiDirect)
+                                onEventChange(acceptsNewMembers, it, useUwb, useWifiDirect, chatNotificationsEnabled)
                             }
                         )
                     }
@@ -297,7 +299,7 @@ fun HostSetupScreen(
                             enabled = uwbAvailability.isUsable,
                             onCheckedChange = {
                                 useUwb = it
-                                onEventChange(acceptsNewMembers, trackHost, it, useWifiDirect)
+                                onEventChange(acceptsNewMembers, trackHost, it, useWifiDirect, chatNotificationsEnabled)
                             }
                         )
                     }
@@ -330,7 +332,29 @@ fun HostSetupScreen(
                             enabled = wifiDirectSupported,
                             onCheckedChange = {
                                 useWifiDirect = it
-                                onEventChange(acceptsNewMembers, trackHost, useUwb, it)
+                                onEventChange(acceptsNewMembers, trackHost, useUwb, it, chatNotificationsEnabled)
+                            }
+                        )
+                    }
+
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+                    // Chat Notifications switch
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Notifications, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("Chat Notifications", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                            Text("Enable message notifications for this PingRing.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Switch(
+                            checked = chatNotificationsEnabled,
+                            onCheckedChange = {
+                                chatNotificationsEnabled = it
+                                onEventChange(acceptsNewMembers, trackHost, useUwb, useWifiDirect, it)
                             }
                         )
                     }

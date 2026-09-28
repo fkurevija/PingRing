@@ -1,6 +1,7 @@
 package com.fkurevija.pingring.data
 
 import android.content.Context
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -20,7 +21,8 @@ enum class ThemeMode {
 private val Context.appearanceDataStore by preferencesDataStore(name = "appearance")
 private val themeModeKey = stringPreferencesKey("theme_mode")
 private val userNameKey = stringPreferencesKey("user_name")
-private val lanDebugEnabledKey = androidx.datastore.preferences.core.booleanPreferencesKey("lan_debug_enabled")
+private val chatNotificationsEnabledKey = booleanPreferencesKey("chat_notifications_enabled")
+private val lanDebugEnabledKey = booleanPreferencesKey("lan_debug_enabled")
 private val lanDebugHostKey = stringPreferencesKey("lan_debug_host")
 
 class AppearanceSettingsRepository(private val context: Context) {
@@ -36,6 +38,10 @@ class AppearanceSettingsRepository(private val context: Context) {
         preferences[userNameKey] ?: ""
     }
 
+    val chatNotificationsEnabled: Flow<Boolean> = context.appearanceDataStore.data.map { preferences ->
+        preferences[chatNotificationsEnabledKey] ?: true
+    }
+
     fun setThemeMode(mode: ThemeMode) {
         scope.launch {
             context.appearanceDataStore.edit { preferences ->
@@ -48,6 +54,14 @@ class AppearanceSettingsRepository(private val context: Context) {
         scope.launch {
             context.appearanceDataStore.edit { preferences ->
                 preferences[userNameKey] = name
+            }
+        }
+    }
+
+    fun setChatNotificationsEnabled(enabled: Boolean) {
+        scope.launch {
+            context.appearanceDataStore.edit { preferences ->
+                preferences[chatNotificationsEnabledKey] = enabled
             }
         }
     }

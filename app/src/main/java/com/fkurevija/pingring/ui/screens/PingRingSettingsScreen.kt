@@ -18,6 +18,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.GroupAdd
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Sensors
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.Button
@@ -59,6 +60,7 @@ fun PingRingSettingsScreen(
     val uwbAvailability = rememberUwbAvailability(uwbHardwareSupported)
     var useUwb by remember(event, uwbAvailability.isUsable) { mutableStateOf(event.useUwb && uwbAvailability.isUsable) }
     var useWifiDirect by remember(event) { mutableStateOf(event.useWifiDirect) }
+    var chatNotificationsEnabled by remember(event) { mutableStateOf(event.chatNotificationsEnabled) }
 
     Scaffold(
         topBar = {
@@ -91,7 +93,8 @@ fun PingRingSettingsScreen(
                             acceptsNewMembers = acceptsNewMembers,
                             description = if (acceptsNewMembers) "PingRing Event" else "Closed",
                             useUwb = useUwb,
-                            useWifiDirect = useWifiDirect
+                            useWifiDirect = useWifiDirect,
+                            chatNotificationsEnabled = chatNotificationsEnabled
                         ))
                     },
                     modifier = Modifier.weight(1f).height(50.dp),
@@ -185,6 +188,21 @@ fun PingRingSettingsScreen(
                             )
                         }
                         Switch(checked = useWifiDirect && wifiDirectSupported, enabled = wifiDirectSupported, onCheckedChange = { useWifiDirect = it })
+                    }
+
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Notifications, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("Chat Notifications", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                            Text("Notify on incoming chat messages in this PingRing", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Switch(checked = chatNotificationsEnabled, onCheckedChange = { chatNotificationsEnabled = it })
                     }
 
                     HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
