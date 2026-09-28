@@ -71,7 +71,6 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -663,6 +662,8 @@ private fun RadarContent(
     modifier: Modifier
 ) {
     val hotness = ((peer?.rssi ?: -100) + 100).coerceIn(0, 100) / 100f
+    // Signal strength still tints the ring, from cold blue to warm green. It no
+    // longer drives any lit segment: the ring only lights up for a bearing.
     val defaultRingColor = Color.lerp(Color(0xFF3F51B5), Color(0xFF00C853), hotness)
     val ringColor = beacon?.let { Color(it.colorArgb) } ?: defaultRingColor
 
@@ -717,7 +718,6 @@ private fun RadarContent(
             Spacer(Modifier.height(16.dp))
         }
         ProximityRing(
-            progress = hotness,
             color = ringColor,
             arrowDegrees = peer?.azimuth,
             distanceMeters = peer?.distance,
@@ -750,7 +750,6 @@ private fun RadarContent(
 
 @Composable
 private fun ProximityRing(
-    progress: Float,
     color: Color,
     arrowDegrees: Float?,
     distanceMeters: Float?,
@@ -820,10 +819,15 @@ private fun ProximityRing(
             )
 
             // The directional segment: a lit arc of the ring pointing at the
-            // tracked member, widening as they approach. Null when there is no
-            // azimuth, i.e. the member is being tracked by RSSI alone and no
-            // bearing is known - drawing a direction then would point at a
-            // made-up bearing, so the ring stays plain instead.
+            // tracked member, widening as they approach.
+            //
+            // There is deliberately no fallback for a missing bearing. An earlier
+            // version drew the old signal-strength arc instead, which put a lit
+            // highlight on the ring whenever nobody had joined - and because the
+            // sweep was floored at 8%, it drew one even at zero signal. With a
+            // stroke 8% of the canvas and a round cap, that read as a stray blob
+            // rather than as "no direction known". An unlit ring is the honest
+            // state: no bearing means there is nothing to point at.
             val segment = RadarDirectionPolicy.segment(arrowDegrees, distanceMeters)
             if (segment != null) {
                 if (segment.isFullyLit) {
@@ -843,18 +847,6 @@ private fun ProximityRing(
                         style = Stroke(stroke, cap = StrokeCap.Round)
                     )
                 }
-            } else {
-                // No bearing available: fall back to the plain proximity arc so
-                // the ring still shows signal strength rather than nothing.
-                drawArc(
-                    brush = Brush.sweepGradient(listOf(color.copy(alpha = .35f), color)),
-                    startAngle = -90f,
-                    sweepAngle = 360f * progress.coerceAtLeast(.08f),
-                    useCenter = false,
-                    topLeft = Offset(ringRadius, ringRadius),
-                    size = Size(ringRadius * 2, ringRadius * 2),
-                    style = Stroke(stroke, cap = StrokeCap.Round)
-                )
             }
 
             // The needle always points somewhere. With no bearing - nobody
