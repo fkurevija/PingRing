@@ -753,8 +753,6 @@ private fun RadarContent(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-        } else {
-            Text("Keep PingRing open while others join", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         }
     }
