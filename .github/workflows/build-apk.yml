@@ -24,8 +24,15 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      # Must be v4, not v3. v3's `packages` input defaults to
+      # "tools platform-tools", and Google no longer serves the deprecated
+      # tools package, so v3 dies during setup with:
+      #   Warning: Failed to find package 'tools'
+      # v4 defaults to "platform-tools" only. v4 also defaults to a current
+      # cmdline-tools (22.0) rather than v3's 16.0, which predates the API 37
+      # minor-version packages and cannot see them.
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
 
       # API 37 ships as the "37.0" minor release, so the only package
       # sdkmanager offers is platforms;android-37.0. Asking for
