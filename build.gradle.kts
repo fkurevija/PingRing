@@ -9,27 +9,29 @@ plugins {
     alias(libs.plugins.kotlin.jvm) apply false
 }
 
-fun getAdbExecutable(): String {
-    val androidHome = System.getenv("ANDROID_HOME") ?: System.getenv("ANDROID_SDK_ROOT")
-    if (androidHome != null) {
-        val osName = System.getProperty("os.name").lowercase()
-        val adbName = if (osName.contains("win")) "platform-tools/adb.exe" else "platform-tools/adb"
-        val adbFile = File(androidHome, adbName)
-        if (adbFile.exists()) return adbFile.absolutePath
-    }
-    return "adb"
-}
-
 // Runs adb reverse and the debug-only LAN relay server (tools/lan_debug_relay.py)
 tasks.register("runLanDebugRelay") {
     group = "debug tools"
     description = "Automatically runs adb reverse and tools/lan_debug_relay.py for physical device testing."
+
+    val projectDir = layout.projectDirectory
+
     doFirst {
-        val adb = getAdbExecutable()
+        val rootDirPath = projectDir.asFile.absolutePath
+        val androidHome = System.getenv("ANDROID_HOME") ?: System.getenv("ANDROID_SDK_ROOT")
+        val adbExecutablePath = if (androidHome != null) {
+            val osName = System.getProperty("os.name").lowercase()
+            val adbName = if (osName.contains("win")) "platform-tools/adb.exe" else "platform-tools/adb"
+            val adbFile = File(androidHome, adbName)
+            if (adbFile.exists()) adbFile.absolutePath else "adb"
+        } else {
+            "adb"
+        }
+
         try {
             println("[PingRing] Executing adb reverse tcp:8942 tcp:8942...")
-            ProcessBuilder(adb, "reverse", "tcp:8942", "tcp:8942")
-                .directory(rootDir)
+            ProcessBuilder(adbExecutablePath, "reverse", "tcp:8942", "tcp:8942")
+                .directory(File(rootDirPath))
                 .start()
                 .waitFor(3, TimeUnit.SECONDS)
         } catch (e: Exception) {
@@ -37,14 +39,30 @@ tasks.register("runLanDebugRelay") {
         }
     }
     doLast {
-        val relayScript = File(rootDir, "tools/lan_debug_relay.py")
+        val rootDirPath = projectDir.asFile.absolutePath
+        val relayScript = File(rootDirPath, "tools/lan_debug_relay.py")
         if (relayScript.exists()) {
-            val pythonCmd = if (System.getProperty("os.name").lowercase().contains("win")) "python" else "python3"
-            println("[PingRing] Starting LAN debug relay server...")
-            ProcessBuilder(pythonCmd, relayScript.absolutePath, "8942")
-                .directory(rootDir)
-                .start()
-                .waitFor()
+            val osName = System.getProperty("os.name").lowercase()
+            val pythonCmd = if (osName.contains("win")) "python" else "python3"
+            println("[PingRing] Launching LAN debug relay server in a new terminal window...")
+
+            val pb = if (osName.contains("win")) {
+                ProcessBuilder("cmd.exe", "/c", "start", "cmd.exe", "/k", pythonCmd, relayScript.absolutePath, "8942")
+            } else if (osName.contains("mac") || osName.contains("os x")) {
+                ProcessBuilder("osascript", "-e", "tell application \"Terminal\" to do script \"cd \\\"$rootDirPath\\\" && $pythonCmd tools/lan_debug_relay.py 8942\"")
+            } else {
+                val terminals = listOf("gnome-terminal", "konsole", "xterm")
+                val terminal = terminals.firstOrNull {
+                    try { ProcessBuilder("which", it).start().waitFor() == 0 } catch (_: Exception) { false }
+                }
+                when (terminal) {
+                    "gnome-terminal" -> ProcessBuilder("gnome-terminal", "--", "bash", "-c", "cd \"$rootDirPath\" && $pythonCmd tools/lan_debug_relay.py 8942; exec bash")
+                    "konsole" -> ProcessBuilder("konsole", "-e", "bash", "-c", "cd \"$rootDirPath\" && $pythonCmd tools/lan_debug_relay.py 8942; exec bash")
+                    else -> ProcessBuilder("xterm", "-e", "bash", "-c", "cd \"$rootDirPath\" && $pythonCmd tools/lan_debug_relay.py 8942; exec bash")
+                }
+            }
+            pb.directory(File(rootDirPath))
+              .start()
         }
     }
 }
