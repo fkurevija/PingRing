@@ -186,14 +186,12 @@ The compiled APK will be available at:
 
 Google Nearby Connections cannot bridge an Android Emulator and a physical device, since the emulator has no real BLE/Wi-Fi Direct radio. For local development, PingRing ships a **debug-only** TCP transport that virtualizes a connection between them over your PC's LAN/loopback, so multi-device P2P flows can be tested without two physical phones:
 
-1. Start the relay server on your development PC:
-   ```powershell
-   python tools\lan_debug_relay.py
-   ```
-   Or use the bundled IDE run configurations **"LAN Debug Relay"** (relay only) or **"app + LAN Debug Relay"** (compound: launches the app and relay together).
+1. Start the relay server and configure `adb reverse` automatically:
+   - Use the bundled Android Studio run configuration **"app + LAN Debug Relay"** (compound configuration), which automatically executes `adb reverse tcp:8942 tcp:8942` for connected physical devices and launches the Python relay server (`tools/lan_debug_relay.py`) right alongside the app.
+   - Alternatively, you can run the relay manually via `python tools\lan_debug_relay.py` (and run `adb reverse tcp:8942 tcp:8942` manually for physical devices).
 2. Enable **LAN Debug Transport** in the app's Home screen Settings (gear icon, before hosting/joining) on both the emulator and the physical device.
    - The emulator reaches the relay automatically via `10.0.2.2`.
-   - A physical device needs a one-time `adb reverse tcp:8942 tcp:8942` (or a host/IP reachable on your LAN) so it can reach the relay running on your PC.
+   - A physical device uses `127.0.0.1` (automatically forwarded to your PC via `adb reverse`).
 3. Host on one device and join on the other as usual — messages are relayed over TCP instead of Nearby Connections.
 4. Stop the relay with `Ctrl+C` when you are done: the listening socket and every open client connection are closed cleanly, so the port is immediately free for the next run.
 
