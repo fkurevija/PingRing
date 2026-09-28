@@ -1,6 +1,7 @@
 package com.fkurevija.pingring
 
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -65,6 +66,10 @@ import java.util.UUID
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            Log.e("PingRingCrash", "Unhandled exception on thread ${thread.name}", throwable)
+            Thread.getDefaultUncaughtExceptionHandler()?.uncaughtException(thread, throwable)
+        }
         enableEdgeToEdge()
         setContent {
             val context = LocalContext.current.applicationContext
@@ -271,6 +276,7 @@ fun MainNavigation(
                                             isConnecting = false
                                             backStack.resetTo(RadarKey(eventCode))
                                         } else {
+                                            Log.w("PingRingJoin", "Join timeout or failure for event $eventCode: host not found or unavailable.")
                                             sessionManager.leaveEvent()
                                             Toast.makeText(
                                                 context,
