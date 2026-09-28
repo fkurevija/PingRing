@@ -121,7 +121,10 @@ tasks.register("runLanDebugRelay") {
     }
     doLast {
         val rootDirPath = projectDir.asFile.absolutePath
-        val relayScript = File(rootDirPath, "tools/lan_debug_relay.py")
+        // Launch the wrapper rather than lan_debug_relay.py directly: it sets
+        // the per-device adb reverse tunnels and stops any relay left over from
+        // a previous run, which would otherwise still be holding port 8942.
+        val relayScript = File(rootDirPath, "tools/start_lan_debug_relay.py")
         if (relayScript.exists()) {
             val osName = System.getProperty("os.name").lowercase()
             val pythonCmd = if (osName.contains("win")) "python" else "python3"
