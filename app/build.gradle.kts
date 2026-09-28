@@ -5,6 +5,8 @@ plugins {
     alias(libs.plugins.jetbrains.kotlin.plugin.serialization)
 }
 
+import java.util.concurrent.TimeUnit
+
 android {
     namespace = "com.fkurevija.pingring"
     compileSdk {
