@@ -109,7 +109,20 @@ cd PingRing
 
 On Windows (PowerShell): `.\gradlew.bat testDebugUnitTest assembleDebug`
 
-The APK lands at `app/build/outputs/apk/debug/app-debug.apk`. Pushing a `v*` tag also builds and publishes it as a GitHub Release via the **Build APK** workflow; every other push rolls a `latest` release forward.
+The APK lands at `app/build/outputs/apk/debug/app-debug.apk`.
+
+**Releases.** Every push to `master` rolls a single `latest` release forward, overwriting the previous APK — it is a pointer to the newest build, not a history. Run artifacts keep each build for 90 days.
+
+To keep a build permanently, tag it. A `v*` tag publishes an **immutable** release that is never replaced:
+
+```bash
+python tools/tag_release.py            # preview what has landed, changes nothing
+python tools/tag_release.py --create   # create and push the tag
+```
+
+It suggests the next patch version, refuses to tag a dirty tree, and points the tag at an explicit commit rather than a branch name, so the release cannot move when `master` advances. Pushing the tag triggers the versioned release path in **Build APK**.
+
+The script also judges whether a release is warranted, counting `feat`/`fix`/`perf` commits as user-facing and ignoring docs, CI and internal work. Every master build writes that assessment to its GitHub Actions run summary, so the suggestion appears where it will be seen — CI advises, it never tags on your behalf.
 
 ### 🧪 LAN Debug Transport (Emulator ↔ Physical Device)
 
@@ -183,7 +196,7 @@ Two kinds of item: things that are **built but unverified**, and things **not bu
 - **Wi-Fi Direct / hotspot switches are inert.** `useWifiDirect` and `useHotspot` are carried into `AdvertisingOptions.Builder`, which sets neither, so both UI controls toggle a field with no effect. Hotspot mode itself is never implemented. This is the one item here that can actively mislead a user rather than merely be unfinished.
 - **Advert flags are one bit from trouble.** `acceptsNewMembers` sits at bit 6; current combinations stay under 128, but any flag above bit 6 would truncate the byte silently.
 - **A retained member cannot be confirmed gone.** Holding a UWB session open across a transport drop buys an instant reconnect, but the far end stopping to range is indistinguishable from it having left the ring or from the host having ended it — all three produce the same silence. The app therefore reports a silent session as *unreachable* and says so, rather than claiming the member left. A real fix needs both sides to agree on a farewell message, which needs the transport that has just dropped.
-- **The `latest` release rolls on every non-tag push**, feature branches included. Restrict to `master` if releases should track it.
+- **The `latest` release rolls on every non-tag push**, feature branches included. Restrict to `master` if releases should track it. Only tag pushes create a permanent version, so a build worth keeping is lost after 90 days unless it is tagged.
 
 ### Out of scope
 
