@@ -96,6 +96,7 @@ graph TD
 - **6-Character PingRing Code**: Manual fallback entry for quick code typing (`e.g. AB12CD`).
 - **Context-Aware Keyboards**: Automatically opens the soft keyboard in **ALL CAPS** for code fields and **Word Capitalization** for usernames.
 - **Late-Join QR Access**: When new member acceptance is enabled, a dedicated QR icon button on the Radar screen re-opens the PingRing's QR code at any time so latecomers can scan in mid-event without interrupting the host. If new member acceptance is disabled, the QR button is hidden.
+- **Join Failure Validation & Retry**: Verifies host connection during join attempts with a 2.5s timeout. If the host is unavailable or joining fails, the app displays a toaster error, cleans up the session, and keeps the user on the join screen to retry.
 
 ### 👋 Peer Nudges
 - **Instant Haptic Alerts**: Send quick targeted nudges (`👋`) to specific peers or broadcast a **Nudge All** to the entire group.
@@ -112,6 +113,7 @@ graph TD
 - **Sender Labels**: Every chat bubble is labeled with the sender's display name for clear multi-peer conversations.
 - **Floating IME Overlay**: The chat window floats directly over the radar canvas when typing, providing clear visibility of messages, and smoothly returns to its docked position when the soft keyboard closes.
 - **Host-Preserved History**: The Host retains the full chat transcript for the life of the PingRing and replays it to newly joined or reconnecting peers, so latecomers can catch up on the conversation so far.
+- **Configurable Push Notifications**: Enable or disable notifications for incoming chat messages app-wide in App Settings and per-PingRing in Event Settings.
 
 ### 🧭 Radar & Sensor Fusion Ranging
 - **Real-World Orientation**: Sensor fusion integrates rotation-vector, magnetometer, and accelerometer hardware to orient peer vectors into world space.
