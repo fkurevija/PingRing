@@ -94,6 +94,17 @@ jobs:
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
 
+      # Advise rather than act. `latest` is overwritten on every master push, so
+      # a build only becomes permanent once tagged, and that is a judgement call
+      # about whether a change is worth keeping - not something CI should make
+      # on the author's behalf. This surfaces the suggestion in the run summary
+      # where it will actually be seen, and stays quiet when only docs, CI or
+      # internal changes have landed.
+      - name: Suggest a release if the changes are notable
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        run: |
+          python tools/tag_release.py >> "$GITHUB_STEP_SUMMARY"
+
   # Publishing is a separate job so the release path can be conditioned on
   # the trigger without duplicating the whole Android build.
   publish-apk:
@@ -155,8 +166,17 @@ jobs:
 
           # --clobber replaces the asset on an existing release, so repeated
           # runs update `latest` rather than failing on a duplicate filename.
+          #
+          # `gh release upload` accepts only --clobber and --repo, so the notes
+          # cannot be set here: passing --notes-file makes it exit 1 with
+          # "unknown flag". Notes are written by `gh release edit` below, which
+          # does support it.
           if gh release view latest >/dev/null 2>&1; then
-            gh release upload latest "$apk_path" --clobber --notes-file "$notes"
+            gh release upload latest "$apk_path" --clobber
+            gh release edit latest --notes-file "$notes"
+            # Keep the rolling tag on the newest commit, so the release page
+            # always points at the build it actually contains.
+            gh release edit latest --target "${{ github.sha }}" || true
             echo "Updated rolling latest release"
           else
             # Moving the tag keeps the release page pinned to new builds.
