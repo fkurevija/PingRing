@@ -30,6 +30,8 @@ import androidx.compose.material.icons.filled.BluetoothDisabled
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.GpsFixed
+import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material3.OutlinedButton
@@ -103,6 +105,7 @@ import com.fkurevija.pingring.data.BeaconPreset
 import com.fkurevija.pingring.data.BeaconVibrationPattern
 import com.fkurevija.pingring.data.ConnectivityStatus
 import com.fkurevija.pingring.data.DiscoveryRepository
+import com.fkurevija.pingring.data.FocusPolicy
 import com.fkurevija.pingring.data.MAX_PARTICIPANTS
 import com.fkurevija.pingring.data.RadarPeerUpdate
 import com.fkurevija.pingring.data.SessionState
@@ -169,10 +172,30 @@ fun RadarScreen(
     val localBeacon by discoveryRepository?.localBeacon?.collectAsState()
         ?: remember { mutableStateOf(null) }
     val haptic = LocalHapticFeedback.current
-    val nearest = peers.minByOrNull { it.distance ?: Float.MAX_VALUE }
 
-    LaunchedEffect(nearest?.peerId, nearest?.distance) {
-        val distance = nearest?.distance ?: return@LaunchedEffect
+    // The focused member, chosen by the user or defaulted by FocusPolicy. The
+    // radar draws only this person, which is what makes a full 8-member
+    // PingRing readable, and the UWB session follows the same choice.
+    val focusSelection by discoveryRepository?.focusedPeerId?.collectAsState()
+        ?: remember { mutableStateOf(null) }
+    val nearest = peers.minByOrNull { it.distance ?: Float.MAX_VALUE }
+    val focusedPeer = remember(peers, focusSelection, sessionState, isHost, trackHost) {
+        val resolvedId = FocusPolicy.resolveFocus(
+            selectedPeerId = focusSelection,
+            availablePeerIds = peers.map { it.peerId },
+            nearestPeerId = nearest?.peerId,
+            isHost = isHost,
+            trackHost = trackHost,
+            localPeerId = discoveryRepository?.localPeerId ?: "",
+            hostPeerId = sessionState.currentEvent?.hostPeerId
+        )
+        peers.firstOrNull { it.peerId == resolvedId }
+    }
+
+    // Proximity feedback follows the tracked member, not whoever happens to be
+    // closest, so it is a haptic about the person the user is actually watching.
+    LaunchedEffect(focusedPeer?.peerId, focusedPeer?.distance) {
+        val distance = focusedPeer?.distance ?: return@LaunchedEffect
         if (distance < 2f) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
     }
 
@@ -189,7 +212,6 @@ fun RadarScreen(
     }
 
     val senderName = sessionState.userName.ifBlank { if (isHost) "Host" else "Peer" }
-    val focusedPeer = if (isHost || !trackHost) nearest else peers.firstOrNull()
     val focusedBeacon = focusedPeer?.let { activeBeacons[it.peerId] } ?: localBeacon
 
     Scaffold(
@@ -355,7 +377,16 @@ fun RadarScreen(
                             focusedBeacon,
                             Modifier.width(paneWidth)
                         )
-                        PeerList(peers, connectivity, discoveryRepository, activeBeacons, senderName, Modifier.width(paneWidth))
+                        PeerList(
+                            peers,
+                            connectivity,
+                            discoveryRepository,
+                            activeBeacons,
+                            senderName,
+                            focusedPeerId = focusSelection,
+                            onFocusPeer = { discoveryRepository?.setFocusedPeer(it) },
+                            modifier = Modifier.width(paneWidth)
+                        )
                     }
                 } else {
                     var chatText by remember { mutableStateOf("") }
@@ -761,6 +792,8 @@ private fun PeerList(
     repository: DiscoveryRepository?,
     activeBeacons: Map<String, BeaconInfo>,
     senderName: String,
+    focusedPeerId: String?,
+    onFocusPeer: (String?) -> Unit,
     modifier: Modifier
 ) {
     Column(modifier.padding(bottom = 8.dp)) {
@@ -810,12 +843,16 @@ private fun PeerList(
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(peers, key = { it.peerId }) { peer ->
                     val peerBeacon = activeBeacons[peer.peerId]
+                    val isFocused = peer.peerId == focusedPeerId
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = if (peerBeacon != null) {
-                            CardDefaults.cardColors(containerColor = Color(peerBeacon.colorArgb).copy(alpha = 0.12f))
-                        } else {
-                            CardDefaults.cardColors()
+                        colors = when {
+                            peerBeacon != null ->
+                                CardDefaults.cardColors(containerColor = Color(peerBeacon.colorArgb).copy(alpha = 0.12f))
+                            isFocused ->
+                                CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                            else ->
+                                CardDefaults.cardColors()
                         }
                     ) {
                         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -831,6 +868,15 @@ private fun PeerList(
                             Column(Modifier.weight(1f)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(peer.name, fontWeight = FontWeight.SemiBold)
+                                    if (isFocused) {
+                                        Spacer(Modifier.width(6.dp))
+                                        Text(
+                                            "TRACKING",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
                                     if (peerBeacon != null) {
                                         Spacer(Modifier.width(6.dp))
                                         Text(
@@ -850,6 +896,26 @@ private fun PeerList(
                                 modifier = Modifier.size(36.dp)
                             ) {
                                 Text("👋", style = MaterialTheme.typography.titleMedium)
+                            }
+                            // Tapping the row makes this the one member the
+                            // radar draws and the UWB session ranges. Tapping
+                            // the tracked member again returns to auto, so the
+                            // choice is always reversible without leaving the
+                            // screen.
+                            IconButton(
+                                onClick = { onFocusPeer(if (isFocused) null else peer.peerId) },
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(
+                                    if (isFocused) Icons.Default.MyLocation else Icons.Default.GpsFixed,
+                                    contentDescription = if (isFocused) "Stop tracking ${peer.name}" else "Track ${peer.name}",
+                                    tint = if (isFocused) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    },
+                                    modifier = Modifier.size(20.dp)
+                                )
                             }
                         }
                     }

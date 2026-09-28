@@ -167,6 +167,45 @@ class DiscoveryRepository(
     // moving average so the readout does not jitter with every advertisement.
     private val estimatedDistances = mutableMapOf<String, Float?>()
 
+    /**
+     * The member the user has chosen to track, or null for "auto" (nearest).
+     *
+     * This is a *view and ranging* choice only. It deliberately does not
+     * filter incoming traffic: every member still receives every message,
+     * beacon and nudge, so narrowing the radar never silences anyone.
+     */
+    private val _focusedPeerId = MutableStateFlow<String?>(null)
+    val focusedPeerId: StateFlow<String?> = _focusedPeerId.asStateFlow()
+
+    /** Peers with a live transport connection, which is who can be ranged. */
+    private val connectedPeerIds = mutableSetOf<String>()
+
+    fun setFocusedPeer(peerId: String?) {
+        _focusedPeerId.value = peerId
+        Log.i(TAG, "Radar focus set to ${peerId ?: "auto (nearest)"}")
+        onFocusChanged()
+    }
+
+    /**
+     * Resolves the focused member, or null when there is nobody to focus on.
+     */
+    fun resolveFocusedPeer(): String? {
+        val state = sessionManager.sessionState.value
+        val event = state.currentEvent ?: return null
+        val nearest = _peerUpdates.value.values
+            .minByOrNull { it.distance ?: Float.MAX_VALUE }
+            ?.peerId
+        return FocusPolicy.resolveFocus(
+            selectedPeerId = _focusedPeerId.value,
+            availablePeerIds = _peerUpdates.value.keys.toList(),
+            nearestPeerId = nearest,
+            isHost = state.isHost,
+            trackHost = event.trackHost,
+            localPeerId = sessionManager.peerId.value,
+            hostPeerId = event.hostPeerId
+        )
+    }
+
     init {
         rotationMatrix[0] = 1f
         rotationMatrix[4] = 1f
@@ -298,6 +337,10 @@ class DiscoveryRepository(
         repositoryScope?.launch {
             nearbyConnectionsManager.connectionEstablished.collect { peerId ->
                 addConnectedPeer(peerId)
+                // A peer with a live connection is the only kind that can be
+                // UWB-ranged, so this is what makes it eligible as a focus.
+                connectedPeerIds.add(peerId)
+                onFocusChanged()
                 if (sessionManager.sessionState.value.isHost) {
                     val history = sessionManager.sessionState.value.chatMessages.map { message ->
                         ChatPayloadDto(
@@ -319,7 +362,12 @@ class DiscoveryRepository(
         repositoryScope?.launch {
             nearbyConnectionsManager.peerDisconnected.collect { peerId ->
                 Log.i(TAG, "Peer $peerId disconnected; removing it from the radar")
+                connectedPeerIds.remove(peerId)
+                peerUwbAddresses.remove(peerId)
                 removePeer(peerId)
+                // If that was the member being tracked, the focus has to be
+                // re-resolved or the UWB session would sit on a dead peer.
+                onFocusChanged()
             }
         }
 
@@ -442,23 +490,17 @@ class DiscoveryRepository(
         uwbSessionJob = null
         activeRangingJobs.values.forEach { it.cancel() }
         activeRangingJobs.clear()
+        // The focus is per-session state: peer ids are ephemeral, so carrying a
+        // selection into the next event would point the radar at nobody.
+        activeFocusRangingJob?.cancel()
+        activeFocusRangingJob = null
+        activeFocusRangingTarget = null
+        connectedPeerIds.clear()
+        peerUwbAddresses.clear()
+        _focusedPeerId.value = null
         repositoryScope?.cancel()
         repositoryScope = null
         _peerUpdates.value = emptyMap()
-    }
-
-    private val scanCallback = object : ScanCallback() {
-        override fun onScanResult(callbackType: Int, result: ScanResult?) {
-            result?.let { handleScanResult(it) }
-        }
-
-        override fun onBatchScanResults(results: MutableList<ScanResult>?) {
-            results?.forEach { handleScanResult(it) }
-        }
-
-        override fun onScanFailed(errorCode: Int) {
-            Log.e(TAG, "BLE Scan failed: $errorCode")
-        }
     }
 
     fun broadcastOutgoingChatMessage(text: String, senderName: String) {
@@ -599,11 +641,7 @@ class DiscoveryRepository(
             (if (currentEvent.acceptsNewMembers) acceptsNewMembersFlag else 0)
         val servicePayload = buildServicePayload(currentEvent.id.hashCode(), flags, peerIdBytes)
 
-        val settings = AdvertiseSettings.Builder()
-            .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
-            .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
-            .setConnectable(false)
-            .build()
+        val settings = BleRangePolicy.advertiseSettings()
 
         val data = AdvertiseData.Builder()
             .setIncludeDeviceName(false)
@@ -721,11 +759,7 @@ class DiscoveryRepository(
             closureAdvertiseCallback = callback
             closureAdvertisingActive = false
             advertiser.startAdvertising(
-                AdvertiseSettings.Builder()
-                    .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
-                    .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
-                    .setConnectable(false)
-                    .build(),
+                BleRangePolicy.advertiseSettings(),
                 data,
                 callback
             )
@@ -772,7 +806,22 @@ class DiscoveryRepository(
 
         /** Two short pulses: distinguishable from a chat message, not a nuisance. */
         val CHAT_VIBRATION_PATTERN = longArrayOf(0, 120, 90, 120)
+
+        /**
+         * Debounce before moving the UWB session to a newly focused member.
+         * Switching costs a handshake, so flicking through the member list must
+         * not open and abandon a session per tap.
+         */
+        const val UWB_FOCUS_SETTLE_MILLIS = 750L
     }
+
+    /**
+     * Scan callbacks, one per pass. Android delivers every matching advert to
+     * each registered callback, so the callbacks deliberately share one
+     * [scanCallback] implementation and differ only in the settings they were
+     * registered with.
+     */
+    private val scanCallbacks = mutableListOf<ScanCallback>()
 
     private fun startBleScanning() {
         val adapter = bluetoothAdapter ?: return
@@ -783,23 +832,46 @@ class DiscoveryRepository(
             .setServiceUuid(ParcelUuid(PINGRING_SERVICE_UUID))
             .build()
 
-        val settings = ScanSettings.Builder()
-            .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
-            .build()
+        val extended = BleRangePolicy.supportsExtendedAdvertising(context)
+        val passes = BleRangePolicy.scanPassCount(extended)
+        BleRangePolicy.logSummary(context)
 
-        try {
-            bleScanner?.startScan(listOf(filter), settings, scanCallback)
-        } catch (e: Exception) {
-            Log.e(TAG, "Exception starting BLE scanning", e)
+        // Each pass gets its own ScanCallback instance: Android treats the
+        // callback identity as the scan request, so reusing one would replace
+        // the previous pass rather than add to it.
+        repeat(passes) { pass ->
+            val callback = object : ScanCallback() {
+                override fun onScanResult(callbackType: Int, result: ScanResult?) {
+                    result?.let { handleScanResult(it) }
+                }
+
+                override fun onBatchScanResults(results: MutableList<ScanResult>?) {
+                    results?.forEach { handleScanResult(it) }
+                }
+
+                override fun onScanFailed(errorCode: Int) {
+                    Log.e(TAG, "BLE scan pass $pass failed: $errorCode")
+                }
+            }
+            val settings = BleRangePolicy.scanSettingsForPass(pass, extended)
+            try {
+                bleScanner?.startScan(listOf(filter), settings, callback)
+                scanCallbacks.add(callback)
+            } catch (e: Exception) {
+                Log.e(TAG, "Exception starting BLE scan pass $pass", e)
+            }
         }
     }
 
     private fun stopBleScanning() {
-        try {
-            bleScanner?.stopScan(scanCallback)
-        } catch (e: Exception) {
-            Log.e(TAG, "Exception stopping BLE scanning", e)
+        scanCallbacks.forEach { callback ->
+            try {
+                bleScanner?.stopScan(callback)
+            } catch (e: Exception) {
+                Log.e(TAG, "Exception stopping a BLE scan pass", e)
+            }
         }
+        scanCallbacks.clear()
         bleScanner = null
     }
 
@@ -1079,6 +1151,115 @@ class DiscoveryRepository(
         }
     }
 
+    /**
+     * The UWB session currently open, so a change of focus can close it before
+     * opening the next. Only ever one at a time: the platform is built for a
+     * single ranging session, and holding several is what made ranging degrade
+     * once a PingRing filled up.
+     */
+    private var activeFocusRangingJob: Job? = null
+    private val peerUwbAddresses = mutableMapOf<String, String>()
+
+    /**
+     * Re-points the UWB radio at whoever is now focused.
+     *
+     * This is the payoff of the focus filter: instead of trying to range seven
+     * people at once, the radio holds exactly one session and moves it. The
+     * switch costs a fresh handshake, so it is debounced - a user flicking
+     * through the member list should not open and abandon a session per tap.
+     */
+    private fun onFocusChanged() {
+        val manager = uwbManager ?: return
+        val scope = repositoryScope ?: return
+        val state = sessionManager.sessionState.value
+        val event = state.currentEvent ?: return
+        if (!event.useUwb) return
+
+        val target = FocusPolicy.rangingTarget(
+            focusPeerId = resolveFocusedPeer(),
+            isHost = state.isHost,
+            trackHost = event.trackHost,
+            hostPeerId = event.hostPeerId,
+            connectedPeerIds = connectedPeerIds.toSet()
+        )
+        val targetId = (target as? FocusPolicy.RangingTarget.Peer)?.peerId
+        if (activeFocusRangingJob?.isActive == true && targetId == activeFocusRangingTarget) return
+        activeFocusRangingJob?.cancel()
+        activeFocusRangingTarget = targetId
+        if (targetId == null) {
+            Log.i(TAG, "UWB ranging idle: no focused member to range")
+            return
+        }
+
+        val address = peerUwbAddresses[targetId]
+        if (address == null) {
+            Log.i(TAG, "UWB ranging idle: $targetId has not shared a UWB address yet")
+            return
+        }
+
+        val isHost = (target as FocusPolicy.RangingTarget.Peer).isHost
+        activeFocusRangingJob = scope.launch {
+            // Let a rapid change of selection settle before spending a
+            // handshake on it.
+            delay(UWB_FOCUS_SETTLE_MILLIS)
+            try {
+                Log.i(TAG, "UWB: ranging $targetId${if (isHost) " (host)" else ""} at $address")
+                val eventId = sessionManager.sessionState.value.currentEvent?.id ?: return@launch
+                val sessionId = eventId.hashCode()
+                if (isHost) {
+                    // The host holds the controller scope and therefore has to
+                    // drive. It publishes the channel and STS key the guest
+                    // needs, which is why this is the only direction that can
+                    // invent them.
+                    val controller = manager.controllerSessionScope()
+                    val sessionKey = ByteArray(8).also(SecureRandom()::nextBytes)
+                    nearbyConnectionsManager.sendUwbParameters(
+                        targetId,
+                        UwbControllerParametersDto(
+                            hostPeerId = localPeerId(),
+                            controllerAddress = controller.localAddress.toString(),
+                            channel = controller.uwbComplexChannel.channel,
+                            preambleIndex = controller.uwbComplexChannel.preambleIndex,
+                            sessionId = sessionId,
+                            staticStsKey = Base64.encodeToString(sessionKey, Base64.NO_WRAP)
+                        )
+                    )
+                    controller.prepareSession(
+                        RangingParameters(
+                            RangingParameters.CONFIG_UNICAST_DS_TWR,
+                            sessionId,
+                            0,
+                            sessionKey,
+                            null,
+                            null,
+                            listOf(UwbDevice.createForAddress(address)),
+                            RangingParameters.RANGING_UPDATE_RATE_FREQUENT
+                        )
+                    ).collect { result -> updateUwbPosition(targetId, result) }
+                } else {
+                    // A guest ranging a *guest*. The transport only carries
+                    // controller parameters from the host, so there is no way
+                    // for one guest to hand another the channel and STS key
+                    // they must both agree on. Until the transport can relay
+                    // that handshake peer-to-peer, this stays unsupported
+                    // rather than silently ranging against parameters the two
+                    // sides would not share.
+                    Log.w(
+                        TAG,
+                        "UWB: cannot range $targetId; the transport only supports " +
+                            "host-to-member ranging, and this device is a guest targeting another guest"
+                    )
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "UWB focus session with $targetId failed; peer falls back to RSSI", e)
+            }
+        }
+    }
+
+    private var activeFocusRangingTarget: String? = null
+
+    private fun localPeerId(): String = sessionManager.peerId.value
+
     private fun startUwbRangingSession() {
         val manager = uwbManager
         val scope = repositoryScope ?: return
@@ -1105,6 +1286,14 @@ class DiscoveryRepository(
 
                     // Launch a separate coroutine to handle each peer connection
                     nearbyConnectionsManager.receivedPeerAddress.collect { peer ->
+                        // Record the address regardless of whether a session is
+                        // started: the focus-driven session above needs it too,
+                        // and a peer that shared one while it was not the
+                        // focused member is exactly the peer the user will want
+                        // to focus next.
+                        peerUwbAddresses[peer.peerId] = peer.address
+                        onFocusChanged()
+
                         // Don't start a new session if one is already active for this peer
                         if (activeRangingJobs[peer.peerId]?.isActive == true) return@collect
 
