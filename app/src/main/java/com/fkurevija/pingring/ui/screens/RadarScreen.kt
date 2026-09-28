@@ -67,6 +67,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -760,14 +761,30 @@ private fun ProximityRing(
     )
 
     Box(modifier, contentAlignment = Alignment.Center) {
-        Canvas(Modifier.fillMaxSize()) {
+        Canvas(
+            Modifier
+                .fillMaxSize()
+                // The beacon pulse is deliberately drawn larger than the ring
+                // (see beaconPulseRadius above), so without this it escapes the
+                // composable's bounds and paints over whatever sits above the
+                // radar - the top bar, in this layout. Clipping keeps the
+                // overspill as a visual fade at the edge rather than an
+                // overlay across the app bar.
+                .clipToBounds()
+        ) {
             val stroke = size.minDimension * .08f
+            // The outermost drawable extent, so nothing is clipped mid-stroke
+            // and the ring keeps its full width against the edge.
+            val maxRadius = (size.minDimension - stroke) / 2f
 
-            // Pulsing beacon wave if active
+            // Pulsing beacon wave if active. The animated radius is clamped to
+            // the drawable extent: the wave still grows as it fades, but it
+            // reaches the edge rather than passing through it, so the pulse
+            // reads as expanding outwards without leaving the canvas.
             if (beacon != null) {
                 drawCircle(
                     color = color.copy(alpha = beaconPulseAlpha),
-                    radius = (size.minDimension / 2) * beaconPulseRadius,
+                    radius = maxRadius * beaconPulseRadius.coerceAtMost(1f),
                     style = Stroke(stroke * 0.7f)
                 )
             }
