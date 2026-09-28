@@ -1,5 +1,3 @@
-<div align="center">
-
 # 🎯 PingRing
 
 **Serverless, Real-Time P2P Crowd-Finding & Peer Coordination for Android**
@@ -17,40 +15,17 @@
 
 ---
 
-</div>
-
-## 📌 Table of Contents
-- [Overview](#-overview)
-- [System Architecture](#-system-architecture)
-- [Key Features](#-key-features)
-  - [📡 Mesh Networking & Connectivity](#-mesh-networking--connectivity)
-  - [👤 User Profiles & Uniqueness](#-user-profiles--uniqueness)
-  - [📱 QR & PingRing Code Join](#-qr--pingring-code-join)
-  - [👋 Peer Nudges](#-peer-nudges)
-  - [🚨 Customizable Peer Beacons](#-customizable-peer-beacons)
-  - [💬 Decentralized Chat](#-decentralized-chat)
-  - [🧭 Radar & Sensor Fusion Ranging](#-radar--sensor-fusion-ranging)
-  - [🎨 Dynamic Theming & App Icon](#-dynamic-theming--app-icon)
-  - [🛡 Hardware Adaptation & Device-Aware Permissions](#-hardware-adaptation--device-aware-permissions)
-  - [🔒 Privacy & Ephemeral Security](#-privacy--ephemeral-security)
-- [Tech Stack](#-tech-stack)
-- [Building & Testing](#-building--testing)
-  - [🧪 LAN Debug Transport (Emulator ↔ Physical Device Testing)](#-lan-debug-transport-emulator--physical-device-testing)
-- [Privacy Model](#-privacy-model)
-
----
-
 ## 📖 Overview
 
-**PingRing** is a native Android crowd-finding application designed for short-lived, high-density events (music festivals, conventions, sports venues, or rallies) where cellular networks are often congested or unavailable.
+**PingRing** is a native Android app for short-lived, high-density events (festivals, conventions, sports venues, rallies) where cellular networks are congested or unavailable.
 
-By leveraging **Google Nearby Connections**, **Bluetooth Low Energy (BLE)**, and **Ultra-wideband (UWB)**, PingRing forms an ad-hoc local peer-to-peer mesh network directly between nearby smartphones. Participants can locate each other on a real-world radar, send haptic nudges, broadcast emergency/intent beacons, and chat in real time without cellular data or an external server.
+Using **Nearby Connections**, **BLE** and **UWB**, it forms an ad-hoc peer-to-peer mesh directly between nearby phones. Participants locate each other on a real-world radar, send haptic nudges, broadcast beacons, and chat in real time — with no cellular data and no external server.
 
 ---
 
 ## 🏗 System Architecture
 
-PingRing uses a star/mesh hybrid architecture over Nearby Connections (`P2P_STAR` strategy) with BLE background discovery.
+Star/mesh hybrid over Nearby Connections (`P2P_STAR`) with BLE background discovery.
 
 ```mermaid
 graph TD
@@ -70,70 +45,38 @@ graph TD
 ```
 
 ### Protocol Flow
-1. **Discovery**: Host advertises the PingRing over BLE Service UUID (`0000fa1b-0000-1000-8000-00805f9b34fb`).
+1. **Discovery**: Host advertises over BLE Service UUID `0000fa1b-0000-1000-8000-00805f9b34fb`.
 2. **P2P Handshake**: Guests discover the advertiser and establish an encrypted Nearby Connections session.
-3. **Data Sync**: Chat messages, nudges, and beacon payloads are brokered and re-broadcasted by the Host to all connected nodes.
-4. **Spatial Ranging**: High-precision UWB sessions run concurrently between nodes for sub-metre 3D positioning (distance, azimuth, elevation).
+3. **Data Sync**: The Host brokers and re-broadcasts chat, nudges, and beacons to all connected nodes.
+4. **Spatial Ranging**: Concurrent UWB sessions run for sub-metre 3D positioning (distance, azimuth, elevation).
 
 ---
 
 ## ✨ Key Features
 
-### 📡 Mesh Networking & Connectivity
-- **One-Tap Hosting**: Instantly start a local PingRing mesh without server registration.
-- **Accept New Members Control**: Host can toggle whether new members can join at creation or mid-event from PingRing Settings. When disabled, incoming connection attempts are rejected, BLE status flags update, and the top bar QR Code button on the Radar screen is hidden until re-enabled.
-- **Hardware Toggles**: Enable or disable **Ultra-Wideband (UWB)** and **High-Bandwidth Wi-Fi Direct** on the fly.
-- **Bounded Participant Capacity**: Enforces a maximum capacity limit of **8 participants** (1 Host + 7 Guests) per PingRing. Prevents Android radio/socket starvation and guarantees high-performance 30 FPS UWB ranging and instant P2P messaging. The Host automatically rejects connection attempts once full (`8/8 - Full`).
-- **Automatic Fallback**: Gracefully falls back from sub-metre UWB ranging to BLE RSSI proximity if UWB is unsupported or unavailable.
+### 📡 Mesh & Connectivity
+- **One-tap hosting**, no server registration. UWB and high-bandwidth Wi-Fi Direct toggleable on the fly.
+- **Admission control**: the Host can stop accepting members at creation or mid-event; connection attempts are then rejected, BLE status flags update, and the Radar's QR button hides until re-enabled.
+- **Bounded capacity**: max **8 participants** (1 Host + 7 Guests), enforced by the Host (`8/8 - Full`). Prevents radio/socket starvation, guaranteeing 30 FPS UWB ranging and instant messaging.
+- **Automatic fallback** from sub-metre UWB to BLE RSSI proximity when UWB is unsupported or unavailable.
 
-### 👤 User Profiles & Uniqueness
-- **Custom Usernames**: Easily set your display name when hosting or joining.
-- **Persistent Local Profile**: Saves your last entered username locally via DataStore preferences for automatic pre-filling on future sessions.
-- **Conflict Prevention**: Enforces name uniqueness within the active PingRing session and alerts you if a chosen username is already taken.
+### 👤 Identity, Join & Nudges
+- **Custom usernames**, saved locally via DataStore and pre-filled on future sessions. Names are enforced unique within a session, with an alert on collision.
+- **Join via QR** (ML Kit, on the Host's on-screen code) or a **6-character PingRing Code** (`e.g. AB12CD`). Code fields force ALL CAPS, usernames use Word Capitalization. The Radar's QR button re-opens the code mid-event for latecomers.
+- **Join validation**: a 2.5s timeout verifies the host; on failure the session is cleaned up and the user stays on the join screen to retry.
+- **Nudges** (`👋`) target a specific peer or broadcast to all. Recipients get a distinct double-vibration pulse and banner. The button stays enabled regardless of connection or ranging state.
 
-### 📱 QR & PingRing Code Join
-- **Camera QR Scanner**: Join instantly by scanning the Host's on-screen QR code using ML Kit vision decoding.
-- **6-Character PingRing Code**: Manual fallback entry for quick code typing (`e.g. AB12CD`).
-- **Context-Aware Keyboards**: Automatically opens the soft keyboard in **ALL CAPS** for code fields and **Word Capitalization** for usernames.
-- **Late-Join QR Access**: When new member acceptance is enabled, a dedicated QR icon button on the Radar screen re-opens the PingRing's QR code at any time so latecomers can scan in mid-event without interrupting the host. If new member acceptance is disabled, the QR button is hidden.
-- **Join Failure Validation & Retry**: Verifies host connection during join attempts with a 2.5s timeout. If the host is unavailable or joining fails, the app displays a toaster error, cleans up the session, and keeps the user on the join screen to retry.
+### 🚨 Beacons & Chat
+- **Intent presets**: 🚨 Emergency, ✨ Found Something, 📍 Regroup Here, ⚠️ Caution, ⚡ Custom — with 5 colour palettes (Crimson, Amber, Emerald, Cyan, Purple) and 5 vibration rhythms (SOS/Urgent, Rapid Alert, Steady Pulse, Gentle Pulse, No Vibration). Beacons illuminate radar rings, peer pins and wave animations on receivers.
+- **Offline group chat** with sender-labelled bubbles. The chat window floats over the radar while typing, then returns to its docked position.
+- **Host-preserved history**: the Host keeps the transcript for the life of the PingRing and replays it to peers who join or reconnect.
+- **Configurable notifications**: toggle chat push app-wide in App Settings and per-PingRing in Event Settings, with independent **sound** and **vibration** controls. Notifications are suppressed while you are already watching the radar with the screen on and unlocked; the device can still vibrate or sound.
 
-### 👋 Peer Nudges
-- **Instant Haptic Alerts**: Send quick targeted nudges (`👋`) to specific peers or broadcast a **Nudge All** to the entire group.
-- **Double-Haptic Pulse**: Recipients receive a distinct double-vibration pulse and banner notification without typing text.
-- **Always Available**: The Nudge button remains enabled regardless of connection or ranging state, so a nudge can always be attempted.
-
-### 🚨 Customizable Peer Beacons
-- **Intent Presets**: Broadcast active beacons with custom intents (*🚨 Emergency*, *✨ Found Something*, *📍 Regroup Here*, *⚠️ Caution*, *⚡ Custom*).
-- **Visual & Haptic Personalization**: Choose from 5 color palettes (Crimson, Amber, Emerald, Cyan, Purple) and select custom hardware vibration rhythms from a single-select dropdown (*SOS / Urgent*, *Rapid Alert*, *Steady Pulse*, *Gentle Pulse*, *No Vibration*).
-- **Radar Highlighting**: Active beacons illuminate radar rings, peer pins, and wave animations on receiving devices.
-
-### 💬 Decentralized Chat
-- **Offline Group Messaging**: Text chat across the Nearby Connections mesh without internet.
-- **Sender Labels**: Every chat bubble is labeled with the sender's display name for clear multi-peer conversations.
-- **Floating IME Overlay**: The chat window floats directly over the radar canvas when typing, providing clear visibility of messages, and smoothly returns to its docked position when the soft keyboard closes.
-- **Host-Preserved History**: The Host retains the full chat transcript for the life of the PingRing and replays it to newly joined or reconnecting peers, so latecomers can catch up on the conversation so far.
-- **Configurable Push Notifications**: Enable or disable notifications for incoming chat messages app-wide in App Settings and per-PingRing in Event Settings.
-
-### 🧭 Radar & Sensor Fusion Ranging
-- **Real-World Orientation**: Sensor fusion integrates rotation-vector, magnetometer, and accelerometer hardware to orient peer vectors into world space.
-- **30 FPS Spatial Tracking**: Concurrent non-blocking Jetpack UWB sessions stream sub-metre distance, azimuth, and elevation.
-- **Proximity Alerts**: Haptic feedback triggers when a peer enters close range (< 2 meters).
-- **Auto-Cleanup**: Stale or disconnected peers expire from the radar canvas after 15 seconds of inactivity.
-
-### 🎨 Dynamic Theming & App Icon
-- **Adaptive Icon**: Modern dark navy background layers with a crisp white target radar vector.
-- **Material You Dynamic Icons**: Native monochrome app icon support (`ic_launcher_monochrome.xml`) on Android 13+ (API 33+) launchers.
-- **System Dark/Light Theme**: Fully respects system light/dark mode and Material 3 dynamic accent palettes.
-
-### 🛡 Hardware Adaptation & Device-Aware Permissions
-- **Selective Permission Requests**: Upfront permissions check hardware features (`FEATURE_BLUETOOTH`, `FEATURE_WIFI`, `FEATURE_LOCATION`) on the physical device. Unsupported hardware features skip permission prompts entirely.
-- **Graceful UI Disabling**: Features requiring missing hardware (e.g. Camera for QR scanning, UWB radio for precision ranging, Wi-Fi Direct for high bandwidth, or Vibrator motor for haptics) are gracefully disabled with informative status labels instead of stranding users with ungrantable permission dialogs.
-
-### 🔒 Privacy & Ephemeral Security
-- **Ephemeral Identifiers**: Every session generates a random peer ID. Leaving or closing a PingRing rotates the ID and wipes local peer state.
-- **Self-Filtering**: Local peer IDs are filtered from scan results so you never appear on your own radar.
-- **Host Closure**: Host can end the event at any time, broadcasting a BLE closure packet to return all members safely to the home screen.
+### 🧭 Radar, Theming & Hardware Adaptation
+- **30 FPS sensor-fusion tracking**: rotation-vector, magnetometer and accelerometer orient peer vectors into world space while concurrent non-blocking UWB sessions stream sub-metre distance, azimuth and elevation.
+- **Proximity haptics** under 2 m; **stale peers expire** from the radar after 15 s.
+- **Theming**: Material You dynamic colour, system light/dark, an adaptive navy-and-white radar icon, and a monochrome `ic_launcher_monochrome.xml` for Android 13+ launchers.
+- **Device-aware permissions**: unsupported hardware (`FEATURE_BLUETOOTH`, `FEATURE_WIFI`, `FEATURE_LOCATION`, camera, UWB, vibrator) skips its permission prompt, and its UI is disabled with an explanatory label instead of an ungrantable dialog.
 
 ---
 
@@ -142,69 +85,47 @@ graph TD
 | Component | Library / Framework |
 | :--- | :--- |
 | **Language** | Kotlin 2.4+ |
-| **UI Framework** | Jetpack Compose + Material 3 |
-| **Navigation** | Navigation 3 (`androidx.navigation3`) |
+| **UI / Navigation** | Jetpack Compose + Material 3, Navigation 3 (`androidx.navigation3`) |
 | **P2P Transport** | Google Nearby Connections API (`play-services-nearby`) |
 | **Spatial Ranging** | Jetpack UWB (`androidx.core.uwb`) |
 | **QR Scanning** | CameraX + Google ML Kit Barcode Scanning |
-| **Local Persistence** | Jetpack DataStore Preferences |
-| **Asynchrony** | Kotlin Coroutines & StateFlow |
+| **Persistence / Asynchrony** | Jetpack DataStore Preferences, Kotlin Coroutines & StateFlow |
 
 ---
 
 ## 🚀 Building & Testing
 
-### Prerequisites
-- **Android Studio** (Ladybug or newer)
-- **JDK 17**
-- **Android SDK 37**
-- Physical Android device running **Android 10 (API 29)** or newer (UWB features require supported hardware such as Pixel 6 Pro+, Galaxy S21 Ultra+, etc.).
-
-### Build Commands
+**Prerequisites**: Android Studio (Ladybug+), JDK 17, Android SDK 37, and a physical device on **Android 10 (API 29)+**. UWB needs supported hardware (e.g. Pixel 6 Pro+, Galaxy S21 Ultra+).
 
 ```bash
-# Clone the repository
 git clone https://github.com/fkurevija/PingRing.git
 cd PingRing
 
-# Run unit tests
-./gradlew testDebugUnitTest
-
-# Assemble Debug APK
-./gradlew assembleDebug
+./gradlew testDebugUnitTest   # unit tests
+./gradlew assembleDebug       # debug APK
 ```
 
-On **Windows (PowerShell)**:
-```powershell
-.\gradlew.bat testDebugUnitTest assembleDebug
-```
+On Windows (PowerShell): `.\gradlew.bat testDebugUnitTest assembleDebug`
 
-The compiled APK will be available at:
-`app/build/outputs/apk/debug/app-debug.apk`
+The APK lands at `app/build/outputs/apk/debug/app-debug.apk`. Pushing a `v*` tag also builds and publishes it as a GitHub Release via the **Build APK** workflow; every other push rolls a `latest` release forward.
 
-### 🧪 LAN Debug Transport (Emulator ↔ Physical Device Testing)
+### 🧪 LAN Debug Transport (Emulator ↔ Physical Device)
 
-Google Nearby Connections cannot bridge an Android Emulator and a physical device, since the emulator has no real BLE/Wi-Fi Direct radio. For local development, PingRing ships a **debug-only** TCP transport that virtualizes a connection between them over your PC's LAN/loopback, so multi-device P2P flows can be tested without two physical phones:
+Nearby Connections cannot bridge an emulator to a physical device, since the emulator has no real BLE/Wi-Fi Direct radio. For local development PingRing ships a **debug-only** TCP transport that virtualizes the connection over your PC's LAN/loopback, so multi-device flows can be tested without two phones.
 
-1. Start the relay server and configure `adb reverse` automatically:
-   - Use the bundled Android Studio run configuration **"app + LAN Debug Relay"** (compound configuration), which automatically executes `adb reverse tcp:8942 tcp:8942` for connected physical devices and launches the Python relay server (`tools/lan_debug_relay.py`) right alongside the app.
-   - Alternatively, you can run the relay manually via `python tools\lan_debug_relay.py` (and run `adb reverse tcp:8942 tcp:8942` manually for physical devices).
-2. Enable **LAN Debug Transport** in the app's Home screen Settings (gear icon, before hosting/joining) on both the emulator and the physical device.
-   - The emulator reaches the relay automatically via `10.0.2.2`.
-   - A physical device uses `127.0.0.1` (automatically forwarded to your PC via `adb reverse`).
-3. Host on one device and join on the other as usual — messages are relayed over TCP instead of Nearby Connections.
-4. Stop the relay with `Ctrl+C` when you are done: the listening socket and every open client connection are closed cleanly, so the port is immediately free for the next run.
+1. **Start the relay.** Use the bundled run configuration **"app + LAN Debug Relay"**, which runs `adb reverse tcp:8942 tcp:8942` and launches `tools/lan_debug_relay.py` alongside the app. Or run it manually: `python tools\lan_debug_relay.py`.
+2. **Enable LAN Debug Transport** in Home → Settings (gear icon, before hosting/joining) on *both* devices. The emulator reaches the relay via `10.0.2.2`; a physical device uses `127.0.0.1`, forwarded by `adb reverse`.
+3. **Host on one device, join on the other** as usual — messages relay over TCP instead of Nearby Connections. Stop with `Ctrl+C`, which closes the socket and all clients cleanly so the port is immediately free.
 
-The **Developer Options** card that holds the **LAN Debug Transport** toggle only appears in debug builds, and only while the device looks like it is set up for development (ADB over Wi-Fi or USB, a USB cable attached, or an emulator). It stays visible while LAN Debug Transport is on, so the relay can always be switched back off.
+The Developer Options card holding this toggle appears only in debug builds, and only while the device looks set up for development (ADB over USB/Wi-Fi, USB attached, or an emulator). It stays visible while the transport is on so it can always be switched back off.
 
-This transport is for local testing only and is excluded from release builds; it is not a substitute for testing on real hardware over Nearby Connections before shipping.
+**Debug only** — excluded from release builds, and not a substitute for testing on real hardware over Nearby Connections.
 
 #### 📡 Scripted Distance (Testing the Radar Remotely)
 
-Over this transport nothing in the app can measure a distance: the emulator has no UWB radio and no BLE radio, and neither does the relay, so peers arrive on the radar with no distance, no bearing, no arrow and no hot/cold ring. To exercise the ranging features anyway, `tools/mock_radar.py` joins the same event as a third, invisible participant and streams scripted range reports to the other devices, which the app renders through its normal ranging path (only the measurement is fake, never the rendering):
+Over this transport nothing can measure a distance: neither the emulator (no UWB/BLE radio) nor the relay can, so peers arrive with no distance, bearing, arrow or hot/cold ring. To exercise ranging anyway, `tools/mock_radar.py` joins the event as a third, invisible participant and streams scripted range reports, rendered through the normal ranging path — only the measurement is fake, never the rendering:
 
 ```powershell
-# with the relay already running, and the app(s) hosting/joining the event
 python tools\mock_radar.py <event-id> --pattern approach
 python tools\mock_radar.py <event-id> --pattern orbit --distance 3
 python tools\mock_radar.py <event-id> --peer a1b2c3d4 --name "Alice"
@@ -212,7 +133,7 @@ python tools\mock_radar.py <event-id> --peer a1b2c3d4 --name "Alice"
 
 | Option | What it does |
 | --- | --- |
-| `--pattern approach` | Walks between `--start` and `--end` metres in place, crossing the sub-2 m proximity haptic twice per cycle (the default) |
+| `--pattern approach` | Walks between `--start` and `--end` metres in place, crossing the sub-2 m proximity haptic twice per cycle (default) |
 | `--pattern orbit` | Holds `--distance` while the bearing sweeps a full circle, to check the compass-corrected arrow |
 | `--pattern walk` | Both at once: circling *and* closing in |
 | `--pattern static` | A frozen reading, to check a steady state |
@@ -220,25 +141,21 @@ python tools\mock_radar.py <event-id> --peer a1b2c3d4 --name "Alice"
 | `--name` | Display name for the driven peer(s), so two scripted pins are told apart |
 | `--period`, `--rate`, `--azimuth`, `--elevation`, `--spread` | Cycle length, reports/second, starting bearing, elevation, and one bearing slice per peer |
 
-The radar reacts exactly as it would to real UWB ranging: the distance readout, the "Direction locked" line, the rings, the arrow, the haptics and the 15 s staleness sweep all follow the script. Run `python tools/test_mock_radar.py` to check the script and the relay path without any device attached.
+The radar reacts exactly as it would to real UWB: distance readout, "Direction locked" line, rings, arrow, haptics and the 15 s staleness sweep all follow the script. Run `python tools/test_mock_radar.py` to check the script and relay path with no device attached.
 
 ---
 
 ## 🛡 Privacy Model
 
-PingRing is built from the ground up to respect user privacy:
-
-1. **No External Servers**: No account registration, email collection, or remote logging. All data stays local to the ad-hoc mesh.
-2. **Ephemeral Identity**: Peer identifiers rotate every session. No persistent tracking cross-event.
-3. **Session-Scoped Advertising**: BLE advertising is strictly opt-in and stops when leaving or ending a PingRing.
+1. **No external servers** — no accounts, emails, or remote logging. All data stays on the local mesh.
+2. **Ephemeral identity** — a random peer ID per session; leaving or closing rotates it and wipes local peer state, so there is no cross-event tracking. Your own ID is filtered from scan results, so you never appear on your own radar.
+3. **Session-scoped advertising** — BLE advertising is opt-in and stops on leave/end. The Host can end an event at any time, broadcasting a BLE closure packet that returns all members to the home screen.
 
 ## Background operation
 
-While a PingRing is active, PingRing runs discovery, advertising, nearby transport, and supported
-UWB work from an Android foreground service. The Activity may be placed in the background or its task
-may be removed without ending the active PingRing; the persistent notification can reopen the radar.
-Android still stops work after a force-stop, process kill, reboot, or revoked runtime permission. A
-new session must be started after those cases.
+While a PingRing is active, discovery, advertising, nearby transport, and supported UWB work run from an Android foreground service. The Activity may be backgrounded or its task removed without ending the PingRing, and the persistent notification reopens the radar.
+
+Android still stops work after a force-stop, process kill, reboot, or revoked runtime permission; a new session must be started after those.
 
 ---
 
