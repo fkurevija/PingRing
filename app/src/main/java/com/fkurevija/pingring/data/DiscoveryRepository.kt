@@ -345,6 +345,13 @@ class DiscoveryRepository(
                 // A peer with a live connection is the only kind that can be
                 // UWB-ranged, so this is what makes it eligible as a focus.
                 connectedPeerIds.add(peerId)
+                // The peer is back on the transport, so any retention held for
+                // it has served its purpose. Clearing it here means the normal
+                // connected path takes over and the member is no longer treated
+                // as a special out-of-range case.
+                if (retainedRangingPeerIds.remove(peerId) != null) {
+                    Log.i(TAG, "Peer $peerId is back in transport range; releasing its retained UWB session")
+                }
                 onFocusChanged()
                 if (sessionManager.sessionState.value.isHost) {
                     val history = sessionManager.sessionState.value.chatMessages.map { message ->
@@ -371,11 +378,38 @@ class DiscoveryRepository(
             }
         }
 
-        // A peer whose transport connection dropped is gone: drop its pin, its
-        // beacon and its entry in the member list straight away, instead of
-        // leaving a ghost on the radar until the staleness sweep catches up.
+        // A peer whose transport connection dropped may still be reachable over
+        // UWB, which reaches further than the transport does. Rather than
+        // forgetting it outright, keep the ranging session alive for the peer
+        // actually being tracked so that walking back into range is instant
+        // instead of renegotiating a channel and STS key.
         repositoryScope?.launch {
             nearbyConnectionsManager.peerDisconnected.collect { peerId ->
+                val state = sessionManager.sessionState.value
+                val event = state.currentEvent
+                val retained = UwbRetentionPolicy.retainOnDisconnect(
+                    peerId = peerId,
+                    rangedTargetId = activeFocusRangingTarget,
+                    knownUwbAddress = peerUwbAddresses[peerId],
+                    ringIsActive = event != null,
+                    ringIsOver = event == null,
+                )
+                if (retained != null) {
+                    // Keep the address and the pin: only the transport link is
+                    // gone, not the member. The retention sweep will drop this
+                    // if the window lapses or the ring ends first.
+                    retainedRangingPeerIds[peerId] = System.currentTimeMillis()
+                    Log.i(
+                        TAG,
+                        "Peer $peerId dropped transport but is UWB-ranged; retaining the " +
+                            "session for ${UwbRetentionPolicy.RETENTION_MILLIS}ms so reconnection is instant"
+                    )
+                    // The focus must not move: moving it would spend the single
+                    // UWB session on someone else and abandon the peer we are
+                    // deliberately holding open.
+                    return@collect
+                }
+
                 Log.i(TAG, "Peer $peerId disconnected; removing it from the radar")
                 connectedPeerIds.remove(peerId)
                 peerUwbAddresses.remove(peerId)
@@ -383,6 +417,29 @@ class DiscoveryRepository(
                 // If that was the member being tracked, the focus has to be
                 // re-resolved or the UWB session would sit on a dead peer.
                 onFocusChanged()
+            }
+        }
+
+        // Drop a retained session once its window lapses. Without this a peer
+        // that walked away would stay on the radar indefinitely, holding the one
+        // UWB session open so nothing else could ever be ranged.
+        repositoryScope?.launch {
+            while (isActive) {
+                delay(PEER_CLEANUP_INTERVAL_MILLIS)
+                val now = System.currentTimeMillis()
+                val expired = retainedRangingPeerIds
+                    .filterValues { !UwbRetentionPolicy.isWithinRetentionWindow(it, now) }
+                    .keys
+                if (expired.isNotEmpty()) {
+                    Log.i(TAG, "Retention window lapsed for $expired; releasing their UWB sessions")
+                    expired.forEach { peerId ->
+                        retainedRangingPeerIds.remove(peerId)
+                        connectedPeerIds.remove(peerId)
+                        peerUwbAddresses.remove(peerId)
+                        removePeer(peerId)
+                    }
+                    onFocusChanged()
+                }
             }
         }
 
@@ -512,6 +569,13 @@ class DiscoveryRepository(
         activeFocusRangingTarget = null
         connectedPeerIds.clear()
         peerUwbAddresses.clear()
+        // Every retained address goes too, and this is the only place that does
+        // it. Leaving, or the host ending the ring, must leave nothing rangeable
+        // behind: a member that left is not still a member, and a session that
+        // outlived the ring would keep ranging someone who no longer has any
+        // right to it.
+        retainedRangingPeerIds.clear()
+        lastUwbMeasurementAt.clear()
         _focusedPeerId.value = null
         repositoryScope?.cancel()
         repositoryScope = null
@@ -997,6 +1061,8 @@ class DiscoveryRepository(
         // average would seed it with a distance from a session that is over.
         uwbRangedPeers.remove(peerId)
         estimatedDistances.remove(peerId)
+        lastUwbMeasurementAt.remove(peerId)
+        retainedRangingPeerIds.remove(peerId)
         val friends = sessionManager.sessionState.value.friends
         if (friends.any { it.peerId == peerId }) {
             sessionManager.updateFriends(friends.filterNot { it.peerId == peerId })
@@ -1195,7 +1261,11 @@ class DiscoveryRepository(
             isHost = state.isHost,
             trackHost = event.trackHost,
             hostPeerId = event.hostPeerId,
-            connectedPeerIds = connectedPeerIds.toSet()
+            // Retained peers count as ranging candidates: their transport is
+            // down but their UWB session is deliberately still open, and
+            // excluding them here would cancel it on the very drop we want to
+            // survive.
+            connectedPeerIds = rangingCandidatePeerIds()
         )
         val targetId = (target as? FocusPolicy.RangingTarget.Peer)?.peerId
         if (activeFocusRangingJob?.isActive == true && targetId == activeFocusRangingTarget) return
@@ -1308,6 +1378,33 @@ class DiscoveryRepository(
     }
 
     private var activeFocusRangingTarget: String? = null
+
+    /**
+     * Peers whose transport dropped while their UWB session was still live,
+     * mapped to when the drop happened.
+     *
+     * The key set is what makes them eligible to keep being ranged: a retained
+     * peer is not in [connectedPeerIds] (it cannot receive messages) but must
+     * stay in the ranging candidate set, or the session would be torn down by
+     * [FocusPolicy.rangingTarget] the moment transport dropped - which is
+     * exactly the renegotiation this is meant to avoid.
+     */
+    private val retainedRangingPeerIds = mutableMapOf<String, Long>()
+
+    /**
+     * When each peer last produced a real UWB ranging result.
+     *
+     * Consulted to decide whether a retained peer's session is still alive; see
+     * [UwbRetentionPolicy.classify].
+     */
+    private val lastUwbMeasurementAt = mutableMapOf<String, Long>()
+
+    /**
+     * Peers this device may hold a UWB session with: the connected ones plus any
+     * retained across a transport drop.
+     */
+    private fun rangingCandidatePeerIds(): Set<String> =
+        connectedPeerIds.toSet() + retainedRangingPeerIds.keys
 
     private fun localPeerId(): String = sessionManager.peerId.value
 
@@ -1510,6 +1607,10 @@ class DiscoveryRepository(
         // advertisements must not replace it with an estimate.
         uwbRangedPeers.add(peerId)
         estimatedDistances.remove(peerId)
+        // Timestamp of the last real ranging result. This is the only evidence
+        // available that a retained peer's far end still has a live session, so
+        // it is what separates "out of range but still there" from "gone".
+        lastUwbMeasurementAt[peerId] = System.currentTimeMillis()
         _peerUpdates.update { peers ->
             val current = peers[peerId] ?: return@update peers
             peers + (
