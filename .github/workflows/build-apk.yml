@@ -2,10 +2,15 @@ name: Build APK
 
 on:
   push:
+    # Tagged version builds publish a real GitHub Release.
+    tags:
+      - 'v*'
   workflow_dispatch:
 
+# Needed by the publish job: creating/updating Releases and the rolling
+# `latest` tag requires write access to repository contents.
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-apk:
@@ -77,3 +82,71 @@ jobs:
           name: pingring-debug-apk
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
+
+  # Publishing is a separate job so the release path can be conditioned on
+  # the trigger without duplicating the whole Android build.
+  publish-apk:
+    needs: build-apk
+    runs-on: ubuntu-latest
+    # Always upload the APK as a run artifact regardless of whether a release
+    # is published, so a green run is always downloadable.
+    steps:
+      - name: Download built APK
+        uses: actions/download-artifact@v4
+        with:
+          name: pingring-debug-apk
+          path: apk
+
+      # A tag push (v1.2.3) produces a real, immutable versioned release.
+      - name: Publish versioned release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: apk/*.apk
+          name: PingRing ${{ github.ref_name }}
+          body: |
+            Debug APK for **${{ github.ref_name }}**.
+
+            Commit: ${{ github.sha }}
+            Built: ${{ github.run_number }} on ${{ github.actor }}
+          fail_on_unmatched_files: true
+
+      # Otherwise roll a single `latest` release/tag forward with the newest
+      # master build, so there is always one obvious download. Uses the
+      # GitHub CLI rather than a second release action so the existing
+      # `latest` release is updated in place instead of duplicated.
+      - name: Publish rolling latest release
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          apk_path="$(find apk -name '*.apk' -print -quit)"
+          if [ -z "$apk_path" ]; then
+            echo "::error::No APK found to publish"
+            exit 1
+          fi
+
+          notes="$(mktemp)"
+          cat > "$notes" <<EOF
+          Debug APK from the most recent successful non-tag build.
+
+          Commit: ${{ github.sha }}
+          Branch: ${{ github.ref_name }}
+          Build: ${{ github.run_number }}
+          EOF
+
+          # --clobber replaces the asset on an existing release, so repeated
+          # runs update `latest` rather than failing on a duplicate filename.
+          if gh release view latest >/dev/null 2>&1; then
+            gh release upload latest "$apk_path" --clobber --notes-file "$notes"
+            echo "Updated rolling latest release"
+          else
+            # Moving the tag keeps the release page pinned to new builds.
+            gh release create latest "$apk_path" \
+              --title "Latest debug APK" \
+              --notes-file "$notes" \
+              --target "${{ github.sha }}"
+            echo "Created rolling latest release"
+          fi
