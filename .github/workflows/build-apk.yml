@@ -27,14 +27,42 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
+      # API 37 ships as the "37.0" minor release, so the only package
+      # sdkmanager offers is platforms;android-37.0. Asking for
+      # platforms;android-37 fails outright, and even when the platform is
+      # present it lands in the directory android-37.0 while AGP resolves the
+      # compileSdk target as android-37. See actions/runner-images#13859.
       - name: Install Android SDK packages
-        run: sdkmanager "platforms;android-37" "build-tools;37.0.0"
+        run: sdkmanager "platforms;android-37.0" "build-tools;36.0.0"
+
+      # Bridge the android-37.0 directory to the android-37 name AGP looks
+      # for, otherwise the build dies with:
+      #   Failed to find target with hash string 'android-37'
+      # Done before the build so it applies to the Gradle daemon's SDK scan.
+      - name: Alias API 37 platform directory
+        run: |
+          sdk_root="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          platforms_dir="$sdk_root/platforms"
+          if [ -d "$platforms_dir/android-37.0" ] && [ ! -e "$platforms_dir/android-37" ]; then
+            ln -s android-37.0 "$platforms_dir/android-37"
+            echo "Aliased android-37 -> android-37.0"
+          else
+            echo "No alias needed; android-37 already resolvable"
+          fi
+          ls -1 "$platforms_dir" | grep -E '^android-37' || true
+
+      - name: Verify AGP can resolve the compileSdk target
+        run: |
+          sdk_root="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          test -f "$sdk_root/platforms/android-37/android.jar" \
+            || { echo "::error::android-37/android.jar missing"; exit 1; }
+          echo "android-37 target is resolvable"
 
       - name: Make Gradle wrapper executable
         run: chmod +x ./gradlew
 
       - name: Assemble debug APK
-        run: ./gradlew assembleDebug
+        run: ./gradlew assembleDebug --stacktrace
 
       - name: Upload debug APK artifact
         uses: actions/upload-artifact@v4
