@@ -263,12 +263,10 @@ fun RadarScreen(
     // PingRing readable, and the UWB session follows the same choice.
     val focusSelection by discoveryRepository?.focusedPeerId?.collectAsState()
         ?: remember { mutableStateOf(null) }
-    val nearest = peers.minByOrNull { it.distance ?: Float.MAX_VALUE }
     val focusedPeer = remember(peers, focusSelection, sessionState, isHost, trackHost) {
         val resolvedId = FocusPolicy.resolveFocus(
             selectedPeerId = focusSelection,
             availablePeerIds = peers.map { it.peerId },
-            nearestPeerId = nearest?.peerId,
             isHost = isHost,
             trackHost = trackHost,
             localPeerId = discoveryRepository?.localPeerId ?: "",
@@ -276,6 +274,12 @@ fun RadarScreen(
         )
         peers.firstOrNull { it.peerId == resolvedId }
     }
+
+    // A guest under "track host" has no say in this: the host set the policy
+    // for the whole event, so the picker is shown but disabled rather than
+    // hidden, which would leave the radar pointed at somebody with no visible
+    // way to find out why.
+    val canSelectTrackedMember = FocusPolicy.canUserSelect(isHost, trackHost)
 
     // Proximity feedback follows the tracked member, not whoever happens to be
     // closest, so it is a haptic about the person the user is actually watching.
@@ -414,6 +418,7 @@ fun RadarScreen(
                             discoveryRepository,
                             activeBeacons,
                             focusedPeerId = focusSelection,
+                            canSelect = canSelectTrackedMember,
                             onFocusPeer = { discoveryRepository?.setFocusedPeer(it) },
                             modifier = Modifier.width(paneWidth)
                         )
@@ -1126,6 +1131,7 @@ internal fun PeerList(
     repository: DiscoveryRepository?,
     activeBeacons: Map<String, BeaconInfo>,
     focusedPeerId: String?,
+    canSelect: Boolean,
     onFocusPeer: (String?) -> Unit,
     modifier: Modifier
 ) {
@@ -1157,7 +1163,22 @@ internal fun PeerList(
                 fontWeight = FontWeight.Bold
             )
         }
-        Spacer(Modifier.height(8.dp))
+        // The one member being tracked, as a control rather than only as a
+        // highlight on a row. The per-row buttons below can already set this,
+        // but they cannot show what is currently tracked without reading the
+        // list, and they give no way back to "whichever the policy picks" once
+        // something has been chosen. Disabled rather than hidden when the host
+        // owns the choice, so the radar is never pointed at somebody with no
+        // visible explanation of why.
+        if (peers.isNotEmpty()) {
+            TrackedMemberPicker(
+                peers = peers,
+                trackedPeerId = focusedPeerId,
+                canSelect = canSelect,
+                onSelect = onFocusPeer
+            )
+            Spacer(Modifier.height(8.dp))
+        }
         if (peers.isEmpty()) {
             Text(
                 "Your ephemeral ID is private to this event. When someone appears, their signal and direction will show here.",
@@ -1222,8 +1243,13 @@ internal fun PeerList(
                             // the tracked member again returns to auto, so the
                             // choice is always reversible without leaving the
                             // screen.
+                            //
+                            // Disabled under a host-owned policy rather than
+                            // hidden, so the row still shows who is being
+                            // tracked and why the control is inert.
                             IconButton(
                                 onClick = { onFocusPeer(if (isFocused) null else peer.peerId) },
+                                enabled = canSelect,
                                 modifier = Modifier.size(36.dp)
                             ) {
                                 Icon(
@@ -1244,6 +1270,82 @@ internal fun PeerList(
         }
     }
 }
+/**
+ * Names the one member currently being tracked, and lets it be changed.
+ *
+ * A dropdown rather than another row button because the tracked member is a
+ * property of the whole radar, not of a row: the radar draws this person, the
+ * UWB session spends itself on them, and proximity haptics fire for them. The
+ * per-row buttons in [PeerList] set the same value, and both stay in place -
+ * this one answers "who am I following right now" without counting badges down
+ * a scrolling list, and offers a way back to the automatic choice.
+ *
+ * [canSelect] is false only where the host owns the decision, and the field
+ * stays visible but disabled in that case. Hiding it would leave the radar
+ * locked onto the host with nothing on screen to say so.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun TrackedMemberPicker(
+    peers: List<RadarPeerUpdate>,
+    trackedPeerId: String?,
+    canSelect: Boolean,
+    onSelect: (String?) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val trackedName = peers.firstOrNull { it.peerId == trackedPeerId }?.name
+    val label = when {
+        trackedName != null -> trackedName
+        // No explicit choice: whatever FocusPolicy resolved is being tracked,
+        // which is not necessarily in this list - under a host-owned policy the
+        // guest tracks the host, and the host is not its own peer.
+        else -> "Automatic"
+    }
+
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { if (canSelect) expanded = it }
+    ) {
+        OutlinedTextField(
+            value = label,
+            onValueChange = {},
+            readOnly = true,
+            enabled = canSelect,
+            label = { Text("Tracking") },
+            leadingIcon = { Icon(Icons.Default.MyLocation, contentDescription = null) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier = Modifier
+                .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                .fillMaxWidth()
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            // Back to the automatic choice. Needed because picking somebody is
+            // one-way otherwise: the row buttons clear a selection, but this
+            // control is how the choice is inspected, so it has to be where it
+            // can also be undone.
+            DropdownMenuItem(
+                text = { Text("Automatic") },
+                onClick = {
+                    onSelect(null)
+                    expanded = false
+                }
+            )
+            peers.forEach { peer ->
+                DropdownMenuItem(
+                    text = { Text(peer.name) },
+                    onClick = {
+                        onSelect(peer.peerId)
+                        expanded = false
+                    }
+                )
+            }
+        }
+    }
+}
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

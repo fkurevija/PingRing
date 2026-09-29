@@ -313,13 +313,11 @@ class DiscoveryRepository(
     fun resolveFocusedPeer(): String? {
         val state = sessionManager.sessionState.value
         val event = state.currentEvent ?: return null
-        val nearest = _peerUpdates.value.values
-            .minByOrNull { it.distance ?: Float.MAX_VALUE }
-            ?.peerId
         return FocusPolicy.resolveFocus(
             selectedPeerId = _focusedPeerId.value,
+            // The map is insertion-ordered, so this is discovery order - the
+            // stand-in for join order that resolveFocus falls back to.
             availablePeerIds = _peerUpdates.value.keys.toList(),
-            nearestPeerId = nearest,
             isHost = state.isHost,
             trackHost = event.trackHost,
             localPeerId = sessionManager.peerId.value,

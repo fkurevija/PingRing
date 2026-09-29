@@ -3,8 +3,12 @@ package com.fkurevija.pingring
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -71,6 +75,7 @@ class PeerListInstrumentedTest {
         connectivity: ConnectivityStatus = ConnectivityStatus(true, true),
         activeBeacons: Map<String, BeaconInfo> = emptyMap(),
         focusedPeerId: String? = null,
+        canSelect: Boolean = true,
         onFocusPeer: (String?) -> Unit = {},
     ) {
         composeRule.setContent {
@@ -81,6 +86,7 @@ class PeerListInstrumentedTest {
                     repository = null,
                     activeBeacons = activeBeacons,
                     focusedPeerId = focusedPeerId,
+                    canSelect = canSelect,
                     onFocusPeer = onFocusPeer,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -186,6 +192,85 @@ class PeerListInstrumentedTest {
         )
 
         composeRule.onNodeWithContentDescription("Stop tracking Ana").performClick()
+
+        assertEquals(null, focused)
+    }
+
+    @Test
+    fun thePickerNamesWhoeverIsBeingTracked() {
+        // The point of the control is answering "who am I following" without
+        // counting TRACKING badges down the list. The member is in the list too,
+        // so this asserts on the field itself rather than on the name.
+        show(peers = listOf(peer(id = "peer-1", name = "Ana")), focusedPeerId = "peer-1")
+
+        composeRule.onNodeWithText("Tracking").assertIsDisplayed()
+        // The field repeats the tracked member's name; the row behind it also
+        // does, so the assertion is that both agree rather than that the name
+        // appears once.
+        composeRule.onAllNodesWithText("Ana").assertCountEquals(2)
+    }
+
+    @Test
+    fun thePickerFallsBackToAutomaticWithoutAnExplicitChoice() {
+        // Nothing chosen means the policy decides, and the control must not
+        // claim a member is tracked when it does not know which.
+        show(peers = listOf(peer(id = "peer-1", name = "Ana")))
+
+        composeRule.onNodeWithText("Automatic").assertIsDisplayed()
+    }
+
+    @Test
+    fun choosingFromThePickerSetsTheTrackedMember() {
+        var focused: String? = null
+        show(
+            peers = listOf(peer(id = "peer-1", name = "Ana"), peer(id = "peer-2", name = "Bo")),
+            onFocusPeer = { focused = it },
+        )
+
+        composeRule.onNodeWithText("Tracking").performClick()
+        composeRule.waitForIdle()
+        // Two nodes carry the name: the row behind the menu and the menu entry.
+        // The row comes first in the tree, so the last match is the menu - and
+        // clicking the row here would prove nothing about the picker, since
+        // both write the same value.
+        composeRule.onAllNodesWithText("Ana").onLast().performClick()
+        composeRule.waitForIdle()
+
+        assertEquals("peer-1", focused)
+    }
+
+    @Test
+    fun thePickerCannotBeOpenedWhenTheHostOwnsTheChoice() {
+        // A guest under "track host" has no say. The field stays visible so the
+        // radar is never silently pointed at somebody, but it must not open.
+        var focused: String? = null
+        show(
+            peers = listOf(peer(id = "peer-1", name = "Ana")),
+            canSelect = false,
+            onFocusPeer = { focused = it },
+        )
+
+        // A disabled read-only field reports itself as not enabled, which is the
+        // assertion that matters: the control is visible and names the host,
+        // but cannot be opened.
+        composeRule.onNodeWithText("Tracking").assertIsNotEnabled()
+        assertEquals("no choice should be possible while locked", null, focused)
+    }
+
+    @Test
+    fun theRowButtonIsInertWhenTheHostOwnsTheChoice() {
+        // Same rule as the picker, applied to the pre-existing per-row control.
+        // Two ways to set the same thing must not disagree about when it is
+        // allowed.
+        var focused: String? = null
+        show(
+            peers = listOf(peer(id = "peer-1", name = "Ana")),
+            canSelect = false,
+            onFocusPeer = { focused = it },
+        )
+
+        composeRule.onNodeWithContentDescription("Track Ana").performClick()
+        composeRule.waitForIdle()
 
         assertEquals(null, focused)
     }

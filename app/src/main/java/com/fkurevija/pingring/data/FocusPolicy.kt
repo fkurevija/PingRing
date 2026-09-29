@@ -25,30 +25,32 @@ object FocusPolicy {
      * Resolves the member the radar displays and the UWB radio ranges.
      *
      * Rules, in order:
-     *  - A selection the user made wins, as long as that peer is still
-     *    present. Ephemeral ids rotate, so a stale selection has to fall back
-     *    rather than leaving the radar pointed at nobody.
      *  - When "track host" is on and this device is not the host, the host is
-     *    the subject, because the host set that policy deliberately.
-     *  - Otherwise the nearest known peer, which is the useful default before
-     *    anybody has chosen.
+     *    the subject, because the host set that policy deliberately. That is
+     *    not a default the user can change here - see [canUserSelect].
+     *  - Otherwise a selection the user made wins, as long as that peer is
+     *    still present. Ephemeral ids rotate, so a stale selection has to fall
+     *    back rather than leaving the radar pointed at nobody.
+     *  - Otherwise a guest falls back to the host, and the host to the first
+     *    member it saw.
      *
-     * [nearestPeerId] is passed in rather than recomputed here so this stays
-     * a pure function of its arguments; the caller already has the distances.
+     * The fallbacks are role-based rather than distance-based on purpose. A
+     * guest's job in a ring is to follow the host and a host's is to watch
+     * whoever arrived first - neither is "whoever happens to be closest right
+     * now", which changes underneath the user as people move.
+     *
+     * [availablePeerIds] is passed in rather than recomputed here so this stays
+     * a pure function of its arguments; the caller already has the peers, in
+     * the order it discovered them.
      */
     fun resolveFocus(
         selectedPeerId: String?,
         availablePeerIds: List<String>,
-        nearestPeerId: String?,
         isHost: Boolean,
         trackHost: Boolean,
         localPeerId: String,
         hostPeerId: String?,
     ): String? {
-        // "Track host" is the host's policy for this event, and it takes
-        // precedence over whatever the user last tapped: if the host has said
-        // members should be tracking them, a local selection must not quietly
-        // override it.
         if (shouldTrackHost(isHost, trackHost) && hostPeerId != null) {
             return hostPeerId
         }
@@ -59,8 +61,29 @@ object FocusPolicy {
         if (selectedPeerId != null && selectedPeerId in candidates) {
             return selectedPeerId
         }
-        return nearestPeerId?.takeIf { it in candidates }
+        // A guest tracks the host when it can. Under "track host" the host is
+        // not one of its radar peers - discovery filters the others out - so
+        // this only fires with the policy off and both visible.
+        if (!isHost && hostPeerId != null && hostPeerId in candidates) {
+            return hostPeerId
+        }
+        // First discovered, not nearest: whoever joined the ring first is the
+        // stable choice, whereas "nearest" is a moving target. There is no join
+        // timestamp on a peer yet, so discovery order stands in for it.
+        return candidates.first()
     }
+
+    /**
+     * Whether the local user may change what is being tracked.
+     *
+     * Only false for a guest under "track host", where the host owns the
+     * decision. The host is never locked - the policy asks *members* to track
+     * it, it does not constrain the host - and a guest picks freely once that
+     * policy is off, which is the difference between "the host chose this" and
+     * "this is the only thing you can see".
+     */
+    fun canUserSelect(isHost: Boolean, trackHost: Boolean): Boolean =
+        !shouldTrackHost(isHost, trackHost)
 
     /**
      * How a guest should find the host, since the host is not one of its own

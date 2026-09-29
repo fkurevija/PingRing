@@ -2,6 +2,7 @@ package com.fkurevija.pingring
 
 import com.fkurevija.pingring.data.FocusPolicy
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -21,11 +22,10 @@ class FocusPolicyTest {
     private val bob = "bob"
 
     @Test
-    fun anExplicitChoiceWinsOverTheNearest() {
+    fun anExplicitChoiceWinsOverTheFallback() {
         val focus = FocusPolicy.resolveFocus(
             selectedPeerId = bob,
             availablePeerIds = listOf(alice, bob),
-            nearestPeerId = alice,
             isHost = true,
             trackHost = false,
             localPeerId = local,
@@ -35,27 +35,59 @@ class FocusPolicyTest {
     }
 
     @Test
-    fun autoFallsBackToTheNearest() {
+    fun theHostFallsBackToTheFirstMemberNotTheNearest() {
+        // Whoever arrived first is a stable choice; "nearest" moves underneath
+        // the user every time somebody walks, which is not a selection at all.
         val focus = FocusPolicy.resolveFocus(
             selectedPeerId = null,
-            availablePeerIds = listOf(alice, bob),
-            nearestPeerId = alice,
+            availablePeerIds = listOf(bob, alice),
             isHost = true,
             trackHost = false,
             localPeerId = local,
             hostPeerId = null
+        )
+        assertEquals(bob, focus)
+    }
+
+    @Test
+    fun aGuestFallsBackToTheHostWhenThePolicyIsOff() {
+        // The host is on a guest's radar only when "track host" is off, so
+        // without this the guest would default to an arbitrary member and never
+        // point at the person running the event.
+        val focus = FocusPolicy.resolveFocus(
+            selectedPeerId = null,
+            availablePeerIds = listOf(host, alice),
+            isHost = false,
+            trackHost = false,
+            localPeerId = local,
+            hostPeerId = host
+        )
+        assertEquals(host, focus)
+    }
+
+    @Test
+    fun aGuestCanStillChooseWhenTheHostPolicyIsOff() {
+        // "The host picks the default" is not "the host picks for you": with
+        // the policy off a guest is free to follow whoever it likes.
+        val focus = FocusPolicy.resolveFocus(
+            selectedPeerId = alice,
+            availablePeerIds = listOf(host, alice),
+            isHost = false,
+            trackHost = false,
+            localPeerId = local,
+            hostPeerId = host
         )
         assertEquals(alice, focus)
     }
 
     @Test
     fun aStaleSelectionFallsBackRatherThanPointingAtNobody() {
-        // Peer ids are ephemeral: a selection from a previous session, or from
-        // a member who has since left, must not leave the radar empty.
+        // Ephemeral ids rotate, so a remembered peer that has gone comes back
+        // with a different id. Holding the stale one would leave the radar
+        // aimed at a member who is no longer in the ring.
         val focus = FocusPolicy.resolveFocus(
             selectedPeerId = "someone-who-left",
             availablePeerIds = listOf(alice, bob),
-            nearestPeerId = alice,
             isHost = true,
             trackHost = false,
             localPeerId = local,
@@ -72,7 +104,6 @@ class FocusPolicyTest {
         val focus = FocusPolicy.resolveFocus(
             selectedPeerId = bob,
             availablePeerIds = listOf(alice, bob),
-            nearestPeerId = alice,
             isHost = false,
             trackHost = true,
             localPeerId = local,
@@ -86,7 +117,6 @@ class FocusPolicyTest {
         val focus = FocusPolicy.resolveFocus(
             selectedPeerId = null,
             availablePeerIds = listOf(alice, bob),
-            nearestPeerId = alice,
             isHost = true,
             trackHost = true,
             localPeerId = local,
@@ -100,13 +130,50 @@ class FocusPolicyTest {
         val focus = FocusPolicy.resolveFocus(
             selectedPeerId = null,
             availablePeerIds = emptyList(),
-            nearestPeerId = null,
             isHost = true,
             trackHost = false,
             localPeerId = local,
             hostPeerId = null
         )
         assertNull(focus)
+    }
+
+    @Test
+    fun aGuestUnderTrackHostCannotChangeWhatIsTracked() {
+        // The policy is the host's, set for the whole event. A member choosing
+        // otherwise would make the host's decision advisory, which is not what
+        // turning it on promised.
+        assertFalse(FocusPolicy.canUserSelect(isHost = false, trackHost = true))
+    }
+
+    @Test
+    fun theHostIsNeverLockedOutOfItsOwnRadar() {
+        // "Track host" asks members to follow the host. It must not also stop
+        // the host deciding who it watches, which would leave the policy
+        // disabling the only device that can act on it.
+        assertTrue(FocusPolicy.canUserSelect(isHost = true, trackHost = true))
+    }
+
+    @Test
+    fun aGuestIsFreeOnceThePolicyIsOff() {
+        // With the policy off the guest can see every member, so restricting it
+        // to one would be a limit the host never asked for.
+        assertTrue(FocusPolicy.canUserSelect(isHost = false, trackHost = false))
+    }
+
+    @Test
+    fun aLockedGuestStillResolvesToTheHost() {
+        // The read-only control is only useful if it names who is actually
+        // being tracked, so the locked state has to resolve to the host too.
+        val focus = FocusPolicy.resolveFocus(
+            selectedPeerId = null,
+            availablePeerIds = listOf(host),
+            isHost = false,
+            trackHost = true,
+            localPeerId = local,
+            hostPeerId = host
+        )
+        assertEquals(host, focus)
     }
 
     @Test
