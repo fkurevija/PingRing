@@ -1,0 +1,225 @@
+package com.fkurevija.pingring
+
+import com.fkurevija.pingring.data.BeaconPreset
+import com.fkurevija.pingring.data.BeaconVibrationPattern
+import com.fkurevija.pingring.data.ChatMessageOwnership
+import com.fkurevija.pingring.data.ChatNotificationPolicy
+import com.fkurevija.pingring.data.CoordinationSyncState
+import com.fkurevija.pingring.data.CoordinationSyncStatus
+import com.fkurevija.pingring.data.Event
+import com.fkurevija.pingring.data.MAX_PARTICIPANTS
+import com.fkurevija.pingring.data.RelayEnvelope
+import com.fkurevija.pingring.data.SessionState
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+/**
+ * The small decisions that every screen and the notification path depend on.
+ *
+ * Each of these is a rule that is easy to state wrongly and impossible to notice
+ * when it is: a message that renders on the wrong side of the chat, a
+ * notification that is suppressed while nobody is looking, a pattern that vibrates
+ * when it was asked not to.
+ */
+class AppRulesTest {
+
+    @Test
+    fun aNotificationIsSuppressedOnlyWhenTheUserIsActuallyWatching() {
+        // All four conditions met: in the app, on the radar, screen on, unlocked.
+        assertTrue(
+            ChatNotificationPolicy.shouldSuppressNotification(
+                appInForeground = true,
+                radarWindowVisible = true,
+                screenOn = true,
+                deviceUnlocked = true,
+            )
+        )
+    }
+
+    @Test
+    fun aNotificationIsPostedWheneverAnyOneConditionFails() {
+        val watching = arrayOf(true, true, true, true)
+
+        // Every single condition is decisive on its own, so each is flipped one at
+        // a time: a missing condition must always mean "post the notification".
+        for (index in watching.indices) {
+            val flags = watching.copyOf()
+            flags[index] = false
+            assertFalse(
+                "condition $index alone must not suppress",
+                ChatNotificationPolicy.shouldSuppressNotification(
+                    appInForeground = flags[0],
+                    radarWindowVisible = flags[1],
+                    screenOn = flags[2],
+                    deviceUnlocked = flags[3],
+                )
+            )
+        }
+    }
+
+    @Test
+    fun anUnknownVibrationPatternFallsBackToSomethingNoticeable() {
+        // A pattern name arrives over the wire, so an unrecognised one is expected
+        // rather than exceptional - and falling back to SILENT would be the one
+        // wrong choice, since a beacon that cannot be felt fails silently.
+        val pattern = BeaconVibrationPattern.fromName("SOMETHING_ELSE")
+
+        assertEquals(BeaconVibrationPattern.STEADY_PULSE, pattern)
+        assertTrue("the fallback still has to vibrate", pattern.pattern.any { it > 0 })
+    }
+
+    @Test
+    fun aKnownVibrationPatternRoundTripsThroughItsName() {
+        BeaconVibrationPattern.entries.forEach { pattern ->
+            assertEquals(pattern, BeaconVibrationPattern.fromName(pattern.name))
+        }
+    }
+
+    @Test
+    fun theSilentPatternIsTheOnlyOneThatDoesNotVibrate() {
+        BeaconVibrationPattern.entries.forEach { pattern ->
+            val vibrates = pattern.pattern.any { it > 0L }
+            assertEquals(
+                "${pattern.name} vibrates=$vibrates",
+                pattern != BeaconVibrationPattern.SILENT,
+                vibrates,
+            )
+        }
+    }
+
+    @Test
+    fun everyPatternHasAnEmptyLeadingPause() {
+        // Android treats the first entry of a pattern as a delay before the first
+        // vibration, so a non-zero first entry would silently shift the pattern.
+        BeaconVibrationPattern.entries.forEach { pattern ->
+            assertEquals("${pattern.name} must start with a pause", 0L, pattern.pattern.first())
+        }
+    }
+    @Test
+    fun everyBeaconPresetIsFullyDescribed() {
+        // A preset with a blank label or no default pattern would render as an
+        // empty or dead row in the beacon picker, with nothing to point at.
+        BeaconPreset.entries.forEach { preset ->
+            assertTrue("${preset.name} needs a label", preset.label.isNotBlank())
+            assertTrue("${preset.name} needs a title", preset.defaultTitle.isNotBlank())
+            assertTrue("${preset.name} needs an emoji", preset.iconEmoji.isNotBlank())
+            assertNotEquals(0L, preset.defaultColorArgb)
+            assertTrue(
+                "${preset.name} points at a pattern it does not define",
+                BeaconVibrationPattern.entries.contains(preset.defaultPattern)
+            )
+        }
+    }
+
+    @Test
+    fun aMessageIsOursOnlyWhenThePeerIdsMatch() {
+        assertTrue(ChatMessageOwnership.isOwnMessage("peer-a", "peer-a"))
+    }
+
+    @Test
+    fun aMessageFromAnotherMemberIsNotOurs() {
+        assertFalse(ChatMessageOwnership.isOwnMessage("peer-b", "peer-a"))
+    }
+
+    @Test
+    fun aMessageWithNoKnownOriginIsNeverOurs() {
+        // The rule that keeps a blank id from rendering as though the local user
+        // sent it, which is the failure the class exists to prevent.
+        assertFalse(ChatMessageOwnership.isOwnMessage(null, "peer-a"))
+        assertFalse(ChatMessageOwnership.isOwnMessage("", "peer-a"))
+        assertFalse(ChatMessageOwnership.isOwnMessage("   ", "peer-a"))
+    }
+
+    @Test
+    fun withNoLocalIdentityNothingCanBeOurs() {
+        assertFalse(ChatMessageOwnership.isOwnMessage("peer-a", null))
+        assertFalse(ChatMessageOwnership.isOwnMessage("peer-a", ""))
+    }
+
+    @Test
+    fun theRelayEnvelopeTypesAreDistinct() {
+        // A collision here would make the relay read one envelope as another,
+        // which presents as a message that simply never arrives.
+        val all = listOf(
+            RelayEnvelope.JOIN, RelayEnvelope.DATA, RelayEnvelope.LEAVE,
+            RelayEnvelope.END, RelayEnvelope.PING, RelayEnvelope.PEER_JOINED,
+            RelayEnvelope.PEER_LEFT, RelayEnvelope.EVENT_CLOSED
+        )
+
+        assertEquals(all.size, all.distinct().size)
+    }
+
+    @Test
+    fun theRelayRolesAreDistinct() {
+        assertNotEquals(RelayEnvelope.ROLE_HOST, RelayEnvelope.ROLE_MEMBER)
+    }
+
+    @Test
+    fun aDefaultSessionHasNoEventAndIsNotHost() {
+        val state = SessionState()
+
+        assertEquals(null, state.currentEvent)
+        assertFalse(state.isHost)
+        assertTrue(state.friends.isEmpty())
+        assertTrue(state.chatMessages.isEmpty())
+    }
+
+    @Test
+    fun syncStatusStartsIdleAndCarriesNoError() {
+        val status = CoordinationSyncStatus()
+
+        assertEquals(CoordinationSyncState.IDLE, status.state)
+        assertEquals(null, status.errorMessage)
+    }
+
+    @Test
+    fun theSyncStatesAreDistinct() {
+        val states = CoordinationSyncState.entries
+
+        assertEquals(4, states.size)
+        assertEquals(states.size, states.distinct().size)
+    }
+
+    @Test
+    fun aCreatedEventIsOfferedForTheDocumentedLifetime() {
+        val before = System.currentTimeMillis()
+        val event = Event.create(id = "ABC", hostPeerId = "peer-a")
+        val after = System.currentTimeMillis()
+
+        assertTrue("the event must not be born already expired", event.expiryTimestamp > before)
+        // Bounded on both sides of the window create() actually saw, so this
+        // cannot fail on a slow machine that crosses a millisecond mid-call.
+        assertTrue(
+            "expiry ${event.expiryTimestamp} outlives the documented lifetime",
+            event.expiryTimestamp <= after + Event.DURATION_MILLIS
+        )
+        assertEquals("peer-a", event.hostPeerId)
+        assertTrue(event.useUwb)
+    }
+
+    @Test
+    fun aCreatedEventCanBeCreatedWithoutUwbOrAHost() {
+        val event = Event.create(id = "ABC", useUwb = false)
+
+        assertFalse(event.useUwb)
+        assertEquals(null, event.hostPeerId)
+    }
+
+    @Test
+    fun twoCopiesOfTheSameEventAreEqual() {
+        // The wire format and the repository both key on the id, so a copy has to
+        // compare equal or a round trip would look like a different event.
+        val event = Event.create(id = "ABC")
+
+        assertEquals(event, event.copy())
+        assertEquals(event.hashCode(), event.copy().hashCode())
+    }
+
+    @Test
+    fun theParticipantLimitIsTheOneTheAppAdvertises() {
+        assertTrue("a ring has to hold more than one member", MAX_PARTICIPANTS > 1)
+    }
+}

@@ -16,13 +16,36 @@ import com.google.accompanist.permissions.rememberPermissionState
  * UWB-gated UI element to call when tapped while disabled: it shows an
  * explanatory toast on unsupported hardware, or prompts for the permission on
  * supported hardware that simply hasn't granted it yet.
+ *
+ * Deliberately *not* a data class. It used to be one, which is a trap: a
+ * generated `equals` would compare [onRequestAccess] by identity, so two
+ * instances describing identical state compared unequal and any caller using
+ * `==` to decide whether to recompose would recompose every time. Equality here
+ * means the two things that actually describe the state - hardware and
+ * permission - and ignores the callback, which is a fresh lambda per call
+ * anyway.
  */
-data class UwbAvailability(
+class UwbAvailability(
     val hardwareSupported: Boolean,
     val permissionGranted: Boolean,
     val onRequestAccess: () -> Unit
 ) {
     val isUsable: Boolean get() = hardwareSupported && permissionGranted
+
+    /** State equality, ignoring [onRequestAccess]. See the class comment. */
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is UwbAvailability) return false
+        return hardwareSupported == other.hardwareSupported &&
+            permissionGranted == other.permissionGranted
+    }
+
+    /** Consistent with [equals]: derived from the two state fields only. */
+    override fun hashCode(): Int =
+        31 * hardwareSupported.hashCode() + permissionGranted.hashCode()
+
+    override fun toString(): String =
+        "UwbAvailability(hardwareSupported=$hardwareSupported, permissionGranted=$permissionGranted)"
 }
 
 /**

@@ -158,15 +158,23 @@ class ChatNotifier(
 
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val desiredSound: Uri? = if (soundEnabled) Settings.System.DEFAULT_NOTIFICATION_URI else null
-        val desiredVibration: LongArray? = if (vibrationEnabled) CHAT_VIBRATION_PATTERN else null
+        val desiredVibration: LongArray? = ChatChannelPolicy.vibrationPatternFor(vibrationEnabled, CHAT_VIBRATION_PATTERN)
 
         // LongArray is compared by content, not identity: vibrationPattern
         // hands back a fresh array on every read, so == would never match and
-        // the channel would be needlessly recreated on every message.
+        // the channel would be needlessly recreated on every message. The rule
+        // itself lives in ChatChannelPolicy so it can be tested without a live
+        // NotificationManager.
         manager.getNotificationChannel(CHAT_CHANNEL_ID)?.let { existing ->
-            val soundMatches = existing.sound == desiredSound
-            val vibrationMatches = existing.vibrationPattern.contentEqualsOrNull(desiredVibration)
-            if (!soundMatches || !vibrationMatches) {
+            val live = ChatChannelPolicy.LiveConfiguration(
+                sound = existing.sound?.toString(),
+                vibrationPattern = existing.vibrationPattern,
+            )
+            val desired = ChatChannelPolicy.DesiredConfiguration(
+                sound = desiredSound?.toString(),
+                vibrationPattern = desiredVibration,
+            )
+            if (ChatChannelPolicy.needsRecreation(live, desired)) {
                 manager.deleteNotificationChannel(CHAT_CHANNEL_ID)
             }
         }
@@ -190,16 +198,6 @@ class ChatNotifier(
             )
         }
         manager.createNotificationChannel(channel)
-    }
-
-    /**
-     * Content comparison that treats "no pattern" and "no pattern" as equal, so a
-     * channel created with vibration off is not recreated on every message.
-     */
-    private fun LongArray?.contentEqualsOrNull(other: LongArray?): Boolean = when {
-        this == null && other == null -> true
-        this == null || other == null -> false
-        else -> this.contentEquals(other)
     }
 
     private companion object {

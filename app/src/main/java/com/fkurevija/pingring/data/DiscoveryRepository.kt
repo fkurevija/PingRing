@@ -53,6 +53,128 @@ data class ConnectivityStatus(
     val isWifiEnabled: Boolean
 )
 
+/**
+ * The 13 bytes PingRing puts in the service-data field of its BLE advertisement,
+ * and the flags packed into the first of them.
+ *
+ * This is the one thing on the discovery path that has to agree between two
+ * devices with no negotiation at all: a host advertises, a guest scans, and
+ * there is no acknowledgement either way. A layout change that is not applied to
+ * both sides presents as "this device never sees anybody", with nothing on either
+ * phone saying why.
+ *
+ * It lives apart from [DiscoveryRepository] for the same reason the other policy
+ * objects do - so the encoding can be round-tripped in a test without a radio.
+ * The repository builds it on the way out and reads it on the way in, and
+ * [encode] and [decode] are the two halves of one format.
+ *
+ * Layout, big-endian (the platform `ByteBuffer` default):
+ *
+ * ```
+ * offset 0  4 bytes  event hash, the event id's String.hashCode()
+ * offset 4  1 byte   flags, see the FLAG_* constants
+ * offset 5  8 bytes  the advertiser's peer id, UTF-8, NUL-padded
+ * ```
+ *
+ * The peer-id field is padded rather than length-prefixed because a peer id is a
+ * fixed 8 characters ([com.fkurevija.pingring.data.SessionManager] generates
+ * exactly that many), which leaves the whole field accounted for and keeps the
+ * total at exactly 13 bytes - the number that has to stay under the 31-byte
+ * legacy advertising limit (see [BleRangePolicy]). The padding is whatever
+ * [ByteBuffer.allocate] leaves, i.e. NUL, so [decode] strips NULs rather than
+ * relying on `trim`, which does not treat them as whitespace.
+ */
+object BleAdvertisementPayload {
+
+    /** Must match [BleRangePolicy.SERVICE_DATA_BYTES]; the two are one budget. */
+    const val TOTAL_BYTES = 13
+
+    /** The host owns the event; members follow it. */
+    const val FLAG_HOST = 1
+
+    /** Members should track the host rather than the nearest peer. */
+    const val FLAG_TRACK_HOST = 1 shl 1
+
+    /** The host is closing the event; every member leaves. */
+    const val FLAG_EVENT_CLOSED = 1 shl 2
+
+    /** UWB ranging is available in this event. */
+    const val FLAG_USE_UWB = 1 shl 3
+
+    /** Wi-Fi Direct is available in this event. */
+    const val FLAG_USE_WIFI = 1 shl 4
+
+    /** The event has reached its member limit; a guest should not try to join. */
+    const val FLAG_RING_FULL = 1 shl 5
+
+    /** New members are still being admitted. */
+    const val FLAG_ACCEPTS_NEW_MEMBERS = 1 shl 6
+
+    private const val PEER_ID_BYTES = 8
+
+    /** The byte a fixed-width field is padded with, as a Char for `trim`. */
+    private const val NUL = '\u0000'
+
+    /** What a decoded advertisement said, once the bytes are unpacked. */
+    data class Decoded(
+        val eventHash: Int,
+        val flags: Int,
+        val peerId: String,
+    ) {
+        fun has(flag: Int): Boolean = flags and flag != 0
+
+        val isHost: Boolean get() = has(FLAG_HOST)
+        val tracksMembers: Boolean get() = has(FLAG_TRACK_HOST)
+        val eventClosed: Boolean get() = has(FLAG_EVENT_CLOSED)
+        val usesUwb: Boolean get() = has(FLAG_USE_UWB)
+        val usesWifi: Boolean get() = has(FLAG_USE_WIFI)
+        val isFull: Boolean get() = has(FLAG_RING_FULL)
+        val acceptsNewMembers: Boolean get() = has(FLAG_ACCEPTS_NEW_MEMBERS)
+    }
+
+    /**
+     * Packs the advertisement.
+     *
+     * The peer id is truncated or space-padded to exactly 8 bytes rather than
+     * rejected, because the id is generated at a fixed length and a mismatch
+     * would mean the two ends disagree about the identity scheme itself - which
+     * is worth surfacing, not something a peer can fix by trying again.
+     */
+    fun encode(eventHash: Int, flags: Int, peerIdBytes: ByteArray): ByteArray =
+        ByteBuffer.allocate(TOTAL_BYTES)
+            .putInt(eventHash)
+            .put(flags.toByte())
+            .put(peerIdBytes.copyOf(PEER_ID_BYTES))
+            .array()
+
+    /**
+     * Unpacks an advertisement, or null if it is not one of ours.
+     *
+     * A short buffer is the signature of a *different* app's PingRing-shaped
+     * service UUID, or of a truncated read, and must be ignored rather than
+     * parsed: reading past the end would either throw or, worse, decode
+     * neighbouring fields as a peer id and put a phantom member on the radar.
+     */
+    fun decode(serviceData: ByteArray): Decoded? {
+        if (serviceData.size < TOTAL_BYTES) return null
+        val payload = ByteBuffer.wrap(serviceData)
+        val eventHash = payload.int
+        val flags = payload.get().toInt()
+        // Exactly the field width, never `remaining()`: a newer build that adds
+        // a trailing field must not have those bytes folded into the peer id.
+        val peerIdBytes = ByteArray(PEER_ID_BYTES).also(payload::get)
+        // The field is fixed-width and NUL-padded, and `trim` does not consider
+        // NUL whitespace - so a peer id shorter than the field would otherwise
+        // come back with NUL characters attached and be used as a routing key
+        // that matches nothing. Spaces are stripped as well, because a peer id
+        // carrying them is equally unusable.
+        val peerId = String(peerIdBytes, StandardCharsets.UTF_8)
+            .trimEnd(NUL, ' ')
+            .trimStart(NUL)
+        return Decoded(eventHash, flags, peerId)
+    }
+}
+
 @SuppressLint("MissingPermission")
 class DiscoveryRepository(
     private val context: Context,
@@ -63,13 +185,17 @@ class DiscoveryRepository(
 
     private val TAG = "DiscoveryRepository"
     private val PINGRING_SERVICE_UUID = UUID.fromString("0000fa1b-0000-1000-8000-00805f9b34fb")
-    private val hostFlag = 1
-    private val trackHostFlag = 1 shl 1
-    private val eventClosedFlag = 1 shl 2
-    private val useUwbFlag = 1 shl 3
-    private val useWifiFlag = 1 shl 4
-    private val pingRingFullFlag = 1 shl 5
-    private val acceptsNewMembersFlag = 1 shl 6
+
+    // Aliases onto the single definition in BleAdvertisementPayload. They must
+    // not be re-spelled here: a second copy of a flag value is how the two ends
+    // of a discovery round trip stop agreeing about what was advertised.
+    private val hostFlag = BleAdvertisementPayload.FLAG_HOST
+    private val trackHostFlag = BleAdvertisementPayload.FLAG_TRACK_HOST
+    private val eventClosedFlag = BleAdvertisementPayload.FLAG_EVENT_CLOSED
+    private val useUwbFlag = BleAdvertisementPayload.FLAG_USE_UWB
+    private val useWifiFlag = BleAdvertisementPayload.FLAG_USE_WIFI
+    private val pingRingFullFlag = BleAdvertisementPayload.FLAG_RING_FULL
+    private val acceptsNewMembersFlag = BleAdvertisementPayload.FLAG_ACCEPTS_NEW_MEMBERS
 
     private val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
     private val bluetoothAdapter = bluetoothManager?.adapter
@@ -867,11 +993,7 @@ class DiscoveryRepository(
     }
 
     private fun buildServicePayload(eventHash: Int, flags: Int, peerIdBytes: ByteArray): ByteArray =
-        ByteBuffer.allocate(13)
-            .putInt(eventHash)
-            .put(flags.toByte())
-            .put(peerIdBytes.copyOf(8))
-            .array()
+        BleAdvertisementPayload.encode(eventHash, flags, peerIdBytes)
 
     private companion object {
         const val CLOSURE_ANNOUNCEMENT_DURATION_MILLIS = 5_000L
@@ -949,28 +1071,26 @@ class DiscoveryRepository(
     private fun handleScanResult(result: ScanResult) {
         val record = result.scanRecord ?: return
         val serviceData = record.getServiceData(ParcelUuid(PINGRING_SERVICE_UUID)) ?: return
-        if (serviceData.size < 13) return
+        // Too short to be one of ours: another app's service UUID, or a
+        // truncated read. Decoding it would put a phantom member on the radar.
+        if (serviceData.size < BleAdvertisementPayload.TOTAL_BYTES) return
 
-        val payload = ByteBuffer.wrap(serviceData)
-        val eventHash = payload.int
-        val flags = payload.get().toInt()
-        val isHostPeer = flags and hostFlag != 0
-        val hostTracksMembers = flags and trackHostFlag != 0
-        val hostUsesUwb = flags and useUwbFlag != 0
-        val hostUsesWifi = flags and useWifiFlag != 0
-        val peerId = String(ByteArray(payload.remaining()).also(payload::get), StandardCharsets.UTF_8).trim()
+        val decoded = BleAdvertisementPayload.decode(serviceData) ?: return
+        val eventHash = decoded.eventHash
+        val isHostPeer = decoded.isHost
+        val peerId = decoded.peerId
         var currentEvent = sessionManager.sessionState.value.currentEvent ?: return
         if (eventHash != currentEvent.id.hashCode()) return
-        if (isHostPeer && flags and eventClosedFlag != 0) {
+        if (isHostPeer && decoded.eventClosed) {
             sessionManager.endEventFromHost()
             return
         }
         if (isHostPeer && !sessionManager.sessionState.value.isHost) {
             currentEvent = currentEvent.copy(
                 hostPeerId = peerId,
-                trackHost = hostTracksMembers,
-                useUwb = hostUsesUwb,
-                useWifiDirect = hostUsesWifi
+                trackHost = decoded.tracksMembers,
+                useUwb = decoded.usesUwb,
+                useWifiDirect = decoded.usesWifi
             )
             sessionManager.updateEvent(currentEvent)
         }

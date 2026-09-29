@@ -91,6 +91,27 @@ jobs:
       - name: Make Gradle wrapper executable
         run: chmod +x ./gradlew
 
+      # The unit tests ran nowhere before this step existed: the job only ever
+      # called `assembleDebug`, so a red test could not stop a build. It runs
+      # before the APK is assembled so a regression fails the run before anything
+      # is published, rather than after.
+      - name: Run JVM unit tests
+        run: ./gradlew test --stacktrace
+
+      # The coverage report is uploaded as an artifact rather than gating the
+      # build. A hard coverage gate on a codebase whose UI is not unit-testable
+      # would fail every run for a reason nobody can act on; the floor belongs in
+      # the build, and the detail belongs in the report.
+      - name: Generate unit test coverage report
+        run: ./gradlew jacocoTestReport --stacktrace
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-coverage
+          path: app/build/reports/jacoco/jacocoTestReport
+          if-no-files-found: warn
+
       - name: Assemble debug APK
         run: ./gradlew assembleDebug --stacktrace
 
