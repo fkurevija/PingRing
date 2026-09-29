@@ -71,10 +71,14 @@ jobs:
             echo "No alias needed; android-37 already resolvable"
           fi
 
+      # This is VM acceleration, not graphics acceleration - rendering goes through
+      # swiftshader either way. The udev rule is what makes /dev/kvm group-writable
+      # for the runner user; without it the action's `disable-linux-hw-accel: auto`
+      # resolves to `-accel off` and the emulator falls back to software emulation.
+      # The action already reports which way it resolved: the
+      # `disable Linux hardware acceleration: false` line at the top of the emulator
+      # step is the probe result, so `true` there is the signal to act on.
       - name: Enable KVM for the emulator
-        # Without this the emulator falls back to software rendering and is
-        # unusably slow - often slow enough to hit the job timeout rather than
-        # failing cleanly.
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
             | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -94,6 +98,19 @@ jobs:
       # between images rather than an API behaviour change. If this job does go
       # red, compare the failure against the two known workarounds first: see the
       # note in PausedClockComposeContentTestRule.
+
+      # While it boots, this action retries `adb -s emulator-5554 shell getprop
+      # sys.boot_completed` every two seconds and emits `adb: device 'emulator-5554'
+      # not found` plus "The process .../adb failed with exit code 1" on every attempt
+      # that lands before the device registers. Those pairs are expected retry noise,
+      # but a count of them is diagnostic: 301 of them is exactly the 600s default
+      # timeout, and that means the emulator never came up at all rather than that it
+      # came up slowly. The step fails only on `Timeout waiting for emulator to boot.`,
+      # on the emulator rejecting a command-line parameter, or on the Gradle script
+      # itself, so read in this order: `Emulator booted.` (if present, boot was fine
+      # and the failure is downstream), then any `FATAL` line from the emulator above
+      # the retries (the one seen here was `Not enough space to create userdata
+      # partition`, which `disk-size` below fixes), then the Gradle output.
       - name: Run instrumented tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -101,13 +118,24 @@ jobs:
           target: google_apis
           arch: x86_64
           profile: Nexus 6
+          # The action leaves the data partition at whatever size the AVD profile
+          # asks for unless this is set, and the runner does not have room for that
+          # default. The emulator requires 1.2x the configured size as free space, so
+          # the profile's 6144M asks for 7372.80 MB while the runner has only about
+          # 6853 MB free. It exits before ever listening on 5554 with
+          #   FATAL | Not enough space to create userdata partition.
+          # and the step then spends the full boot timeout polling for a device that
+          # was never started - which is where the `device 'emulator-5554' not found`
+          # wall comes from. 4096M asks for 4915.20 MB, leaving close to 2 GB of
+          # headroom, and is more than this app and its tests need.
+          disk-size: 4096M
           # A clean boot per run: these tests assert on real framework state, and
           # a leftover notification or sensor registration from a previous run
           # would make a failure look intermittent rather than real.
           disable-animations: true
-          # swiftshader rather than the default host GPU: GitHub's runners have no
-          # usable hardware acceleration for the emulator, and asking for it makes
-          # the boot flaky rather than faster.
+          # swiftshader rather than the default host GPU: KVM accelerates the CPU but
+          # there is no usable GPU passthrough on GitHub's runners, so asking for the
+          # host GPU makes the boot flaky rather than faster.
           emulator-options: -no-window -no-snapshot -noaudio -no-boot-anim -gpu swiftshader_indirect -no-metrics
           # -no-metrics: the emulator otherwise prints a metrics-collection warning
           # on every boot, which is only noise today but the warning states it will
