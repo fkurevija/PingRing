@@ -859,6 +859,19 @@ private fun RadarContent(
             (available * 0.82f).coerceIn(160.dp, 320.dp)
         }
 
+        // The radar is sized from the width, so on most phones the ring's square
+        // is shorter than the room the column has, and whatever is left over
+        // lands all on one side. That is the asymmetry this fixes: with the gap
+        // only below the ring - the spacer here plus the button row's own top
+        // padding - the ring sat pressed up under the app bar while an equal
+        // amount of air showed underneath it.
+        //
+        // Derived from the ring's own diameter rather than fixed, so the two
+        // gaps stay equal to each other *and* keep their proportion when the
+        // radar grows on a tablet. A fixed spacer would match on one screen size
+        // and drift on every other.
+        val verticalBuffer = (radarDiameter * 0.05f).coerceIn(8.dp, 20.dp)
+
         Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         // The beacon's title used to be repeated here in a chip above the ring.
         // A beacon is already named in the banner when it is your own and in the
@@ -866,6 +879,7 @@ private fun RadarContent(
         // was a third copy of the same words sitting on top of the other two.
         // A remote peer's beacon is still legible: the ring carries its colour.
 
+        Spacer(Modifier.height(verticalBuffer))
         if (hasPeers && (peer != null)) {
             Text(
                 peer.name,
@@ -887,7 +901,10 @@ private fun RadarContent(
             // the surrounding text and still fits a narrow phone.
             modifier = Modifier.size(radarDiameter)
         )
-        Spacer(Modifier.height(16.dp))
+        // The same buffer below the ring as above it. When a peer is tracked the
+        // distance readout follows in this space instead, which keeps the ring
+        // itself optically centred between the two.
+        Spacer(Modifier.height(verticalBuffer))
         if (peer != null) {
             Text(
                 peer.distance?.let { "%.1f m away".format(it) } ?: "${peer.proximity} signal",
@@ -1026,32 +1043,43 @@ private fun ProximityRing(
             // Drawn here rather than as a fixed-size child Box: the ring is
             // sized from the available width, so a hardcoded 104.dp needle
             // spanned only a third of it on a phone and was swallowed entirely
-            // by the hub in the middle.
+            // by the hub in the middle. Every length below comes off the ring's
+            // own geometry for the same reason.
             val needleRotation = RadarDirectionPolicy.needleRotationDegrees(arrowDegrees) ?: 0f
             val hasBearing = arrowDegrees != null && arrowDegrees.isFinite()
             val needleColor = if (hasBearing) color else color.copy(alpha = 0.45f)
-            val needleLength = ringRadius - stroke * 0.5f
             val radians = Math.toRadians(needleRotation.toDouble())
             val needleTip = Offset(
-                x = center.x + (sin(radians) * needleLength).toFloat(),
-                y = center.y - (cos(radians) * needleLength).toFloat(),
+                x = center.x + (sin(radians) * ring.needleLengthPx).toFloat(),
+                y = center.y - (cos(radians) * ring.needleLengthPx).toFloat(),
             )
             // Starts at the edge of the hub rather than the very centre, so the
             // hub dot reads as the pivot and not as part of the needle.
             val needleBase = Offset(
-                x = center.x + (sin(radians) * ringRadius * 0.14f).toFloat(),
-                y = center.y - (cos(radians) * ringRadius * 0.14f).toFloat(),
+                x = center.x + (sin(radians) * ring.needleBaseRadiusPx).toFloat(),
+                y = center.y - (cos(radians) * ring.needleBaseRadiusPx).toFloat(),
             )
             drawLine(
                 color = needleColor,
                 start = needleBase,
                 end = needleTip,
-                strokeWidth = stroke * 0.22f,
+                strokeWidth = ring.needleStrokePx,
                 cap = StrokeCap.Round,
             )
-            drawCircle(needleColor, stroke * 0.26f, needleTip)
+            drawCircle(needleColor, ring.needleTipRadiusPx, needleTip)
+
+            // The hub, drawn last so it sits over the needle's base.
+            //
+            // Previously a 74.dp Box layered over the Canvas. A fixed size cannot
+            // work here: the radar's diameter ranges from 160.dp to 320.dp with
+            // the available width, and at the small end a 74.dp hub was as wide
+            // as the ring's radius, hiding the middle of the radar. As a fraction
+            // of the ring it holds its proportion at every size.
+            drawCircle(
+                color = color.copy(alpha = if (beacon != null) .30f else .14f),
+                radius = ring.hubRadiusPx,
+            )
         }
-        Box(Modifier.size(74.dp).background(color.copy(alpha = if (beacon != null) .30f else .14f), CircleShape))
     }
 }
 

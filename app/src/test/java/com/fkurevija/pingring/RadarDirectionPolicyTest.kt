@@ -198,6 +198,62 @@ class RadarDirectionPolicyTest {
     }
 
     @Test
+    fun `the hub keeps its share of the radar at every size`() {
+        // The regression this guards: the hub was a hardcoded 74.dp Box over a
+        // ring whose diameter ranges from 160.dp to 320.dp. At the small end it
+        // was as wide as the ring's radius and swallowed the middle of the
+        // radar. As a fraction of the radius it has to hold at both extremes.
+        for (side in floatArrayOf(160f, 240f, 320f, 900f)) {
+            val ring = RadarDirectionPolicy.ringGeometry(side, side)
+            assertEquals(
+                "hub drifted at ${side}px",
+                ring.radiusPx * RadarDirectionPolicy.HUB_RADIUS_FRACTION,
+                ring.hubRadiusPx,
+                0.001f
+            )
+            // And it must leave the ring's inner edge clear, which is the whole
+            // point of not being a fixed size.
+            assertTrue(
+                "hub covered the ring at ${side}px",
+                ring.hubRadiusPx < ring.radiusPx - ring.strokePx / 2f
+            )
+        }
+    }
+
+    @Test
+    fun `the needle starts at the hub and stops on the ring`() {
+        // Both ends of the needle are tied to the ring's own geometry, so
+        // resizing the radar cannot leave the base floating in the middle of the
+        // hub or the tip poking out past the band.
+        for (side in floatArrayOf(160f, 240f, 320f, 900f)) {
+            val ring = RadarDirectionPolicy.ringGeometry(side, side)
+            assertEquals("base drifted at ${side}px", ring.hubRadiusPx, ring.needleBaseRadiusPx, 0.001f)
+            assertEquals(
+                "tip drifted at ${side}px",
+                ring.radiusPx - ring.strokePx / 2f,
+                ring.needleLengthPx,
+                0.001f
+            )
+            // The tip plus its dot still lands inside the ring's band.
+            assertTrue(
+                "tip escaped the ring at ${side}px",
+                ring.needleLengthPx + ring.needleTipRadiusPx <= ring.radiusPx + ring.strokePx / 2f
+            )
+        }
+    }
+
+    @Test
+    fun `the needle and hub scale with the ring rather than staying fixed`() {
+        val small = RadarDirectionPolicy.ringGeometry(160f, 160f)
+        val large = RadarDirectionPolicy.ringGeometry(320f, 320f)
+        // Doubling the radar must double every part drawn inside it.
+        assertEquals(small.hubRadiusPx * 2f, large.hubRadiusPx, 0.001f)
+        assertEquals(small.needleLengthPx * 2f, large.needleLengthPx, 0.001f)
+        assertEquals(small.needleStrokePx * 2f, large.needleStrokePx, 0.001f)
+        assertEquals(small.needleTipRadiusPx * 2f, large.needleTipRadiusPx, 0.001f)
+    }
+
+    @Test
     fun `a non-square canvas keeps the ring centred`() {
         // The radar is sized from the available width but its canvas is not
         // guaranteed square; the radius comes off the smaller side while the

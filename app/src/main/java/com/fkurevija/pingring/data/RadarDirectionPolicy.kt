@@ -110,6 +110,25 @@ object RadarDirectionPolicy {
     const val RING_STROKE_FRACTION = 0.08f
 
     /**
+     * The hub's radius as a fraction of the ring's radius.
+     *
+     * The hub was a hardcoded 74.dp Box, which is the defect this replaces. The
+     * radar's diameter is derived from the available width and ranges from
+     * 160.dp to 320.dp, so one fixed size cannot serve it: at the small end the
+     * hub's diameter matched the ring's entire radius and swallowed the middle
+     * of the radar, taking the needle's base with it, while at the large end it
+     * shrank to a speck. As a fraction it is 25% of the radius at every size,
+     * which is what the 74.dp box measured on a phone.
+     */
+    const val HUB_RADIUS_FRACTION = 0.25f
+
+    /** The needle's thickness as a fraction of the ring's stroke. */
+    const val NEEDLE_STROKE_FRACTION = 0.22f
+
+    /** The dot on the needle's tip, as a fraction of the ring's stroke. */
+    const val NEEDLE_TIP_RADIUS_FRACTION = 0.26f
+
+    /**
      * The circle the ring is drawn on, inside a [canvasWidthPx] by
      * [canvasHeightPx] pixel canvas.
      *
@@ -173,5 +192,38 @@ object RadarDirectionPolicy {
     ) {
         /** The side of the square bounding oval an arc of the ring is drawn in. */
         val arcSizePx: Float get() = radiusPx * 2f
+
+        /**
+         * The hub's radius: the disc drawn over the middle of the ring.
+         *
+         * Derived from [radiusPx] rather than fixed, so the hub keeps the same
+         * share of the radar at every size.
+         */
+        val hubRadiusPx: Float get() = radiusPx * HUB_RADIUS_FRACTION
+
+        /**
+         * How far the needle reaches from the centre.
+         *
+         * Stops half a stroke short of [radiusPx] so the tip dot sits on the
+         * ring's centre line and inside its band, rather than poking through the
+         * outer edge of the stroke.
+         */
+        val needleLengthPx: Float get() = radiusPx - strokePx / 2f
+
+        /**
+         * Where the needle starts, as a distance from the centre.
+         *
+         * At the edge of the hub, so the hub reads as the pivot the needle turns
+         * on rather than as the first thing the needle drew. Following the hub
+         * rather than a fixed fraction means the two cannot drift apart when the
+         * radar is resized.
+         */
+        val needleBaseRadiusPx: Float get() = hubRadiusPx
+
+        /** The needle's line thickness. */
+        val needleStrokePx: Float get() = strokePx * NEEDLE_STROKE_FRACTION
+
+        /** The radius of the dot on the needle's tip. */
+        val needleTipRadiusPx: Float get() = strokePx * NEEDLE_TIP_RADIUS_FRACTION
     }
 }
