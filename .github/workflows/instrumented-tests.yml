@@ -113,7 +113,8 @@ jobs:
       # itself, so read in this order: `Emulator booted.` (if present, boot was fine
       # and the failure is downstream), then any `FATAL` line from the emulator above
       # the retries (the one seen here was `Not enough space to create userdata
-      # partition`, which `disk-size` below fixes), then the Gradle output.
+      # partition`, which `disk-size` alone did not fix - see the launch script in
+      # the step below), then the Gradle output.
       - name: Run instrumented tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -121,17 +122,40 @@ jobs:
           target: google_apis
           arch: x86_64
           profile: Nexus 6
-          # The action leaves the data partition at whatever size the AVD profile
-          # asks for unless this is set, and the runner does not have room for that
-          # default. The emulator requires 1.2x the configured size as free space, so
-          # the profile's 6144M asks for 7372.80 MB while the runner has only about
-          # 6853 MB free. It exits before ever listening on 5554 with
+          # The emulator requires 1.2x the configured data partition as free space.
+          # The AVD profile's own 6144M asks for 7372.80 MB while the runner has about
+          # 6854 MB free, so the emulator exits before ever listening on 5554 with
           #   FATAL | Not enough space to create userdata partition.
           # and the step then spends the full boot timeout polling for a device that
           # was never started - which is where the `device 'emulator-5554' not found`
           # wall comes from. 4096M asks for 4915.20 MB, leaving close to 2 GB of
           # headroom, and is more than this app and its tests need.
+          #
+          # Setting this input is not by itself enough, which is why the launch script
+          # below exists alongside it. The action writes the value with
+          # `printf ... >> config.ini` - a plain append - but avdmanager has already
+          # written its own `disk.dataPartition.size` line while creating the AVD, so
+          # config.ini ends up holding the key twice and the emulator acts on the
+          # first one. A run with this set to 4096M still asked for 7372.80 MB and
+          # died on the same FATAL. An append can only ever add a line the emulator
+          # has already decided to ignore; the entry has to be replaced, not repeated.
           disk-size: 4096M
+
+          # The only point at which config.ini can still be corrected - this runs after
+          # the AVD is created and before the emulator starts. It drops every line
+          # mentioning the key and writes exactly one, so the value the emulator picks
+          # is ours whichever of the two it would have preferred, and the final line
+          # fails the step immediately if that did not hold, rather than letting the
+          # boot wait burn all 600 seconds before anything says why.
+          #
+          # One command per line, path repeated each time, no trailing backslashes:
+          # this input goes through the same parser as `script:` below, which splits
+          # on every newline and runs each line as its own `sh -c`, so nothing set on
+          # one line is visible to the next.
+          pre-emulator-launch-script: |
+            sed -i '/disk\.dataPartition\.size/d' "$HOME/.android/avd/test.avd/config.ini"
+            echo 'disk.dataPartition.size=4096M' >> "$HOME/.android/avd/test.avd/config.ini"
+            test "$(grep -c 'disk.dataPartition.size' "$HOME/.android/avd/test.avd/config.ini")" -eq 1
           # A clean boot per run: these tests assert on real framework state, and
           # a leftover notification or sensor registration from a previous run
           # would make a failure look intermittent rather than real.
