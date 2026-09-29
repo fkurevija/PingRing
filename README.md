@@ -214,7 +214,7 @@ Grouped by area. ✅ = already shipped, kept for reference.
 - **Design the logo**, then match the theme colour to it. The colour currently has no logo to be derived from.
 
 **Home — Host / Join**
-- **Per-user chat bubble colour**: 4–6 presets plus a "custom" option opening a colour wheel. Beacon toasts in chat keep their own styling; the radar stays on the global colour.
+- **Per-user chat bubble colour**: 4–6 presets plus a "custom" option opening a colour wheel. Today every bubble uses the global theme colour. Beacon entries in chat keep their own styling.
 
 **Connectivity**
 - **Wire up the Wi-Fi Direct / hotspot settings** — see Known limitations.
@@ -233,7 +233,7 @@ Grouped by area. ✅ = already shipped, kept for reference.
 
 **Radar — Beacon**
 - **Move Emergency off the first preset slot.** Presets render in enum order and `SOS` is first, so Emergency is the default selection when the sheet opens.
-- **Embed an active beacon in the chat** so it stands out from ordinary messages. A beacon currently shows twice: a banner above the radar *and* a card in the remote-alerts list.
+- ✅ **Embed an active beacon in the chat** so it stands out from ordinary messages. A remote beacon now appears once, as a full-width colour-banded chat entry. The banner above the radar is kept for the local beacon.
 
 **Radar Settings · App Settings**
 - No items yet.

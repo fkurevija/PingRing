@@ -105,6 +105,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import com.fkurevija.pingring.data.BeaconInfo
 import com.fkurevija.pingring.data.BeaconPreset
 import com.fkurevija.pingring.data.BeaconVibrationPattern
+import com.fkurevija.pingring.data.ChatMessage
 import com.fkurevija.pingring.data.ChatMessageOwnership
 import com.fkurevija.pingring.data.ConnectivityStatus
 import com.fkurevija.pingring.data.DiscoveryRepository
@@ -116,6 +117,23 @@ import com.fkurevija.pingring.data.SessionState
 import kotlinx.coroutines.delay
 import kotlin.math.cos
 import kotlin.math.sin
+
+/**
+ * One entry in the chat transcript: either a message or a live beacon.
+ *
+ * A beacon used to be shown as a card above the radar *and* in a remote alerts
+ * list, so the same call to action appeared twice on screen. It is now a single
+ * chat entry instead - a beacon is something happening now, and the chat is
+ * where that belongs.
+ *
+ * Deliberately not a [ChatMessage]: a beacon has no timestamp and does not join
+ * the conversation history the host replays to late joiners, so folding it in as
+ * one would imply a message that was never sent.
+ */
+private sealed interface ChatEntry {
+    data class Msg(val message: ChatMessage) : ChatEntry
+    data class Beacon(val beacon: BeaconInfo) : ChatEntry
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -324,41 +342,6 @@ fun RadarScreen(
                 }
             }
 
-            // Remote Active Beacons Alerts
-            activeBeacons.filter { (id, _) -> id != localBeacon?.senderPeerId }.values.forEach { beacon ->
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = Color(beacon.colorArgb).copy(alpha = 0.15f)
-                    ),
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            Icons.Default.Campaign,
-                            contentDescription = null,
-                            tint = Color(beacon.colorArgb),
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                "${beacon.senderName}: ${beacon.title}",
-                                fontWeight = FontWeight.Bold,
-                                color = Color(beacon.colorArgb)
-                            )
-                            Text(
-                                "Active Beacon · ${BeaconVibrationPattern.fromName(beacon.vibrationPattern).displayName}",
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        }
-                    }
-                }
-            }
-
             BoxWithConstraints(modifier = Modifier.fillMaxWidth().weight(1f)) {
                 val wide = maxWidth >= 600.dp
                 if (wide) {
@@ -411,7 +394,23 @@ fun RadarScreen(
                                     modifier = Modifier.weight(1f).fillMaxWidth(),
                                     verticalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
-                                    if (sessionState.chatMessages.isEmpty()) {
+                                    // Messages, then live beacons. Beacons are
+                                    // current state rather than a point in the
+                                    // conversation, so they sit after the
+                                    // transcript where the eye already is, rather
+                                    // than interleaved at some arbitrary point.
+                                    //
+                                    // The local beacon is excluded: it keeps its
+                                    // own banner above the radar, which is the one
+                                    // part of this the user asked to retain.
+                                    val remoteBeacons = activeBeacons
+                                        .filterKeys { it != localBeacon?.senderPeerId }
+                                        .values
+                                    val entries: List<ChatEntry> =
+                                        sessionState.chatMessages.map { ChatEntry.Msg(it) } +
+                                            remoteBeacons.map { ChatEntry.Beacon(it) }
+
+                                    if (entries.isEmpty()) {
                                         item {
                                             Box(
                                                 modifier = Modifier.fillParentMaxSize(),
@@ -425,14 +424,17 @@ fun RadarScreen(
                                             }
                                         }
                                     } else {
-                                        items(sessionState.chatMessages) { msg ->
-                                            // Identity, not display name: a
-                                            // name comparison put the host's own
-                                            // messages on the wrong side, because
-                                            // the local fallback name is "Host"
-                                            // and names are neither unique nor
-                                            // stable. See ChatMessageOwnership.
-                                            val isMe = ChatMessageOwnership.isOwnMessage(
+                                        items(entries) { entry ->
+                                            when (entry) {
+                                                is ChatEntry.Msg -> {
+                                                    val msg = entry.message
+                                                    // Identity, not display name: a
+                                                    // name comparison put the host's own
+                                                    // messages on the wrong side, because
+                                                    // the local fallback name is "Host"
+                                                    // and names are neither unique nor
+                                                    // stable. See ChatMessageOwnership.
+                                                    val isMe = ChatMessageOwnership.isOwnMessage(
                                                 msg.senderPeerId,
                                                 discoveryRepository?.localPeerId
                                             )
@@ -455,24 +457,28 @@ fun RadarScreen(
                                                         }
                                                     )
                                                 ) {
-                                                    Column(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
-                                                        Text(
-                                                            msg.senderName,
-                                                            style = MaterialTheme.typography.labelSmall,
-                                                            fontWeight = FontWeight.Bold,
-                                                            color = if (isMe) {
-                                                                MaterialTheme.colorScheme.onPrimaryContainer
-                                                            } else {
-                                                                MaterialTheme.colorScheme.primary
+                                                            Column(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
+                                                                Text(
+                                                                    msg.senderName,
+                                                                    style = MaterialTheme.typography.labelSmall,
+                                                                    fontWeight = FontWeight.Bold,
+                                                                    color = if (isMe) {
+                                                                        MaterialTheme.colorScheme.onPrimaryContainer
+                                                                    } else {
+                                                                        MaterialTheme.colorScheme.primary
+                                                                    }
+                                                                )
+                                                                Text(
+                                                                    msg.messageText,
+                                                                    style = MaterialTheme.typography.bodyMedium,
+                                                                    color = if (isMe) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                                                                )
                                                             }
-                                                        )
-                                                        Text(
-                                                            msg.messageText,
-                                                            style = MaterialTheme.typography.bodyMedium,
-                                                            color = if (isMe) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
-                                                        )
+                                                        }
                                                     }
                                                 }
+
+                                                is ChatEntry.Beacon -> ActiveBeaconEntry(entry.beacon)
                                             }
                                         }
                                     }
@@ -650,6 +656,53 @@ fun RadarScreen(
                     )
                 }
             }
+        }
+    }
+}
+
+/**
+ * A live beacon, rendered inside the chat transcript.
+ *
+ * Built to be unmistakably not a chat bubble: it always spans the full width
+ * rather than sitting left or right, it carries a full-strength band of the
+ * beacon's own colour rather than a 15% tint, and it has a square silhouette
+ * where messages have a 14 dp bubble. Someone glancing at the chat should see
+ * a beacon before they read a single word of it.
+ */
+@Composable
+private fun ActiveBeaconEntry(beacon: BeaconInfo) {
+    val beaconColor = Color(beacon.colorArgb)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp)
+            .background(
+                beaconColor.copy(alpha = 0.18f),
+                RoundedCornerShape(8.dp)
+            )
+            .border(1.dp, beaconColor.copy(alpha = 0.55f), RoundedCornerShape(8.dp))
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            Icons.Default.Campaign,
+            contentDescription = "Active beacon",
+            tint = beaconColor,
+            modifier = Modifier.size(24.dp)
+        )
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                beacon.title,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = beaconColor
+            )
+            Text(
+                "${beacon.senderName} · ${BeaconVibrationPattern.fromName(beacon.vibrationPattern).displayName}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
