@@ -129,6 +129,9 @@ import kotlin.math.sin
  * Deliberately not a [ChatMessage]: a beacon has no timestamp and does not join
  * the conversation history the host replays to late joiners, so folding it in as
  * one would imply a message that was never sent.
+ *
+ * Shown for every member of the ring, the sender included: the chat is the one
+ * place every device agrees on, so a beacon set here reads the same there.
  */
 private sealed interface ChatEntry {
     data class Msg(val message: ChatMessage) : ChatEntry
@@ -400,15 +403,17 @@ fun RadarScreen(
                                     // transcript where the eye already is, rather
                                     // than interleaved at some arbitrary point.
                                     //
-                                    // The local beacon is excluded: it keeps its
-                                    // own banner above the radar, which is the one
-                                    // part of this the user asked to retain.
-                                    val remoteBeacons = activeBeacons
-                                        .filterKeys { it != localBeacon?.senderPeerId }
-                                        .values
+                                    // Every active beacon is listed, the local one
+                                    // included. A beacon is broadcast to the ring,
+                                    // so the transcript has to read the same on
+                                    // every device, and the sender is as much a
+                                    // member of the ring as anyone else: a beacon
+                                    // you set appears in your own chat too. The
+                                    // sender keeps its banner above the radar as
+                                    // well, which is where the Stop control lives.
                                     val entries: List<ChatEntry> =
                                         sessionState.chatMessages.map { ChatEntry.Msg(it) } +
-                                            remoteBeacons.map { ChatEntry.Beacon(it) }
+                                            activeBeacons.values.map { ChatEntry.Beacon(it) }
 
                                     if (entries.isEmpty()) {
                                         item {

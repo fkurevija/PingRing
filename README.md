@@ -233,7 +233,7 @@ Grouped by area. ✅ = already shipped, kept for reference.
 
 **Radar — Beacon**
 - **Move Emergency off the first preset slot.** Presets render in enum order and `SOS` is first, so Emergency is the default selection when the sheet opens.
-- ✅ **Embed an active beacon in the chat** so it stands out from ordinary messages. A remote beacon now appears once, as a full-width colour-banded chat entry. The banner above the radar is kept for the local beacon.
+- ✅ **Embed an active beacon in the chat** so it stands out from ordinary messages. Every active beacon appears once, as a full-width colour-banded chat entry, the sender's own included: a beacon is broadcast to the ring, so every member's chat reads the same. The banner above the radar is kept for the local beacon, because that is where its Stop control lives.
 
 **Radar Settings · App Settings**
 - No items yet.
