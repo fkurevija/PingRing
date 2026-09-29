@@ -112,7 +112,7 @@ On Windows (PowerShell): `.\gradlew.bat testDebugUnitTest assembleDebug`
 
 The APK lands at `app/build/outputs/apk/debug/app-debug.apk`.
 
-**Releases.** Every push to `master` rolls a single `latest` release forward, overwriting the previous APK — it is a pointer to the newest build, not a history. Run artifacts keep each build for 90 days.
+**Releases.** Every successful build on `master` rolls a single `latest` release forward, replacing the previous APK — it is a pointer to the newest build, not a history, and the rolling tag is moved to the commit it contains. Run artifacts keep each build for 90 days. Once a tagged release exists it takes GitHub's "Latest" badge; `latest` deliberately does not claim it.
 
 To keep a build permanently, tag it. A `v*` tag publishes an **immutable** release that is never replaced:
 
