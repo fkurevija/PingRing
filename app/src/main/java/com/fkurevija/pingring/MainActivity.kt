@@ -161,6 +161,7 @@ fun MainNavigation(
     val backStack: NavBackStack<NavKey> = rememberNavBackStack(HomeKey)
     val currentThemeMode by rememberUpdatedState(themeMode)
     val savedUsername by appearanceSettings.userName.collectAsState(initial = "")
+    val favouriteBeacon by appearanceSettings.favouriteBeacon.collectAsState(initial = null)
 
     // Chat notifications are suppressed only while the radar/chat window is
     // the destination actually on top. Being inside the app is not enough:
@@ -368,6 +369,8 @@ fun MainNavigation(
                         trackHost = sessionState.currentEvent?.trackHost == true,
                         coordinationError = syncStatus.errorMessage,
                         sessionState = sessionState,
+                        favouriteBeacon = favouriteBeacon,
+                        onFavouriteBeaconChange = appearanceSettings::setFavouriteBeacon,
                         onEventSettings = { backStack.add(PingRingSettingsKey(key.eventId)) },
                         onLeaveEvent = {
                             discoveryRepository.stopDiscovery()

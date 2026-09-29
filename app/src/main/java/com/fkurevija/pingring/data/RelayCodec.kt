@@ -21,7 +21,6 @@ internal data class EncodedPayload(val wireType: String, val json: String)
 internal sealed interface DecodedPayload {
     data class Chat(val message: ChatPayloadDto) : DecodedPayload
     data class ChatHistory(val history: ChatHistoryPayloadDto) : DecodedPayload
-    data class Nudge(val nudge: NudgePayloadDto) : DecodedPayload
     data class Beacon(val beacon: BeaconPayloadDto) : DecodedPayload
     data class UwbAddress(val address: UwbPeerAddressDto) : DecodedPayload
     data class UwbParameters(val params: UwbControllerParametersDto) : DecodedPayload
@@ -48,7 +47,6 @@ internal object RelayCodec {
 
     const val CHAT = "chat"
     const val CHAT_HISTORY = "chat-history"
-    const val NUDGE = "nudge"
     const val BEACON = "beacon"
     const val UWB_ADDRESS = "uwb-address"
     const val UWB_PARAMS = "uwb-params"
@@ -64,7 +62,7 @@ internal object RelayCodec {
 
     /** Every payload type this build understands inside an envelope. */
     val knownWireTypes: Set<String> = setOf(
-        CHAT, CHAT_HISTORY, NUDGE, BEACON, UWB_ADDRESS, UWB_PARAMS, UWB_OFFER, MOCK_RANGING
+        CHAT, CHAT_HISTORY, BEACON, UWB_ADDRESS, UWB_PARAMS, UWB_OFFER, MOCK_RANGING
     )
 
     // One Moshi for the whole process, with the adapters resolved once. The
@@ -76,7 +74,6 @@ internal object RelayCodec {
     private val envelopeAdapter: JsonAdapter<RelayEnvelope> = moshi.adapter(RelayEnvelope::class.java)
     private val chatAdapter: JsonAdapter<ChatPayloadDto> = moshi.adapter(ChatPayloadDto::class.java)
     private val chatHistoryAdapter: JsonAdapter<ChatHistoryPayloadDto> = moshi.adapter(ChatHistoryPayloadDto::class.java)
-    private val nudgeAdapter: JsonAdapter<NudgePayloadDto> = moshi.adapter(NudgePayloadDto::class.java)
     private val beaconAdapter: JsonAdapter<BeaconPayloadDto> = moshi.adapter(BeaconPayloadDto::class.java)
     private val uwbAddressAdapter: JsonAdapter<UwbPeerAddressDto> = moshi.adapter(UwbPeerAddressDto::class.java)
     private val uwbParamsAdapter: JsonAdapter<UwbControllerParametersDto> = moshi.adapter(UwbControllerParametersDto::class.java)
@@ -108,7 +105,6 @@ internal object RelayCodec {
     fun decode(wireType: String, json: String): Result<DecodedPayload>? = when (wireType) {
         CHAT -> decodeBody(chatAdapter, json, DecodedPayload::Chat)
         CHAT_HISTORY -> decodeBody(chatHistoryAdapter, json, DecodedPayload::ChatHistory)
-        NUDGE -> decodeBody(nudgeAdapter, json, DecodedPayload::Nudge)
         BEACON -> decodeBody(beaconAdapter, json, DecodedPayload::Beacon)
         UWB_ADDRESS -> decodeBody(uwbAddressAdapter, json, DecodedPayload::UwbAddress)
         UWB_PARAMS -> decodeBody(uwbParamsAdapter, json, DecodedPayload::UwbParameters)
@@ -129,7 +125,6 @@ internal object RelayCodec {
     fun decodeUnwrapped(json: String): DecodedPayload? =
         decode(chatAdapter, json)?.takeIf { it.id.isNotEmpty() && it.text.isNotEmpty() }?.let(DecodedPayload::Chat)
             ?: decode(chatHistoryAdapter, json)?.let(DecodedPayload::ChatHistory)
-            ?: decode(nudgeAdapter, json)?.takeIf { it.id.isNotEmpty() }?.let(DecodedPayload::Nudge)
             ?: decode(beaconAdapter, json)?.takeIf { it.id.isNotEmpty() }?.let(DecodedPayload::Beacon)
             ?: decode(uwbParamsAdapter, json)?.takeIf { it.hostPeerId.isNotEmpty() }?.let(DecodedPayload::UwbParameters)
             ?: decode(uwbAddressAdapter, json)?.takeIf { it.peerId.isNotEmpty() }?.let(DecodedPayload::UwbAddress)
@@ -148,7 +143,6 @@ internal object RelayCodec {
     fun route(payload: DecodedPayload, sink: PayloadSink): Boolean = when (payload) {
         is DecodedPayload.Chat -> { sink.onChatMessage(payload.message); true }
         is DecodedPayload.ChatHistory -> { sink.onChatHistory(payload.history); true }
-        is DecodedPayload.Nudge -> { sink.onNudge(payload.nudge); true }
         is DecodedPayload.Beacon -> { sink.onBeacon(payload.beacon); true }
         is DecodedPayload.UwbAddress -> { sink.onUwbAddress(payload.address); true }
         is DecodedPayload.UwbParameters -> { sink.onUwbParameters(payload.params); true }
@@ -168,7 +162,6 @@ internal object RelayCodec {
     fun encode(params: Any): EncodedPayload? = when (params) {
         is ChatPayloadDto -> EncodedPayload(CHAT, chatAdapter.toJson(params))
         is ChatHistoryPayloadDto -> EncodedPayload(CHAT_HISTORY, chatHistoryAdapter.toJson(params))
-        is NudgePayloadDto -> EncodedPayload(NUDGE, nudgeAdapter.toJson(params))
         is BeaconPayloadDto -> EncodedPayload(BEACON, beaconAdapter.toJson(params))
         is UwbPeerAddressDto -> EncodedPayload(UWB_ADDRESS, uwbAddressAdapter.toJson(params))
         is UwbControllerParametersDto -> EncodedPayload(UWB_PARAMS, uwbParamsAdapter.toJson(params))

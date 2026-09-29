@@ -21,7 +21,6 @@ interface NearbyTransport {
     val connectionEstablished: SharedFlow<String>
     val peerDisconnected: SharedFlow<String>
     val eventClosed: SharedFlow<Unit>
-    val receivedNudge: SharedFlow<NudgePayloadDto>
     val receivedBeacon: SharedFlow<BeaconPayloadDto>
 
     /**
@@ -71,9 +70,6 @@ interface NearbyTransport {
     fun broadcastChatMessage(chatMsg: ChatPayloadDto)
     fun sendChatHistoryToPeer(peerId: String, messages: List<ChatPayloadDto>)
     fun sendChatMessageToPeer(peerId: String, chatMsg: ChatPayloadDto)
-
-    fun sendNudgeToPeer(peerId: String, nudge: NudgePayloadDto)
-    fun broadcastNudge(nudge: NudgePayloadDto)
 
     fun sendBeaconToPeer(peerId: String, beacon: BeaconPayloadDto)
     fun broadcastBeacon(beacon: BeaconPayloadDto)

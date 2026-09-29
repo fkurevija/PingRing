@@ -176,6 +176,26 @@ tasks.register<JacocoReport>("jacocoTestReport") {
     dependsOn(unitTest)
 }
 
+// The Compose UI and device suite needs a booted emulator or a physical phone,
+// and costs 10-20 minutes of mostly waiting. It is therefore excluded from the
+// everyday tasks, in the same way the remote workflow only runs it for a tagged
+// release (`.github/workflows/instrumented-tests.yml`):
+//
+//   ./gradlew testDebugUnitTest          # everyday: JVM tests, no device
+//   ./gradlew check                      # same, via the standard lifecycle task
+//   ./gradlew connectedDebugAndroidTest  # explicit opt-in, on a device
+//
+// AGP already leaves the connected tests out of `check` and `build`, so nothing
+// here changes that default - this only names the escape hatch in one place, so
+// the rule is discoverable from `./gradlew tasks` rather than from a comment
+// nobody reads. An explicit run is always available and is never blocked by this
+// setting; it is here to document the gate, not to enforce one.
+tasks.register("uiTest") {
+    group = "verification"
+    description = "Runs the Compose UI and device (instrumented) tests. Needs a booted device."
+    dependsOn("connectedDebugAndroidTest")
+}
+
 /**
  * Enforces the per-class coverage floor.
  *

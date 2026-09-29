@@ -5,7 +5,6 @@ import com.fkurevija.pingring.data.ChatHistoryPayloadDto
 import com.fkurevija.pingring.data.ChatPayloadDto
 import com.fkurevija.pingring.data.DecodedPayload
 import com.fkurevija.pingring.data.MockRangingDto
-import com.fkurevija.pingring.data.NudgePayloadDto
 import com.fkurevija.pingring.data.PayloadSink
 import com.fkurevija.pingring.data.RelayCodec
 import com.fkurevija.pingring.data.RelayEnvelope
@@ -41,10 +40,6 @@ class RelayCodecTest {
             delivered += history
         }
 
-        override fun onNudge(nudge: NudgePayloadDto) {
-            delivered += nudge
-        }
-
         override fun onBeacon(beacon: BeaconPayloadDto) {
             delivered += beacon
         }
@@ -64,14 +59,6 @@ class RelayCodecTest {
         senderName = "Bob",
         text = "hi",
         timestamp = 1_700_000_000_000L
-    )
-
-    private val nudge = NudgePayloadDto(
-        id = "n1",
-        senderPeerId = "peer-b",
-        senderName = "Bob",
-        targetPeerId = null,
-        timestamp = 1_700_000_000_001L
     )
 
     private val beacon = BeaconPayloadDto(
@@ -107,7 +94,7 @@ class RelayCodecTest {
 
     @Test
     fun everyPayloadKindSurvivesItsOwnWireType() {
-        val payloads = listOf<Any>(chat, ChatHistoryPayloadDto(listOf(chat)), nudge, beacon, address, params, offer)
+        val payloads = listOf<Any>(chat, ChatHistoryPayloadDto(listOf(chat)), beacon, address, params, offer)
 
         payloads.forEach { payload ->
             val encoded = RelayCodec.encode(payload) ?: error("nothing encoded for $payload")
@@ -155,7 +142,7 @@ class RelayCodecTest {
     @Test
     fun everyWireTypeTheAppUsesIsInTheKnownSet() {
         listOf(
-            RelayCodec.CHAT, RelayCodec.CHAT_HISTORY, RelayCodec.NUDGE, RelayCodec.BEACON,
+            RelayCodec.CHAT, RelayCodec.CHAT_HISTORY, RelayCodec.BEACON,
             RelayCodec.UWB_ADDRESS, RelayCodec.UWB_PARAMS, RelayCodec.UWB_OFFER, RelayCodec.MOCK_RANGING
         ).forEach { assertTrue("$it is not a known wire type", it in RelayCodec.knownWireTypes) }
     }
@@ -212,7 +199,6 @@ class RelayCodecTest {
     private fun payloadOf(decoded: DecodedPayload): Any = when (decoded) {
         is DecodedPayload.Chat -> decoded.message
         is DecodedPayload.ChatHistory -> decoded.history
-        is DecodedPayload.Nudge -> decoded.nudge
         is DecodedPayload.Beacon -> decoded.beacon
         is DecodedPayload.UwbAddress -> decoded.address
         is DecodedPayload.UwbParameters -> decoded.params

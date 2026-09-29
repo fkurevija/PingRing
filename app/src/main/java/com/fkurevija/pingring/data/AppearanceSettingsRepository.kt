@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Build
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.fkurevija.pingring.DeviceEnvironment
@@ -28,6 +29,9 @@ private val notificationSoundEnabledKey = booleanPreferencesKey("notification_so
 private val notificationVibrationEnabledKey = booleanPreferencesKey("notification_vibration_enabled")
 private val lanDebugEnabledKey = booleanPreferencesKey("lan_debug_enabled")
 private val lanDebugHostKey = stringPreferencesKey("lan_debug_host")
+private val favouriteBeaconTitleKey = stringPreferencesKey("favourite_beacon_title")
+private val favouriteBeaconColorKey = longPreferencesKey("favourite_beacon_color")
+private val favouriteBeaconPatternKey = stringPreferencesKey("favourite_beacon_pattern")
 
 class AppearanceSettingsRepository(private val context: Context) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -112,6 +116,40 @@ class AppearanceSettingsRepository(private val context: Context) {
 
     val lanDebugHost: Flow<String> = context.appearanceDataStore.data.map { preferences ->
         preferences[lanDebugHostKey] ?: if (DeviceEnvironment.isEmulator()) "10.0.2.2" else "127.0.0.1"
+    }
+
+    /**
+     * The beacon starred in the beacon screen, or null when none is saved.
+     *
+     * All three keys have to be there to count: a half-written favourite would
+     * send a beacon with a colour nobody picked, which is worse than sending
+     * nothing and opening the beacon screen instead.
+     */
+    val favouriteBeacon: Flow<FavouriteBeacon?> = context.appearanceDataStore.data.map { preferences ->
+        val title = preferences[favouriteBeaconTitleKey]
+        val color = preferences[favouriteBeaconColorKey]
+        val pattern = preferences[favouriteBeaconPatternKey]
+        if (title != null && title.isNotBlank() && color != null && pattern != null) {
+            FavouriteBeacon(title, color, BeaconVibrationPattern.fromName(pattern))
+        } else {
+            null
+        }
+    }
+
+    fun setFavouriteBeacon(favourite: FavouriteBeacon?) {
+        scope.launch {
+            context.appearanceDataStore.edit { preferences ->
+                if (favourite == null) {
+                    preferences.remove(favouriteBeaconTitleKey)
+                    preferences.remove(favouriteBeaconColorKey)
+                    preferences.remove(favouriteBeaconPatternKey)
+                } else {
+                    preferences[favouriteBeaconTitleKey] = favourite.title
+                    preferences[favouriteBeaconColorKey] = favourite.colorArgb
+                    preferences[favouriteBeaconPatternKey] = favourite.pattern.name
+                }
+            }
+        }
     }
 
     fun setLanDebugEnabled(enabled: Boolean) {

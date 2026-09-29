@@ -52,7 +52,6 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
      * advertisement, which [DiscoveryRepository] already watches for.
      */
     override val eventClosed: SharedFlow<Unit> get() = events.eventClosed
-    override val receivedNudge: SharedFlow<NudgePayloadDto> get() = events.receivedNudge
     override val receivedBeacon: SharedFlow<BeaconPayloadDto> get() = events.receivedBeacon
 
     /**
@@ -213,19 +212,6 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
             return
         }
         sendPayloadToEndpoint(endpointId, chatMsg)
-    }
-
-    override fun sendNudgeToPeer(peerId: String, nudge: NudgePayloadDto) {
-        val endpointId = connectedEndpoints[peerId] ?: return
-        sendPayloadToEndpoint(endpointId, nudge)
-    }
-
-    override fun broadcastNudge(nudge: NudgePayloadDto) {
-        val endpoints = connectedEndpoints.values.toSet()
-        Log.i(TAG, "Broadcasting nudge from ${nudge.senderName} to ${endpoints.size} endpoint(s)")
-        endpoints.forEach { endpointId ->
-            sendPayloadToEndpoint(endpointId, nudge)
-        }
     }
 
     override fun sendBeaconToPeer(peerId: String, beacon: BeaconPayloadDto) {

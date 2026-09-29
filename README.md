@@ -9,7 +9,7 @@
 [![Ranging](https://img.shields.io/badge/Precision-Ultra--Wideband_%28UWB%29-00599C?style=for-the-badge&logo=radar&logoColor=white)](https://developer.android.com/guide/topics/connectivity/uwb)
 
 <p align="center">
-  Locate, nudge, chat, and coordinate with friends at crowded events, concerts, or festivals.<br/>
+  Locate, rally, chat, and coordinate with friends at crowded events, concerts, or festivals.<br/>
   <b>100% Serverless & Offline &bull; Zero Server Sign-in &bull; Ephemeral & Privacy-First</b>
 </p>
 
@@ -19,7 +19,7 @@
 
 **PingRing** is a native Android app for short-lived, high-density events (festivals, conventions, sports venues, rallies) where cellular networks are congested or unavailable.
 
-Using **Nearby Connections**, **BLE** and **UWB**, it forms an ad-hoc peer-to-peer mesh directly between nearby phones. Participants locate each other on a real-world radar, send haptic nudges, broadcast beacons, and chat in real time — with no cellular data and no external server.
+Using **Nearby Connections**, **BLE** and **UWB**, it forms an ad-hoc peer-to-peer mesh directly between nearby phones. Participants locate each other on a real-world radar, raise haptic beacons, and chat in real time — with no cellular data and no external server.
 
 ---
 
@@ -47,7 +47,7 @@ graph TD
 ### Protocol Flow
 1. **Discovery**: Host advertises over BLE Service UUID `0000fa1b-0000-1000-8000-00805f9b34fb`.
 2. **P2P Handshake**: Guests discover the advertiser and establish an encrypted Nearby Connections session.
-3. **Data Sync**: The Host brokers and re-broadcasts chat, nudges, and beacons to all connected nodes.
+3. **Data Sync**: The Host brokers and re-broadcasts chat and beacons to all connected nodes.
 4. **Spatial Ranging**: Concurrent UWB sessions run for sub-metre 3D positioning (distance, azimuth, elevation).
 
 ---
@@ -60,14 +60,14 @@ graph TD
 - **Bounded capacity**: max **8 participants** (1 Host + 7 Guests), enforced by the Host (`8/8 - Full`). Prevents radio/socket starvation, guaranteeing 30 FPS UWB ranging and instant messaging.
 - **Automatic fallback** from sub-metre UWB to BLE RSSI proximity when UWB is unsupported or unavailable.
 
-### 👤 Identity, Join & Nudges
+### 👤 Identity & Join
 - **Custom usernames**, saved locally via DataStore and pre-filled on future sessions. Names are enforced unique within a session, with an alert on collision.
 - **Join via QR** (ML Kit, on the Host's on-screen code) or a **6-character PingRing Code** (`e.g. AB12CD`). Code fields force ALL CAPS, usernames use Word Capitalization. The Radar's QR button re-opens the code mid-event for latecomers.
 - **Join validation**: a 2.5s timeout verifies the host; on failure the session is cleaned up and the user stays on the join screen to retry.
-- **Nudges** (`👋`) target a specific peer or broadcast to all. Recipients get a distinct double-vibration pulse and banner. The button stays enabled regardless of connection or ranging state.
 
 ### 🚨 Beacons & Chat
 - **Intent presets**: 🚨 Emergency, ✨ Found Something, 📍 Regroup Here, ⚠️ Caution, ⚡ Custom — with 5 colour palettes (Crimson, Amber, Emerald, Cyan, Purple) and 5 vibration rhythms (SOS/Urgent, Rapid Alert, Steady Pulse, Gentle Pulse, No Vibration). Beacons illuminate radar rings, peer pins and wave animations on receivers.
+- **Quick Beacon** (`⚡`): star a configuration with **Set as Favourite** in the beacon screen and the radar's Quick Beacon button sends that exact message, colour and rhythm in a single tap — no screen in between. With nothing starred yet, the button opens the beacon screen instead.
 - **Offline group chat** with sender-labelled bubbles. The chat window floats over the radar while typing, then returns to its docked position.
 - **Host-preserved history**: the Host keeps the transcript for the life of the PingRing and replays it to peers who join or reconnect.
 - **Configurable notifications**: toggle chat push app-wide in App Settings and per-PingRing in Event Settings, with independent **sound** and **vibration** controls. Notifications are suppressed while you are already watching the radar with the screen on and unlocked; the device can still vibrate or sound.
@@ -105,6 +105,7 @@ git clone https://github.com/fkurevija/PingRing.git
 cd PingRing
 
 ./gradlew testDebugUnitTest   # unit tests
+./gradlew uiTest              # Compose UI + device tests (needs a booted device)
 ./gradlew assembleDebug       # debug APK
 ```
 
@@ -122,6 +123,8 @@ python tools/tag_release.py --create   # create and push the tag
 ```
 
 It suggests the next patch version, refuses to tag a dirty tree, and points the tag at an explicit commit rather than a branch name, so the release cannot move when `master` advances. Pushing the tag triggers the versioned release path in **Build APK**.
+
+**UI tests are opt-in, locally and on CI.** The Compose UI and device suite needs a booted emulator and takes 10–20 minutes mostly waiting, so it is kept out of the everyday commands: `./gradlew check` and `build` run only the JVM unit tests. Run it explicitly when you want it, either locally with `./gradlew uiTest` (or `connectedDebugAndroidTest` directly), or on GitHub from the Actions tab via **Instrumented Tests → Run workflow**. On CI it also runs automatically for `v*` tags, against exactly the APK people install. One trade-off: the coverage page that workflow publishes is then only refreshed on releases, so between tags it describes the last released commit rather than the tip of `master`.
 
 The script also judges whether a release is warranted, counting `feat`/`fix`/`perf` commits as user-facing and ignoring docs, CI and internal work. Every master build writes that assessment to its GitHub Actions run summary, so the suggestion appears where it will be seen — CI advises, it never tags on your behalf.
 
@@ -223,7 +226,7 @@ Grouped by area. ✅ = already shipped, kept for reference.
 
 **Radar**
 - ~~**Hide End / Leave PingRing while the keyboard is open.**~~ Resolved: the button moved to the **PingRing Settings** screen, and the radar keeps the navigation bar back arrow as the exit route.
-- **Replace Nudge with a favourite beacon.** Needs a way to mark a favourite in the beacon screen first — no such concept exists.
+- ~~**Replace Nudge with a favourite beacon.**~~ Resolved: Nudge is gone everywhere, wire format included; the beacon screen stars a configuration (**Set as Favourite**, kept in DataStore) and the radar's **Quick Beacon** button sends it in one tap — opening the beacon screen instead when nothing is starred.
 - ~~**Fix radar rendering.**~~ Resolved: the lit arc was inscribed in an oval the size of the *canvas* instead of the ring's own square, which put the arc's centre nearly a full radius below-right of the ring's, so the highlight rendered as a stray arc beside the ring, clipped where it left the canvas. The ring and its arc now come from one `RadarDirectionPolicy.ringGeometry`, and unit tests pin the arc concentric with the ring on square and non-square canvases.
 - **Default the host's focus to the first member to join** rather than the nearest. No join order is recorded on peers yet, so this needs a join timestamp or an ordered friend list.
 - ✅ Track one member at a time; the UWB session follows the selection.

@@ -27,7 +27,7 @@ import org.junit.Test
  * same rendering with neither.
  *
  * The state under test is what a user acts on: who is listed, who is being
- * tracked, whose beacon is showing, and where the nudge goes. A peer whose
+ * tracked, and whose beacon is showing. A peer whose
  * distance is unknown has to say so rather than render a wrong number.
  */
 class PeerListInstrumentedTest {
@@ -80,7 +80,6 @@ class PeerListInstrumentedTest {
                     connectivity = connectivity,
                     repository = null,
                     activeBeacons = activeBeacons,
-                    senderName = "Ana",
                     focusedPeerId = focusedPeerId,
                     onFocusPeer = onFocusPeer,
                     modifier = Modifier.fillMaxWidth(),
@@ -234,19 +233,5 @@ class PeerListInstrumentedTest {
 
         composeRule.onNodeWithText("Bluetooth is off. Enable it to discover nearby peers.")
             .assertDoesNotExist()
-    }
-
-    @Test
-    fun theNudgeAllButtonOnlyAppearsWhenThereIsSomebodyToNudge() {
-        show(peers = emptyList())
-
-        composeRule.onNodeWithText("Nudge All").assertDoesNotExist()
-    }
-
-    @Test
-    fun theNudgeAllButtonAppearsOnceSomebodyIsPresent() {
-        show(peers = listOf(peer(name = "Ana")))
-
-        composeRule.onNodeWithText("Nudge All").assertIsDisplayed()
     }
 }

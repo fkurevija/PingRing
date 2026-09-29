@@ -65,7 +65,6 @@ class LanDebugConnectionsManager(
     override val connectionEstablished: SharedFlow<String> get() = events.connectionEstablished
     override val peerDisconnected: SharedFlow<String> get() = events.peerDisconnected
     override val eventClosed: SharedFlow<Unit> get() = events.eventClosed
-    override val receivedNudge: SharedFlow<NudgePayloadDto> get() = events.receivedNudge
     override val receivedBeacon: SharedFlow<BeaconPayloadDto> get() = events.receivedBeacon
     override val receivedMockRanging: SharedFlow<MockRangingDto> get() = events.receivedMockRanging
 
@@ -88,7 +87,7 @@ class LanDebugConnectionsManager(
     // Envelopes that couldn't be sent immediately (e.g. the relay connection
     // was mid-reconnect) are queued here and flushed in order as soon as a
     // new connection is established, so a brief drop never silently loses a
-    // chat message, nudge, or beacon.
+    // chat message or beacon.
     private val pendingEnvelopes = ArrayDeque<RelayEnvelope>()
 
     private var localPeerId: String = ""
@@ -414,14 +413,6 @@ class LanDebugConnectionsManager(
 
     override fun sendChatMessageToPeer(peerId: String, chatMsg: ChatPayloadDto) {
         sendPayload(peerId, chatMsg)
-    }
-
-    override fun sendNudgeToPeer(peerId: String, nudge: NudgePayloadDto) {
-        sendPayload(peerId, nudge)
-    }
-
-    override fun broadcastNudge(nudge: NudgePayloadDto) {
-        sendPayload(null, nudge)
     }
 
     override fun sendBeaconToPeer(peerId: String, beacon: BeaconPayloadDto) {

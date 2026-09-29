@@ -17,7 +17,6 @@ import kotlinx.coroutines.flow.asSharedFlow
 internal interface PayloadSink {
     fun onChatMessage(message: ChatPayloadDto)
     fun onChatHistory(history: ChatHistoryPayloadDto)
-    fun onNudge(nudge: NudgePayloadDto)
     fun onBeacon(beacon: BeaconPayloadDto)
     fun onUwbAddress(address: UwbPeerAddressDto)
     fun onUwbParameters(params: UwbControllerParametersDto)
@@ -26,7 +25,7 @@ internal interface PayloadSink {
 /**
  * The received side of a [NearbyTransport], in one place.
  *
- * Both transports expose the same eleven flows with the same buffer sizes
+ * Both transports expose the same ten flows with the same buffer sizes
  * (scripted range reports being the one only one of them can fill). They used to
  * declare a copy of every one of them, which meant the contract
  * [DiscoveryRepository] consumes - how deep each buffer is, and what an overflow
@@ -88,12 +87,6 @@ internal class TransportEvents(private val tag: String) : PayloadSink {
     )
     val eventClosed: SharedFlow<Unit> = _eventClosed.asSharedFlow()
 
-    private val _receivedNudge = MutableSharedFlow<NudgePayloadDto>(
-        extraBufferCapacity = 10,
-        onBufferOverflow = BufferOverflow.DROP_OLDEST
-    )
-    val receivedNudge: SharedFlow<NudgePayloadDto> = _receivedNudge.asSharedFlow()
-
     private val _receivedBeacon = MutableSharedFlow<BeaconPayloadDto>(
         extraBufferCapacity = 10,
         onBufferOverflow = BufferOverflow.DROP_OLDEST
@@ -149,11 +142,6 @@ internal class TransportEvents(private val tag: String) : PayloadSink {
     override fun onChatHistory(history: ChatHistoryPayloadDto) {
         Log.i(tag, "Received chat history with ${history.messages.size} msgs")
         _receivedChatHistory.tryEmit(history)
-    }
-
-    override fun onNudge(nudge: NudgePayloadDto) {
-        Log.i(tag, "Received nudge from ${nudge.senderName}")
-        _receivedNudge.tryEmit(nudge)
     }
 
     override fun onBeacon(beacon: BeaconPayloadDto) {

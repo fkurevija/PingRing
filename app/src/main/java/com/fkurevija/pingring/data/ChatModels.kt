@@ -6,6 +6,13 @@ const val MAX_CHAT_LENGTH = 500
 const val MAX_BEACON_TITLE_LENGTH = 100
 const val MAX_USERNAME_LENGTH = 30
 
+/**
+ * What a beacon whose message field was left blank is titled, so activating it
+ * and saving it as a favourite agree on one name instead of one sending a beacon
+ * that renders empty everywhere it is shown.
+ */
+const val DEFAULT_BEACON_TITLE = "Active Beacon"
+
 @JsonClass(generateAdapter = true)
 data class ChatPayloadDto(
     val id: String,
@@ -18,15 +25,6 @@ data class ChatPayloadDto(
 @JsonClass(generateAdapter = true)
 data class ChatHistoryPayloadDto(
     val messages: List<ChatPayloadDto>
-)
-
-@JsonClass(generateAdapter = true)
-data class NudgePayloadDto(
-    val id: String,
-    val senderPeerId: String,
-    val senderName: String,
-    val targetPeerId: String?, // null = broadcast to all
-    val timestamp: Long
 )
 
 @JsonClass(generateAdapter = true)
@@ -67,3 +65,18 @@ enum class BeaconPreset(
     CAUTION("Caution", "⚠️", "Caution", 0xFFFF9100, BeaconVibrationPattern.GENTLE_PULSE),
     CUSTOM("Custom", "⚡", "Beacon Active", 0xFFD500F9, BeaconVibrationPattern.STEADY_PULSE)
 }
+
+/**
+ * The beacon configuration the radar's Quick Beacon button sends in one tap.
+ *
+ * Starred in the beacon screen and kept in DataStore, so it survives the app
+ * closing: the point of it is that a liked beacon does not have to be rebuilt
+ * at the next event. Whole-configuration rather than just the preset, because
+ * what people edit - the message, the colour, the rhythm - is what they want
+ * back with one tap.
+ */
+data class FavouriteBeacon(
+    val title: String,
+    val colorArgb: Long,
+    val pattern: BeaconVibrationPattern
+)

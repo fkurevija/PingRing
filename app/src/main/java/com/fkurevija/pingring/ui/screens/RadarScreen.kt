@@ -32,10 +32,12 @@ import androidx.compose.material.icons.filled.BluetoothDisabled
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.GpsFixed
 import androidx.compose.material.icons.filled.MyLocation
-import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.QrCode2
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -112,13 +114,14 @@ import com.fkurevija.pingring.data.BeaconVibrationPattern
 import com.fkurevija.pingring.data.ChatMessage
 import com.fkurevija.pingring.data.ChatMessageOwnership
 import com.fkurevija.pingring.data.ConnectivityStatus
+import com.fkurevija.pingring.data.DEFAULT_BEACON_TITLE
 import com.fkurevija.pingring.data.DiscoveryRepository
+import com.fkurevija.pingring.data.FavouriteBeacon
 import com.fkurevija.pingring.data.FocusPolicy
 import com.fkurevija.pingring.data.MAX_PARTICIPANTS
 import com.fkurevija.pingring.data.RadarDirectionPolicy
 import com.fkurevija.pingring.data.RadarPeerUpdate
 import com.fkurevija.pingring.data.SessionState
-import kotlinx.coroutines.delay
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -194,6 +197,8 @@ fun RadarScreen(
     coordinationError: String?,
     discoveryRepository: DiscoveryRepository?,
     sessionState: SessionState,
+    favouriteBeacon: FavouriteBeacon?,
+    onFavouriteBeaconChange: (FavouriteBeacon?) -> Unit,
     onEventSettings: () -> Unit,
     onLeaveEvent: () -> Unit,
     onEndEvent: () -> Unit,
@@ -271,18 +276,6 @@ fun RadarScreen(
     LaunchedEffect(focusedPeer?.peerId, focusedPeer?.distance) {
         val distance = focusedPeer?.distance ?: return@LaunchedEffect
         if (distance < 2f) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-    }
-
-    // Collect incoming nudges — double haptic pulse + snackbar
-    LaunchedEffect(discoveryRepository) {
-        discoveryRepository?.receivedNudge?.collect { nudge ->
-            if (nudge.senderPeerId != discoveryRepository.localPeerId) {
-                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                delay(120L)
-                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                snackbarHostState.showSnackbar("👋 ${nudge.senderName} nudged you!")
-            }
-        }
     }
 
     val senderName = sessionState.userName.ifBlank { if (isHost) "Host" else "Peer" }
@@ -414,7 +407,6 @@ fun RadarScreen(
                             connectivity,
                             discoveryRepository,
                             activeBeacons,
-                            senderName,
                             focusedPeerId = focusSelection,
                             onFocusPeer = { discoveryRepository?.setFocusedPeer(it) },
                             modifier = Modifier.width(paneWidth)
@@ -659,13 +651,29 @@ fun RadarScreen(
                                 modifier = Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 4.dp),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
+                                // One tap on the configuration starred in the
+                                // beacon screen. With none saved yet there is
+                                // nothing to send, so the tap opens that screen
+                                // instead - the same place the favourite is made.
                                 OutlinedButton(
-                                    onClick = { discoveryRepository?.sendNudge(null, senderName) },
+                                    onClick = {
+                                        val favourite = favouriteBeacon
+                                        if (favourite != null) {
+                                            discoveryRepository?.activateBeacon(
+                                                favourite.title,
+                                                favourite.colorArgb,
+                                                favourite.pattern.name,
+                                                senderName
+                                            )
+                                        } else {
+                                            showBeaconSheet = true
+                                        }
+                                    },
                                     modifier = Modifier.weight(1f)
                                 ) {
-                                    Icon(Icons.Default.NotificationsActive, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Icon(Icons.Default.FlashOn, contentDescription = null, modifier = Modifier.size(16.dp))
                                     Spacer(Modifier.width(6.dp))
-                                    Text("Nudge All")
+                                    Text("Quick Beacon")
                                 }
                                 // The label and the icon are coloured for the
                                 // beacon they sit on rather than left at the
@@ -689,7 +697,7 @@ fun RadarScreen(
                                 ) {
                                     Icon(Icons.Default.Campaign, contentDescription = null, modifier = Modifier.size(18.dp))
                                     Spacer(Modifier.width(6.dp))
-                                    Text(if (localBeacon != null) "My Beacon" else "Beacon")
+                                    Text(if (localBeacon != null) "My Beacon" else "New Beacon")
                                 }
                             }
                         }
@@ -730,10 +738,12 @@ fun RadarScreen(
                 if (showBeaconSheet) {
                     BeaconCustomizationDialog(
                         localBeacon = localBeacon,
+                        favouriteBeacon = favouriteBeacon,
                         onDismiss = { showBeaconSheet = false },
                         onActivate = { title, colorArgb, patternName ->
                             discoveryRepository?.activateBeacon(title, colorArgb, patternName, senderName)
                         },
+                        onFavouriteChange = { onFavouriteBeaconChange(it) },
                         onStop = {
                             discoveryRepository?.cancelLocalBeacon()
                         },
@@ -1089,8 +1099,8 @@ private fun ProximityRing(
  * Internal rather than private so a test can compose it directly. The
  * surrounding [RadarScreen] is only reachable with a null
  * [com.fkurevija.pingring.data.DiscoveryRepository], which means no peers - and
- * the list is where a member actually appears, gets marked as tracked, shows its
- * beacon, and is the target of a nudge. Testing it here means handing over a
+ * the list is where a member actually appears, gets marked as tracked, and
+ * shows its beacon. Testing it here means handing over a
  * [com.fkurevija.pingring.data.RadarPeerUpdate] directly, rather than standing up
  * a transport and waiting for a real peer to show up.
  */
@@ -1100,7 +1110,6 @@ internal fun PeerList(
     connectivity: ConnectivityStatus,
     repository: DiscoveryRepository?,
     activeBeacons: Map<String, BeaconInfo>,
-    senderName: String,
     focusedPeerId: String?,
     onFocusPeer: (String?) -> Unit,
     modifier: Modifier
@@ -1132,13 +1141,6 @@ internal fun PeerList(
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
-            if (peers.isNotEmpty()) {
-                TextButton(onClick = { repository?.sendNudge(null, senderName) }) {
-                    Icon(Icons.Default.NotificationsActive, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("Nudge All")
-                }
-            }
         }
         Spacer(Modifier.height(8.dp))
         if (peers.isEmpty()) {
@@ -1200,12 +1202,6 @@ internal fun PeerList(
                             }
                             Text(peer.distance?.let { "%.1f m".format(it) } ?: "—", fontWeight = FontWeight.Bold)
                             Spacer(Modifier.width(8.dp))
-                            IconButton(
-                                onClick = { repository?.sendNudge(peer.peerId, senderName) },
-                                modifier = Modifier.size(36.dp)
-                            ) {
-                                Text("👋", style = MaterialTheme.typography.titleMedium)
-                            }
                             // Tapping the row makes this the one member the
                             // radar draws and the UWB session ranges. Tapping
                             // the tracked member again returns to auto, so the
@@ -1238,20 +1234,36 @@ internal fun PeerList(
 @Composable
 fun BeaconCustomizationDialog(
     localBeacon: BeaconInfo?,
+    favouriteBeacon: FavouriteBeacon?,
     onDismiss: () -> Unit,
     onActivate: (title: String, colorArgb: Long, patternName: String) -> Unit,
+    onFavouriteChange: (FavouriteBeacon?) -> Unit,
     onStop: () -> Unit,
     onTestVibrate: (LongArray) -> Unit
 ) {
     var isVibrationMenuExpanded by remember { mutableStateOf(false) }
     var selectedPreset by remember { mutableStateOf(BeaconPreset.SOS) }
-    var title by remember { mutableStateOf(localBeacon?.title ?: selectedPreset.defaultTitle) }
-    var selectedColor by remember { mutableLongStateOf(localBeacon?.colorArgb ?: selectedPreset.defaultColorArgb) }
+    // Prefills from what is live, else from the starred favourite, else the
+    // first preset: whichever the user is most likely to want on screen first.
+    var title by remember { mutableStateOf(localBeacon?.title ?: favouriteBeacon?.title ?: selectedPreset.defaultTitle) }
+    var selectedColor by remember { mutableLongStateOf(localBeacon?.colorArgb ?: favouriteBeacon?.colorArgb ?: selectedPreset.defaultColorArgb) }
     var selectedPattern by remember {
         mutableStateOf(
-            localBeacon?.let { BeaconVibrationPattern.fromName(it.vibrationPattern) } ?: selectedPreset.defaultPattern
+            localBeacon?.let { BeaconVibrationPattern.fromName(it.vibrationPattern) }
+                ?: favouriteBeacon?.pattern
+                ?: selectedPreset.defaultPattern
         )
     }
+
+    // The selection in the same shape as the saved favourite, so "is this
+    // already starred?" is one comparison rather than three - and the title is
+    // normalised here, so what gets starred is exactly what Activate sends.
+    val currentSelection = FavouriteBeacon(
+        title = title.ifBlank { DEFAULT_BEACON_TITLE },
+        colorArgb = selectedColor,
+        pattern = selectedPattern
+    )
+    val isFavourite = currentSelection == favouriteBeacon
 
     val colorPalette = listOf(
         0xFFFF1744, // Red
@@ -1385,12 +1397,28 @@ fun BeaconCustomizationDialog(
                     Spacer(Modifier.width(6.dp))
                     Text("Test Vibration")
                 }
+
+                // The star the Quick Beacon button sends. One slot, so this
+                // both saves the current selection and clears it; the label
+                // says which, and the star fills to show the state.
+                OutlinedButton(
+                    onClick = { onFavouriteChange(if (isFavourite) null else currentSelection) },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        if (isFavourite) Icons.Default.Star else Icons.Default.StarBorder,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(if (isFavourite) "Remove Favourite" else "Set as Favourite")
+                }
             }
         },
         confirmButton = {
             Button(
                 onClick = {
-                    onActivate(title.ifBlank { "Active Beacon" }, selectedColor, selectedPattern.name)
+                    onActivate(currentSelection.title, currentSelection.colorArgb, currentSelection.pattern.name)
                     onDismiss()
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = Color(selectedColor))

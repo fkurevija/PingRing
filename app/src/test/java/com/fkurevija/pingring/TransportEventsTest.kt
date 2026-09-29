@@ -4,7 +4,6 @@ import com.fkurevija.pingring.data.BeaconPayloadDto
 import com.fkurevija.pingring.data.ChatHistoryPayloadDto
 import com.fkurevija.pingring.data.ChatPayloadDto
 import com.fkurevija.pingring.data.MockRangingDto
-import com.fkurevija.pingring.data.NudgePayloadDto
 import com.fkurevija.pingring.data.TransportEvents
 import com.fkurevija.pingring.data.UwbControllerParametersDto
 import com.fkurevija.pingring.data.UwbPeerAddressDto
@@ -70,17 +69,6 @@ class TransportEventsTest {
         events.onChatMessage(chat)
 
         assertEquals(chat, received.await())
-    }
-
-    @Test
-    fun aNudgeArrivesOnTheNudgeFlow() = runTest {
-        val events = TransportEvents("test")
-        val nudge = NudgePayloadDto("n1", "peer-b", "Bob", null, 1L)
-        val received = nextEmission(events.receivedNudge)
-
-        events.onNudge(nudge)
-
-        assertEquals(nudge, received.await())
     }
 
     @Test

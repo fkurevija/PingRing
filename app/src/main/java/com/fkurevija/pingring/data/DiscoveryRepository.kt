@@ -228,9 +228,6 @@ class DiscoveryRepository(
     // Local peer ID
     val localPeerId: String get() = sessionManager.peerId.value
 
-    // Forward nudge events from the transport layer (fire-and-forget, no state needed)
-    val receivedNudge = nearbyConnectionsManager.receivedNudge
-
     // How an incoming chat message reaches the user, kept out of this class
     // because it is the only part of chat that touches the notification system.
     private val chatNotifier = ChatNotifier(
@@ -295,8 +292,8 @@ class DiscoveryRepository(
      * The member the user has chosen to track, or null for "auto" (nearest).
      *
      * This is a *view and ranging* choice only. It deliberately does not
-     * filter incoming traffic: every member still receives every message,
-     * beacon and nudge, so narrowing the radar never silences anyone.
+     * filter incoming traffic: every member still receives every message
+     * and beacon, so narrowing the radar never silences anyone.
      */
     private val _focusedPeerId = MutableStateFlow<String?>(null)
     val focusedPeerId: StateFlow<String?> = _focusedPeerId.asStateFlow()
@@ -604,22 +601,7 @@ class DiscoveryRepository(
             }
         }
 
-        // 2c. Host nudge re-routing: forward incoming nudges to their intended target(s)
-        repositoryScope?.launch {
-            nearbyConnectionsManager.receivedNudge.collect { nudge ->
-                updatePeerName(nudge.senderPeerId, nudge.senderName)
-                if (sessionManager.sessionState.value.isHost) {
-                    val target = nudge.targetPeerId
-                    if (target == null) {
-                        nearbyConnectionsManager.broadcastNudge(nudge)
-                    } else {
-                        nearbyConnectionsManager.sendNudgeToPeer(target, nudge)
-                    }
-                }
-            }
-        }
-
-        // 2d. Start Beacon Processing Queue Flow Listener Loop
+        // 2c. Start Beacon Processing Queue Flow Listener Loop
         repositoryScope?.launch {
             nearbyConnectionsManager.receivedBeacon.collect { dto ->
                 val localPeerId = sessionManager.peerId.value
@@ -731,28 +713,6 @@ class DiscoveryRepository(
 
         // Broadcast to P2P mesh endpoints
         nearbyConnectionsManager.broadcastChatMessage(dto)
-    }
-
-    fun sendNudge(targetPeerId: String?, senderName: String) {
-        val localPeerId = sessionManager.peerId.value
-        val nudge = NudgePayloadDto(
-            id = UUID.randomUUID().toString(),
-            senderPeerId = localPeerId,
-            senderName = senderName,
-            targetPeerId = targetPeerId,
-            timestamp = System.currentTimeMillis()
-        )
-        if (targetPeerId == null) {
-            nearbyConnectionsManager.broadcastNudge(nudge)
-        } else {
-            // Send directly if we have the peer connected, otherwise send to host to forward
-            val sentDirect = runCatching { nearbyConnectionsManager.sendNudgeToPeer(targetPeerId, nudge) }.isSuccess
-            if (!sentDirect || !sessionManager.sessionState.value.isHost) {
-                // Guest: send to host and let the host forward it
-                val hostPeerId = sessionManager.sessionState.value.currentEvent?.hostPeerId
-                if (hostPeerId != null) nearbyConnectionsManager.sendNudgeToPeer(hostPeerId, nudge)
-            }
-        }
     }
 
     fun playVibrationPattern(pattern: LongArray) {

@@ -6,25 +6,38 @@ name: Instrumented Tests
 # and the platform integration (sensors, notifications, Bluetooth service
 # lookups) with no coverage at all from the fast job.
 #
-# This job is therefore separate rather than a step inside build-apk: an
-# emulator boot costs 10-20 minutes and most of that is spent waiting, and
-# folding it in would make every APK build that slow for a check that only some
-# changes need.
+# This job is therefore separate rather than a step inside build-apk, and it is
+# also the slowest thing in CI by a wide margin: an emulator boot is 10-20
+# minutes of mostly waiting, on top of the install and the run itself. Paying
+# that on every push to master bought very little - a UI regression is normally
+# caught by the unit tests on the same commit, or by whoever runs the app - for
+# a 45-minute job that pushed a superseded commit the moment the next push
+# arrived.
+#
+# So it runs for tagged `v*` releases only, which is where it earns its keep:
+# those tags publish an APK that people install, and this is the check that the
+# UI in that APK actually composes. `workflow_dispatch` remains for running it by
+# hand against any ref when a UI change needs verifying before it is tagged.
+#
+# The consequence to be aware of: the coverage page this workflow publishes is
+# now only refreshed on releases, so between tags it describes the last released
+# commit rather than the tip of master. The numbers stay true of a real build;
+# they just stop tracking every push.
 
 on:
+  # Tagged version releases only. A direct push to master deliberately does not
+  # trigger this - see above. build-apk.yml still runs there, so every push is
+  # still compiled and unit tested.
   push:
-    branches:
-      - master
-  pull_request:
-    branches:
-      - master
+    tags:
+      - 'v*'
   workflow_dispatch:
 
 # `contents: write` is needed only so the last step can push COVERAGE.md to the
 # `coverage` branch - the tests themselves just read the repository. It cannot
 # re-trigger this workflow: pushes made with GITHUB_TOKEN do not start workflow
-# runs, and a push to `coverage` matches neither the `master` push trigger nor
-# the `pull_request` base filter.
+# runs, and a push to `coverage` is a branch, not one of the `v*` tags matched
+# above.
 permissions:
   contents: write
 
@@ -253,7 +266,7 @@ jobs:
       # One commit per run onto a branch that holds only this file, force-pushed,
       # so `master` history stays clean. Two independent guards stop it looping:
       # pushes made with GITHUB_TOKEN do not start workflow runs, and `coverage`
-      # matches neither the `master` trigger nor the `pull_request` base filter.
+      # is a branch, so it cannot match the `v*` tag filter.
       - name: Publish coverage page
         if: always()
         env:
