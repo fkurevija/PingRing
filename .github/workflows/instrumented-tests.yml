@@ -20,10 +20,13 @@ on:
       - master
   workflow_dispatch:
 
-# Deliberately no `contents: write`. This job only reads the repository and
-# uploads reports, so it does not need the permission the release job does.
+# `contents: write` is needed only so the last step can push COVERAGE.md to the
+# `coverage` branch - the tests themselves just read the repository. It cannot
+# re-trigger this workflow: pushes made with GITHUB_TOKEN do not start workflow
+# runs, and a push to `coverage` matches neither the `master` push trigger nor
+# the `pull_request` base filter.
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   # A new push supersedes an in-flight run for the same ref. The emulator is the
@@ -185,11 +188,26 @@ jobs:
         if: always()
         run: |
           report=app/build/reports/coverage/androidTest/debug/connected/report.xml
+          # COVERAGE.md is built here, from the same parse as the run summary, so
+          # the page in the repository and the summary on this run cannot disagree
+          # about what the report said.
+          # One echo, one argument: splitting this across lines with a trailing
+          # backslash hands echo two arguments, and echo joins them with a space -
+          # giving `[run #42] (https://...)`, which Markdown does not treat as a
+          # link at all.
+          echo "Generated from \`${GITHUB_SHA:0:7}\`, [run #${GITHUB_RUN_NUMBER}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})." > COVERAGE.md
+          echo >> COVERAGE.md
           if [ ! -f "$report" ]; then
             echo "::warning::No instrumented coverage report was produced"
+            # Written anyway. The coverage branch is force-pushed to a single commit
+            # per run, so skipping here would leave the previous run's numbers on
+            # the page with nothing marking them as stale - and stale figures that
+            # read as current are worse than a page saying nothing was produced.
+            echo "_No coverage report was produced by this run._" >> COVERAGE.md
           else
-            python3 tools/coverage_summary.py "$report" 80 \
-              "Instrumented coverage" >> "$GITHUB_STEP_SUMMARY"
+            body="$(python3 tools/coverage_summary.py "$report" 80 "Instrumented coverage")"
+            printf '%s\n' "$body" >> "$GITHUB_STEP_SUMMARY"
+            printf '%s\n' "$body" >> COVERAGE.md
             cp -r "$(dirname "$report")" coverage-instrumented
           fi
 
@@ -200,3 +218,38 @@ jobs:
           name: instrumented-coverage
           path: coverage-instrumented
           if-no-files-found: warn
+
+      # The artifact above holds the full JaCoCo HTML report, but GitHub's file
+      # browser will not execute index.html and Markdown cannot embed it either, so
+      # the drill-down itself cannot live in the repository without publishing
+      # Pages - which, for a private repo, needs GitHub Pro and would put the
+      # numbers on the public internet. This commits the Markdown summary instead,
+      # which GitHub renders natively, and leaves the artifact as the drill-down.
+      #
+      # One commit per run onto a branch that holds only this file, force-pushed,
+      # so `master` history stays clean. Two independent guards stop it looping:
+      # pushes made with GITHUB_TOKEN do not start workflow runs, and `coverage`
+      # matches neither the `master` trigger nor the `pull_request` base filter.
+      - name: Publish coverage page
+        if: always()
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ ! -f COVERAGE.md ]; then
+            # The step that writes it is itself always() and cannot normally be
+            # skipped, but if it did fail this keeps the push from failing too.
+            printf '_No coverage report was produced by run #%s._\n' \
+              "$GITHUB_RUN_NUMBER" > COVERAGE.md
+          fi
+          site="$(mktemp -d)"
+          cp COVERAGE.md "$site/"
+          cd "$site"
+          git init -q --initial-branch=coverage
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add COVERAGE.md
+          git commit -qm "coverage for ${GITHUB_SHA:0:7}"
+          git push -q --force \
+            "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            coverage
+          echo "Page: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/blob/coverage/COVERAGE.md"
