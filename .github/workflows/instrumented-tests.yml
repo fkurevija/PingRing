@@ -71,10 +71,6 @@ jobs:
             echo "No alias needed; android-37 already resolvable"
           fi
 
-      # API 35, not 37: the image is requested as android-35 because that is
-      # what the runner image actually ships. The device API level does not have
-      # to match the app's compileSdk or targetSdk, and matching the system
-      # image keeps the download a cache hit.
       - name: Enable KVM for the emulator
         # Without this the emulator falls back to software rendering and is
         # unusably slow - often slow enough to hit the job timeout rather than
@@ -85,6 +81,19 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
+      # API 35, deliberately not the app's targetSdk of 37.
+      #
+      # The device's API level does not have to match the app's compileSdk or
+      # targetSdk, and 35 is what the runner image reliably ships, so matching it
+      # keeps the system-image download a cache hit instead of a large fetch.
+      #
+      # This was verified locally against API 37, not 35, which is the caveat worth
+      # knowing about. Nothing under test branches on the API level - no assertion
+      # reads a version-gated value, and the code being tested is Compose and
+      # layout, not a platform API - so the risk is a Compose-version difference
+      # between images rather than an API behaviour change. If this job does go
+      # red, compare the failure against the two known workarounds first: see the
+      # note in PausedClockComposeContentTestRule.
       - name: Run instrumented tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -96,9 +105,11 @@ jobs:
           # a leftover notification or sensor registration from a previous run
           # would make a failure look intermittent rather than real.
           disable-animations: true
+          # swiftshader rather than the default host GPU: GitHub's runners have no
+          # usable hardware acceleration for the emulator, and asking for it makes
+          # the boot flaky rather than faster.
           emulator-options: -no-window -no-snapshot -noaudio -no-boot-anim -gpu swiftshader_indirect
-          script: |
-            ./gradlew connectedDebugAndroidTest --stacktrace
+          script: ./gradlew connectedDebugAndroidTest --stacktrace
 
       # The report is uploaded even when the tests fail, because the HTML page
       # is the fastest way to see which assertion broke and on which screen.
@@ -116,4 +127,29 @@ jobs:
         with:
           name: instrumented-test-results
           path: app/build/outputs/androidTest-results/connected/**
+          if-no-files-found: warn
+
+      # AGP writes the coverage .exec while the tests run; this turns it into the
+      # report. The path is device-name-shaped and the runner's AVD name is not
+      # known ahead of time, so a glob is used rather than a fixed path.
+      - name: Build instrumented coverage report
+        if: always()
+        run: |
+          ./gradlew createDebugAndroidTestCoverageReport --stacktrace
+          report=$(ls app/build/reports/coverage/androidTest/debug/connected/report.xml 2>/dev/null || true)
+          if [ -z "$report" ]; then
+            echo "::warning::No instrumented coverage report was produced"
+          else
+            python3 tools/coverage_summary.py "$report" 80 \
+              "Instrumented coverage" >> "$GITHUB_STEP_SUMMARY"
+            mkdir -p coverage-instrumented
+            cp -r app/build/reports/coverage/androidTest/debug/connected/* coverage-instrumented/
+          fi
+
+      - name: Upload instrumented coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: instrumented-coverage
+          path: coverage-instrumented
           if-no-files-found: warn

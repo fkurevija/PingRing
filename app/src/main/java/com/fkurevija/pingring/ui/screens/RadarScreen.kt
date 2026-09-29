@@ -1083,8 +1083,19 @@ private fun ProximityRing(
     }
 }
 
+/**
+ * The member list beside (or below) the radar.
+ *
+ * Internal rather than private so a test can compose it directly. The
+ * surrounding [RadarScreen] is only reachable with a null
+ * [com.fkurevija.pingring.data.DiscoveryRepository], which means no peers - and
+ * the list is where a member actually appears, gets marked as tracked, shows its
+ * beacon, and is the target of a nudge. Testing it here means handing over a
+ * [com.fkurevija.pingring.data.RadarPeerUpdate] directly, rather than standing up
+ * a transport and waiting for a real peer to show up.
+ */
 @Composable
-private fun PeerList(
+internal fun PeerList(
     peers: List<RadarPeerUpdate>,
     connectivity: ConnectivityStatus,
     repository: DiscoveryRepository?,

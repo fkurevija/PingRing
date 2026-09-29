@@ -31,24 +31,16 @@ import org.junit.Test
 class RadarScreenInstrumentedTest {
 
     @get:Rule
-    val composeRule = createComposeRule()
+    val composeRule = PausedClockComposeContentTestRule()
 
     private val eventId = "PING42"
 
     /**
      * Renders the screen with no discovery repository, as it looks before peers arrive.
      *
-     * The clock is put in manual mode first. [com.fkurevija.pingring.ui.screens.RadarScreen]
-     * pulses the ring with a `rememberInfiniteTransition`, which by definition
-     * never settles, and the test rule waits for the clock to go idle before every
-     * assertion - so with an auto-advancing clock every test on this screen times
-     * out with `ComposeNotIdleException`. The animation is the screen working as
-     * designed, not a defect.
-     *
-     * `animationsDisabled = true` in the Gradle config does not cover this: that
-     * governs the system animator scale, not the Compose frame clock. Pausing the
-     * test clock is the supported way to compose a screen with an endless
-     * animation.
+     * [PausedClockComposeContentTestRule] handles the clock: the radar ring pulses
+     * forever, so the frame clock has to be manual or no assertion on this screen
+     * would ever be reached.
      */
     private fun showRadar(
         isHost: Boolean = false,
@@ -59,41 +51,19 @@ class RadarScreenInstrumentedTest {
         onLeaveEvent: () -> Unit = {},
         onEndEvent: () -> Unit = {},
     ) {
-        composeRule.mainClock.autoAdvance = false
-        composeRule.setContent {
-            MaterialTheme {
-                RadarScreen(
-                    eventId = eventId,
-                    isHost = isHost,
-                    trackHost = trackHost,
-                    coordinationError = coordinationError,
-                    discoveryRepository = null,
-                    sessionState = sessionState,
-                    onEventSettings = onEventSettings,
-                    onLeaveEvent = onLeaveEvent,
-                    onEndEvent = onEndEvent,
-                )
-            }
+        composeRule.setScreen {
+            RadarScreen(
+                eventId = eventId,
+                isHost = isHost,
+                trackHost = trackHost,
+                coordinationError = coordinationError,
+                discoveryRepository = null,
+                sessionState = sessionState,
+                onEventSettings = onEventSettings,
+                onLeaveEvent = onLeaveEvent,
+                onEndEvent = onEndEvent,
+            )
         }
-        // Two explicit frames so the first composition has actually run before
-        // any assertion looks for a node.
-        composeRule.mainClock.advanceTimeByFrame()
-        composeRule.mainClock.advanceTimeByFrame()
-    }
-
-    /**
-     * Advances the paused clock far enough for a dialog's enter animation to
-     * finish, then returns the clock to idle.
-     *
-     * With `autoAdvance = false` the clock does not move on its own, so a dialog
-     * that fades in is captured at zero alpha and `assertIsDisplayed` reports it
-     * as not displayed even though it is on screen. Every other test here pauses
-     * the clock only to get past the radar's endless pulse, so this is undone
-     * immediately afterwards to keep the rest of the test deterministic.
-     */
-    private fun settleDialog() {
-        composeRule.mainClock.advanceTimeBy(1_000L)
-        composeRule.waitForIdle()
     }
 
     @Test
@@ -158,7 +128,7 @@ class RadarScreenInstrumentedTest {
         showRadar(isHost = false, onLeaveEvent = { asked++ })
 
         composeRule.onNodeWithContentDescription("Leave PingRing").performClick()
-        settleDialog()
+        composeRule.settle()
 
         // Back must not drop the user out of the app while members are still
         // being tracked; it asks first.
@@ -173,9 +143,9 @@ class RadarScreenInstrumentedTest {
         showRadar(isHost = false, onLeaveEvent = { left++ })
 
         composeRule.onNodeWithContentDescription("Leave PingRing").performClick()
-        settleDialog()
+        composeRule.settle()
         composeRule.onNodeWithText("Leave").performClick()
-        settleDialog()
+        composeRule.settle()
 
         assertEquals(1, left)
     }
@@ -186,9 +156,9 @@ class RadarScreenInstrumentedTest {
         showRadar(isHost = false, onLeaveEvent = { left++ })
 
         composeRule.onNodeWithContentDescription("Leave PingRing").performClick()
-        settleDialog()
+        composeRule.settle()
         composeRule.onNodeWithText("Cancel").performClick()
-        settleDialog()
+        composeRule.settle()
 
         assertEquals(0, left)
         composeRule.onNodeWithText("PingRing").assertIsDisplayed()
@@ -199,7 +169,7 @@ class RadarScreenInstrumentedTest {
         showRadar()
 
         composeRule.onNodeWithContentDescription("Show QR code to join this PingRing").performClick()
-        settleDialog()
+        composeRule.settle()
 
         composeRule.onNodeWithText("Scan to Join").assertIsDisplayed()
         // The code is rendered as an image, so its content description is what
@@ -209,7 +179,7 @@ class RadarScreenInstrumentedTest {
         composeRule.onNodeWithText(eventId).assertIsDisplayed()
 
         composeRule.onNodeWithText("Close").performClick()
-        settleDialog()
+        composeRule.settle()
         composeRule.onNodeWithText("Scan to Join").assertDoesNotExist()
     }
 
@@ -237,7 +207,7 @@ class RadarScreenInstrumentedTest {
         showRadar()
 
         composeRule.onNodeWithText("Beacon").performClick()
-        settleDialog()
+        composeRule.settle()
 
         composeRule.onNodeWithText("Select Preset").assertIsDisplayed()
     }
