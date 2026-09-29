@@ -81,24 +81,49 @@ def main():
         f"Concrete classes exclude compiler-generated lambdas and inner classes."
     )
 
-    if below:
-        # Worst first: a list sorted best-to-worst is a list you stop reading.
-        below.sort(key=lambda row: row[2])
+    # Split the misses, because they are two different problems and only one of
+    # them is a note you can act on today.
+    #
+    # Uncovered means no test reaches it - usually a theme or navigation file
+    # that is not worth a test in the first place. Listing forty of those spends
+    # the reader's attention on things nobody will fix, and the cap then silently
+    # drops the classes that *are* partially covered, which are exactly the ones
+    # worth naming.
+    #
+    # Partial means a test exists and stops short. Those are the rows that say
+    # what to do next, so they get the table.
+    zero = sorted((row for row in below if row[3] == 0), key=lambda row: -row[4])
+    partial = sorted((row for row in below if row[3] > 0), key=lambda row: row[2])
+
+    if partial:
+        # "1 classes" is the kind of detail that makes a report look automated
+        # in the unflattering sense.
+        detail = "class" if len(partial) == 1 else "classes"
         lines_out += [
             "",
-            f"<details><summary>{len(below)} classes below {threshold}%</summary>",
+            f"<details><summary>{len(partial)} {detail} partly covered, below {threshold}%</summary>",
             "",
             "| Class | Covered | Lines | % |",
             "| --- | ---: | ---: | ---: |",
         ]
-        for short, name, percent, covered, lines in below[:40]:
+        for short, name, percent, covered, lines in partial[:40]:
             # The package name has already had the common prefix stripped, so
             # the separator has to go back on or every row reads as one word.
             qualified = f"{short}/{name}" if short else name
             lines_out.append(f"| `{qualified}` | {covered} | {lines} | {percent:.1f}% |")
-        if len(below) > 40:
-            lines_out.append(f"| …and {len(below) - 40} more | | | |")
+        if len(partial) > 40:
+            lines_out.append(f"| …and {len(partial) - 40} more | | | |")
         lines_out += ["", "</details>"]
+
+    if zero:
+        biggest = zero[0]
+        detail = "class" if len(zero) == 1 else "classes"
+        lines_out.append(
+            f"\n**No coverage at all: {len(zero)} {detail}** "
+            f"({sum(row[4] for row in zero):,} lines), the largest being "
+            f"`{biggest[1]}` ({biggest[4]:,} lines). They are in the report "
+            f"artifact, not repeated here."
+        )
 
     print("\n".join(lines_out))
     return 0

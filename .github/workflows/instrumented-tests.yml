@@ -109,7 +109,15 @@ jobs:
           # usable hardware acceleration for the emulator, and asking for it makes
           # the boot flaky rather than faster.
           emulator-options: -no-window -no-snapshot -noaudio -no-boot-anim -gpu swiftshader_indirect
-          script: ./gradlew connectedDebugAndroidTest --stacktrace
+          # The coverage task pulls connectedDebugAndroidTest into its graph, so it
+          # has to run inside the emulator step while the device is still up - run
+          # it afterwards and it tries to start the suite again against nothing.
+          # --continue keeps the report alive when a test fails, which is the case
+          # worth having it for; the step still exits non-zero, so a red run stays
+          # red rather than being "fixed" by having produced a report.
+          script: |
+            ./gradlew connectedDebugAndroidTest createDebugAndroidTestCoverageReport \
+              --continue --stacktrace
 
       # The report is uploaded even when the tests fail, because the HTML page
       # is the fastest way to see which assertion broke and on which screen.
@@ -129,21 +137,21 @@ jobs:
           path: app/build/outputs/androidTest-results/connected/**
           if-no-files-found: warn
 
-      # AGP writes the coverage .exec while the tests run; this turns it into the
-      # report. The path is device-name-shaped and the runner's AVD name is not
-      # known ahead of time, so a glob is used rather than a fixed path.
-      - name: Build instrumented coverage report
+      # The report is rendered here, not generated: generating it needs
+      # connectedDebugAndroidTest, which needs a device, and the emulator step has
+      # already torn the device down by now. The raw .ec and the test results are
+      # filed under a device-name-shaped directory ("Pixel_10(AVD) - 17"), but the
+      # generated report itself is a fixed path, so no globbing is needed.
+      - name: Render instrumented coverage summary
         if: always()
         run: |
-          ./gradlew createDebugAndroidTestCoverageReport --stacktrace
-          report=$(ls app/build/reports/coverage/androidTest/debug/connected/report.xml 2>/dev/null || true)
-          if [ -z "$report" ]; then
+          report=app/build/reports/coverage/androidTest/debug/connected/report.xml
+          if [ ! -f "$report" ]; then
             echo "::warning::No instrumented coverage report was produced"
           else
             python3 tools/coverage_summary.py "$report" 80 \
               "Instrumented coverage" >> "$GITHUB_STEP_SUMMARY"
-            mkdir -p coverage-instrumented
-            cp -r app/build/reports/coverage/androidTest/debug/connected/* coverage-instrumented/
+            cp -r "$(dirname "$report")" coverage-instrumented
           fi
 
       - name: Upload instrumented coverage report

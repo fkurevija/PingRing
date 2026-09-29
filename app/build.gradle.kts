@@ -35,9 +35,13 @@ android {
         debug {
             // Coverage for the instrumented tests. This is the only way to find
             // out what the Compose UI costs, because none of it runs on the JVM.
-            // It works by building the app and test APKs with a JaCoCo agent
-            // attached, so `connectedDebugAndroidTest` writes a .exec that
-            // `jacocoConnectedAndroidTestReport` below turns into a report.
+            // It builds the app and test APKs with a JaCoCo agent attached, so
+            // `connectedDebugAndroidTest` leaves a coverage.ec under
+            // build/outputs/code_coverage, and AGP's own
+            // `createDebugAndroidTestCoverageReport` turns it into
+            // build/reports/coverage/androidTest/debug/connected/report.xml.
+            // It is set here rather than passed on the command line so that CI
+            // gathers coverage without having to know to ask for it.
             enableAndroidTestCoverage = true
             enableUnitTestCoverage = false
         }
