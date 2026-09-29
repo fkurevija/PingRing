@@ -148,9 +148,15 @@ jobs:
           # --continue keeps the report alive when a test fails, which is the case
           # worth having it for; the step still exits non-zero, so a red run stays
           # red rather than being "fixed" by having produced a report.
-          script: |
-            ./gradlew connectedDebugAndroidTest createDebugAndroidTestCoverageReport \
-              --continue --stacktrace
+          #
+          # One line deliberately. The action runs parseScript on this input, which
+          # splits on every newline and feeds each line to its own `sh -c`, so a `\`
+          # continuation is not a continuation at all: the backslash ends up as the
+          # last argument and Gradle fails the whole step with
+          #   Task '\' not found in root project 'PingRing' and its subprojects.
+          # before the second line is ever reached. Comments are safe here - the
+          # parser drops lines starting with `#`.
+          script: ./gradlew connectedDebugAndroidTest createDebugAndroidTestCoverageReport --continue --stacktrace
 
       # The report is uploaded even when the tests fail, because the HTML page
       # is the fastest way to see which assertion broke and on which screen.
