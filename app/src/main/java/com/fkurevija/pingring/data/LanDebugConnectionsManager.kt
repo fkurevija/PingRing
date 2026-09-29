@@ -1,15 +1,11 @@
 package com.fkurevija.pingring.data
 
 import android.util.Log
-import com.squareup.moshi.Moshi
-import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.channels.BufferOverflow
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -51,44 +47,28 @@ class LanDebugConnectionsManager(
     private val port: Int = DEFAULT_PORT
 ) : NearbyTransport {
     private val TAG = "LanDebugTransport"
-    private val moshi = Moshi.Builder().addLast(KotlinJsonAdapterFactory()).build()
-    private val envelopeAdapter = moshi.adapter(RelayEnvelope::class.java)
+    // Every flow this transport exposes is declared once, in TransportEvents:
+    // the two transports are interchangeable to DiscoveryRepository, so their
+    // buffering behaviour has to be identical rather than merely similar.
+    private val events = TransportEvents(TAG)
 
-    private val _receivedPeerAddress = MutableSharedFlow<UwbPeerAddressDto>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
-    override val receivedPeerAddress = _receivedPeerAddress.asSharedFlow()
+    override val receivedPeerAddress: SharedFlow<UwbPeerAddressDto> get() = events.receivedPeerAddress
+    override val receivedControllerParams: SharedFlow<UwbControllerParametersDto> get() = events.receivedControllerParams
 
-    private val _receivedControllerParams = MutableSharedFlow<UwbControllerParametersDto>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
-    override val receivedControllerParams = _receivedControllerParams.asSharedFlow()
+    /**
+     * A ranging offer aimed at this guest: the relay fans messages out by
+     * targetPeerId, so one arrives here already addressed.
+     */
+    override val receivedUwbRangingOffer: SharedFlow<UwbRangingOfferDto> get() = events.receivedUwbRangingOffer
+    override val receivedChatMessage: SharedFlow<ChatPayloadDto> get() = events.receivedChatMessage
+    override val receivedChatHistory: SharedFlow<ChatHistoryPayloadDto> get() = events.receivedChatHistory
+    override val connectionEstablished: SharedFlow<String> get() = events.connectionEstablished
+    override val peerDisconnected: SharedFlow<String> get() = events.peerDisconnected
+    override val eventClosed: SharedFlow<Unit> get() = events.eventClosed
+    override val receivedNudge: SharedFlow<NudgePayloadDto> get() = events.receivedNudge
+    override val receivedBeacon: SharedFlow<BeaconPayloadDto> get() = events.receivedBeacon
+    override val receivedMockRanging: SharedFlow<MockRangingDto> get() = events.receivedMockRanging
 
-    private val _receivedUwbRangingOffer = MutableSharedFlow<UwbRangingOfferDto>(extraBufferCapacity = 4, onBufferOverflow = BufferOverflow.DROP_OLDEST)
-    override val receivedUwbRangingOffer = _receivedUwbRangingOffer.asSharedFlow()
-
-    private val _receivedChatMessage = MutableSharedFlow<ChatPayloadDto>(extraBufferCapacity = 10, onBufferOverflow = BufferOverflow.DROP_OLDEST)
-    override val receivedChatMessage = _receivedChatMessage.asSharedFlow()
-
-    private val _receivedChatHistory = MutableSharedFlow<ChatHistoryPayloadDto>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
-    override val receivedChatHistory = _receivedChatHistory.asSharedFlow()
-
-    private val _connectionEstablished = MutableSharedFlow<String>(replay = 1, extraBufferCapacity = 4, onBufferOverflow = BufferOverflow.DROP_OLDEST)
-    override val connectionEstablished = _connectionEstablished.asSharedFlow()
-
-    private val _peerDisconnected = MutableSharedFlow<String>(extraBufferCapacity = 4, onBufferOverflow = BufferOverflow.DROP_OLDEST)
-    override val peerDisconnected = _peerDisconnected.asSharedFlow()
-
-    private val _eventClosed = MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
-    override val eventClosed = _eventClosed.asSharedFlow()
-
-    private val _receivedNudge = MutableSharedFlow<NudgePayloadDto>(extraBufferCapacity = 10, onBufferOverflow = BufferOverflow.DROP_OLDEST)
-    override val receivedNudge = _receivedNudge.asSharedFlow()
-
-    private val _receivedBeacon = MutableSharedFlow<BeaconPayloadDto>(extraBufferCapacity = 10, onBufferOverflow = BufferOverflow.DROP_OLDEST)
-    override val receivedBeacon = _receivedBeacon.asSharedFlow()
-
-    // Scripted ranges arrive at a much higher rate than any real message (up to
-    // a few per second per peer), and a dropped sample is worthless, so a
-    // deeper buffer that keeps the newest ones.
-    private val _receivedMockRanging = MutableSharedFlow<MockRangingDto>(extraBufferCapacity = 32, onBufferOverflow = BufferOverflow.DROP_OLDEST)
-    override val receivedMockRanging = _receivedMockRanging.asSharedFlow()
 
     override var acceptsNewMembers: Boolean = true
 
@@ -274,116 +254,63 @@ class LanDebugConnectionsManager(
     }
 
     private fun handleLine(line: String) {
-        val envelope = runCatching { envelopeAdapter.fromJson(line) }.getOrNull() ?: return
+        val envelope = RelayCodec.decodeEnvelope(line).getOrNull() ?: return
         when (envelope.type) {
             RelayEnvelope.PEER_JOINED -> {
                 Log.i(TAG, "Peer joined: ${envelope.senderPeerId}")
-                envelope.senderPeerId?.let { _connectionEstablished.tryEmit(it) }
+                envelope.senderPeerId?.let { events.onPeerConnected(it) }
             }
             RelayEnvelope.PEER_LEFT -> {
                 // The relay drops a peer from the event the moment its
                 // connection goes away, so the radar can forget it right away
                 // instead of waiting for the staleness sweep.
                 Log.i(TAG, "Peer left: ${envelope.senderPeerId}")
-                envelope.senderPeerId?.let { _peerDisconnected.tryEmit(it) }
+                envelope.senderPeerId?.let { events.onPeerDisconnected(it) }
             }
             RelayEnvelope.EVENT_CLOSED -> {
                 // The host ended the PingRing. This is the LAN debug stand-in
                 // for the BLE closure advertisement a real device would see.
                 Log.i(TAG, "Event ${envelope.eventId} was closed by host ${envelope.senderPeerId}")
                 eventClosedByRelay = true
-                _eventClosed.tryEmit(Unit)
+                events.onEventClosed()
             }
             RelayEnvelope.DATA -> {
                 val json = envelope.payload ?: return
-                val innerEnvelope = runCatching { envelopeAdapter.fromJson(json) }.getOrNull()
-                if (innerEnvelope != null && innerEnvelope.payload != null) {
-                    when (innerEnvelope.type) {
-                        "chat" -> runCatching { moshi.adapter(ChatPayloadDto::class.java).fromJson(innerEnvelope.payload) }
-                            .getOrNull()?.let { _receivedChatMessage.tryEmit(it) }
-                        "chat-history" -> runCatching { moshi.adapter(ChatHistoryPayloadDto::class.java).fromJson(innerEnvelope.payload) }
-                            .getOrNull()?.let { _receivedChatHistory.tryEmit(it) }
-                        "nudge" -> runCatching { moshi.adapter(NudgePayloadDto::class.java).fromJson(innerEnvelope.payload) }
-                            .getOrNull()?.let { _receivedNudge.tryEmit(it) }
-                        "beacon" -> runCatching { moshi.adapter(BeaconPayloadDto::class.java).fromJson(innerEnvelope.payload) }
-                            .getOrNull()?.let { _receivedBeacon.tryEmit(it) }
-                        "uwb-address" -> runCatching { moshi.adapter(UwbPeerAddressDto::class.java).fromJson(innerEnvelope.payload) }
-                            .getOrNull()?.let { _receivedPeerAddress.tryEmit(it) }
-                        "uwb-params" -> runCatching { moshi.adapter(UwbControllerParametersDto::class.java).fromJson(innerEnvelope.payload) }
-                            .getOrNull()?.let { _receivedControllerParams.tryEmit(it) }
-                        "uwb-offer" -> runCatching { moshi.adapter(UwbRangingOfferDto::class.java).fromJson(innerEnvelope.payload) }
-                            .getOrNull()?.let { _receivedUwbRangingOffer.tryEmit(it) }
-                        // A scripted range report from tools/mock_radar.py, the
-                        // LAN-only stand-in for a UWB ranging result.
-                        "mock-range" -> runCatching { moshi.adapter(MockRangingDto::class.java).fromJson(innerEnvelope.payload) }
-                            .getOrNull()?.let { _receivedMockRanging.tryEmit(it) }
-                    }
-                    return
+                val wrapped = RelayCodec.decodeEnvelope(json).getOrNull()?.takeIf { it.payload != null }
+                if (wrapped != null) {
+                    deliver(wrapped)
+                } else {
+                    // A sender that wrote no envelope at all: recognise the body
+                    // on its own, the same way the Nearby transport does.
+                    RelayCodec.decodeUnwrapped(json)?.let(::deliver)
                 }
-                parseAndEmitPayload(json)
             }
         }
     }
 
-    private fun parseAndEmitPayload(json: String) {
-        try {
-            val controllerParams = moshi.adapter(UwbControllerParametersDto::class.java).fromJson(json)
-            if (controllerParams != null) {
-                _receivedControllerParams.tryEmit(controllerParams)
-                return
-            }
-        } catch (e: Exception) {}
+    /**
+     * Hands one forwarded payload to the flow that carries it.
+     *
+     * Unlike the Nearby transport there is nothing to relay here: the relay
+     * already fans a message out by targetPeerId, so an offer arrives at the
+     * guest it was aimed at, and a scripted range report has nowhere else to go.
+     */
+    private fun deliver(envelope: RelayEnvelope): Boolean {
+        val body = envelope.payload ?: return false
+        val payload = RelayCodec.decode(envelope.type, body)?.getOrNull() ?: return false
+        return deliver(payload)
+    }
 
-        try {
-            val peerAddress = moshi.adapter(UwbPeerAddressDto::class.java).fromJson(json)
-            if (peerAddress != null) {
-                _receivedPeerAddress.tryEmit(peerAddress)
-                return
-            }
-        } catch (e: Exception) {}
-
-        try {
-            val chatHistory = moshi.adapter(ChatHistoryPayloadDto::class.java).fromJson(json)
-            if (chatHistory != null) {
-                _receivedChatHistory.tryEmit(chatHistory)
-                return
-            }
-        } catch (e: Exception) {}
-
-        try {
-            val chatMsg = moshi.adapter(ChatPayloadDto::class.java).fromJson(json)
-            if (chatMsg != null) {
-                _receivedChatMessage.tryEmit(chatMsg)
-                return
-            }
-        } catch (e: Exception) {}
-
-        try {
-            val nudge = moshi.adapter(NudgePayloadDto::class.java).fromJson(json)
-            if (nudge != null) {
-                _receivedNudge.tryEmit(nudge)
-                return
-            }
-        } catch (e: Exception) {}
-
-        try {
-            val beacon = moshi.adapter(BeaconPayloadDto::class.java).fromJson(json)
-            if (beacon != null) {
-                _receivedBeacon.tryEmit(beacon)
-                return
-            }
-        } catch (e: Exception) {}
-
-        // Last, because every other field is optional here: a range report has
-        // to be tried only once the DTOs that own a "peerId" field have had
-        // their chance, or it would swallow them.
-        try {
-            val mockRanging = moshi.adapter(MockRangingDto::class.java).fromJson(json)
-            if (mockRanging != null) {
-                _receivedMockRanging.tryEmit(mockRanging)
-                return
-            }
-        } catch (e: Exception) {}
+    private fun deliver(payload: DecodedPayload): Boolean = when (payload) {
+        is DecodedPayload.UwbOffer -> {
+            events.onUwbRangingOfferReceived(payload.offer)
+            true
+        }
+        is DecodedPayload.MockRanging -> {
+            events.onMockRanging(payload.report)
+            true
+        }
+        else -> RelayCodec.route(payload, events)
     }
 
     private fun sendEnvelope(envelope: RelayEnvelope) {
@@ -407,7 +334,7 @@ class LanDebugConnectionsManager(
 
     /** Writes synchronously on the calling (IO) thread/coroutine. Returns false on failure. */
     private fun writeEnvelopeNow(activeWriter: BufferedWriter, envelope: RelayEnvelope): Boolean {
-        val json = envelopeAdapter.toJson(envelope)
+        val json = RelayCodec.encodeEnvelope(envelope)
         synchronized(writeLock) {
             return try {
                 activeWriter.write(json)
@@ -435,18 +362,11 @@ class LanDebugConnectionsManager(
     }
 
     private fun sendPayload(targetPeerId: String?, params: Any) {
-        val (type, json) = when (params) {
-            is UwbRangingOfferDto -> "uwb-offer" to moshi.adapter(UwbRangingOfferDto::class.java).toJson(params)
-            is UwbControllerParametersDto -> "uwb-params" to moshi.adapter(UwbControllerParametersDto::class.java).toJson(params)
-            is UwbPeerAddressDto -> "uwb-address" to moshi.adapter(UwbPeerAddressDto::class.java).toJson(params)
-            is ChatPayloadDto -> "chat" to moshi.adapter(ChatPayloadDto::class.java).toJson(params)
-            is ChatHistoryPayloadDto -> "chat-history" to moshi.adapter(ChatHistoryPayloadDto::class.java).toJson(params)
-            is NudgePayloadDto -> "nudge" to moshi.adapter(NudgePayloadDto::class.java).toJson(params)
-            is BeaconPayloadDto -> "beacon" to moshi.adapter(BeaconPayloadDto::class.java).toJson(params)
-            else -> return
-        }
-        val innerEnvelope = RelayEnvelope(type = type, payload = json)
-        val innerJson = envelopeAdapter.toJson(innerEnvelope)
+        // One mapping from DTO to wire type for the whole app, so a payload type
+        // added on one side of the app cannot go missing on the other.
+        val encoded = RelayCodec.encode(params) ?: return
+        val innerEnvelope = RelayEnvelope(type = encoded.wireType, payload = encoded.json)
+        val innerJson = RelayCodec.encodeEnvelope(innerEnvelope)
         sendEnvelope(
             RelayEnvelope(
                 type = RelayEnvelope.DATA,

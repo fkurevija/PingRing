@@ -10,10 +10,6 @@ import android.bluetooth.le.*
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.hardware.Sensor
-import android.hardware.SensorEvent
-import android.hardware.SensorEventListener
-import android.hardware.SensorManager
 import android.media.AudioAttributes
 import android.media.RingtoneManager
 import android.net.Uri
@@ -36,10 +32,7 @@ import kotlinx.coroutines.flow.*
 import java.nio.charset.StandardCharsets
 import java.nio.ByteBuffer
 import java.util.UUID
-import java.util.concurrent.atomic.AtomicLong
 import java.security.SecureRandom
-import kotlin.math.cos
-import kotlin.math.sin
 
 data class RadarPeerUpdate(
     val peerId: String,
@@ -66,7 +59,7 @@ class DiscoveryRepository(
     private val sessionManager: SessionManager,
     private val nearbyConnectionsManager: NearbyTransport,
     private val appearanceSettings: AppearanceSettingsRepository = AppearanceSettingsRepository(context)
-) : SensorEventListener {
+) {
 
     private val TAG = "DiscoveryRepository"
     private val PINGRING_SERVICE_UUID = UUID.fromString("0000fa1b-0000-1000-8000-00805f9b34fb")
@@ -81,7 +74,6 @@ class DiscoveryRepository(
     private val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
     private val bluetoothAdapter = bluetoothManager?.adapter
     private val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
-    private val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
 
     // Expose connectivity status
     private val _connectivityStatus = MutableStateFlow(getConnectivityStatus())
@@ -91,9 +83,13 @@ class DiscoveryRepository(
     private val _peerUpdates = MutableStateFlow<Map<String, RadarPeerUpdate>>(emptyMap())
     val peerUpdates: Flow<List<RadarPeerUpdate>> = _peerUpdates.map { it.values.toList() }
 
-    // Expose device compass heading
-    private val _deviceHeading = MutableStateFlow(0f)
-    val deviceHeading: StateFlow<Float> = _deviceHeading.asStateFlow()
+    // Device orientation (heading, and the world direction of each peer). Kept in
+    // its own class because it is the one part of discovery that keeps running
+    // whenever the screen is visible, independently of whether a ring is active.
+    private val orientationTracker = DeviceOrientationTracker(context).apply {
+        onWorldVectorsChanged = { refreshPeerWorldDirections() }
+    }
+    val deviceHeading: StateFlow<Float> get() = orientationTracker.deviceHeading
 
     // Active Beacons map (peerId -> BeaconInfo)
     private val _activeBeacons = MutableStateFlow<Map<String, BeaconInfo>>(emptyMap())
@@ -108,6 +104,14 @@ class DiscoveryRepository(
 
     // Forward nudge events from the transport layer (fire-and-forget, no state needed)
     val receivedNudge = nearbyConnectionsManager.receivedNudge
+
+    // How an incoming chat message reaches the user, kept out of this class
+    // because it is the only part of chat that touches the notification system.
+    private val chatNotifier = ChatNotifier(
+        context = context,
+        appearanceSettings = appearanceSettings,
+        currentEventName = { sessionManager.sessionState.value.currentEvent?.name },
+    )
 
     private val vibrator: Vibrator? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
         val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
@@ -145,12 +149,6 @@ class DiscoveryRepository(
     private var bleScanner: BluetoothLeScanner? = null
     private var closureAnnouncementJob: Job? = null
     private val controlScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
-
-    // Sensor Fusion state
-    private val rotationMatrix = FloatArray(9).apply { this[0] = 1f; this[4] = 1f; this[8] = 1f }
-    private val geomagneticValues = FloatArray(3)
-    private val gravityValues = FloatArray(3)
-    private var hasRotationVector = false
 
     // UWB objects
     private var uwbManager: UwbManager? = null
@@ -207,9 +205,6 @@ class DiscoveryRepository(
     }
 
     init {
-        rotationMatrix[0] = 1f
-        rotationMatrix[4] = 1f
-        rotationMatrix[8] = 1f
         if (context.packageManager.hasSystemFeature("android.hardware.uwb")) {
             try {
                 uwbManager = UwbManager.createInstance(context)
@@ -332,7 +327,7 @@ class DiscoveryRepository(
                     val appWideEnabled = appearanceSettings.chatNotificationsEnabled.first()
                     val eventEnabled = sessionManager.sessionState.value.currentEvent?.chatNotificationsEnabled ?: true
                     if (appWideEnabled && eventEnabled) {
-                        handleIncomingChatMessage(chatMessage)
+                        chatNotifier.onChatMessageReceived(chatMessage)
                     }
                 }
             }
@@ -538,7 +533,7 @@ class DiscoveryRepository(
         startBleScanning()
 
         // 3. Start Sensor Fusion
-        registerSensors()
+        orientationTracker.resume()
 
         // 4. Start foreground-only UWB ranging
         startUwbRangingSession()
@@ -557,7 +552,7 @@ class DiscoveryRepository(
         nearbyConnectionsManager.stopAll()
         stopBleAdvertising()
         stopBleScanning()
-        unregisterSensors()
+        orientationTracker.pause()
         uwbSessionJob?.cancel()
         uwbSessionJob = null
         activeRangingJobs.values.forEach { it.cancel() }
@@ -882,11 +877,6 @@ class DiscoveryRepository(
         const val CLOSURE_ANNOUNCEMENT_DURATION_MILLIS = 5_000L
         const val PEER_CLEANUP_INTERVAL_MILLIS = 5_000L
         const val PEER_EXPIRY_TIMEOUT_MILLIS = 15_000L
-        const val CHAT_CHANNEL_ID = "pingring_chat_channel"
-        const val CHAT_NOTIFICATION_GROUP = "com.fkurevija.pingring.CHAT_NOTIFICATION"
-
-        /** Two short pulses: distinguishable from a chat message, not a nuisance. */
-        val CHAT_VIBRATION_PATTERN = longArrayOf(0, 120, 90, 120)
 
         /**
          * Debounce before moving the UWB session to a newly focused member.
@@ -1123,119 +1113,29 @@ class DiscoveryRepository(
         syncFriend(updated)
     }
 
-    private var sensorsRegistered = false
-
-    private fun registerSensors() {
-        if (sensorsRegistered) return
-        val sm = sensorManager ?: return
-        val rotVector = sm.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
-        if (rotVector != null) {
-            sm.registerListener(this, rotVector, SensorManager.SENSOR_DELAY_UI)
-        } else {
-            // Fallback to mag field and accelerometer
-            val mag = sm.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)
-            val acc = sm.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
-            if (mag != null) sm.registerListener(this, mag, SensorManager.SENSOR_DELAY_UI)
-            if (acc != null) sm.registerListener(this, acc, SensorManager.SENSOR_DELAY_UI)
-        }
-        sensorsRegistered = true
-    }
-
-    private fun unregisterSensors() {
-        if (!sensorsRegistered) return
-        sensorManager?.unregisterListener(this)
-        hasRotationVector = false
-        sensorsRegistered = false
-    }
-
-    fun pauseSensors() {
-        if (sensorsRegistered) {
-            sensorManager?.unregisterListener(this)
-            hasRotationVector = false
-            sensorsRegistered = false
-        }
-    }
+    fun pauseSensors() = orientationTracker.pause()
 
     fun resumeSensors() {
-        if (!sensorsRegistered && sessionManager.sessionState.value.currentEvent != null) {
-            registerSensors()
+        if (sessionManager.sessionState.value.currentEvent != null) {
+            orientationTracker.resume()
         }
     }
 
-    override fun onSensorChanged(event: SensorEvent?) {
-        val ev = event ?: return
-        when (ev.sensor.type) {
-            Sensor.TYPE_ROTATION_VECTOR -> {
-                SensorManager.getRotationMatrixFromVector(rotationMatrix, ev.values)
-                hasRotationVector = true
-                updateWorldVectors()
-                updateDeviceHeading()
-            }
-            Sensor.TYPE_MAGNETIC_FIELD -> {
-                System.arraycopy(ev.values, 0, geomagneticValues, 0, 3)
-                if (!hasRotationVector) {
-                    computeRotationMatrixFallback()
-                }
-            }
-            Sensor.TYPE_ACCELEROMETER -> {
-                System.arraycopy(ev.values, 0, gravityValues, 0, 3)
-                if (!hasRotationVector) {
-                    computeRotationMatrixFallback()
-                }
-            }
-        }
-    }
-
-    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
-
-    private fun computeRotationMatrixFallback() {
-        val success = SensorManager.getRotationMatrix(rotationMatrix, null, gravityValues, geomagneticValues)
-        if (success) {
-            updateWorldVectors()
-            updateDeviceHeading()
-        }
-    }
-
-    private fun updateDeviceHeading() {
-        val orientationValues = FloatArray(3)
-        SensorManager.getOrientation(rotationMatrix, orientationValues)
-        val headingDegrees = Math.toDegrees(orientationValues[0].toDouble()).toFloat()
-        _deviceHeading.value = headingDegrees
-    }
-
-    private val lastWorldVectorUpdate = AtomicLong(0L)
-    private val WORLD_VECTOR_UPDATE_INTERVAL = 33L // ~30 FPS
-
-    private fun updateWorldVectors() {
-        val now = System.currentTimeMillis()
-        val lastUpdate = lastWorldVectorUpdate.get()
-        if (now - lastUpdate < WORLD_VECTOR_UPDATE_INTERVAL) return
-        if (!lastWorldVectorUpdate.compareAndSet(lastUpdate, now)) return
-
-        // Recalculate world directional vectors for all peers that have UWB/RSSI direction info
+    /**
+     * Rewrites every peer's world direction from the device orientation.
+     *
+     * The tracker owns the orientation and decides when it moved far enough to be
+     * worth redrawing; only the peers are this class's to update.
+     */
+    private fun refreshPeerWorldDirections() {
         _peerUpdates.update { current ->
             current.mapValues { (_, peer) ->
-                val azimuthRad = Math.toRadians((peer.azimuth ?: 0f).toDouble()).toFloat()
-                val elevationRad = Math.toRadians((peer.elevation ?: 0f).toDouble()).toFloat()
-
-                // Vector in device horizontal plane: x = sin(azimuth), y = cos(azimuth), z = sin(elevation)
-                val devX = sin(azimuthRad) * cos(elevationRad)
-                val devY = cos(azimuthRad) * cos(elevationRad)
-                val devZ = sin(elevationRad)
-
-                // Multiply by rotation matrix to get world space vector
-                // R is 3x3 row-major matrix:
-                // [0] [1] [2]
-                // [3] [4] [5]
-                // [6] [7] [8]
-                val wX = rotationMatrix[0] * devX + rotationMatrix[1] * devY + rotationMatrix[2] * devZ
-                val wY = rotationMatrix[3] * devX + rotationMatrix[4] * devY + rotationMatrix[5] * devZ
-                val wZ = rotationMatrix[6] * devX + rotationMatrix[7] * devY + rotationMatrix[8] * devZ
-
+                val (worldX, worldY, worldZ) =
+                    orientationTracker.toWorldDirection(peer.azimuth, peer.elevation)
                 peer.copy(
-                    worldDirectionX = wX,
-                    worldDirectionY = wY,
-                    worldDirectionZ = wZ
+                    worldDirectionX = worldX,
+                    worldDirectionY = worldY,
+                    worldDirectionZ = worldZ
                 )
             }
         }
@@ -1637,7 +1537,7 @@ class DiscoveryRepository(
                 )
             )
         }
-        updateWorldVectors()
+        refreshPeerWorldDirections()
     }
 
     /**
@@ -1696,157 +1596,6 @@ class DiscoveryRepository(
             current + (peerId to updated)
         }
         syncFriend(updated)
-        updateWorldVectors()
-    }
-
-    /**
-     * Creates (or re-creates) the chat notification channel to match the
-     * user's sound/vibration preferences.
-     *
-     * A [NotificationChannel]'s sound and vibration are fixed at creation time
-     * and cannot be changed afterwards, so honouring a settings toggle means
-     * comparing the desired configuration against the live channel and
-     * deleting it when they disagree. Deleting also drops the user's own
-     * system-level customisation of that channel, which is unavoidable here
-     * and is preferable to silently ignoring the in-app setting.
-     */
-    private fun createChatNotificationChannel(soundEnabled: Boolean, vibrationEnabled: Boolean) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-
-        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        val desiredSound: Uri? = if (soundEnabled) Settings.System.DEFAULT_NOTIFICATION_URI else null
-        val desiredVibration: LongArray? = if (vibrationEnabled) CHAT_VIBRATION_PATTERN else null
-
-        // LongArray is compared by content, not identity: vibrationPattern
-        // hands back a fresh array on every read, so == would never match and
-        // the channel would be needlessly recreated on every message.
-        manager.getNotificationChannel(CHAT_CHANNEL_ID)?.let { existing ->
-            val soundMatches = existing.sound == desiredSound
-            val vibrationMatches = existing.vibrationPattern.contentEqualsOrNull(desiredVibration)
-            if (!soundMatches || !vibrationMatches) {
-                manager.deleteNotificationChannel(CHAT_CHANNEL_ID)
-            }
-        }
-
-        val channel = NotificationChannel(
-            CHAT_CHANNEL_ID,
-            "PingRing Chat Notifications",
-            NotificationManager.IMPORTANCE_HIGH
-        ).apply {
-            description = "Notifications for incoming chat messages in PingRing"
-            enableVibration(vibrationEnabled)
-            if (desiredVibration != null) {
-                vibrationPattern = desiredVibration
-            }
-            setSound(
-                desiredSound,
-                AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_NOTIFICATION)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                    .build()
-            )
-        }
-        manager.createNotificationChannel(channel)
-    }
-
-    /**
-     * Entry point for an incoming chat message from another peer.
-     *
-     * When the user is already watching the radar/chat window the shade
-     * notification is redundant noise, so it is dropped — but the device is
-     * still allowed to vibrate and/or make a sound, because a message can
-     * still be worth a haptic while the user's eyes are on the radar. Those
-     * two channels are controlled independently from app settings.
-     */
-    private suspend fun handleIncomingChatMessage(chatMessage: ChatMessage) {
-        val soundEnabled = appearanceSettings.notificationSoundEnabled.first()
-        val vibrationEnabled = appearanceSettings.notificationVibrationEnabled.first()
-
-        if (ForegroundPresenceTracker.shouldSuppressChatNotification(context)) {
-            if (vibrationEnabled) playChatVibration()
-            if (soundEnabled) playChatSound()
-            return
-        }
-
-        postChatNotification(chatMessage, soundEnabled, vibrationEnabled)
-    }
-
-    private fun playChatVibration() {
-        val deviceVibrator = vibrator ?: return
-        try {
-            val effect = VibrationEffect.createWaveform(CHAT_VIBRATION_PATTERN, -1)
-            deviceVibrator.vibrate(effect)
-        } catch (e: Exception) {
-            Log.w(TAG, "Chat vibration playback failed", e)
-        }
-    }
-
-    /**
-     * Plays the same tone the notification would have used, straight through
-     * the media stack. Respects the device's notification volume and mute
-     * state because it is the notification stream that is used.
-     */
-    private fun playChatSound() {
-        val uri: Uri = Settings.System.DEFAULT_NOTIFICATION_URI
-        try {
-            RingtoneManager.getRingtone(context, uri)?.apply {
-                if (!isPlaying) play()
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "Chat notification sound playback failed", e)
-        }
-    }
-
-    private fun postChatNotification(
-        chatMessage: ChatMessage,
-        soundEnabled: Boolean,
-        vibrationEnabled: Boolean
-    ) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                return
-            }
-        }
-
-        createChatNotificationChannel(soundEnabled, vibrationEnabled)
-
-        val notificationIntent = Intent(context, MainActivity::class.java).apply {
-            action = Intent.ACTION_MAIN
-            addCategory(Intent.CATEGORY_LAUNCHER)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-        }
-        val pendingIntent = PendingIntent.getActivity(
-            context,
-            chatMessage.id.hashCode(),
-            notificationIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        val currentEvent = sessionManager.sessionState.value.currentEvent
-        val eventName = currentEvent?.name ?: "PingRing"
-
-        val notification = NotificationCompat.Builder(context, CHAT_CHANNEL_ID)
-            .setContentTitle("$eventName • ${chatMessage.senderName}")
-            .setContentText(chatMessage.messageText)
-            .setSmallIcon(R.mipmap.ic_launcher)
-            .setAutoCancel(true)
-            .setContentIntent(pendingIntent)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setDefaults(NotificationCompat.DEFAULT_ALL)
-            .setGroup(CHAT_NOTIFICATION_GROUP)
-            .build()
-
-        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        notificationManager.notify(chatMessage.id.hashCode(), notification)
-    }
-
-    /**
-     * Content comparison that treats "no pattern" and "no pattern" as equal,
-     * so a channel created with vibration off is not recreated forever.
-     */
-    private fun LongArray?.contentEqualsOrNull(other: LongArray?): Boolean = when {
-        this == null && other == null -> true
-        this == null || other == null -> false
-        else -> this.contentEquals(other)
+        refreshPeerWorldDirections()
     }
 }

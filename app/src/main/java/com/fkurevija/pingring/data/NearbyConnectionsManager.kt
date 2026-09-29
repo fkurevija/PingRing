@@ -4,12 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.google.android.gms.nearby.Nearby
 import com.google.android.gms.nearby.connection.*
-import com.squareup.moshi.Moshi
-import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
-import kotlinx.coroutines.channels.BufferOverflow
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.asSharedFlow
 
 /**
  * Whether a connection this device has just been notified about has to be
@@ -32,79 +27,41 @@ internal fun shouldRefuseConnection(
 class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
     private val TAG = "NearbyConnections"
     private val connectionsClient = Nearby.getConnectionsClient(context)
-    private val moshi = Moshi.Builder().addLast(KotlinJsonAdapterFactory()).build()
-    private val envelopeAdapter = moshi.adapter(RelayEnvelope::class.java)
+    // Every flow this transport exposes is declared once, in TransportEvents:
+    // the two transports are interchangeable to DiscoveryRepository, so their
+    // buffering behaviour has to be identical rather than merely similar.
+    private val events = TransportEvents(TAG)
 
-    private val _receivedPeerAddress = MutableSharedFlow<UwbPeerAddressDto>(
-        extraBufferCapacity = 1,
-        onBufferOverflow = BufferOverflow.DROP_OLDEST
-    )
-    override val receivedPeerAddress = _receivedPeerAddress.asSharedFlow()
-
-    private val _receivedControllerParams = MutableSharedFlow<UwbControllerParametersDto>(
-        extraBufferCapacity = 1,
-        onBufferOverflow = BufferOverflow.DROP_OLDEST
-    )
-    override val receivedControllerParams = _receivedControllerParams.asSharedFlow()
-
-    private val _receivedUwbRangingOffer = MutableSharedFlow<UwbRangingOfferDto>(
-        extraBufferCapacity = 4,
-        onBufferOverflow = BufferOverflow.DROP_OLDEST
-    )
-    override val receivedUwbRangingOffer = _receivedUwbRangingOffer.asSharedFlow()
-
-    private val _receivedChatMessage = MutableSharedFlow<ChatPayloadDto>(
-        extraBufferCapacity = 10,
-        onBufferOverflow = BufferOverflow.DROP_OLDEST
-    )
-    override val receivedChatMessage = _receivedChatMessage.asSharedFlow()
-
-    private val _receivedChatHistory = MutableSharedFlow<ChatHistoryPayloadDto>(
-        extraBufferCapacity = 1,
-        onBufferOverflow = BufferOverflow.DROP_OLDEST
-    )
-    override val receivedChatHistory = _receivedChatHistory.asSharedFlow()
-
-    private val _connectionEstablished = MutableSharedFlow<String>(
-        replay = 1,
-        extraBufferCapacity = 4,
-        onBufferOverflow = BufferOverflow.DROP_OLDEST
-    )
-    override val connectionEstablished = _connectionEstablished.asSharedFlow()
-
-    private val _peerDisconnected = MutableSharedFlow<String>(
-        extraBufferCapacity = 4,
-        onBufferOverflow = BufferOverflow.DROP_OLDEST
-    )
-    override val peerDisconnected = _peerDisconnected.asSharedFlow()
+    override val receivedPeerAddress: SharedFlow<UwbPeerAddressDto> get() = events.receivedPeerAddress
+    override val receivedControllerParams: SharedFlow<UwbControllerParametersDto> get() = events.receivedControllerParams
 
     /**
-     * Nearby Connections has no server-side equivalent of "the event is over":
-     * peers learn it from the host's BLE closure advertisement, which
-     * [DiscoveryRepository] already watches for, so nothing is ever emitted
-     * here.
+     * Never emitted here: a ranging offer is *relayed* by the host rather than
+     * consumed locally (see [deliver]). Only the LAN debug transport can deliver
+     * one, because its relay reaches the target guest directly.
      */
-    override val eventClosed: SharedFlow<Unit> = MutableSharedFlow()
-
-    private val _receivedNudge = MutableSharedFlow<NudgePayloadDto>(
-        extraBufferCapacity = 10,
-        onBufferOverflow = BufferOverflow.DROP_OLDEST
-    )
-    override val receivedNudge = _receivedNudge.asSharedFlow()
-
-    private val _receivedBeacon = MutableSharedFlow<BeaconPayloadDto>(
-        extraBufferCapacity = 10,
-        onBufferOverflow = BufferOverflow.DROP_OLDEST
-    )
-    override val receivedBeacon = _receivedBeacon.asSharedFlow()
+    override val receivedUwbRangingOffer: SharedFlow<UwbRangingOfferDto> get() = events.receivedUwbRangingOffer
+    override val receivedChatMessage: SharedFlow<ChatPayloadDto> get() = events.receivedChatMessage
+    override val receivedChatHistory: SharedFlow<ChatHistoryPayloadDto> get() = events.receivedChatHistory
+    override val connectionEstablished: SharedFlow<String> get() = events.connectionEstablished
+    override val peerDisconnected: SharedFlow<String> get() = events.peerDisconnected
 
     /**
-     * Nearby Connections has no way of being told a distance that was not
-     * measured by this device's own UWB/BLE radios, so nothing is ever emitted
-     * here. Scripted ranges only exist for the LAN debug transport, which gets
-     * them from tools/mock_radar.py.
+     * Never emitted: Nearby Connections has no server-side equivalent of "the
+     * event is over", so peers learn it from the host's BLE closure
+     * advertisement, which [DiscoveryRepository] already watches for.
      */
-    override val receivedMockRanging: SharedFlow<MockRangingDto> = MutableSharedFlow()
+    override val eventClosed: SharedFlow<Unit> get() = events.eventClosed
+    override val receivedNudge: SharedFlow<NudgePayloadDto> get() = events.receivedNudge
+    override val receivedBeacon: SharedFlow<BeaconPayloadDto> get() = events.receivedBeacon
+
+    /**
+     * Never emitted: Nearby Connections has no way of being told a distance that
+     * was not measured by this device's own UWB/BLE radios. Scripted ranges only
+     * exist for the LAN debug transport, which gets them from tools/mock_radar.py.
+     */
+    override val receivedMockRanging: SharedFlow<MockRangingDto> get() = events.receivedMockRanging
+
 
     private val connectedEndpoints = mutableMapOf<String, String>()
     private val endpointToPeerId = mutableMapOf<String, String>()
@@ -285,29 +242,22 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
     }
 
     private fun sendPayloadToEndpoint(endpointId: String, params: Any) {
-        val (type, dtoJson) = when (params) {
-            is ChatPayloadDto -> "chat" to moshi.adapter(ChatPayloadDto::class.java).toJson(params)
-            is ChatHistoryPayloadDto -> "chat-history" to moshi.adapter(ChatHistoryPayloadDto::class.java).toJson(params)
-            is NudgePayloadDto -> "nudge" to moshi.adapter(NudgePayloadDto::class.java).toJson(params)
-            is BeaconPayloadDto -> "beacon" to moshi.adapter(BeaconPayloadDto::class.java).toJson(params)
-            is UwbPeerAddressDto -> "uwb-address" to moshi.adapter(UwbPeerAddressDto::class.java).toJson(params)
-            is UwbControllerParametersDto -> "uwb-params" to moshi.adapter(UwbControllerParametersDto::class.java).toJson(params)
-            is UwbRangingOfferDto -> "uwb-offer" to moshi.adapter(UwbRangingOfferDto::class.java).toJson(params)
-            else -> return
-        }
-        val envelope = RelayEnvelope(type = type, payload = dtoJson)
-        val envelopeJson = envelopeAdapter.toJson(envelope)
+        // One mapping from DTO to wire type for the whole app, so a payload type
+        // added on one side of the app cannot go missing on the other.
+        val encoded = RelayCodec.encode(params) ?: return
+        val envelope = RelayEnvelope(type = encoded.wireType, payload = encoded.json)
+        val envelopeJson = RelayCodec.encodeEnvelope(envelope)
         val payload = Payload.fromBytes(envelopeJson.toByteArray())
         connectionsClient.sendPayload(endpointId, payload)
             .addOnSuccessListener {
-                Log.d(TAG, "Sent $type (${envelopeJson.length} chars) to $endpointId [peer=${endpointToPeerId[endpointId] ?: "?"}]")
+                Log.d(TAG, "Sent ${encoded.wireType} (${envelopeJson.length} chars) to $endpointId [peer=${endpointToPeerId[endpointId] ?: "?"}]")
             }
             .addOnFailureListener { error ->
                 // The status code is what says why, and guessing from the UI is
                 // hopeless: 4003 is "no such connection", 4006 "advertising or
                 // discovery is not running", 5xxx "we rejected it ourselves".
                 val status = (error as? com.google.android.gms.common.api.ApiException)?.statusCode
-                Log.e(TAG, "sendPayload($type) to $endpointId failed, status=$status: ${error.message}", error)
+                Log.e(TAG, "sendPayload(${encoded.wireType}) to $endpointId failed, status=$status: ${error.message}", error)
             }
     }
 
@@ -390,7 +340,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
                 val peerId = endpointToPeerId[endpointId]?.ifBlank { null } ?: endpointId
                 connectedEndpoints[peerId] = endpointId
                 connectedEndpoints[endpointId] = endpointId
-                _connectionEstablished.tryEmit(peerId)
+                events.onPeerConnected(peerId)
                 Log.i(TAG, "Connection SUCCESS to $endpointId (Peer ID: $peerId). Active connected endpoints: $connectedEndpoints")
             } else {
                 endpointToPeerId.remove(endpointId)
@@ -415,7 +365,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
             // Let the radar drop this peer immediately rather than waiting for
             // the staleness timeout to notice it went quiet.
             if (!peerId.isNullOrBlank()) {
-                _peerDisconnected.tryEmit(peerId)
+                events.onPeerDisconnected(peerId)
             }
         }
     }
@@ -459,68 +409,60 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
      * a device that simply never sent anything - which is the worst possible
      * outcome when debugging "messages are not arriving".
      */
-    private inline fun <reified T> decodeOrNull(type: String, endpointId: String, json: String): T? = try {
-        moshi.adapter(T::class.java).fromJson(json)
-    } catch (e: Exception) {
-        Log.e(TAG, "Could not parse a '$type' payload from $endpointId: ${e.message}", e)
-        null
-    }
-
     /**
-     * Emits the envelope's body onto the matching flow. Returns false when the
-     * type is unknown or the body would not decode, so the caller can tell
-     * "handled" from "dropped".
+     * Decodes and delivers the body of one envelope, saying why when it cannot.
+     *
+     * Failures used to be swallowed (`runCatching { }.getOrNull()`), so a
+     * malformed or unexpected payload looked exactly like a device that simply
+     * never sent anything - the worst possible outcome when the thing being
+     * debugged is "messages are not arriving".
      */
     private fun dispatchEnvelope(envelope: RelayEnvelope, endpointId: String): Boolean {
         val body = envelope.payload ?: return false
-        return when (envelope.type) {
-            "chat" -> decodeOrNull<ChatPayloadDto>(envelope.type, endpointId, body)?.also {
-                Log.i(TAG, "Received chat message '${it.text}' from ${it.senderName} (peer ${it.senderPeerId})")
-                _receivedChatMessage.tryEmit(it)
-            } != null
-            "chat-history" -> decodeOrNull<ChatHistoryPayloadDto>(envelope.type, endpointId, body)?.also {
-                Log.i(TAG, "Received chat history with ${it.messages.size} msgs")
-                _receivedChatHistory.tryEmit(it)
-            } != null
-            "nudge" -> decodeOrNull<NudgePayloadDto>(envelope.type, endpointId, body)?.also {
-                Log.i(TAG, "Received nudge from ${it.senderName}")
-                _receivedNudge.tryEmit(it)
-            } != null
-            "beacon" -> decodeOrNull<BeaconPayloadDto>(envelope.type, endpointId, body)?.also {
-                Log.i(TAG, "Received beacon '${it.title}' from ${it.senderName}")
-                _receivedBeacon.tryEmit(it)
-            } != null
-            "uwb-address" -> decodeOrNull<UwbPeerAddressDto>(envelope.type, endpointId, body)?.also {
-                _receivedPeerAddress.tryEmit(it)
-            } != null
-            "uwb-params" -> decodeOrNull<UwbControllerParametersDto>(envelope.type, endpointId, body)?.also {
-                _receivedControllerParams.tryEmit(it)
-            } != null
-            "uwb-offer" -> decodeOrNull<UwbRangingOfferDto>(envelope.type, endpointId, body)?.also { offer ->
-                // The host is the only hop that can carry one guest's offer to
-                // another, since P2P_STAR leaves guests with no direct link.
-                // It forwards verbatim to the single guest that was named and
-                // never consumes it itself.
-                val targetEndpoint = connectedEndpoints[offer.targetPeerId]
-                if (targetEndpoint == null) {
-                    Log.w(
-                        TAG,
-                        "UWB ranging offer from ${offer.fromPeerId} cannot be relayed: " +
-                            "no connection to ${offer.targetPeerId}"
-                    )
-                } else {
-                    Log.i(
-                        TAG,
-                        "Relaying a UWB ranging offer from ${offer.fromPeerId} to ${offer.targetPeerId}"
-                    )
-                    sendPayloadToEndpoint(targetEndpoint, offer)
-                }
-                // Consumed either way: a host has no UWB session of its own for
-                // this offer, and returning true keeps it off every other flow.
-                true
-            } != null
-            else -> false
+        val decoded = RelayCodec.decode(envelope.type, body)
+        if (decoded == null) {
+            Log.w(TAG, "Unknown payload type '${envelope.type}' from $endpointId; dropped")
+            return false
         }
+        decoded.onFailure { error ->
+            Log.e(TAG, "Could not parse a '${envelope.type}' payload from $endpointId: ${error.message}", error)
+        }
+        val payload = decoded.getOrNull() ?: return false
+
+        if (deliver(payload, endpointId)) return true
+        Log.w(TAG, "Payload of known type '${envelope.type}' from $endpointId could not be delivered; dropped")
+        return false
+    }
+
+    /**
+     * Hands a payload to the flow that carries it, or forwards the one kind that
+     * is not meant for this device.
+     *
+     * The host is the only hop that can carry one guest's ranging offer to
+     * another, since P2P_STAR leaves guests with no direct link. It forwards the
+     * offer verbatim to the single guest that was named and never consumes it
+     * itself.
+     */
+    private fun deliver(payload: DecodedPayload, endpointId: String): Boolean = when (payload) {
+        is DecodedPayload.UwbOffer -> relayOffer(payload.offer, endpointId)
+        else -> RelayCodec.route(payload, events)
+    }
+
+    private fun relayOffer(offer: UwbRangingOfferDto, endpointId: String): Boolean {
+        val targetEndpoint = connectedEndpoints[offer.targetPeerId]
+        if (targetEndpoint == null) {
+            Log.w(
+                TAG,
+                "UWB ranging offer from ${offer.fromPeerId} cannot be relayed: " +
+                    "no connection to ${offer.targetPeerId} (arrived from $endpointId)"
+            )
+        } else {
+            Log.i(TAG, "Relaying a UWB ranging offer from ${offer.fromPeerId} to ${offer.targetPeerId}")
+            sendPayloadToEndpoint(targetEndpoint, offer)
+        }
+        // Consumed either way: a host has no UWB session of its own for this
+        // offer, and reporting it as delivered keeps it off every other flow.
+        return true
     }
 
     private val payloadCallback = object : PayloadCallback() {
@@ -538,26 +480,20 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
             Log.d(TAG, "Received ${bytes.size} bytes from $endpointId [peer=$peer]: $json")
 
             // First try parsing as structured RelayEnvelope
-            val envelope = try {
-                envelopeAdapter.fromJson(json)
-            } catch (e: Exception) {
-                Log.e(TAG, "Could not parse the envelope from $endpointId: ${e.message}", e)
+            val envelope = RelayCodec.decodeEnvelope(json).getOrElse { error ->
+                Log.e(TAG, "Could not parse the envelope from $endpointId: ${error.message}", error)
                 null
             }
             if (envelope != null && envelope.payload != null) {
-                if (dispatchEnvelope(envelope, endpointId)) return
-                // A known type that would not decode is a bug on one of the two
-                // sides; an unknown type may just be a newer build. Say which.
-                if (envelope.type in KNOWN_PAYLOAD_TYPES) {
-                    Log.w(TAG, "Payload of known type '${envelope.type}' from $endpointId decoded to null; dropped")
-                } else {
-                    Log.w(TAG, "Unknown payload type '${envelope.type}' from $endpointId; dropped")
-                }
+                // [dispatchEnvelope] has already said why when it cannot deliver,
+                // so there is nothing left to report here.
+                dispatchEnvelope(envelope, endpointId)
                 return
             }
 
-            // Fallback for raw legacy JSON
-            if (!parseRawLegacyJson(json)) {
+            // Last resort: a payload sent without its envelope wrapper.
+            val legacy = RelayCodec.decodeUnwrapped(json)
+            if (legacy == null || !deliver(legacy, endpointId)) {
                 Log.w(TAG, "Unrecognised payload from $endpointId, dropped: $json")
             }
         }
@@ -565,35 +501,4 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
         override fun onPayloadTransferUpdate(endpointId: String, update: PayloadTransferUpdate) {}
     }
 
-    /**
-     * The last resort for a payload sent without its envelope wrapper. Returns
-     * whether anything was recognised, so the caller can complain about the
-     * ones that were not instead of dropping them in silence.
-     */
-    private fun parseRawLegacyJson(json: String): Boolean {
-        decodeOrNull<ChatPayloadDto>("chat", "?", json)
-            ?.takeIf { it.id.isNotEmpty() && it.text.isNotEmpty() }
-            ?.let { _receivedChatMessage.tryEmit(it); return true }
-        decodeOrNull<ChatHistoryPayloadDto>("chat-history", "?", json)
-            ?.let { _receivedChatHistory.tryEmit(it); return true }
-        decodeOrNull<NudgePayloadDto>("nudge", "?", json)
-            ?.takeIf { it.id.isNotEmpty() }
-            ?.let { _receivedNudge.tryEmit(it); return true }
-        decodeOrNull<BeaconPayloadDto>("beacon", "?", json)
-            ?.takeIf { it.id.isNotEmpty() }
-            ?.let { _receivedBeacon.tryEmit(it); return true }
-        decodeOrNull<UwbControllerParametersDto>("uwb-params", "?", json)
-            ?.takeIf { it.hostPeerId.isNotEmpty() }
-            ?.let { _receivedControllerParams.tryEmit(it); return true }
-        decodeOrNull<UwbPeerAddressDto>("uwb-address", "?", json)
-            ?.takeIf { it.peerId.isNotEmpty() }
-            ?.let { _receivedPeerAddress.tryEmit(it); return true }
-        return false
-    }
-
-    private companion object {
-        // Payload types this build understands inside an envelope. Anything else
-        // is dropped on purpose (a newer peer may send more) but says so.
-        val KNOWN_PAYLOAD_TYPES = setOf("chat", "chat-history", "nudge", "beacon", "uwb-address", "uwb-params", "uwb-offer")
-    }
 }

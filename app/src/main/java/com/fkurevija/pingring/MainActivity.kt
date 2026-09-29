@@ -201,15 +201,10 @@ fun MainNavigation(
                             if (sessionManager.sessionState.value.currentEvent == null) {
                                 val eventCode = generateEventCode()
                                 sessionManager.hostEvent(
-                                    Event(
+                                    Event.create(
                                         id = eventCode,
-                                        name = "PingRing $eventCode",
-                                        description = "PingRing Event",
-                                        expiryTimestamp = System.currentTimeMillis() + 3600000,
                                         hostPeerId = sessionManager.peerId.value,
-                                        trackHost = false,
                                         useUwb = discoveryRepository.isUwbSupported(),
-                                        useWifiDirect = true
                                     )
                                 )
                                 backStack.add(HostSetupKey(eventCode))
@@ -283,12 +278,7 @@ fun MainNavigation(
                                 isConnecting = true
                                 appearanceSettings.setUserName(username)
                                 sessionManager.setUserName(username)
-                                val event = Event(
-                                    id = eventCode,
-                                    name = "PingRing $eventCode",
-                                    description = "PingRing Event",
-                                    expiryTimestamp = System.currentTimeMillis() + 3600000
-                                )
+                                val event = Event.create(id = eventCode)
                                 if (sessionManager.joinEvent(event)) {
                                     coroutineScope.launch {
                                         val connected = runCatching {

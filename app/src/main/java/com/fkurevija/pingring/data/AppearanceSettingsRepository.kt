@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.fkurevija.pingring.DeviceEnvironment
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -110,7 +111,7 @@ class AppearanceSettingsRepository(private val context: Context) {
     }
 
     val lanDebugHost: Flow<String> = context.appearanceDataStore.data.map { preferences ->
-        preferences[lanDebugHostKey] ?: if (isEmulator()) "10.0.2.2" else "127.0.0.1"
+        preferences[lanDebugHostKey] ?: if (DeviceEnvironment.isEmulator()) "10.0.2.2" else "127.0.0.1"
     }
 
     fun setLanDebugEnabled(enabled: Boolean) {
@@ -130,9 +131,3 @@ class AppearanceSettingsRepository(private val context: Context) {
     }
 }
 
-private fun isEmulator(): Boolean =
-    Build.TYPE == "userdebug" ||
-        Build.TYPE == "eng" ||
-        Build.MODEL.startsWith("sdk_gphone") ||
-        Build.MODEL.contains("Android SDK built for") ||
-        Build.FINGERPRINT.startsWith("generic")
