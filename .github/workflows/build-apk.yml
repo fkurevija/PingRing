@@ -147,26 +147,6 @@ jobs:
           name: pingring-debug-apk
           path: apk
 
-      # Print the state the publish step depends on, before it runs. A failure in
-      # the release step otherwise reports very little: the common causes (no
-      # release for the tag, a protected tag, a missing asset) look alike from
-      # the outside. This costs one step and makes any future failure readable.
-      - name: Report publish state
-        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
-        run: |
-          echo "commit:  ${{ github.sha }}"
-          echo "ref:     ${{ github.ref }}"
-          echo "apk dir:"; ls -l apk/ || true
-          echo "tag latest -> $(git rev-parse refs/tags/latest 2>&1 || echo 'absent')"
-          echo "release for latest:"
-          gh release view latest 2>&1 | head -20 || true
-          echo "auth:"
-          gh auth status 2>&1 | head -10 || true
-
       # A tag push (v1.2.3) produces a real, immutable versioned release.
       - name: Publish versioned release
         if: startsWith(github.ref, 'refs/tags/v')
@@ -190,40 +170,87 @@ jobs:
       # Roll the `latest` release forward on every successful build, so there is
       # always exactly one obvious download and it is never stale.
       #
-      # This uses the same action as the versioned path rather than a `gh` CLI
-      # script. The script branched on `gh release view` and had three ways to
-      # fail silently - a missing release took the create path and collided with
-      # the existing tag, and any non-zero exit under `set -e` aborted the job
-      # after the tag had already been left behind. The action creates-or-updates
-      # a release for a tag declaratively, so there is no branch to get wrong.
+      # This is deliberately explicit `gh api` rather than a release action.
+      # The action reported "Resource not accessible by integration" while
+      # naming a tag of "refs/heads/master" - a branch - and kept doing so with
+      # tag_name set explicitly, so its own resolution could not be trusted to
+      # tell us what it was actually doing. Every call here prints the response
+      # body, so a failure names the endpoint and the API's own reason instead
+      # of collapsing into one opaque message.
       - name: Publish rolling latest release
         if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
-        uses: softprops/action-gh-release@v2
-        with:
-          # Passed explicitly rather than relying on the action's default of
-          # github.token, so the token actually used is visible in the workflow
-          # instead of being implicit.
-          token: ${{ secrets.GITHUB_TOKEN }}
-          # Explicit, and deliberately not derived from github.ref. Without it
-          # the action falls back to the ref, and on a push to master that is
-          # "refs/heads/master" - it then looks for a release tagged with a
-          # branch name, fails to find one, and tries to create or update
-          # something that does not exist.
-          tag_name: latest
-          name: Latest debug APK
-          files: apk/*.apk
-          overwrite_files: true
-          fail_on_unmatched_files: true
-          make_latest: false
-          body: |
-            Rolling debug build from the most recent successful `master` push.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          # No `set -e`: every failure below is handled and reported
+          # explicitly, so one expected 404 cannot abort the step silently.
+          set -uo pipefail
 
-            Commit: ${{ github.sha }}
-            Branch: ${{ github.ref_name }}
-            Build: ${{ github.run_number }}
+          echo "== who am I =="
+          gh auth status 2>&1 | sed -E 's/(token:).*/\1 [redacted]/' || true
 
-            This release is overwritten on every build. Tagged `v*` releases are
-            permanent - see `tools/tag_release.py`.
+          apk_path="$(find apk -name '*.apk' -print -quit)"
+          if [ -z "$apk_path" ]; then
+            echo "::error::No APK found under apk/"
+            exit 1
+          fi
+          echo "apk: $apk_path"
+
+          notes="$(mktemp)"
+          cat > "$notes" <<EOF
+          Rolling debug build from the most recent successful \`master\` push.
+
+          Commit: ${{ github.sha }}
+          Branch: ${{ github.ref_name }}
+          Build: ${{ github.run_number }}
+
+          Overwritten on every build. Tagged \`v*\` releases are permanent.
+          EOF
+
+          echo "== resolve release for tag 'latest' =="
+          existing="$(gh api "repos/$GH_REPO/releases/tags/latest" 2>&1)" && found=1 || found=0
+
+          if [ "$found" = 1 ]; then
+            release_id="$(printf '%s' "$existing" | jq -r .id)"
+            asset_name="$(basename "$apk_path")"
+            echo "found release id=$release_id"
+
+            # Remove the previous asset first. Re-uploading under the same name
+            # is a 422 on an existing release, which is the one failure mode
+            # --clobber hides by deleting it for us; doing it here makes the
+            # step succeed even where that flag is unavailable.
+            old_asset="$(printf '%s' "$existing" | jq -r --arg n "$asset_name" '.assets[]? | select(.name==$n) | .id' | head -1)"
+            if [ -n "$old_asset" ] && [ "$old_asset" != "null" ]; then
+              echo "deleting previous asset id=$old_asset"
+              gh api -X DELETE "repos/$GH_REPO/releases/assets/$old_asset" 2>&1 | head -5 || true
+            fi
+
+            echo "updating release metadata"
+            gh api -X PATCH "repos/$GH_REPO/releases/$release_id" \
+              -f tag_name=latest \
+              -f name="Latest debug APK" \
+              -F body=@"$notes" \
+              -f draft=false -f prerelease=false 2>&1 | head -20 || true
+
+            echo "uploading asset"
+            if ! out="$(gh release upload latest "$apk_path" 2>&1)"; then
+              echo "::error::Asset upload failed: $out"
+              exit 1
+            fi
+            echo "Updated rolling latest release"
+          else
+            echo "no release for 'latest'; creating one. Response was:"
+            printf '%s\n' "$existing" | head -5
+            if ! out="$(gh release create latest "$apk_path" \
+                  --title "Latest debug APK" \
+                  --notes-file "$notes" \
+                  --target "${{ github.sha }}" 2>&1)"; then
+              echo "::error::Release create failed: $out"
+              exit 1
+            fi
+            echo "Created rolling latest release"
+          fi
 
       # Move the rolling tag to the commit that was just published, so the
       # release page's source link matches the APK it holds. Separate from the
