@@ -108,7 +108,12 @@ jobs:
           # swiftshader rather than the default host GPU: GitHub's runners have no
           # usable hardware acceleration for the emulator, and asking for it makes
           # the boot flaky rather than faster.
-          emulator-options: -no-window -no-snapshot -noaudio -no-boot-anim -gpu swiftshader_indirect
+          emulator-options: -no-window -no-snapshot -noaudio -no-boot-anim -gpu swiftshader_indirect -no-metrics
+          # -no-metrics: the emulator otherwise prints a metrics-collection warning
+          # on every boot, which is only noise today but the warning states it will
+          # become a blocking prompt in a future release. A prompt inside this
+          # action would hang the step until the job times out instead of failing,
+          # so opting out is the cheaper of the two outcomes.
           # The coverage task pulls connectedDebugAndroidTest into its graph, so it
           # has to run inside the emulator step while the device is still up - run
           # it afterwards and it tries to start the suite again against nothing.
