@@ -846,10 +846,13 @@ private fun ProximityRing(
                 // overlay across the app bar.
                 .clipToBounds()
         ) {
-            val stroke = size.minDimension * .08f
-            // The radius the ring is actually drawn at. Half the stroke is
-            // inset from the canvas edge so the whole band fits inside it.
-            val ringRadius = (size.minDimension - stroke) / 2f
+            // One source of truth for the ring's stroke, radius and origin. The
+            // lit arc below is inscribed in the very same square, so the two
+            // cannot drift apart. Half the stroke is inset from the canvas edge
+            // so the whole band fits inside it.
+            val ring = RadarDirectionPolicy.ringGeometry(size.width, size.height)
+            val stroke = ring.strokePx
+            val ringRadius = ring.radiusPx
             val center = Offset(size.width / 2, size.height / 2)
 
             // Pulsing beacon wave if active. The animated radius is clamped to
@@ -900,8 +903,15 @@ private fun ProximityRing(
                         startAngle = segment.startAngleDegrees,
                         sweepAngle = segment.sweepAngleDegrees,
                         useCenter = false,
-                        topLeft = Offset(ringRadius, ringRadius),
-                        size = Size(ringRadius * 2, ringRadius * 2),
+                        // Inscribed in the ring's own square. An oval's centre
+                        // is its top-left plus half its size, so passing
+                        // (ringRadius, ringRadius) - as this did, and as the
+                        // canvas-sized default would have too - puts the arc's
+                        // centre at the canvas' bottom-right corner region
+                        // instead of its middle: the highlight landed beside
+                        // the ring and was clipped by the canvas edge.
+                        topLeft = Offset(ring.topLeftXPx, ring.topLeftYPx),
+                        size = Size(ring.arcSizePx, ring.arcSizePx),
                         style = Stroke(stroke, cap = StrokeCap.Round)
                     )
                 }

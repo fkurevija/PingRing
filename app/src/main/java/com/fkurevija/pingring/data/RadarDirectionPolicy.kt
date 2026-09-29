@@ -1,6 +1,7 @@
 package com.fkurevija.pingring.data
 
 import kotlin.math.ln
+import kotlin.math.min
 import kotlin.math.pow
 
 /**
@@ -98,6 +99,46 @@ object RadarDirectionPolicy {
     }
 
     /**
+     * The ring's stroke width as a fraction of the canvas' smaller side.
+     *
+     * The ring is the app's own circle rather than a chart axis, so the band is
+     * drawn thick: 8% of the canvas reads as a band from arm's length and still
+     * leaves the middle free for the hub. A fraction rather than a dp value, so
+     * it scales with the radar instead of sinking into it on a tablet and
+     * swallowing it on a small phone.
+     */
+    const val RING_STROKE_FRACTION = 0.08f
+
+    /**
+     * The circle the ring is drawn on, inside a [canvasWidthPx] by
+     * [canvasHeightPx] pixel canvas.
+     *
+     * The ring and the lit arc on it have to be two strokes of *one* circle, so
+     * both are derived from here. Anything that works out its own radius or
+     * origin instead drifts, and a highlight a few pixels off the ring stops
+     * reading as a highlight and starts reading as a rendering bug.
+     *
+     * [RingGeometry.topLeftXPx] and [RingGeometry.topLeftYPx] are the top-left
+     * of the square the arc's bounding oval occupies, which is what `drawArc`
+     * takes. Its centre - that top-left plus half [RingGeometry.arcSizePx] - is
+     * the canvas centre the ring is centred on.
+     */
+    fun ringGeometry(canvasWidthPx: Float, canvasHeightPx: Float): RingGeometry {
+        val smallest = min(canvasWidthPx, canvasHeightPx)
+        // At radius + stroke / 2 = smallest / 2 the outer edge of the band
+        // lands exactly on the canvas edge: the ring fills the space it is
+        // given without the outer half of its stroke being clipped away.
+        val stroke = smallest * RING_STROKE_FRACTION
+        val radius = (smallest - stroke) / 2f
+        return RingGeometry(
+            strokePx = stroke,
+            radiusPx = radius,
+            topLeftXPx = canvasWidthPx / 2f - radius,
+            topLeftYPx = canvasHeightPx / 2f - radius,
+        )
+    }
+
+    /**
      * The needle's rotation, in degrees, for a member at [azimuthDegrees].
      *
      * Zero points up, matching the radar's twelve o'clock convention, and the
@@ -117,5 +158,20 @@ object RadarDirectionPolicy {
     ) {
         /** True when the member is close enough for the whole ring to be lit. */
         val isFullyLit: Boolean get() = halfAngleDegrees >= FULL_HALF_ANGLE_DEGREES
+    }
+
+    /**
+     * The ring's stroke, its radius, and the square an arc on it is inscribed
+     * in - everything needed to draw the ring and to light part of it up in the
+     * very same place.
+     */
+    data class RingGeometry(
+        val strokePx: Float,
+        val radiusPx: Float,
+        val topLeftXPx: Float,
+        val topLeftYPx: Float,
+    ) {
+        /** The side of the square bounding oval an arc of the ring is drawn in. */
+        val arcSizePx: Float get() = radiusPx * 2f
     }
 }

@@ -169,4 +169,41 @@ class RadarDirectionPolicyTest {
         val segment = RadarDirectionPolicy.segment(45f, 8f)!!
         assertEquals(segment.halfAngleDegrees * 2f, segment.sweepAngleDegrees, 0.001f)
     }
+
+    @Test
+    fun `the lit arc is inscribed in the ring's own circle`() {
+        // The defect this guards. The highlight was drawn into an oval offset by
+        // the ring's own radius - an oval's centre is its top-left plus half its
+        // size - which put the arc's centre at the canvas' bottom-right corner
+        // region rather than its middle. It rendered as a stray swoosh beside
+        // the ring, clipped where it left the canvas. Concentricity is the whole
+        // property: the oval's centre must be the canvas centre the ring is
+        // drawn around.
+        val ring = RadarDirectionPolicy.ringGeometry(400f, 400f)
+        assertEquals(200f, ring.topLeftXPx + ring.arcSizePx / 2f, 0.001f)
+        assertEquals(200f, ring.topLeftYPx + ring.arcSizePx / 2f, 0.001f)
+        // The same circle, not merely a shared centre: an arc inscribed in that
+        // oval has its centre line on the ring's centre line.
+        assertEquals(ring.radiusPx, ring.arcSizePx / 2f, 0.001f)
+    }
+
+    @Test
+    fun `the ring fills the canvas without spilling past it`() {
+        // radius + stroke / 2 == smallest side / 2 is what keeps the band inside
+        // the canvas: any larger and the outer half of the stroke is clipped
+        // away, which is what turns a ring into a chamfered square.
+        val ring = RadarDirectionPolicy.ringGeometry(300f, 500f)
+        assertEquals(150f, ring.radiusPx + ring.strokePx / 2f, 0.001f)
+        assertEquals(300f * RadarDirectionPolicy.RING_STROKE_FRACTION, ring.strokePx, 0.001f)
+    }
+
+    @Test
+    fun `a non-square canvas keeps the ring centred`() {
+        // The radar is sized from the available width but its canvas is not
+        // guaranteed square; the radius comes off the smaller side while the
+        // origin stays on the middle of both.
+        val ring = RadarDirectionPolicy.ringGeometry(300f, 500f)
+        assertEquals(150f, ring.topLeftXPx + ring.arcSizePx / 2f, 0.001f)
+        assertEquals(250f, ring.topLeftYPx + ring.arcSizePx / 2f, 0.001f)
+    }
 }

@@ -76,7 +76,7 @@ graph TD
 - **30 FPS sensor-fusion tracking**: rotation-vector, magnetometer and accelerometer orient peer vectors into world space while concurrent non-blocking UWB sessions stream sub-metre distance, azimuth and elevation.
 - **Proximity haptics** under 2 m; **stale peers expire** from the radar after 15 s.
 - **Single tracked member**: pick one person to follow, so the radar and the one UWB session both stay on someone instead of all seven. Switching focus moves the session after a 750 ms settle. Everyone still *receives* every message regardless of who is tracked.
-- **Directional radar**: a needle points at the tracked member and a lit arc on the ring widens as they approach — a sliver when far, the whole ring within arm's reach (1.5 m). Width is spaced logarithmically, so each doubling of distance gets an equal share of the arc. With no UWB bearing the ring falls back to plain signal strength rather than inventing a direction.
+- **Directional radar**: a needle points at the tracked member and a lit arc on the ring widens as they approach — a sliver when far, the whole ring within arm's reach (1.5 m). Width is spaced logarithmically, so each doubling of distance gets an equal share of the arc. With no UWB bearing the ring stays plain - signal strength only tints it - rather than inventing a direction.
 - **UWB sessions survive a transport drop**: if a member walks out of BLE range while still being tracked, the ranging session is held open for 45 s so walking back is instant instead of renegotiating. Ending or leaving the ring discards every retained address.
 - **Theming**: Material You dynamic colour, system light/dark, an adaptive navy-and-white radar icon, and a monochrome `ic_launcher_monochrome.xml` for Android 13+ launchers.
 - **Device-aware permissions**: unsupported hardware (`FEATURE_BLUETOOTH`, `FEATURE_WIFI`, `FEATURE_LOCATION`, camera, UWB, vibrator) skips its permission prompt, and its UI is disabled with an explanatory label instead of an ungrantable dialog.
@@ -224,7 +224,7 @@ Grouped by area. ✅ = already shipped, kept for reference.
 **Radar**
 - ~~**Hide End / Leave PingRing while the keyboard is open.**~~ Resolved: the button moved to the **PingRing Settings** screen, and the radar keeps the navigation bar back arrow as the exit route.
 - **Replace Nudge with a favourite beacon.** Needs a way to mark a favourite in the beacon screen first — no such concept exists.
-- **Fix radar rendering.** The defect is not described anywhere, so this needs a description before it can be picked up.
+- ~~**Fix radar rendering.**~~ Resolved: the lit arc was inscribed in an oval the size of the *canvas* instead of the ring's own square, which put the arc's centre nearly a full radius below-right of the ring's, so the highlight rendered as a stray arc beside the ring, clipped where it left the canvas. The ring and its arc now come from one `RadarDirectionPolicy.ringGeometry`, and unit tests pin the arc concentric with the ring on square and non-square canvases.
 - **Default the host's focus to the first member to join** rather than the nearest. No join order is recorded on peers yet, so this needs a join timestamp or an ordered friend list.
 - ✅ Track one member at a time; the UWB session follows the selection.
 
