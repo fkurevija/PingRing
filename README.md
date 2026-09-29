@@ -67,7 +67,7 @@ graph TD
 
 ### 🚨 Beacons & Chat
 - **Intent presets**: 🚨 Emergency, ✨ Found Something, 📍 Regroup Here, ⚠️ Caution, ⚡ Custom — with 5 colour palettes (Crimson, Amber, Emerald, Cyan, Purple) and 5 vibration rhythms (SOS/Urgent, Rapid Alert, Steady Pulse, Gentle Pulse, No Vibration). Beacons illuminate radar rings, peer pins and wave animations on receivers.
-- **Quick Beacon** (`⚡`): star a configuration with **Set as Favourite** in the beacon screen and the radar's Quick Beacon button sends that exact message, colour and rhythm in a single tap — no screen in between. With nothing starred yet, the button opens the beacon screen instead.
+- **Quick Beacon** (`⚡`): set a configuration with **Set as Quick Beacon** in the beacon screen and the radar's Quick Beacon button sends that exact message, colour and rhythm in a single tap — no screen in between. With none set yet, the tap says so in a toast and opens the beacon screen.
 - **Offline group chat** with sender-labelled bubbles. The chat window floats over the radar while typing, then returns to its docked position.
 - **Host-preserved history**: the Host keeps the transcript for the life of the PingRing and replays it to peers who join or reconnect.
 - **Configurable notifications**: toggle chat push app-wide in App Settings and per-PingRing in Event Settings, with independent **sound** and **vibration** controls. Notifications are suppressed while you are already watching the radar with the screen on and unlocked; the device can still vibrate or sound.
@@ -226,7 +226,7 @@ Grouped by area. ✅ = already shipped, kept for reference.
 
 **Radar**
 - ~~**Hide End / Leave PingRing while the keyboard is open.**~~ Resolved: the button moved to the **PingRing Settings** screen, and the radar keeps the navigation bar back arrow as the exit route.
-- ~~**Replace Nudge with a favourite beacon.**~~ Resolved: Nudge is gone everywhere, wire format included; the beacon screen stars a configuration (**Set as Favourite**, kept in DataStore) and the radar's **Quick Beacon** button sends it in one tap — opening the beacon screen instead when nothing is starred.
+- ~~**Replace Nudge with a favourite beacon.**~~ Resolved: Nudge is gone everywhere, wire format included; the beacon screen sets a configuration as the **Quick Beacon** (**Set as Quick Beacon**, kept in DataStore) and the radar's **Quick Beacon** button sends it in one tap — toasting and opening the beacon screen when none is set.
 - ~~**Fix radar rendering.**~~ Resolved: the lit arc was inscribed in an oval the size of the *canvas* instead of the ring's own square, which put the arc's centre nearly a full radius below-right of the ring's, so the highlight rendered as a stray arc beside the ring, clipped where it left the canvas. The ring and its arc now come from one `RadarDirectionPolicy.ringGeometry`, and unit tests pin the arc concentric with the ring on square and non-square canvases.
 - **Default the host's focus to the first member to join** rather than the nearest. No join order is recorded on peers yet, so this needs a join timestamp or an ordered friend list.
 - ✅ Track one member at a time; the UWB session follows the selection.

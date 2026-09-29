@@ -8,8 +8,8 @@ const val MAX_USERNAME_LENGTH = 30
 
 /**
  * What a beacon whose message field was left blank is titled, so activating it
- * and saving it as a favourite agree on one name instead of one sending a beacon
- * that renders empty everywhere it is shown.
+ * and saving it as the Quick Beacon agree on one name instead of one sending a
+ * beacon that renders empty everywhere it is shown.
  */
 const val DEFAULT_BEACON_TITLE = "Active Beacon"
 
@@ -69,13 +69,16 @@ enum class BeaconPreset(
 /**
  * The beacon configuration the radar's Quick Beacon button sends in one tap.
  *
- * Starred in the beacon screen and kept in DataStore, so it survives the app
- * closing: the point of it is that a liked beacon does not have to be rebuilt
+ * Set in the beacon screen and kept in DataStore, so it survives the app
+ * closing: the point of it is that a Quick Beacon does not have to be rebuilt
  * at the next event. Whole-configuration rather than just the preset, because
  * what people edit - the message, the colour, the rhythm - is what they want
  * back with one tap.
+ *
+ * Named for the button it backs rather than for "being liked", so the type and
+ * the two labels on screen that name it all agree.
  */
-data class FavouriteBeacon(
+data class QuickBeacon(
     val title: String,
     val colorArgb: Long,
     val pattern: BeaconVibrationPattern

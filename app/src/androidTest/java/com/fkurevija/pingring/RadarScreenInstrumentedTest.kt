@@ -9,7 +9,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import com.fkurevija.pingring.data.BeaconVibrationPattern
-import com.fkurevija.pingring.data.FavouriteBeacon
+import com.fkurevija.pingring.data.QuickBeacon
 import com.fkurevija.pingring.data.SessionState
 import com.fkurevija.pingring.ui.screens.RadarScreen
 import org.junit.Assert.assertEquals
@@ -50,8 +50,8 @@ class RadarScreenInstrumentedTest {
         trackHost: Boolean = false,
         coordinationError: String? = null,
         sessionState: SessionState = SessionState(),
-        favouriteBeacon: FavouriteBeacon? = null,
-        onFavouriteBeaconChange: (FavouriteBeacon?) -> Unit = {},
+        quickBeacon: QuickBeacon? = null,
+        onQuickBeaconChange: (QuickBeacon?) -> Unit = {},
         onEventSettings: () -> Unit = {},
         onLeaveEvent: () -> Unit = {},
         onEndEvent: () -> Unit = {},
@@ -64,8 +64,8 @@ class RadarScreenInstrumentedTest {
                 coordinationError = coordinationError,
                 discoveryRepository = null,
                 sessionState = sessionState,
-                favouriteBeacon = favouriteBeacon,
-                onFavouriteBeaconChange = onFavouriteBeaconChange,
+                quickBeacon = quickBeacon,
+                onQuickBeaconChange = onQuickBeaconChange,
                 onEventSettings = onEventSettings,
                 onLeaveEvent = onLeaveEvent,
                 onEndEvent = onEndEvent,
@@ -220,9 +220,10 @@ class RadarScreenInstrumentedTest {
     }
 
     @Test
-    fun quickBeaconWithoutAFavouriteOpensTheBeaconScreen() {
-        // With nothing starred there is no beacon to send, so the tap has to
-        // land somewhere useful rather than doing nothing at all.
+    fun quickBeaconWithoutOneSetOpensTheBeaconScreen() {
+        // With nothing set there is no beacon to send. The tap still has to
+        // land somewhere useful, and it toasts on the way to explain itself:
+        // opening a beacon dialog unprompted otherwise reads as a misfire.
         showRadar()
 
         composeRule.onNodeWithText("Quick Beacon").performClick()
@@ -232,11 +233,11 @@ class RadarScreenInstrumentedTest {
     }
 
     @Test
-    fun quickBeaconWithAFavouriteSendsWithoutAskingQuestions() {
-        // A starred beacon is what the button exists for: one tap sends it,
-        // with no screen in between.
+    fun quickBeaconWithOneSetSendsWithoutAskingQuestions() {
+        // A set beacon is what the button exists for: one tap sends it, with no
+        // screen in between.
         showRadar(
-            favouriteBeacon = FavouriteBeacon("Regroup at my location", 0xFF00E5FF, BeaconVibrationPattern.RAPID_ALERT)
+            quickBeacon = QuickBeacon("Regroup at my location", 0xFF00E5FF, BeaconVibrationPattern.RAPID_ALERT)
         )
 
         composeRule.onNodeWithText("Quick Beacon").performClick()
@@ -246,19 +247,19 @@ class RadarScreenInstrumentedTest {
     }
 
     @Test
-    fun theBeaconScreenStarsTheCurrentSelection() {
-        var saved: FavouriteBeacon? = null
-        showRadar(onFavouriteBeaconChange = { saved = it })
+    fun theBeaconScreenSetsTheCurrentSelectionAsTheQuickBeacon() {
+        var saved: QuickBeacon? = null
+        showRadar(onQuickBeaconChange = { saved = it })
 
         composeRule.onNodeWithText("New Beacon").performClick()
         composeRule.settle()
-        composeRule.onNodeWithText("Set as Favourite").performScrollTo().performClick()
+        composeRule.onNodeWithText("Set as Quick Beacon").performScrollTo().performClick()
         composeRule.settle()
 
         // The untouched SOS preset defaults, saved as one configuration: the
         // message, the colour and the rhythm the Quick Beacon button will send.
         assertEquals(
-            FavouriteBeacon("Emergency!", 0xFFFF1744, BeaconVibrationPattern.SOS_URGENT),
+            QuickBeacon("Emergency!", 0xFFFF1744, BeaconVibrationPattern.SOS_URGENT),
             saved
         )
     }

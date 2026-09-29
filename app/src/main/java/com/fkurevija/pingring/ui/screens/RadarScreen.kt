@@ -1,5 +1,6 @@
 package com.fkurevija.pingring.ui.screens
 
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
@@ -97,6 +98,7 @@ import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.FilterChip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -116,9 +118,9 @@ import com.fkurevija.pingring.data.ChatMessageOwnership
 import com.fkurevija.pingring.data.ConnectivityStatus
 import com.fkurevija.pingring.data.DEFAULT_BEACON_TITLE
 import com.fkurevija.pingring.data.DiscoveryRepository
-import com.fkurevija.pingring.data.FavouriteBeacon
 import com.fkurevija.pingring.data.FocusPolicy
 import com.fkurevija.pingring.data.MAX_PARTICIPANTS
+import com.fkurevija.pingring.data.QuickBeacon
 import com.fkurevija.pingring.data.RadarDirectionPolicy
 import com.fkurevija.pingring.data.RadarPeerUpdate
 import com.fkurevija.pingring.data.SessionState
@@ -197,8 +199,8 @@ fun RadarScreen(
     coordinationError: String?,
     discoveryRepository: DiscoveryRepository?,
     sessionState: SessionState,
-    favouriteBeacon: FavouriteBeacon?,
-    onFavouriteBeaconChange: (FavouriteBeacon?) -> Unit,
+    quickBeacon: QuickBeacon?,
+    onQuickBeaconChange: (QuickBeacon?) -> Unit,
     onEventSettings: () -> Unit,
     onLeaveEvent: () -> Unit,
     onEndEvent: () -> Unit,
@@ -251,6 +253,10 @@ fun RadarScreen(
     val localBeacon by discoveryRepository?.localBeacon?.collectAsState()
         ?: remember { mutableStateOf(null) }
     val haptic = LocalHapticFeedback.current
+    // For the one toast on this screen, which has to fire from inside a click
+    // handler rather than from a LaunchedEffect, so it needs a context captured
+    // here rather than one read at the call site.
+    val context = LocalContext.current
 
     // The focused member, chosen by the user or defaulted by FocusPolicy. The
     // radar draws only this person, which is what makes a full 8-member
@@ -651,21 +657,30 @@ fun RadarScreen(
                                 modifier = Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 4.dp),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                // One tap on the configuration starred in the
-                                // beacon screen. With none saved yet there is
-                                // nothing to send, so the tap opens that screen
-                                // instead - the same place the favourite is made.
+                                // One tap on the configuration set as the Quick
+                                // Beacon in the beacon screen. With none set yet
+                                // there is nothing to send, so the tap says so
+                                // and opens that screen - the same place the
+                                // Quick Beacon is chosen. Opening it alone would
+                                // read as a misfired button, since the tap
+                                // visibly does something that has nothing to do
+                                // with beacons.
                                 OutlinedButton(
                                     onClick = {
-                                        val favourite = favouriteBeacon
-                                        if (favourite != null) {
+                                        if (quickBeacon != null) {
                                             discoveryRepository?.activateBeacon(
-                                                favourite.title,
-                                                favourite.colorArgb,
-                                                favourite.pattern.name,
+                                                quickBeacon.title,
+                                                quickBeacon.colorArgb,
+                                                quickBeacon.pattern.name,
                                                 senderName
                                             )
                                         } else {
+                                            Toast.makeText(
+                                                context,
+                                                "No Quick Beacon set yet. Open New Beacon and " +
+                                                    "tap Set as Quick Beacon to choose one.",
+                                                Toast.LENGTH_LONG
+                                            ).show()
                                             showBeaconSheet = true
                                         }
                                     },
@@ -738,12 +753,12 @@ fun RadarScreen(
                 if (showBeaconSheet) {
                     BeaconCustomizationDialog(
                         localBeacon = localBeacon,
-                        favouriteBeacon = favouriteBeacon,
+                        quickBeacon = quickBeacon,
                         onDismiss = { showBeaconSheet = false },
                         onActivate = { title, colorArgb, patternName ->
                             discoveryRepository?.activateBeacon(title, colorArgb, patternName, senderName)
                         },
-                        onFavouriteChange = { onFavouriteBeaconChange(it) },
+                        onQuickBeaconChange = { onQuickBeaconChange(it) },
                         onStop = {
                             discoveryRepository?.cancelLocalBeacon()
                         },
@@ -1234,36 +1249,36 @@ internal fun PeerList(
 @Composable
 fun BeaconCustomizationDialog(
     localBeacon: BeaconInfo?,
-    favouriteBeacon: FavouriteBeacon?,
+    quickBeacon: QuickBeacon?,
     onDismiss: () -> Unit,
     onActivate: (title: String, colorArgb: Long, patternName: String) -> Unit,
-    onFavouriteChange: (FavouriteBeacon?) -> Unit,
+    onQuickBeaconChange: (QuickBeacon?) -> Unit,
     onStop: () -> Unit,
     onTestVibrate: (LongArray) -> Unit
 ) {
     var isVibrationMenuExpanded by remember { mutableStateOf(false) }
     var selectedPreset by remember { mutableStateOf(BeaconPreset.SOS) }
-    // Prefills from what is live, else from the starred favourite, else the
+    // Prefills from what is live, else from the set Quick Beacon, else the
     // first preset: whichever the user is most likely to want on screen first.
-    var title by remember { mutableStateOf(localBeacon?.title ?: favouriteBeacon?.title ?: selectedPreset.defaultTitle) }
-    var selectedColor by remember { mutableLongStateOf(localBeacon?.colorArgb ?: favouriteBeacon?.colorArgb ?: selectedPreset.defaultColorArgb) }
+    var title by remember { mutableStateOf(localBeacon?.title ?: quickBeacon?.title ?: selectedPreset.defaultTitle) }
+    var selectedColor by remember { mutableLongStateOf(localBeacon?.colorArgb ?: quickBeacon?.colorArgb ?: selectedPreset.defaultColorArgb) }
     var selectedPattern by remember {
         mutableStateOf(
             localBeacon?.let { BeaconVibrationPattern.fromName(it.vibrationPattern) }
-                ?: favouriteBeacon?.pattern
+                ?: quickBeacon?.pattern
                 ?: selectedPreset.defaultPattern
         )
     }
 
-    // The selection in the same shape as the saved favourite, so "is this
-    // already starred?" is one comparison rather than three - and the title is
-    // normalised here, so what gets starred is exactly what Activate sends.
-    val currentSelection = FavouriteBeacon(
+    // The selection in the same shape as the saved Quick Beacon, so "is this
+    // already the Quick Beacon?" is one comparison rather than three - and the
+    // title is normalised here, so what gets set is exactly what Activate sends.
+    val currentSelection = QuickBeacon(
         title = title.ifBlank { DEFAULT_BEACON_TITLE },
         colorArgb = selectedColor,
         pattern = selectedPattern
     )
-    val isFavourite = currentSelection == favouriteBeacon
+    val isQuickBeaconSet = currentSelection == quickBeacon
 
     val colorPalette = listOf(
         0xFFFF1744, // Red
@@ -1398,20 +1413,24 @@ fun BeaconCustomizationDialog(
                     Text("Test Vibration")
                 }
 
-                // The star the Quick Beacon button sends. One slot, so this
-                // both saves the current selection and clears it; the label
-                // says which, and the star fills to show the state.
+                // The configuration the Quick Beacon button sends. One slot,
+                // so this both saves the current selection and clears it; the
+                // label says which, and the star fills to show the state.
+                //
+                // Named for what it is for rather than a generic "favourite":
+                // the label has to match the button on the radar that reads it
+                // back, or the two stop describing the same thing.
                 OutlinedButton(
-                    onClick = { onFavouriteChange(if (isFavourite) null else currentSelection) },
+                    onClick = { onQuickBeaconChange(if (isQuickBeaconSet) null else currentSelection) },
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Icon(
-                        if (isFavourite) Icons.Default.Star else Icons.Default.StarBorder,
+                        if (isQuickBeaconSet) Icons.Default.Star else Icons.Default.StarBorder,
                         contentDescription = null,
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(Modifier.width(6.dp))
-                    Text(if (isFavourite) "Remove Favourite" else "Set as Favourite")
+                    Text(if (isQuickBeaconSet) "Remove Quick Beacon" else "Set as Quick Beacon")
                 }
             }
         },

@@ -29,9 +29,14 @@ private val notificationSoundEnabledKey = booleanPreferencesKey("notification_so
 private val notificationVibrationEnabledKey = booleanPreferencesKey("notification_vibration_enabled")
 private val lanDebugEnabledKey = booleanPreferencesKey("lan_debug_enabled")
 private val lanDebugHostKey = stringPreferencesKey("lan_debug_host")
-private val favouriteBeaconTitleKey = stringPreferencesKey("favourite_beacon_title")
-private val favouriteBeaconColorKey = longPreferencesKey("favourite_beacon_color")
-private val favouriteBeaconPatternKey = stringPreferencesKey("favourite_beacon_pattern")
+// Key names are part of the on-disk format, not the Kotlin vocabulary: they
+// are what an installed app already wrote. The Kotlin identifiers around them
+// were renamed to QuickBeacon when the UI label changed, but these strings
+// were left alone deliberately - renaming them would orphan every existing
+// user's saved Quick Beacon on upgrade, silently reverting them to "not set".
+private val quickBeaconTitleKey = stringPreferencesKey("favourite_beacon_title")
+private val quickBeaconColorKey = longPreferencesKey("favourite_beacon_color")
+private val quickBeaconPatternKey = stringPreferencesKey("favourite_beacon_pattern")
 
 class AppearanceSettingsRepository(private val context: Context) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -119,34 +124,34 @@ class AppearanceSettingsRepository(private val context: Context) {
     }
 
     /**
-     * The beacon starred in the beacon screen, or null when none is saved.
+     * The configuration the Quick Beacon button sends, or null when none is set.
      *
-     * All three keys have to be there to count: a half-written favourite would
-     * send a beacon with a colour nobody picked, which is worse than sending
-     * nothing and opening the beacon screen instead.
+     * All three keys have to be there to count: a half-written Quick Beacon
+     * would send a beacon with a colour nobody picked, which is worse than
+     * sending nothing and opening the beacon screen instead.
      */
-    val favouriteBeacon: Flow<FavouriteBeacon?> = context.appearanceDataStore.data.map { preferences ->
-        val title = preferences[favouriteBeaconTitleKey]
-        val color = preferences[favouriteBeaconColorKey]
-        val pattern = preferences[favouriteBeaconPatternKey]
+    val quickBeacon: Flow<QuickBeacon?> = context.appearanceDataStore.data.map { preferences ->
+        val title = preferences[quickBeaconTitleKey]
+        val color = preferences[quickBeaconColorKey]
+        val pattern = preferences[quickBeaconPatternKey]
         if (title != null && title.isNotBlank() && color != null && pattern != null) {
-            FavouriteBeacon(title, color, BeaconVibrationPattern.fromName(pattern))
+            QuickBeacon(title, color, BeaconVibrationPattern.fromName(pattern))
         } else {
             null
         }
     }
 
-    fun setFavouriteBeacon(favourite: FavouriteBeacon?) {
+    fun setQuickBeacon(quickBeacon: QuickBeacon?) {
         scope.launch {
             context.appearanceDataStore.edit { preferences ->
-                if (favourite == null) {
-                    preferences.remove(favouriteBeaconTitleKey)
-                    preferences.remove(favouriteBeaconColorKey)
-                    preferences.remove(favouriteBeaconPatternKey)
+                if (quickBeacon == null) {
+                    preferences.remove(quickBeaconTitleKey)
+                    preferences.remove(quickBeaconColorKey)
+                    preferences.remove(quickBeaconPatternKey)
                 } else {
-                    preferences[favouriteBeaconTitleKey] = favourite.title
-                    preferences[favouriteBeaconColorKey] = favourite.colorArgb
-                    preferences[favouriteBeaconPatternKey] = favourite.pattern.name
+                    preferences[quickBeaconTitleKey] = quickBeacon.title
+                    preferences[quickBeaconColorKey] = quickBeacon.colorArgb
+                    preferences[quickBeaconPatternKey] = quickBeacon.pattern.name
                 }
             }
         }
