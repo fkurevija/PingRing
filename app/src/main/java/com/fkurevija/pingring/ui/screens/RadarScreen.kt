@@ -860,32 +860,11 @@ private fun RadarContent(
         }
 
         Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-        if (beacon != null) {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = ringColor.copy(alpha = 0.15f)),
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier.padding(bottom = 8.dp)
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        Icons.Default.Campaign,
-                        contentDescription = null,
-                        tint = ringColor,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        beacon.title,
-                        color = ringColor,
-                        fontWeight = FontWeight.Bold,
-                        style = MaterialTheme.typography.labelLarge
-                    )
-                }
-            }
-        }
+        // The beacon's title used to be repeated here in a chip above the ring.
+        // A beacon is already named in the banner when it is your own and in the
+        // chat entry for every beacon, and the ring itself is tinted, so the chip
+        // was a third copy of the same words sitting on top of the other two.
+        // A remote peer's beacon is still legible: the ring carries its colour.
 
         if (hasPeers && (peer != null)) {
             Text(
