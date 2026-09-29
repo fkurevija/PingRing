@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -64,6 +65,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -134,8 +136,25 @@ import kotlin.math.sin
  * place every device agrees on, so a beacon set here reads the same there.
  */
 private sealed interface ChatEntry {
-    data class Msg(val message: ChatMessage) : ChatEntry
-    data class Beacon(val beacon: BeaconInfo) : ChatEntry
+    /**
+     * Stable across updates.
+     *
+     * The transcript is laid out from the newest end backwards, so every entry
+     * arrives at the near end of the list. Without a key the list identifies
+     * items by position, and a message landing while the user is reading back
+     * through history would shift what they are looking at by one entry; with
+     * one, the list holds on to the same message and leaves the new one to the
+     * end they have to drag back to.
+     */
+    val key: String
+
+    data class Msg(val message: ChatMessage) : ChatEntry {
+        override val key = "m:${message.id}"
+    }
+
+    data class Beacon(val beacon: BeaconInfo) : ChatEntry {
+        override val key = "b:${beacon.id}"
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -372,6 +391,64 @@ fun RadarScreen(
                     @OptIn(ExperimentalLayoutApi::class)
                     val isImeVisible = WindowInsets.isImeVisible
 
+                    // The transcript is built here rather than inside the list,
+                    // so the follow-the-newest rule below can watch it and the
+                    // list is not rebuilt on every scroll.
+                    //
+                    // Messages, then live beacons. Beacons are current state
+                    // rather than a point in the conversation, so they sit at the
+                    // near end of the transcript where the eye already is, rather
+                    // than interleaved at some arbitrary point.
+                    //
+                    // Every active beacon is listed, the local one included. A
+                    // beacon is broadcast to the ring, so the transcript has to
+                    // read the same on every device, and the sender is as much a
+                    // member of the ring as anyone else: a beacon you set appears
+                    // in your own chat too. The sender keeps its banner above the
+                    // radar as well, which is where the Stop control lives.
+                    //
+                    // Newest first, because the list is reversed: what reads as the
+                    // end of the conversation is the bottom of the screen, which
+                    // is where the reader is already looking.
+                    val chatEntries: List<ChatEntry> = remember(sessionState.chatMessages, activeBeacons) {
+                        (sessionState.chatMessages.map { ChatEntry.Msg(it) } +
+                            activeBeacons.values.map { ChatEntry.Beacon(it) })
+                            .reversed()
+                    }
+
+                    val chatListState = rememberLazyListState()
+
+                    /**
+                     * Whether the transcript is parked at the newest end, which is
+                     * where it starts and returns to.
+                     *
+                     * Only a scroll the reader started can turn this off, which is
+                     * the whole point: a list that is merely re-laid out - because
+                     * a message arrived, or the keyboard opened - must not look
+                     * like the reader choosing to look away. When they are reading
+                     * back through the history a new message waits at the bottom
+                     * for them instead of yanking the page out from under them,
+                     * and the drag up that brings them back turns this on again.
+                     */
+                    var followingNewest by remember { mutableStateOf(true) }
+                    LaunchedEffect(chatListState) {
+                        var readerIsDragging = false
+                        while (true) {
+                            withFrameNanos { }
+                            if (chatListState.isScrollInProgress) {
+                                readerIsDragging = true
+                            } else if (readerIsDragging) {
+                                // Decided once the drag has come to rest, so a
+                                // fling counts as far away as it actually ended.
+                                followingNewest = chatListState.firstVisibleItemIndex == 0
+                                readerIsDragging = false
+                            }
+                        }
+                    }
+                    LaunchedEffect(chatEntries.firstOrNull()?.key) {
+                        if (followingNewest) chatListState.scrollToItem(0)
+                    }
+
                     val renderChatCard: @Composable (Modifier) -> Unit = { cardModifier ->
                         Card(
                             modifier = cardModifier,
@@ -394,28 +471,22 @@ fun RadarScreen(
                                 )
                                 Spacer(Modifier.height(6.dp))
                                 LazyColumn(
+                                    state = chatListState,
                                     modifier = Modifier.weight(1f).fillMaxWidth(),
-                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                                    // Laid out from the newest entry backwards, so the
+                                    // newest message rests just above the text box and
+                                    // everything older stacks up behind it, the way a
+                                    // conversation reads. The list does still have to be
+                                    // told to follow the newest entry: a lazy list
+                                    // deliberately holds on to whatever it was showing
+                                    // when items are added to it, which is right for a
+                                    // page being read and wrong for a chat, where a
+                                    // message arriving has to push the transcript up.
+                                    reverseLayout = true
                                 ) {
-                                    // Messages, then live beacons. Beacons are
-                                    // current state rather than a point in the
-                                    // conversation, so they sit after the
-                                    // transcript where the eye already is, rather
-                                    // than interleaved at some arbitrary point.
-                                    //
-                                    // Every active beacon is listed, the local one
-                                    // included. A beacon is broadcast to the ring,
-                                    // so the transcript has to read the same on
-                                    // every device, and the sender is as much a
-                                    // member of the ring as anyone else: a beacon
-                                    // you set appears in your own chat too. The
-                                    // sender keeps its banner above the radar as
-                                    // well, which is where the Stop control lives.
-                                    val entries: List<ChatEntry> =
-                                        sessionState.chatMessages.map { ChatEntry.Msg(it) } +
-                                            activeBeacons.values.map { ChatEntry.Beacon(it) }
 
-                                    if (entries.isEmpty()) {
+                                    if (chatEntries.isEmpty()) {
                                         item {
                                             Box(
                                                 modifier = Modifier.fillParentMaxSize(),
@@ -429,7 +500,7 @@ fun RadarScreen(
                                             }
                                         }
                                     } else {
-                                        items(entries) { entry ->
+                                        items(chatEntries, key = { it.key }) { entry ->
                                             when (entry) {
                                                 is ChatEntry.Msg -> {
                                                     val msg = entry.message
