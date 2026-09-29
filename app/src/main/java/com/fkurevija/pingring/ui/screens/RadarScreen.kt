@@ -1,6 +1,7 @@
 package com.fkurevija.pingring.ui.screens
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -76,6 +77,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -119,6 +121,32 @@ import com.fkurevija.pingring.data.SessionState
 import kotlinx.coroutines.delay
 import kotlin.math.cos
 import kotlin.math.sin
+
+/**
+ * The colour this beacon is sent in.
+ *
+ * Every surface that shows a beacon - the banner, the button that sets it, the
+ * ring, the chat entry, the peer's row - takes its colour from here, so they
+ * cannot drift apart and leave one of them showing a colour the sender never
+ * chose.
+ */
+private val BeaconInfo.color: Color get() = Color(colorArgb)
+
+/**
+ * The text colour that reads on this one: black or white, whichever has more
+ * contrast against it.
+ *
+ * Material's own contentColorFor switches at a luminance of 0.5, which is
+ * tuned for tonal surfaces and leaves white on a bright beacon green at 1.7:1 -
+ * the least readable pairing on a button that is meant to be read at a glance.
+ * Comparing the two contrast ratios instead follows the colour wherever the
+ * user has put it.
+ */
+private fun Color.readableOnIt(): Color {
+    val contrastOnBlack = (luminance() + 0.05f) / 0.05f
+    val contrastOnWhite = 1.05f / (luminance() + 0.05f)
+    return if (contrastOnBlack >= contrastOnWhite) Color.Black else Color.White
+}
 
 /**
  * One entry in the chat transcript: either a message or a live beacon.
@@ -323,7 +351,7 @@ fun RadarScreen(
             localBeacon?.let { beacon ->
                 Card(
                     colors = CardDefaults.cardColors(
-                        containerColor = Color(beacon.colorArgb).copy(alpha = 0.15f)
+                        containerColor = beacon.color.copy(alpha = 0.15f)
                     ),
                     modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                     shape = RoundedCornerShape(12.dp)
@@ -337,7 +365,7 @@ fun RadarScreen(
                             Icon(
                                 Icons.Default.Campaign,
                                 contentDescription = null,
-                                tint = Color(beacon.colorArgb),
+                                tint = beacon.color,
                                 modifier = Modifier.size(24.dp)
                             )
                             Spacer(Modifier.width(8.dp))
@@ -345,7 +373,7 @@ fun RadarScreen(
                                 Text(
                                     "Your Beacon is Active: ${beacon.title}",
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(beacon.colorArgb)
+                                    color = beacon.color
                                 )
                                 Text(
                                     "Calling nearby peers to your location",
@@ -353,10 +381,16 @@ fun RadarScreen(
                                 )
                             }
                         }
-                        Button(
+                        // Outlined, and in the beacon's own colour rather than the
+                        // theme's error colour: the banner is the beacon, and a
+                        // red button sitting in the middle of a green beacon
+                        // reads as a different kind of warning entirely. The
+                        // border is what keeps it unmistakably a button.
+                        OutlinedButton(
                             onClick = { discoveryRepository?.cancelLocalBeacon() },
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                            shape = RoundedCornerShape(8.dp)
+                            shape = RoundedCornerShape(8.dp),
+                            border = BorderStroke(1.dp, beacon.color),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = beacon.color)
                         ) {
                             Text("Stop")
                         }
@@ -633,10 +667,25 @@ fun RadarScreen(
                                     Spacer(Modifier.width(6.dp))
                                     Text("Nudge All")
                                 }
+                                // The label and the icon are coloured for the
+                                // beacon they sit on rather than left at the
+                                // theme's on-primary, which is dark grey and only
+                                // happens to work on some beacon colours. The
+                                // colour is the user's own pick, so only its
+                                // contrast can say what reads on top of it.
+                                //
+                                // Read once, so the colour the button is painted
+                                // and the one its label is drawn for cannot come
+                                // from two different beacons.
                                 Button(
                                     onClick = { showBeaconSheet = true },
                                     modifier = Modifier.weight(1f),
-                                    colors = if (localBeacon != null) ButtonDefaults.buttonColors(containerColor = Color(localBeacon!!.colorArgb)) else ButtonDefaults.buttonColors()
+                                    colors = localBeacon?.let { beacon ->
+                                        ButtonDefaults.buttonColors(
+                                            containerColor = beacon.color,
+                                            contentColor = beacon.color.readableOnIt()
+                                        )
+                                    } ?: ButtonDefaults.buttonColors()
                                 ) {
                                     Icon(Icons.Default.Campaign, contentDescription = null, modifier = Modifier.size(18.dp))
                                     Spacer(Modifier.width(6.dp))
@@ -747,7 +796,7 @@ fun RadarScreen(
  */
 @Composable
 private fun ActiveBeaconEntry(beacon: BeaconInfo) {
-    val beaconColor = Color(beacon.colorArgb)
+    val beaconColor = beacon.color
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -794,7 +843,7 @@ private fun RadarContent(
     // Signal strength still tints the ring, from cold blue to warm green. It no
     // longer drives any lit segment: the ring only lights up for a bearing.
     val defaultRingColor = Color.lerp(Color(0xFF3F51B5), Color(0xFF00C853), hotness)
-    val ringColor = beacon?.let { Color(it.colorArgb) } ?: defaultRingColor
+    val ringColor = beacon?.color ?: defaultRingColor
 
     // Fill the width, but stay inside it: the caller measures this composable
     // before it is laid out, so onSizeChanged would give 0 for the first frame.
@@ -1090,7 +1139,7 @@ private fun PeerList(
                         modifier = Modifier.fillMaxWidth(),
                         colors = when {
                             peerBeacon != null ->
-                                CardDefaults.cardColors(containerColor = Color(peerBeacon.colorArgb).copy(alpha = 0.12f))
+                                CardDefaults.cardColors(containerColor = peerBeacon.color.copy(alpha = 0.12f))
                             isFocused ->
                                 CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
                             else ->
@@ -1099,7 +1148,7 @@ private fun PeerList(
                     ) {
                         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                             val indicatorColor = if (peerBeacon != null) {
-                                Color(peerBeacon.colorArgb)
+                                peerBeacon.color
                             } else if (peer.proximity == "Hot") {
                                 Color(0xFF00C853)
                             } else {
@@ -1124,7 +1173,7 @@ private fun PeerList(
                                         Text(
                                             "🚨 ${peerBeacon.title}",
                                             style = MaterialTheme.typography.labelSmall,
-                                            color = Color(peerBeacon.colorArgb),
+                                            color = peerBeacon.color,
                                             fontWeight = FontWeight.Bold
                                         )
                                     }
