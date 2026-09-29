@@ -14,6 +14,13 @@ import org.junit.Test
  */
 class RssiDistanceEstimatorTest {
 
+    /**
+     * Reference receiver sensitivity for LE 1M, the PHY every un-coded
+     * advertisement and scan on this device runs on. TI's SimpleLink guide
+     * quotes -93 dBm, and the README's reach figures are derived from it.
+     */
+    private val LE_1M_REFERENCE_SENSITIVITY = -93
+
     @Test
     fun weakerSignalAlwaysReadsFarther() {
         // Monotonic decrease in RSSI must never produce a nearer peer.
@@ -105,6 +112,71 @@ class RssiDistanceEstimatorTest {
     fun outOfRangeReadingDropsTheEstimateRatherThanFreezingIt() {
         val previous = 4f
         assertNull(RssiDistanceEstimator.smooth(previous, null))
+    }
+
+    @Test
+    fun aPeerDropsOutAroundTheDocumentedDistance() {
+        // The README states peers stop appearing at roughly 35 m at the 2.2
+        // exponent. That is the -59 dBm/1 m reference reading falling to the
+        // -93 dBm LE 1M reference sensitivity, and it is a prediction from the
+        // constants rather than a measurement. Asserting it keeps the documented
+        // reach honest: change either calibration constant and this fails, which
+        // is the point, because the README quotes the number back.
+        val atReference = RssiDistanceEstimator.estimate(LE_1M_REFERENCE_SENSITIVITY)!!
+        assertEquals(35f, atReference, 5f)
+    }
+
+    @Test
+    fun theClampDoesNotMaskWherePeersActuallyDisappear() {
+        // MAX_DISTANCE_METERS exists to stop the curve running away, but if it
+        // engaged before the radio's own noise floor it would be the thing
+        // deciding reach instead. It sits above the predicted drop-out, so the
+        // radio decides - which is the honest ordering.
+        val atReference = RssiDistanceEstimator.estimate(LE_1M_REFERENCE_SENSITIVITY)!!
+        assertTrue(
+            "the clamp engages at ${RssiDistanceEstimator.MAX_DISTANCE_METERS} m, before the " +
+                "predicted drop-out at $atReference m",
+            atReference < RssiDistanceEstimator.MAX_DISTANCE_METERS
+        )
+    }
+
+    @Test
+    fun theNoiseFloorSitsAtOrBelowRealReceiverSensitivity() {
+        // SENSITIVITY_FLOOR_DBM is a self-imposed cutoff, not the radio's
+        // sensitivity. A typical LE 1M receiver gives out around -93 dBm, so a
+        // floor at or below that never gets to be the binding constraint: a
+        // peer vanishes because the radio stopped hearing it, not because the
+        // app gave up. If the floor were raised above the reference sensitivity
+        // the app would start dropping peers it could still decode.
+        assertTrue(
+            "noise floor ${RssiDistanceEstimator.SENSITIVITY_FLOOR_DBM} dBm is above the " +
+                "$LE_1M_REFERENCE_SENSITIVITY dBm reference sensitivity",
+            RssiDistanceEstimator.SENSITIVITY_FLOOR_DBM <= LE_1M_REFERENCE_SENSITIVITY
+        )
+    }
+
+    @Test
+    fun thePathLossExponentStaysInsideTheDocumentedBand() {
+        // 2.0 is free space and 2.0-3.0 is the commonly cited indoor range. A
+        // value outside it would invalidate the reach figures in the README,
+        // which are all quoted against this exponent.
+        assertTrue(
+            "exponent ${RssiDistanceEstimator.PATH_LOSS_EXPONENT} is outside the documented 2.0-3.0 band",
+            RssiDistanceEstimator.PATH_LOSS_EXPONENT >= 2.0f &&
+                RssiDistanceEstimator.PATH_LOSS_EXPONENT <= 3.0f
+        )
+    }
+
+    @Test
+    fun theOneMeterReferenceSitsMidBandForAHandset() {
+        // -55 to -65 dBm at 1 m is the commonly reported range for a phone.
+        // -59 is inside it, which is the whole claim the README makes about
+        // this constant being a reasonable default rather than a guess.
+        assertTrue(
+            "reference ${RssiDistanceEstimator.RSSI_AT_ONE_METER} dBm is outside the -55 to -65 dBm handset band",
+            RssiDistanceEstimator.RSSI_AT_ONE_METER >= -65f &&
+                RssiDistanceEstimator.RSSI_AT_ONE_METER <= -55f
+        )
     }
 
     @Test

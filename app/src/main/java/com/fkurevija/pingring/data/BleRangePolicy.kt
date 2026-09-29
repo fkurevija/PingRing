@@ -15,9 +15,9 @@ import android.util.Log
  * Bluetooth plumbing.
  *
  * A note on what this deliberately does *not* do. Coded PHY (LE Coded) is the
- * one setting that would genuinely multiply range, roughly four times over LE
- * 1M, and it is what production long-range BLE apps use. It cannot be used
- * here: the public SDK exposes no way to request it. `ScanSettings.setPhy`
+ * one setting that would genuinely multiply range, and it is what production
+ * long-range BLE apps use. It cannot be used here: the public SDK exposes no
+ * way to request it. `ScanSettings.setPhy`
  * exists but the only public constant is `PHY_LE_ALL_SUPPORTED`, which hands
  * the choice to the controller, and `AdvertiseSettings.Builder` has no public
  * `setPreferredPhy` at all. Both were verified against the API 37 android.jar
