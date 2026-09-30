@@ -13,6 +13,87 @@ const val MAX_USERNAME_LENGTH = 30
  */
 const val DEFAULT_BEACON_TITLE = "Active Beacon"
 
+/**
+ * One thing in the chat transcript, with the moment it happened.
+ *
+ * A beacon and a message are different things to render, but they are the same
+ * thing to *order*: both carry a timestamp, and both were said at a time. This
+ * is that shared shape, so the transcript can be assembled as one list and the
+ * render step can decide how each looks.
+ */
+sealed interface ChatTimelineItem {
+    /** When it happened, in epoch millis. */
+    val timestamp: Long
+
+    /**
+     * Stable across updates.
+     *
+     * The transcript is laid out from the newest end backwards, so every entry
+     * arrives at the near end of the list. Without a key the list identifies
+     * items by position, and a message landing while the user is reading back
+     * through history would shift what they are looking at by one entry; with
+     * one, the list holds on to the same message and leaves the new one to the
+     * end they have to drag back to.
+     *
+     * This is also what lets a beacon survive its own end: the same beacon keeps
+     * the same key as it moves from active to history, so the list follows the
+     * entry rather than destroying it and building a new one somewhere else.
+     */
+    val key: String
+
+    data class Msg(val message: ChatMessage) : ChatTimelineItem {
+        override val timestamp: Long get() = message.timestamp
+        override val key = "m:${message.id}"
+    }
+
+    data class Beacon(val beacon: BeaconInfo) : ChatTimelineItem {
+        override val timestamp: Long get() = beacon.timestamp
+        override val key = "b:${beacon.id}"
+    }
+}
+
+/**
+ * How messages and beacons share one transcript.
+ *
+ * A beacon used to sit permanently at the near end of the chat, because the
+ * transcript was built as "all messages, then all live beacons". That is right
+ * for a beacon that is *running* - it is current state, and the reader is
+ * looking at that end of the screen anyway - and wrong for one that has stopped.
+ * A beacon that has ended is a thing that was said, and it should sit where it
+ * was said, among the messages said around it.
+ *
+ * So: active beacons are pinned to the near end, ended beacons are ordered by
+ * timestamp among the messages, and neither changes how it renders. A beacon
+ * therefore stays put while it runs and then relocates once, when it ends.
+ *
+ * Kept free of Compose types so the ordering is directly testable.
+ */
+object ChatTimelinePolicy {
+
+    /**
+     * Builds the transcript, newest last.
+     *
+     * [activeBeacons] are appended after the sorted history so they always sit
+     * at the near end of the reversed list, however long the history grows.
+     * [endedBeacons] and the messages are merged by timestamp; the sort is stable
+     * so entries sharing a millisecond keep the order they were supplied in, and
+     * two things that "happened at the same time" cannot swap places between
+     * recompositions and make the list flicker.
+     */
+    fun build(
+        messages: List<ChatMessage>,
+        activeBeacons: List<BeaconInfo>,
+        endedBeacons: List<BeaconInfo>,
+    ): List<ChatTimelineItem> {
+        val history = buildList {
+            messages.mapTo(this) { ChatTimelineItem.Msg(it) }
+            endedBeacons.mapTo(this) { ChatTimelineItem.Beacon(it) }
+        }.sortedBy { it.timestamp }
+
+        return history + activeBeacons.map { ChatTimelineItem.Beacon(it) }
+    }
+}
+
 @JsonClass(generateAdapter = true)
 data class ChatPayloadDto(
     val id: String,

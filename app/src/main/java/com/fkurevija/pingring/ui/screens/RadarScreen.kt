@@ -115,6 +115,8 @@ import com.fkurevija.pingring.data.BeaconPreset
 import com.fkurevija.pingring.data.BeaconVibrationPattern
 import com.fkurevija.pingring.data.ChatMessage
 import com.fkurevija.pingring.data.ChatMessageOwnership
+import com.fkurevija.pingring.data.ChatTimelineItem
+import com.fkurevija.pingring.data.ChatTimelinePolicy
 import com.fkurevija.pingring.data.ConnectivityStatus
 import com.fkurevija.pingring.data.DEFAULT_BEACON_TITLE
 import com.fkurevija.pingring.data.DiscoveryRepository
@@ -151,43 +153,6 @@ private fun Color.readableOnIt(): Color {
     val contrastOnBlack = (luminance() + 0.05f) / 0.05f
     val contrastOnWhite = 1.05f / (luminance() + 0.05f)
     return if (contrastOnBlack >= contrastOnWhite) Color.Black else Color.White
-}
-
-/**
- * One entry in the chat transcript: either a message or a live beacon.
- *
- * A beacon used to be shown as a card above the radar *and* in a remote alerts
- * list, so the same call to action appeared twice on screen. It is now a single
- * chat entry instead - a beacon is something happening now, and the chat is
- * where that belongs.
- *
- * Deliberately not a [ChatMessage]: a beacon has no timestamp and does not join
- * the conversation history the host replays to late joiners, so folding it in as
- * one would imply a message that was never sent.
- *
- * Shown for every member of the ring, the sender included: the chat is the one
- * place every device agrees on, so a beacon set here reads the same there.
- */
-private sealed interface ChatEntry {
-    /**
-     * Stable across updates.
-     *
-     * The transcript is laid out from the newest end backwards, so every entry
-     * arrives at the near end of the list. Without a key the list identifies
-     * items by position, and a message landing while the user is reading back
-     * through history would shift what they are looking at by one entry; with
-     * one, the list holds on to the same message and leaves the new one to the
-     * end they have to drag back to.
-     */
-    val key: String
-
-    data class Msg(val message: ChatMessage) : ChatEntry {
-        override val key = "m:${message.id}"
-    }
-
-    data class Beacon(val beacon: BeaconInfo) : ChatEntry {
-        override val key = "b:${beacon.id}"
-    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -250,6 +215,10 @@ fun RadarScreen(
         ?: remember { mutableStateOf(ConnectivityStatus(isBluetoothEnabled = true, isWifiEnabled = true)) }
     val activeBeacons by discoveryRepository?.activeBeacons?.collectAsState()
         ?: remember { mutableStateOf(emptyMap()) }
+    // Beacons that have ended, so a finished one keeps its place in the
+    // transcript instead of disappearing. See ChatTimelinePolicy.
+    val endedBeacons by discoveryRepository?.endedBeacons?.collectAsState()
+        ?: remember { mutableStateOf(emptyList()) }
     val localBeacon by discoveryRepository?.localBeacon?.collectAsState()
         ?: remember { mutableStateOf(null) }
     val haptic = LocalHapticFeedback.current
@@ -432,10 +401,11 @@ fun RadarScreen(
                     // so the follow-the-newest rule below can watch it and the
                     // list is not rebuilt on every scroll.
                     //
-                    // Messages, then live beacons. Beacons are current state
-                    // rather than a point in the conversation, so they sit at the
-                    // near end of the transcript where the eye already is, rather
-                    // than interleaved at some arbitrary point.
+                    // Messages and ended beacons are one conversation ordered by
+                    // when each was said, so a beacon that has stopped settles
+                    // back among the messages around it. Beacons still running
+                    // are current state and stay pinned to the near end, where
+                    // the eye already is. See ChatTimelinePolicy.
                     //
                     // Every active beacon is listed, the local one included. A
                     // beacon is broadcast to the ring, so the transcript has to
@@ -447,10 +417,16 @@ fun RadarScreen(
                     // Newest first, because the list is reversed: what reads as the
                     // end of the conversation is the bottom of the screen, which
                     // is where the reader is already looking.
-                    val chatEntries: List<ChatEntry> = remember(sessionState.chatMessages, activeBeacons) {
-                        (sessionState.chatMessages.map { ChatEntry.Msg(it) } +
-                            activeBeacons.values.map { ChatEntry.Beacon(it) })
-                            .reversed()
+                    val chatEntries: List<ChatTimelineItem> = remember(
+                        sessionState.chatMessages,
+                        activeBeacons,
+                        endedBeacons,
+                    ) {
+                        ChatTimelinePolicy.build(
+                            messages = sessionState.chatMessages,
+                            activeBeacons = activeBeacons.values.toList(),
+                            endedBeacons = endedBeacons,
+                        ).reversed()
                     }
 
                     val chatListState = rememberLazyListState()
@@ -539,7 +515,7 @@ fun RadarScreen(
                                     } else {
                                         items(chatEntries, key = { it.key }) { entry ->
                                             when (entry) {
-                                                is ChatEntry.Msg -> {
+                                                is ChatTimelineItem.Msg -> {
                                                     val msg = entry.message
                                                     // Identity, not display name: a
                                                     // name comparison put the host's own
@@ -591,7 +567,7 @@ fun RadarScreen(
                                                     }
                                                 }
 
-                                                is ChatEntry.Beacon -> ActiveBeaconEntry(entry.beacon)
+                                                is ChatTimelineItem.Beacon -> ActiveBeaconEntry(entry.beacon)
                                             }
                                         }
                                     }

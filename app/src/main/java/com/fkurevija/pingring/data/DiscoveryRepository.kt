@@ -221,6 +221,52 @@ class DiscoveryRepository(
     private val _activeBeacons = MutableStateFlow<Map<String, BeaconInfo>>(emptyMap())
     val activeBeacons: StateFlow<Map<String, BeaconInfo>> = _activeBeacons.asStateFlow()
 
+    /**
+     * Beacons that have ended, oldest first.
+     *
+     * A beacon is a point in the conversation once it is over, so it has to keep
+     * a place in the transcript rather than vanishing when it stops. Active
+     * beacons are current state and sit at the near end of the chat; this is
+     * where the ones that have finished go, and the chat interleaves the two by
+     * timestamp so a beacon ends up where it was raised rather than where it
+     * happened to stop.
+     *
+     * Bounded because nothing else prunes it: a long PingRing would otherwise
+     * grow this without limit. [HISTORY_LIMIT] is far more entries than a
+     * session realistically produces, so in practice nothing is ever dropped
+     * and this is a guard against a runaway rather than a policy.
+     */
+    private val _endedBeacons = MutableStateFlow<List<BeaconInfo>>(emptyList())
+    val endedBeacons: StateFlow<List<BeaconInfo>> = _endedBeacons.asStateFlow()
+
+    /** How many ended beacons to keep. See [_endedBeacons]. */
+    private val historyLimit = 200
+
+    /**
+     * Moves a beacon from active to ended, keeping the copy the reader already
+     * saw.
+     *
+     * The beacon that is ended is the one currently in [activeBeacons] for this
+     * peer rather than anything in the end packet: the end DTO carries only
+     * `isActive = false` and the identity, so using it would show a reader a
+     * second, blank beacon at the end of the conversation.
+     */
+    private fun endBeacon(peerId: String) {
+        val ending = _activeBeacons.value[peerId]
+        _activeBeacons.update { it - peerId }
+        if (ending == null) return
+        _endedBeacons.update { history ->
+            // Keyed by beacon id so a repeated end for the same beacon - a peer
+            // that disconnects while beaconing, then reconnects - appends a
+            // duplicate rather than two identical entries in the transcript.
+            if (history.any { it.id == ending.id }) {
+                history
+            } else {
+                (history + ending.copy(isActive = false)).takeLast(historyLimit)
+            }
+        }
+    }
+
     // Local Beacon state (null if not active)
     private val _localBeacon = MutableStateFlow<BeaconInfo?>(null)
     val localBeacon: StateFlow<BeaconInfo?> = _localBeacon.asStateFlow()
@@ -627,7 +673,7 @@ class DiscoveryRepository(
                     val patternEnum = BeaconVibrationPattern.fromName(dto.vibrationPattern)
                     playVibrationPattern(patternEnum.pattern)
                 } else {
-                    _activeBeacons.update { it - dto.senderPeerId }
+                    endBeacon(dto.senderPeerId)
                 }
 
                 // If host, broker & re-broadcast outward to all other connected peers
@@ -657,6 +703,11 @@ class DiscoveryRepository(
         activeDiscoveryUseHotspot = null
         stopVibration()
         _activeBeacons.value = emptyMap()
+        // The ended-beacon history belongs to the session that produced it. Left
+        // in place it would greet the next PingRing with beacons raised in the
+        // last one, which is the same class of bug as replaying another event's
+        // chat history.
+        _endedBeacons.value = emptyList()
         _localBeacon.value = null
         nearbyConnectionsManager.stopAll()
         stopBleAdvertising()
@@ -780,7 +831,7 @@ class DiscoveryRepository(
             timestamp = System.currentTimeMillis()
         )
         _localBeacon.value = null
-        _activeBeacons.update { it - current.senderPeerId }
+        endBeacon(current.senderPeerId)
         stopVibration()
 
         nearbyConnectionsManager.broadcastBeacon(beaconDto)
@@ -1128,7 +1179,9 @@ class DiscoveryRepository(
      */
     private fun removePeer(peerId: String) {
         _peerUpdates.update { current -> current - peerId }
-        _activeBeacons.update { current -> current - peerId }
+        // A peer that walks away mid-beacon has its beacon ended rather than
+        // dropped: it happened, and the transcript should still show where.
+        endBeacon(peerId)
         // A peer that reconnects must be re-ranged from scratch: keeping the
         // old flags would suppress its RSSI estimate, and keeping the old
         // average would seed it with a distance from a session that is over.
