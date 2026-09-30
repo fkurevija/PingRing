@@ -6,6 +6,8 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.bluetooth.BluetoothManager
+import android.content.IntentFilter
+import android.os.BatteryManager
 import android.bluetooth.le.*
 import android.content.Context
 import android.content.Intent
@@ -858,8 +860,16 @@ class DiscoveryRepository(
             while (isActive) {
                 delay(PEER_CLEANUP_INTERVAL_MILLIS)
                 val now = System.currentTimeMillis()
+                // The window comes from the power policy rather than the
+                // constant, so a phone already running two other radios gives
+                // up the UWB session sooner. UwbRetentionPolicy still owns
+                // whether retaining is right at all; this only decides how long
+                // it is worth paying for.
+                val window = currentRadioPlan(
+                    BleRangePolicy.supportsExtendedAdvertising(context)
+                ).uwbRetentionMillis
                 val expired = retainedRangingPeerIds
-                    .filterValues { !UwbRetentionPolicy.isWithinRetentionWindow(it, now) }
+                    .filterValues { !UwbRetentionPolicy.isWithinRetentionWindow(it, now, window) }
                     .keys
                 if (expired.isNotEmpty()) {
                     Log.i(TAG, "Retention window lapsed for $expired; releasing their UWB sessions")
@@ -1330,13 +1340,18 @@ class DiscoveryRepository(
             .build()
 
         val extended = BleRangePolicy.supportsExtendedAdvertising(context)
-        val passes = BleRangePolicy.scanPassCount(extended)
+        // The pass count and scan mode come from the power policy rather than
+        // from BleRangePolicy's fixed answer, so a ring that does not need two
+        // passes is not paying for them. BleRangePolicy still owns what each
+        // pass looks like; this decides how many there are and how hard.
+        val plan = currentRadioPlan(extended)
         BleRangePolicy.logSummary(context)
+        Log.i(TAG, "Radio plan: ${RadioPowerPolicy.describe(plan)}")
 
         // Each pass gets its own ScanCallback instance: Android treats the
         // callback identity as the scan request, so reusing one would replace
         // the previous pass rather than add to it.
-        repeat(passes) { pass ->
+        repeat(plan.scanPassCount) { pass ->
             val callback = object : ScanCallback() {
                 override fun onScanResult(callbackType: Int, result: ScanResult?) {
                     result?.let { handleScanResult(it) }
@@ -1350,7 +1365,7 @@ class DiscoveryRepository(
                     Log.e(TAG, "BLE scan pass $pass failed: $errorCode")
                 }
             }
-            val settings = BleRangePolicy.scanSettingsForPass(pass, extended)
+            val settings = BleRangePolicy.scanSettingsForPass(pass, extended, plan.scanEffort)
             try {
                 bleScanner?.startScan(listOf(filter), settings, callback)
                 scanCallbacks.add(callback)
@@ -1358,6 +1373,60 @@ class DiscoveryRepository(
                 Log.e(TAG, "Exception starting BLE scan pass $pass", e)
             }
         }
+    }
+
+    /**
+     * The radio settings for what this device is doing right now.
+     *
+     * Read fresh each time rather than cached, because every input - member
+     * count, whether UWB is ranging, whether the phone is on mains - can change
+     * mid-ring. Recomputing is a handful of comparisons; getting it stale would
+     * mean a phone that filled up after scanning started never escalating.
+     *
+     * [hotspotActive] is always false: a host-run hotspot turned out not to be
+     * implementable by a third-party app (see [ConnectionMethodPolicy]), so
+     * there is no such radio for this to account for. It is kept as an input so
+     * the day one exists, the policy already reads it.
+     */
+    private fun currentRadioPlan(supportsExtended: Boolean): RadioPowerPolicy.Plan {
+        val state = sessionManager.sessionState.value
+        val event = state.currentEvent
+        val selection = ConnectionMethodPolicy.chooseMethod(
+            capabilities = ConnectionMethodPolicy.Capabilities(
+                apiLevel = Build.VERSION.SDK_INT,
+                uwbHardwareSupported = isUwbSupported(),
+                uwbPermissionGranted = event?.useUwb ?: false,
+            ),
+            preferences = ConnectionMethodPolicy.Preferences(
+                uwbRangingEnabled = event?.useUwb ?: false,
+            ),
+        )
+        return RadioPowerPolicy.plan(
+            load = RadioPowerPolicy.Load(
+                isHost = state.isHost,
+                memberCount = _peerUpdates.value.size,
+                uwbActive = selection.usesUwb,
+                hotspotActive = false,
+                onBattery = isOnBattery(),
+            ),
+            supportsExtendedAdvertising = supportsExtended,
+        )
+    }
+
+    /**
+     * Whether the device is on battery rather than plugged in.
+     *
+     * `BATTERY_PLUGGED` of none means either unplugged *or* on battery, and the
+     * alternative - reading the capacity percentage - is worse: it changes for
+     * reasons that have nothing to do with the charger. Treated as unknown and
+     * assumed to be on battery, because the settings this gates are the ones
+     * worth having on a phone someone is going to forget to charge at a
+     * festival.
+     */
+    private fun isOnBattery(): Boolean {
+        val status = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        val plugged = status?.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) ?: 0
+        return plugged == 0
     }
 
     private fun stopBleScanning() {

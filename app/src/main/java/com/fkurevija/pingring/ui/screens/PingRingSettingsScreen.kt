@@ -1,6 +1,7 @@
 package com.fkurevija.pingring.ui.screens
 
 import android.content.pm.PackageManager
+import android.os.Build
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -48,6 +49,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.fkurevija.pingring.data.ConnectionMethodPolicy
+import com.fkurevija.pingring.data.ConnectionMethodPolicy.Unavailable
 import com.fkurevija.pingring.data.Event
 import com.fkurevija.pingring.data.MAX_PARTICIPANTS
 import com.fkurevija.pingring.ui.permissions.rememberUwbAvailability
@@ -192,10 +195,38 @@ fun PingRingSettingsScreen(
 
                     HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 
+                    // Driven by ConnectionMethodPolicy rather than by a bare
+                    // hardware check, so the row says *why* it cannot be on -
+                    // no radio, permission not granted, or an Android version
+                    // too old to grant it. The last of those was previously
+                    // invisible: the feature flag said yes, the permission did
+                    // not exist, and the switch simply refused to stay on.
+                    val capabilities = remember(uwbAvailability) {
+                        ConnectionMethodPolicy.Capabilities(
+                            apiLevel = Build.VERSION.SDK_INT,
+                            uwbHardwareSupported = uwbAvailability.hardwareSupported,
+                            uwbPermissionGranted = uwbAvailability.permissionGranted,
+                        )
+                    }
+                    val selection = remember(capabilities, useUwb) {
+                        ConnectionMethodPolicy.chooseMethod(
+                            capabilities = capabilities,
+                            preferences = ConnectionMethodPolicy.Preferences(
+                                uwbRangingEnabled = useUwb,
+                            ),
+                        )
+                    }
+                    val uwbRefusal = selection.unranged
+
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable(enabled = !uwbAvailability.isUsable) { uwbAvailability.onRequestAccess() },
+                            // Tapping asks for the permission only when that is
+                            // what is missing. Tapping a device with no UWB radio
+                            // used to promise a prompt that could not appear.
+                            .clickable(enabled = uwbRefusal == Unavailable.NO_PERMISSION) {
+                                uwbAvailability.onRequestAccess()
+                            },
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(Icons.Default.Sensors, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
@@ -203,16 +234,17 @@ fun PingRingSettingsScreen(
                         Column(Modifier.weight(1f)) {
                             Text("Ultra-wideband (UWB)", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                             Text(
-                                when {
-                                    !uwbAvailability.hardwareSupported -> "Not supported on this device"
-                                    !uwbAvailability.permissionGranted -> "Tap to grant UWB permission"
-                                    else -> "High-precision spatial ranging"
-                                },
+                                uwbRefusal?.let { ConnectionMethodPolicy.describe(it) }
+                                    ?: "Sub-metre ranging on supported hardware.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        Switch(checked = useUwb, enabled = uwbAvailability.isUsable, onCheckedChange = { useUwb = it })
+                        Switch(
+                            checked = selection.usesUwb,
+                            enabled = capabilities.canRange,
+                            onCheckedChange = { useUwb = it }
+                        )
                     }
 
                     HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))

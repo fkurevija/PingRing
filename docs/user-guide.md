@@ -147,7 +147,7 @@ Reached from the host setup screen's **Event Settings** card or its **All Settin
 - **Discoverable** — list this session on nearby phones' **Nearby PingRings** list. Off by default. Does not affect joining by code.
 - **Approve Each Join** — hold each new member on the radar until you allow or deny them. Off by default. Requests you never answer are refused after two minutes.
 - **Track Host Only** — ask every guest's radar to follow you. Guests can see the picker but cannot change it. You are never locked out of tracking whoever you like.
-- **Ultra-wideband (UWB)** — sub-metre ranging. Disabled with a reason on unsupported hardware.
+- **Ultra-wideband (UWB)** — sub-metre ranging. When it is off, the row says *why*: this device has no UWB radio; ranging needs permission (tap the row to grant it); or ranging needs Android 12 or newer.
 - **High Bandwidth (Wi-Fi)** — always on, nothing to change.
 - **Chat Notifications** — notifications for this event.
 - **Max Capacity** — 8 members (1 host + 7 guests), enforced by the host.

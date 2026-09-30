@@ -73,27 +73,40 @@ object BleRangePolicy {
      * Two is the useful maximum. More than that and the extra requests contend
      * for the same adapter, which makes throughput worse rather than better,
      * and it is a real power cost on a phone that may be scanning for hours.
+     *
+     * Kept as the ceiling the app can ever ask for. The live count is
+     * [RadioPowerPolicy]'s to decide, since it weighs how full the ring is -
+     * a ring of two does not need the settings of a ring of eight.
      */
     fun scanPassCount(supportsExtended: Boolean): Int = if (supportsExtended) 2 else 1
-
-
 
     /**
      * Picks the scan settings for a given pass.
      *
-     * Both passes use the most aggressive scan mode, because PingRing is
-     * looking for a small, infrequent service-data advert and the limiting
-     * factor is how often the radio is allowed to look, not the airtime cost.
+     * [effort] comes from [RadioPowerPolicy] rather than being fixed here, so
+     * the mode can drop to the platform default when the other radios are
+     * already busy. The aggressive match mode is kept either way: it costs
+     * nothing extra, and it is what stops a peer already connected elsewhere
+     * being reported once and then dropped.
      *
-     * They differ in one respect. The first pass is `legacy = false`, so on
-     * hardware that supports extended advertising it also picks up BLE 5
-     * adverts; the second pass stays on legacy as a safety net for a peer whose
-     * radio only ever advertises the classic way. That combination is the most
-     * coverage the public SDK allows.
+     * The two passes differ in one respect. The first is `legacy = false`, so
+     * on hardware supporting extended advertising it also picks up BLE 5
+     * adverts; the second stays on legacy as a safety net for a peer whose radio
+     * only ever advertises the classic way. That is the most coverage the
+     * public SDK allows.
      */
-    fun scanSettingsForPass(pass: Int, supportsExtended: Boolean): ScanSettings {
+    fun scanSettingsForPass(
+        pass: Int,
+        supportsExtended: Boolean,
+        effort: RadioPowerPolicy.ScanEffort = RadioPowerPolicy.ScanEffort.ACTIVE,
+    ): ScanSettings {
         val builder = ScanSettings.Builder()
-            .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+            .setScanMode(
+                when (effort) {
+                    RadioPowerPolicy.ScanEffort.ACTIVE -> ScanSettings.SCAN_MODE_LOW_LATENCY
+                    RadioPowerPolicy.ScanEffort.BALANCED -> ScanSettings.SCAN_MODE_BALANCED
+                }
+            )
             // Match as many adverts as the controller will give us, rather
             // than stopping at the first: a peer that is already connected
             // elsewhere can otherwise be reported once and then dropped.

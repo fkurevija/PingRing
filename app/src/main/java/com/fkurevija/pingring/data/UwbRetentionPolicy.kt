@@ -63,9 +63,17 @@ object UwbRetentionPolicy {
      * Measured from when the transport dropped, so a long-established UWB
      * session does not count as fresh: the point is how long the *gap* has
      * lasted, not how long ranging has been running.
+     *
+     * [windowMillis] defaults to [RETENTION_MILLIS] but is overridable because
+     * [RadioPowerPolicy] shortens it when the other radios are already busy.
+     * The default keeps every existing caller - and the tests - on the value
+     * this constant describes.
      */
-    fun isWithinRetentionWindow(droppedAtMillis: Long, nowMillis: Long): Boolean =
-        nowMillis - droppedAtMillis < RETENTION_MILLIS
+    fun isWithinRetentionWindow(
+        droppedAtMillis: Long,
+        nowMillis: Long,
+        windowMillis: Long = RETENTION_MILLIS,
+    ): Boolean = nowMillis - droppedAtMillis < windowMillis
 
     /**
      * How a retained peer should be described, given whether its UWB session is
