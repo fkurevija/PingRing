@@ -1,5 +1,1 @@
 blank_issues_enabled: false
-contact_links:
-  - name: Bug - something is broken
-    url: https://github.com/fkurevija/PingRing/issues/new?labels=bug&template=bug_report.yml
-    about: A feature that does not work as described. Bugs go here, requests go through the form.
