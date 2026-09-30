@@ -101,6 +101,27 @@ Against a peer holding station at 3.16 m with one reading in twenty a 20 dB refl
 
 The radar reacts as it would to real UWB: distance readout, "Direction locked" line, rings, arrow, haptics and the 15 s staleness sweep all follow the script. Run `python tools/test_mock_radar.py` to check the script and relay path with no device attached.
 
+## 📥 Filing a development request
+
+Requests used to live in a chat thread, where they are answered once and then lost: nothing lists what has been asked for, and nothing distinguishes *declined* from *forgotten*. Two pieces address that, and they are separate on purpose.
+
+**The form** — [`.github/ISSUE_TEMPLATE/request.yml`](../.github/ISSUE_TEMPLATE/request.yml) is a GitHub Issue Form, so it renders natively on a phone with no code, no service and no secrets to leak. It asks for the situation rather than the solution ("where does this come up?"), because "it would be nice if" is a wish and "we tried X and it was ambiguous" is something that can be built. The final checkbox makes the submitter search the open issues themselves, which is the part a form can do that no bot can.
+
+**The script** — `tools/request_issue.py` files a request from the command line and **refuses near-duplicates**, which is what a form cannot do:
+
+```bash
+python tools\request_issue.py "Add a wristband vibrate option"   # preview
+python tools\request_issue.py --search-only "battery drain"       # never files
+python tools\request_issue.py --create "Add group chat mute"      # file it
+```
+
+Titles are matched against open issues by stemmed-token Jaccard similarity, refusing at 0.5 and above. It **refuses rather than warns**, because a warning that scrolls past is the same as no warning — and someone running a de-duplication script has usually not searched, which is why they are there. Two deliberate choices:
+
+- **A failed issue query raises instead of returning empty.** An empty list reads downstream as "no duplicates found", which turns a network error into a false all-clear and files the duplicate anyway — the one outcome the script exists to prevent.
+- **Closed issues are reported but do not block.** A closed request may record a decision not to build something; re-filing over it silently would undo that.
+
+Preview-only unless `--create`, matching `tag_release.py`. Needs the GitHub CLI (`gh`) authenticated. Tests: `python tools/test_request_issue.py` — pure matching, no network and no account. They assert both directions, since the threshold is only meaningful against the pairs it has to separate.
+
 ---
 
 [← Back to README](../README.md)

@@ -1,0 +1,92 @@
+name: Development request
+description: Ask for something PingRing should do. Check the open issues first - a request that already exists is better added to that one than filed twice.
+title: "[Request] "
+labels: ["request"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for asking for something. Two things make this worth your time:
+
+        - **Is it already asked for?** If it is, add your use case to that issue
+          instead of filing a second one. Two issues for one request splits the
+          discussion and makes both easier to miss.
+        - **What actually happens today?** "It would be nice if" is a wish;
+          "we tried X and it was ambiguous" is something that can be fixed.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: What do you want to do?
+      description: One line, as a sentence. This becomes the issue title.
+      placeholder: Let a member raise a beacon for themselves, not the whole ring
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Where does this come up?
+      description: >
+        The setting that matters, or the situation - a crowded stage, a
+        wristband buzzing, a dark tent. This is what turns a wish into
+        something actionable.
+      placeholder: At a festival with 8 people, only the host can see who is stuck
+    validations:
+      required: true
+
+  - type: textarea
+    id: current
+    attributes:
+      label: What do you do instead today?
+      description: What you have tried, and what was wrong or unclear about it.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part of the app?
+      multiple: true
+      options:
+        - Radar and tracking
+        - Beacons
+        - Chat
+        - Joining and hosting
+        - Settings
+        - Something else
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Does this need anything that currently leaves the device?
+      description: >
+        PingRing is serverless and offline by design. Requests that would send
+        data anywhere are worth asking, but they are a bigger change than they
+        look - say so here rather than leaving it to be discovered later.
+      options:
+        - label: It would need a server, an account, or any data leaving the phone
+        - label: It should work with no network at all
+    validations:
+      required: false
+
+  - type: input
+    id: submitter
+    attributes:
+      label: Your name or handle
+      description: >
+        Optional. So a request that was already declined can come back to you
+        rather than being asked for twice.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: search
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched the open issues and could not find this
+    validations:
+      required: true

@@ -1,0 +1,39 @@
+name: Bug report
+description: Something that does not work as described.
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What did you do?
+      description: The steps, not just the outcome - the path to it is usually the clue.
+      placeholder: Hosted with UWB on, guest joined by code, radar showed no distance
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+
+  - type: input
+    id: device
+    attributes:
+      label: Phone model
+      description: UWB support varies by device, and so does the behaviour of a lot of this app.
+      placeholder: Pixel 8 Pro, Android 15
+    validations:
+      required: true
+
+  - type: textarea
+    id: detail
+    attributes:
+      label: Anything else
+      description: >
+        Logcat if you have it. `adb logcat -s DiscoveryRepository NearbyConnectionsManager`
+        covers most of discovery and transport.
+    validations:
+      required: false

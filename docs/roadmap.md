@@ -38,7 +38,6 @@ Grouped by area. Nothing here is known to be broken: these are things not built,
 - **Multi-language support.** Every string is a hard-coded literal.
 - **Help and documentation.** An open question rather than a decision: an offline in-app knowledge base versus spreading help through the app. Needs Iloha's input before it is worth building. The [User Guide](user-guide.md) is the first step towards this and should be extended alongside each new feature.
 - **Security review.** Untested and unaudited: whether connections can be eavesdropped, and whether the BLE advert or the Nearby handshake can be leveraged against a device. The app's privacy claims rest on this being answered.
-- **Development request portal.** Consider a form or bot that opens — and de-duplicates against existing — GitHub issues, so requests are tracked rather than living in chat.
 
 **Home — Host / Join**
 - **The two settings screens should not both own the event switches.** The host setup screen duplicates five of them — Accept New Members, Track Host Only, UWB, Wi-Fi, Chat Notifications — and reaches Discoverable and Approve Each Join only through an **All Settings** link. One screen should own them all.
