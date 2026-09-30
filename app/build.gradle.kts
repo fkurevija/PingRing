@@ -10,10 +10,40 @@ plugins {
 
 import java.util.concurrent.TimeUnit
 
+// Release signing, configured entirely from outside the repository.
+//
+// A keystore is a secret and a key cannot be generated here, so the properties
+// are read if present and the build carries on unsigned if they are not. That
+// asymmetry is deliberate: the common case - a contributor or CI without the
+// release key - must still be able to assemble, while the release path must
+// never quietly fall back to the debug key, because a debug-signed APK cannot be
+// upgraded by a properly signed one and Play rejects it outright.
+val releaseKeystorePath: String? = providers.gradleProperty("PINGRING_KEYSTORE").orNull
+val releaseKeystorePassword: String? = providers.gradleProperty("PINGRING_KEYSTORE_PASSWORD").orNull
+val releaseKeyAlias: String? = providers.gradleProperty("PINGRING_KEY_ALIAS").orNull
+val releaseKeyPassword: String? = providers.gradleProperty("PINGRING_KEY_PASSWORD").orNull
+
+// All four or none. A partial set would fail later inside the signing task with
+// a message about a missing key, rather than here where the cause is obvious.
+val releaseKeystore: java.io.File? = releaseKeystorePath?.let(::file)?.takeIf {
+    it.exists() && releaseKeystorePassword != null && releaseKeyAlias != null && releaseKeyPassword != null
+}
+
 android {
     namespace = "com.fkurevija.pingring"
     compileSdk {
         version = release(37)
+    }
+
+    signingConfigs {
+        if (releaseKeystore != null) {
+            create("release") {
+                storeFile = releaseKeystore
+                storePassword = releaseKeystorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
     }
 
     defaultConfig {
@@ -30,6 +60,13 @@ android {
         release {
             optimization {
                 enable = false
+            }
+            // Attached only when a keystore was supplied. Conditional rather
+            // than always-on so a local `assembleRelease` still works without
+            // the release key, while the release path itself can never silently
+            // fall back to the debug key.
+            if (releaseKeystore != null) {
+                signingConfig = signingConfigs.getByName("release")
             }
         }
         debug {

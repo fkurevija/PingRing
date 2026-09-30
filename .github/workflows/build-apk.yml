@@ -124,6 +124,37 @@ jobs:
       - name: Assemble debug APK
         run: ./gradlew assembleDebug --stacktrace
 
+      # A properly signed release build, when the release key is configured as a
+      # repository secret. Skipped rather than failed when it is not: the debug
+      # APK above is always published, and this repository is not a Play
+      # submission. Configure PINGRING_KEYSTORE_BASE64 and the three passwords as
+      # secrets to turn this on.
+      - name: Assemble signed release APK
+        if: ${{ env.PINGRING_KEYSTORE_BASE64 != '' }}
+        env:
+          PINGRING_KEYSTORE_BASE64: ${{ secrets.PINGRING_KEYSTORE_BASE64 }}
+          PINGRING_KEYSTORE_PASSWORD: ${{ secrets.PINGRING_KEYSTORE_PASSWORD }}
+          PINGRING_KEY_ALIAS: ${{ secrets.PINGRING_KEY_ALIAS }}
+          PINGRING_KEY_PASSWORD: ${{ secrets.PINGRING_KEY_PASSWORD }}
+        run: |
+          echo "$PINGRING_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/pingring-release.jks"
+          ./gradlew assembleRelease \
+            -PPINGRING_KEYSTORE="$RUNNER_TEMP/pingring-release.jks" \
+            -PPINGRING_KEYSTORE_PASSWORD="$PINGRING_KEYSTORE_PASSWORD" \
+            -PPINGRING_KEY_ALIAS="$PINGRING_KEY_ALIAS" \
+            -PPINGRING_KEY_PASSWORD="$PINGRING_KEY_PASSWORD"
+          # The keystore is written to a temp path rather than the workspace so a
+          # later step - or a failed job that uploads artifacts - cannot pick it up.
+          shred -u "$RUNNER_TEMP/pingring-release.jks" 2>/dev/null || rm -f "$RUNNER_TEMP/pingring-release.jks"
+
+      - name: Upload signed release APK
+        if: ${{ env.PINGRING_KEYSTORE_BASE64 != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: pingring-release-apk
+          path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+
       - name: Upload debug APK artifact
         uses: actions/upload-artifact@v4
         with:

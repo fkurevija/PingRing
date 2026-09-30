@@ -48,6 +48,13 @@ out/
 *.apk
 *.aab
 
+# Release signing key and its properties. Never commit either: a keystore in the
+# repository means anyone who clones can sign as PingRing. See app/build.gradle.kts
+# for the PINGRING_* properties that consume it.
+*.jks
+*.keystore
+keystore.properties
+
 # Local environment files
 .env
 .env.*

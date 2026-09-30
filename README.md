@@ -116,6 +116,19 @@ The APK lands at `app/build/outputs/apk/debug/app-debug.apk`.
 
 **Releases.** Every successful build on `master` rolls a single `latest` release forward, replacing the previous APK — it is a pointer to the newest build, not a history, and the rolling tag is moved to the commit it contains. Run artifacts keep each build for 90 days. Once a tagged release exists it takes GitHub's "Latest" badge; `latest` deliberately does not claim it.
 
+**Signing.** The published APK is a debug build. A signed release build is wired up but inactive until a key exists, because a key is a secret nobody can generate on your behalf:
+
+```bash
+keytool -genkeypair -v -keystore pingring-release.jks -alias pingring \
+  -keyalg RSA -keysize 4096 -validity 10000
+
+./gradlew assembleRelease \
+  -PPINGRING_KEYSTORE=pingring-release.jks \
+  -PPINGRING_KEYSTORE_PASSWORD=… -PPINGRING_KEY_ALIAS=pingring -PPINGRING_KEY_PASSWORD=…
+```
+
+In CI, set `PINGRING_KEYSTORE_BASE64` (the keystore, base64-encoded) plus the three password secrets and the signed build appears as an extra artifact. All four properties are required together — a partial set is ignored rather than half-applied, and the build stays unsigned rather than silently using the debug key, which matters because a debug-signed APK cannot be upgraded by a properly signed one. Keystores are gitignored.
+
 To keep a build permanently, tag it. A `v*` tag publishes an **immutable** release that is never replaced:
 
 ```bash
@@ -211,7 +224,7 @@ Three kinds of item: things that are **built but unverified**, things that are *
 - **The host's tracked-member choice is not broadcast.** A guest resolves the *rule* independently - it defaults to the host - but it cannot learn which member the host itself picked. Adding a field is a wire-format change rather than a UI one, and it would consume most of the payload's 11 spare bytes. It only matters with **Track Host** off, where a guest may pick freely anyway.
 - **Relayed UWB offers are not end-to-end.** The STS key travels via the host. Same trust model as relayed chat - a host already brokers everything - but guest-to-guest ranging is not private against the host.
 - **A retained member cannot be confirmed gone.** Holding a UWB session open across a transport drop buys an instant reconnect, but the far end stopping to range is indistinguishable from it having left the ring or from the host having ended it - all three produce the same silence. The app therefore reports a silent session as *unreachable* and says so, rather than claiming the member left. A real fix needs both sides to agree on a farewell message, which needs the transport that has just dropped.
-- **Release signing.** Only debug APKs are built and published.
+- **Release signing is wired but dormant.** `assembleRelease` signs properly when given the four `PINGRING_*` properties, and CI picks it up from a base64 keystore secret — but no key exists yet, so the published APK is still debug-signed. Generating one is a decision to keep the same key forever: Android will not let a properly signed build be replaced by a differently signed one, so losing the key means the app can never be updated again under that identity. See *Signing* above.
 
 ### Out of scope
 
