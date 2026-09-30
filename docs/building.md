@@ -1,0 +1,108 @@
+# 🚀 Building & Testing
+
+[← Back to README](../README.md) · [User Guide](user-guide.md) · [Features](features.md) · [Architecture & Privacy](architecture.md) · [Roadmap](roadmap.md)
+
+**Prerequisites**: Android Studio (Ladybug+), JDK 17, Android SDK 37, and a physical device on **Android 10 (API 29)+**. UWB needs supported hardware (e.g. Pixel 6 Pro+, Galaxy S21 Ultra+).
+
+```bash
+git clone https://github.com/fkurevija/PingRing.git
+cd PingRing
+
+./gradlew testDebugUnitTest   # unit tests
+./gradlew uiTest              # Compose UI + device tests (needs a booted device)
+./gradlew assembleDebug       # debug APK
+```
+
+On Windows (PowerShell): `.\gradlew.bat testDebugUnitTest assembleDebug`
+
+The APK lands at `app/build/outputs/apk/debug/app-debug.apk`.
+
+## Releases
+
+Every successful build on `master` rolls a single `latest` release forward, replacing the previous APK — it is a pointer to the newest build, not a history, and the rolling tag is moved to the commit it contains. Run artifacts keep each build for 90 days. Once a tagged release exists it takes GitHub's "Latest" badge; `latest` deliberately does not claim it.
+
+## Signing
+
+The published APK is a debug build. A signed release build is wired up but inactive until a key exists, because a key is a secret nobody can generate on your behalf:
+
+```bash
+keytool -genkeypair -v -keystore pingring-release.jks -alias pingring \
+  -keyalg RSA -keysize 4096 -validity 10000
+
+./gradlew assembleRelease \
+  -PPINGRING_KEYSTORE=pingring-release.jks \
+  -PPINGRING_KEYSTORE_PASSWORD=… -PPINGRING_KEY_ALIAS=pingring -PPINGRING_KEY_PASSWORD=…
+```
+
+In CI, set `PINGRING_KEYSTORE_BASE64` (the keystore, base64-encoded) plus the three password secrets and the signed build appears as an extra artifact. All four properties are required together — a partial set is ignored rather than half-applied, and the build stays unsigned rather than silently using the debug key, which matters because a debug-signed APK cannot be upgraded by a properly signed one. Keystores are gitignored.
+
+To keep a build permanently, tag it. A `v*` tag publishes an **immutable** release that is never replaced:
+
+```bash
+python tools/tag_release.py            # preview what has landed, changes nothing
+python tools/tag_release.py --create   # create and push the tag
+```
+
+It suggests the next patch version, refuses to tag a dirty tree, and points the tag at an explicit commit rather than a branch name, so the release cannot move when `master` advances. Pushing the tag triggers the versioned release path in **Build APK**.
+
+## CI behaviour
+
+**UI tests run in CI on every push, and do not block.** The JVM tests in the fast job cannot see the UI at all — a `@Composable` body does not run until Compose composes it — so **Instrumented Tests** now runs the Compose and device suite on every push and PR rather than only on release tags. A failure there is advisory: the job is `continue-on-error`, so a red UI test never stops an APK from being built and published. The trade is that a green tick on that workflow means *the suite ran*, not *the suite passed* — every run states which in its summary, and the results are uploaded as artifacts either way.
+
+To keep that affordable, runs for the same ref **queue rather than cancel** each other: five rapid pushes produce five sequential runs instead of five emulators competing for the same runner. Nothing is blocked on the result, so the waiting is free — and it is the intermediate runs that matter. Cancelling superseded runs is the usual optimisation, since nobody installs a build of an already-superseded commit, but a cancelled run leaves a gap exactly where the history is hardest to read: knowing that it was green on one commit and red on the next is the fact you want when something breaks.
+
+Run it locally only if you have the machine for it — it needs a booted emulator and 10–20 minutes, mostly waiting. `./gradlew check` and `build` deliberately do not run it, so a slow machine can run `./gradlew testDebugUnitTest assembleDebug` and let CI cover the rest.
+
+The script also judges whether a release is warranted, counting `feat`/`fix`/`perf` commits as user-facing and ignoring docs, CI and internal work. Every master build writes that assessment to its GitHub Actions run summary, so the suggestion appears where it will be seen — CI advises, it never tags on your behalf.
+
+## 🧪 LAN Debug Transport (Emulator ↔ Physical Device)
+
+Nearby Connections cannot bridge an emulator to a physical device, since the emulator has no real BLE/Wi-Fi Direct radio. For local development PingRing ships a **debug-only** TCP transport that virtualizes the connection over your PC's LAN/loopback, so multi-device flows can be tested without two phones.
+
+1. **Start the relay.** Use the bundled run configuration **"app + LAN Debug Relay"**, which runs `adb reverse tcp:8942 tcp:8942` and launches `tools/lan_debug_relay.py` alongside the app. Or run it manually: `python tools\lan_debug_relay.py`.
+2. **Enable LAN Debug Transport** in Home → Settings (gear icon, before hosting/joining) on *both* devices. The emulator reaches the relay via `10.0.2.2`; a physical device uses `127.0.0.1`, forwarded by `adb reverse`.
+3. **Host on one device, join on the other** as usual — messages relay over TCP instead of Nearby Connections. Stop with `Ctrl+C`, which closes the socket and all clients cleanly so the port is immediately free.
+
+The Developer Options card holding this toggle appears only in debug builds, and only while the device looks set up for development (ADB over USB/Wi-Fi, USB attached, or an emulator). It stays visible while the transport is on so it can always be switched back off.
+
+**Debug only** — excluded from release builds, and not a substitute for testing on real hardware over Nearby Connections.
+
+### 📡 Scripted Distance (Testing the Radar Remotely)
+
+Over this transport nothing can measure a distance: neither the emulator (no UWB/BLE radio) nor the relay can, so peers arrive with no distance, bearing, arrow or hot/cold ring. To exercise ranging anyway, `tools/mock_radar.py` joins the event as a third, invisible participant and streams scripted range reports, rendered through the normal ranging path — only the measurement is fake, never the rendering:
+
+```powershell
+python tools\mock_radar.py <event-id> --pattern approach
+python tools\mock_radar.py <event-id> --pattern orbit --distance 3
+python tools\mock_radar.py <event-id> --peer a1b2c3d4 --name "Alice"
+
+# A peer with no UWB, so the distance comes from the noisy signal instead
+python tools\mock_radar.py <event-id> --rssi-only --noise-db 3 --outliers 0.05 --dropout 0.02
+```
+
+| Option | What it does |
+| --- | --- |
+| `--pattern approach` | Walks between `--start` and `--end` metres in place, crossing the sub-2 m proximity haptic twice per cycle (default) |
+| `--pattern orbit` | Holds `--distance` while the bearing sweeps a full circle, to check the compass-corrected arrow |
+| `--pattern walk` | Both at once: circling *and* closing in |
+| `--pattern static` | A frozen reading, to check a steady state |
+| `--peer` | Only drive these peer ids (repeatable). Default: every member of the event |
+| `--name` | Display name for the driven peer(s), so two scripted pins are told apart |
+| `--period`, `--rate`, `--azimuth`, `--elevation`, `--spread` | Cycle length, reports/second, starting bearing, elevation, and one bearing slice per peer |
+| `--rssi-only` | Send a signal strength instead of a distance, so the reading goes through the real RSSI smoothing. **Required for the noise flags to mean anything** — see below |
+| `--noise-db` | Standard deviation of symmetric jitter per reading, in dBm. `3.0` is a realistic indoor peer |
+| `--outliers` | Probability a single reading arrives wildly *too strong*, as a multi-path reflection does |
+| `--dropout` | Probability an advert never arrives. It is dropped, never replaced with a stale value |
+| `--seed` | Seed the noise, so a failing run replays identically |
+
+**Why `--rssi-only` matters.** A report carrying a distance is treated by the app as a ranging fix: precise by definition, so it wins outright and the smoothing filter is skipped. Adding noise to such a report only produces jitter on a number the app already trusts exactly — the filter is never involved. Sending `rssi` instead reproduces the case the filter actually exists for: a peer with no UWB, whose distance is inferred from noisy adverts. Under that mode the app runs the reading through the same `RssiSmoother` a BLE advert takes, so `--noise-db` and `--outliers` test the real filter.
+
+Against a peer holding station at 3.16 m with one reading in twenty a 20 dB reflection — each claiming the peer is 0.39 m away — the readout stays within 0.57 m. That is the filter doing visible work, and it is exactly the case a smooth scripted trajectory could never produce.
+
+The radar reacts as it would to real UWB: distance readout, "Direction locked" line, rings, arrow, haptics and the 15 s staleness sweep all follow the script. Run `python tools/test_mock_radar.py` to check the script and relay path with no device attached.
+
+---
+
+[← Back to README](../README.md)
+
+
