@@ -1,6 +1,6 @@
-# 🚀 Building & Testing
+﻿# 🚀 Building & Testing
 
-[← Back to README](../README.md) · [User Guide](user-guide.md) · [Features](features.md) · [Architecture & Privacy](architecture.md) · [Roadmap](roadmap.md)
+[← Back to README](../README.md) · [User Guide](user-guide.md) · [Features](features.md) · [Architecture & Offline Operation](architecture.md) · [Roadmap](roadmap.md)
 
 **Prerequisites**: Android Studio (Ladybug+), JDK 17, Android SDK 37, and a physical device on **Android 10 (API 29)+**. UWB needs supported hardware (e.g. Pixel 6 Pro+, Galaxy S21 Ultra+).
 

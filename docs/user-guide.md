@@ -1,8 +1,8 @@
-# 📖 User Guide
+﻿# 📖 User Guide
 
-[← Back to README](../README.md) · [Features](features.md) · [Architecture & Privacy](architecture.md) · [Building & Testing](building.md) · [Roadmap](roadmap.md)
+[← Back to README](../README.md) · [Features](features.md) · [Architecture & Offline Operation](architecture.md) · [Building & Testing](building.md) · [Roadmap](roadmap.md)
 
-How to use PingRing as it exists today — what each screen does and which switch to reach for. For *why* it works the way it does, see [Features](features.md); for the design rationale, [Architecture & Privacy](architecture.md).
+How to use PingRing as it exists today — what each screen does and which switch to reach for. For *why* it works the way it does, see [Features](features.md); for the design rationale, [Architecture & Offline Operation](architecture.md).
 
 **Contents**
 - [Before you start](#before-you-start)

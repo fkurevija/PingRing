@@ -23,7 +23,8 @@ import android.util.Log
  * `setPreferredPhy` at all. Both were verified against the API 37 android.jar
  * rather than assumed. Selecting LE Coded therefore needs a hidden-API or
  * reflection workaround, which is not a trade this codebase should make in a
- * privacy-first app. So the levers below are the honest, supported ones.
+ * project whose whole premise is the radios working. So the levers below are
+ * the honest, supported ones.
  */
 object BleRangePolicy {
 

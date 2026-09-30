@@ -10,14 +10,14 @@
 
 <p align="center">
   Locate, rally, chat, and coordinate with friends at crowded events, concerts, or festivals.<br/>
-  <b>100% Serverless & Offline &bull; Zero Server Sign-in &bull; Ephemeral & Privacy-First</b>
+  <b>100% Serverless & Offline &bull; No Network Needed &bull; No Sign-in, No Accounts</b>
 </p>
 
 ---
 
 ## 📖 Overview
 
-**PingRing** is a native Android app for short-lived, high-density events (festivals, conventions, sports venues, rallies) where cellular networks are congested or unavailable.
+**Offline is the product** — this app exists for the moment a venue's data network stops working. There is no server, no account, and nothing to configure; phones find each other directly over BLE and Nearby Connections, and ranging falls back rather than dying.
 
 Using **Nearby Connections**, **BLE** and **UWB**, it forms an ad-hoc peer-to-peer mesh directly between nearby phones. Participants locate each other on a real-world radar, raise haptic beacons, and chat in real time — with no cellular data and no external server.
 
@@ -29,7 +29,7 @@ Using **Nearby Connections**, **BLE** and **UWB**, it forms an ad-hoc peer-to-pe
 | :--- | :--- |
 | **[📖 User Guide](docs/user-guide.md)** | **Start here to use the app** — hosting, joining, the radar, beacons, chat, every setting, and what the messages on screen mean. |
 | [✨ Features](docs/features.md) | What PingRing does and why each piece works the way it does. |
-| [🏗 Architecture & Privacy](docs/architecture.md) | System architecture, protocol flow, the privacy model, and background operation. |
+| [🏗 Architecture & Offline Operation](docs/architecture.md) | System architecture, protocol flow, what offline means here, and background operation. |
 | [🚀 Building & Testing](docs/building.md) | Prerequisites, gradle commands, releases and signing, the LAN debug transport, and scripted-distance testing. |
 | [📋 Roadmap & Known Limitations](docs/roadmap.md) | Unverified items, known limitations, deliberate non-goals, and planned work. |
 
@@ -90,5 +90,5 @@ Releases, signing, CI behaviour, the emulator↔device LAN debug transport and s
 ---
 
 <div align="center">
-  <sub>Built with ❤️ for privacy-first, off-grid peer coordination.</sub>
+  <sub>Built with ❤️ for staying connected when the network isn't.</sub>
 </div>

@@ -1,6 +1,6 @@
-# 📋 Roadmap & Known Limitations
+﻿# 📋 Roadmap & Known Limitations
 
-[← Back to README](../README.md) · [User Guide](user-guide.md) · [Features](features.md) · [Architecture & Privacy](architecture.md) · [Building & Testing](building.md)
+[← Back to README](../README.md) · [User Guide](user-guide.md) · [Features](features.md) · [Architecture & Offline Operation](architecture.md) · [Building & Testing](building.md)
 
 Three kinds of item: things that are **built but unverified**, things that are **built and deliberately bounded**, and things that are **not being built**. Nothing here is known to be broken.
 
@@ -37,7 +37,7 @@ Grouped by area. Nothing here is known to be broken: these are things not built,
 - **Accessibility audit.** Decorative icons correctly pass `contentDescription = null`, but nothing has checked the app against an accessibility standard, and the radar is drawn on a `Canvas` that no screen reader can describe at all.
 - **Multi-language support.** Every string is a hard-coded literal.
 - **Help and documentation.** An open question rather than a decision: an offline in-app knowledge base versus spreading help through the app. Needs Iloha's input before it is worth building. The [User Guide](user-guide.md) is the first step towards this and should be extended alongside each new feature.
-- **Security review.** Untested and unaudited: whether connections can be eavesdropped, and whether the BLE advert or the Nearby handshake can be leveraged against a device. The app's privacy claims rest on this being answered.
+- **Security review.** Untested and unaudited: whether connections can be eavesdropped, and whether the BLE advert or the Nearby handshake can be leveraged against a device.
 
 **Home — Host / Join**
 - No items yet.
@@ -56,9 +56,12 @@ Grouped by area. Nothing here is known to be broken: these are things not built,
   1. **`startRanging` takes no peer list.** `WifiRttManager.startRanging(RangingRequest, Executor, RangingResultCallback)` has no way to say *which* peers to range — the platform picks RTT-capable peers from its own scan. Correlating a result to a specific member is the whole problem, and PingRing identifies members by ephemeral BLE peer ids with no MAC anywhere.
   2. **The only public correlation handle is `RangingResult.getUsdPeerId()`**, from Wi-Fi Direct Service Discovery. Members would have to *also* publish and subscribe over Wi-Fi P2P — a second discovery path alongside BLE.
   3. **Nearby Connections already owns Wi-Fi Direct.** Whether our own `WifiP2pManager` usage can coexist with it is untested, and may be mutually exclusive on some devices.
-  4. **Location services must be on**, and RTT returns nothing when they are off device-wide even with the permission granted. That is a user-visible cost for a privacy-first app.
+  4. **Location services must be on**, and RTT returns nothing when they are off device-wide even with the permission granted. That is a real user-facing cost — it is the price of the feature rather than a privacy compromise, and PingRing names which blocker applies rather than silently showing a stale distance.
 
   **Verify before building further**: on two API 34+ devices with RTT hardware, do USD peer ids actually appear on `RangingResult`, and can a P2P session coexist with Nearby? If either answer is no, this closes like the transport item above.
+
+- **Ranging runs down a ranked chain — UWB → Wi-Fi RTT → GNSS → BLE RSSI** — and the radar names which rung is producing the number and why a better one is not. Two deliberate placements: GNSS sits **below** RTT because it is metres with no bearing even outdoors, and **above** RSSI because RSSI is the last resort that works everywhere; a GNSS fix must also be under 15 s old, since a stale one describes where somebody was rather than where they are.
+- **Nothing below UWB is wired up yet.** UWB and BLE RSSI are live; Wi-Fi RTT and GNSS exist in the chain as policy and capability only, behind their own integration work. See the RTT item above, and note GNSS additionally needs a way to share a fix between phones that has not been built.
 
 **Radar — Beacon**
 - **Move Emergency off the first preset slot.** Presets render in enum order and `SOS` is first, so Emergency is the default selection when the sheet opens — and it is a one-line move in `BeaconPreset`.

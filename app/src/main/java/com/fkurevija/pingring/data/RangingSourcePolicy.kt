@@ -40,6 +40,17 @@ object RangingSourcePolicy {
         /** 802.11mc round-trip timing: distance, standard deviation and bearing. */
         WIFI_RTT,
 
+        /**
+         * Coarse position from satellites, differenced between the two phones.
+         *
+         * Ranked below Wi-Fi RTT because it needs no peer correlation and no
+         * permission beyond location, but it is metres rather than centimetres
+         * and effectively unavailable indoors - which is most of where this app
+         * is used. It earns its place outdoors, at a rally or a field, where
+         * nothing better is available.
+         */
+        GNSS,
+
         /** BLE signal strength. Distance is an estimate; there is no bearing. */
         BLE_RSSI,
     }
@@ -99,30 +110,73 @@ object RangingSourcePolicy {
      * [useWifiRtt] is the user's preference, never assumed. Ranging this way
      * costs a Wi-Fi session and needs location services switched on, which is a
      * real trade.
+     *
+     * The chain is strictly ranked - UWB, then Wi-Fi RTT, then BLE RSSI, which
+     * always works because it is the same radio carrying discovery. [gnss] sits
+     * below RTT because it needs no peer correlation and no special permission
+     * beyond location, but it is unreliable indoors, which is most of where
+     * this is used.
      */
     fun select(
         uwbActive: Boolean,
         useWifiRtt: Boolean,
         wifiRtt: WifiRttCapability,
+        gnss: GnssCapability = GnssCapability(),
     ): Selection {
         if (uwbActive) return Selection(RangingSource.UWB)
 
         if (useWifiRtt) {
-            val refusal = when {
-                !wifiRtt.rttAvailable -> WifiRttUnavailable.NO_HARDWARE
-                !wifiRtt.locationPermissionGranted ->
-                    WifiRttUnavailable.NO_LOCATION_PERMISSION
-                !wifiRtt.locationServicesEnabled ->
-                    WifiRttUnavailable.LOCATION_SERVICES_OFF
-                else -> null
-            }
+            val refusal = wifiRttRefusal(wifiRtt)
             if (refusal == null) return Selection(RangingSource.WIFI_RTT)
-            // Fall through to RSSI, but carry the reason so the UI can say why
-            // the option it just offered is not running.
+            // Fall through, but carry the reason so the UI can say why the
+            // option it just offered is not running.
             return Selection(RangingSource.BLE_RSSI, rttRefusedBy = refusal)
         }
 
+        if (gnss.isUsable) return Selection(RangingSource.GNSS)
+
         return Selection(RangingSource.BLE_RSSI)
+    }
+
+    /**
+     * Whether a GNSS fallback could be used, if it were wired up.
+     *
+     * Both conditions are required and neither is implied by the other: a fix
+     * needs location services on, and it needs to be *recent*. A fix from ten
+     * minutes ago is worse than the RSSI reading it would replace, because at
+     * least RSSI describes where the peer is now.
+     *
+     * The age ceiling is deliberately short. Someone walking at 1.4 m/s moves
+     * nearly a screen-width across the radar in that time.
+     */
+    data class GnssCapability(
+        val locationServicesEnabled: Boolean = false,
+        val fixAgeMillis: Long? = null,
+    ) {
+        val isUsable: Boolean
+            get() = locationServicesEnabled &&
+                fixAgeMillis != null &&
+                fixAgeMillis <= MAX_FIX_AGE_MILLIS
+
+        companion object {
+            /** ~20 m of movement at walking pace; well inside one radar ring. */
+            const val MAX_FIX_AGE_MILLIS = 15_000L
+        }
+    }
+
+    /**
+     * Why Wi-Fi RTT cannot be used, or null when it can.
+     *
+     * Extracted so the ordering - which blocker is reported first - lives in one
+     * place. Hardware comes before permission because it is not actionable: a
+     * user with no RTT radio cannot be helped by granting anything, and telling
+     * them to would send them down a dead end.
+     */
+    fun wifiRttRefusal(capability: WifiRttCapability): WifiRttUnavailable? = when {
+        !capability.rttAvailable -> WifiRttUnavailable.NO_HARDWARE
+        !capability.locationPermissionGranted -> WifiRttUnavailable.NO_LOCATION_PERMISSION
+        !capability.locationServicesEnabled -> WifiRttUnavailable.LOCATION_SERVICES_OFF
+        else -> null
     }
 
     /** A sentence for each refusal, for the settings screen. */
@@ -167,6 +221,53 @@ object RangingSourcePolicy {
             locationPermissionGranted = permissionGranted,
             locationServicesEnabled = locationServicesEnabled,
         )
+    }
+
+    /**
+     * Judges a reading against an independent measurement of the same geometry.
+     *
+     * [rssiDbm] is the smoothed BLE signal strength for the *same peer*, or null
+     * when none has arrived. [expectedDistanceMeters] is what that signal alone
+     * implies, and it is required: without a second source there is nothing to
+     * corroborate, so reporting CLEAR would claim a check that never ran.
+     *
+     * A low RSSI is only evidence when the peer is *near*. Someone in the next
+     * tent can legitimately be faint, so a weak signal at long range is
+     * unremarkable and produces no alarm - only [SHORT_RANGE_METERS] and closer
+     * makes it suspicious.
+     */
+    fun confidence(rssiDbm: Int?, expectedDistanceMeters: Float?): RangingConfidence {
+        if (rssiDbm == null || expectedDistanceMeters == null) return RangingConfidence.UNKNOWN
+        if (expectedDistanceMeters > SHORT_RANGE_METERS) return RangingConfidence.UNKNOWN
+        return if (rssiDbm >= OBSTRUCTION_RSSI_DBM) {
+            RangingConfidence.CLEAR
+        } else {
+            RangingConfidence.OBSTRUCTED
+        }
+    }
+
+    /**
+     * RSSI at or above which a near peer is treated as unobstructed; below it,
+     * as obstructed.
+     *
+     * Deliberately conservative. At a festival a phone in a back pocket or
+     * behind a body sits below this routinely without anything blocking the
+     * UWB first path, and a check that cried wolf on every scan would be
+     * ignored within minutes - which is worse than not having it. The bar is
+     * inclusive so that the boundary itself counts as the *good* case: it is
+     * the last reading an unobstructed link would produce, and only one step
+     * past it is evidence of something.
+     */
+    const val OBSTRUCTION_RSSI_DBM = -80
+
+    /** Within this range a weak signal is evidence of something in the way. */
+    const val SHORT_RANGE_METERS = 3.0f
+
+    /** A sentence for each confidence, for the radar. */
+    fun describe(confidence: RangingConfidence): String = when (confidence) {
+        RangingConfidence.UNKNOWN -> "Distance estimate only."
+        RangingConfidence.CLEAR -> "Cross-checked."
+        RangingConfidence.OBSTRUCTED -> "Someone may be in the way."
     }
 
     /**

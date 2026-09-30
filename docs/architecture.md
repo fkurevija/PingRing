@@ -1,4 +1,4 @@
-# 🏗 Architecture & Privacy
+# 🏗 Architecture & Offline Operation
 
 [← Back to README](../README.md) · [User Guide](user-guide.md) · [Features](features.md) · [Building & Testing](building.md) · [Roadmap](roadmap.md)
 
@@ -31,11 +31,25 @@ graph TD
 
 ---
 
-## Privacy Model
+## Offline operation
 
-1. **No external servers** — no accounts, emails, or remote logging. All data stays on the local mesh.
-2. **Ephemeral identity** — a random peer ID per session; leaving or closing rotates it and wipes local peer state, so there is no cross-event tracking. Your own ID is filtered from scan results, so you never appear on your own radar.
-3. **Session-scoped advertising** — BLE advertising is opt-in and stops on leave/end. The Host can end an event at any time, broadcasting a BLE closure packet that returns all members to the home screen.
+**Offline is the product, not a limitation.** The reason this app exists is the moment a venue's data network stops working — a sold-out stage where the bars go quiet, a rally field with no bars at all. Everything below is in service of that moment.
+
+1. **No external infrastructure to fail.** There is no server, no account, no remote logging, and no dependency on anyone's uptime. Nothing to be down, because nothing is there. Discovery, transport, chat, ranging and beacons are all local.
+2. **Nothing to configure.** No network to join, no SSID, no password, no login. Phones find each other directly over BLE and Nearby Connections.
+3. **It works before it works.** A phone with no SIM, in aeroplane mode with Wi-Fi and Bluetooth on, runs a full PingRing.
+4. **It degrades rather than dies.** Ranging runs down a ranked chain — UWB, then Wi-Fi RTT, then GNSS, then BLE signal strength — so losing the most precise method costs accuracy, not the feature. `RangingSourcePolicy` holds the ordering and reports which rung is running and why a better one is unavailable. Only UWB and Wi-Fi RTT are wired up so far; GNSS and RTT sit in the chain behind their integration (see the roadmap).
+
+### Ephemeral identity
+
+A random peer ID per session, rotated on leave — so there is nothing that carries across events, and no account to correlate anything with. Your own ID is filtered from scan results, so you never appear on your own radar. BLE advertising is opt-in and stops on leave/end; ending an event broadcasts a closure packet that returns every member to the home screen.
+
+### Location permission
+
+Location permission is required because the radios that make this work are proximity sensors that Android gates behind it — not because anything is uploaded anywhere.
+
+- **Turning location off breaks ranging.** Wi-Fi RTT returns nothing when location services are off device-wide, even with the permission granted, and UWB has the same dependency. PingRing names which one is blocking rather than silently showing a stale distance.
+- **Location is used for ranging between nearby devices, and nothing else.** No coordinates are transmitted, because there is nowhere to transmit them to.
 
 ## Background operation
 

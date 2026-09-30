@@ -58,7 +58,16 @@ data class RadarPeerUpdate(
      * arbitrarily early, or a member on an older build would win the host's
      * default for the wrong reason.
      */
-    val joinedAtMillis: Long? = null
+    val joinedAtMillis: Long? = null,
+    /**
+     * Whether this distance can be corroborated, and whether something is
+     * plausibly in the way.
+     *
+     * Null until either source has produced a reading. [RangingConfidence] rather
+     * than a boolean, because "no second opinion yet" and "a second opinion
+     * that agrees" are different states and the radar shows them differently.
+     */
+    val rangingConfidence: RangingConfidence? = null
 )
 
 data class ConnectivityStatus(
@@ -1534,6 +1543,14 @@ class DiscoveryRepository(
             worldDirectionY = existing?.worldDirectionY,
             worldDirectionZ = existing?.worldDirectionZ,
             lastSeen = System.currentTimeMillis(),
+            // Cross-checked only once a UWB fix exists to check against. Before
+            // that there is a single source and the answer is UNKNOWN, which the
+            // radar shows as an estimate rather than as a confirmed distance.
+            rangingConfidence = if (hasUwbFix) {
+                RangingSourcePolicy.confidence(rssi, rssiEstimate)
+            } else {
+                RangingConfidence.UNKNOWN
+            },
             // From the advert, and sticky: a packet read without one must not
             // erase a timestamp an earlier advert carried, or a peer's place in
             // the arrival order would reset whenever one of its adverts was
@@ -2058,10 +2075,15 @@ class DiscoveryRepository(
         // From here on this peer has a real measurement, so later BLE
         // advertisements must not replace it with an estimate.
         uwbRangedPeers.add(peerId)
-        rssiSmoothers.remove(peerId)
-        // Timestamp of the last real ranging result. This is the only evidence
-        // available that a retained peer's far end still has a live session, so
-        // it is what separates "out of range but still there" from "gone".
+        // The RSSI smoother is deliberately NOT cleared here. It used to be, and
+        // that made UWB and BLE mutually exclusive - one number or the other.
+        // But BLE is an *independent* measurement of the same geometry, which is
+        // exactly what is needed to tell whether this UWB fix is obstructed: a
+        // body blocking the first path biases the distance long and collapses the
+        // signal at the same time. Keeping the smoother alive while ranging is
+        // what lets RangingSourcePolicy cross-check the two. It costs nothing
+        // extra - the adverts are already arriving for discovery - and it is the
+        // whole of the obstruction check.
         lastUwbMeasurementAt[peerId] = System.currentTimeMillis()
         _peerUpdates.update { peers ->
             val current = peers[peerId] ?: return@update peers
