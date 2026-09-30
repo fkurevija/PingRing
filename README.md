@@ -213,7 +213,7 @@ Three kinds of item: things that are **built but unverified**, things that are *
 
 ### Planned work
 
-Grouped by area. Nothing here is known to be broken: these are things not built, or built and unverified. Resolved items are struck through and kept only where the reasoning is worth not re-deriving.
+Grouped by area. Nothing here is known to be broken: these are things not built, or built and unverified. Work that has shipped is described under *Key Features* rather than kept here.
 
 **Global**
 - **Define the brand colour and match it to the logo.** The theme colour is applied throughout today — including chat bubbles, until a user picks their own — but there is no logo to derive it from, so the identity is undefined.
@@ -226,27 +226,13 @@ Grouped by area. Nothing here is known to be broken: these are things not built,
 - **Development request portal.** Consider a form or bot that opens — and de-duplicates against existing — GitHub issues, so requests are tracked rather than living in chat.
 
 **Home — Host / Join**
-- ✅ Host and join entry points, with each option explained.
-- ✅ Admission control: accept/deny, capacity, Discoverable, Approve Each Join. See *Unverified* for what still needs two real phones.
+- **The two settings screens should not both own the event switches.** The host setup screen duplicates five of them — Accept New Members, Track Host Only, UWB, Wi-Fi, Chat Notifications — and reaches Discoverable and Approve Each Join only through an **All Settings** link. One screen should own them all.
+- **Give peers a join timestamp.** There is none on `RadarPeerUpdate`, so "first to join" has to stand in for "first to be discovered": a member who joins late and is nearest can still be picked as the host's default. It costs eight bytes on the advertisement, so it is a wire-format change rather than a UI one, but until it exists the default is not quite what it claims.
 
 **Connectivity**
 - **Implement Wi-Fi Direct, or a host hotspot with clients joining it.** Both switches are currently inert, and multi-client support is the open question: Wi-Fi Direct is P2P by nature, and a hotspot is the more likely shape for eight members. See *Known limitations*.
 - **Choose the connection method by capability.** UWB defaults from `isUwbSupported()` and Wi-Fi Direct is hard-coded `true`; nothing considers API level or what members support. No dropdown or checkbox list exists, only two switches.
-- ~~**Optionally make sessions discoverable** to nearby devices behind a setting, with the host approving individual joins rather than the current all-or-nothing switch.~~ Resolved: a **Discoverable** switch advertises the session and the join screen lists what is nearby; **Approve Each Join** holds new members for the host to allow or turn away. Both default to off, and neither changes code joining. Advertising the event code is what made this possible at all, so the BLE payload is now versioned (v2, 20 bytes); see *Known limitations* for the v1 question and *Unverified* for what still needs two phones.
 - **Tune antenna use across BLE, UWB and Wi-Fi.** Three radios competing on one battery, with BLE scanning continuously and UWB ranging held open for 45 s after a drop. Nothing has measured what that costs.
-
-**Radar**
-- ~~**Hide End / Leave PingRing while the keyboard is open.**~~ Resolved: the button moved to the **PingRing Settings** screen, and the radar keeps the navigation bar back arrow as the exit route.
-- ~~**Replace Nudge with a favourite beacon.**~~ Resolved: Nudge is gone everywhere, wire format included; the beacon screen sets a configuration as the **Quick Beacon** (**Set as Quick Beacon**, kept in DataStore) and the radar's **Quick Beacon** button sends it in one tap — toasting and opening the beacon screen when none is set.
-- ~~**Fix radar rendering.**~~ Resolved: the lit arc was inscribed in an oval the size of the *canvas* instead of the ring's own square, which put the arc's centre nearly a full radius below-right of the ring's, so the highlight rendered as a stray arc beside the ring, clipped where it left the canvas. The ring and its arc now come from one `RadarDirectionPolicy.ringGeometry`, and unit tests pin the arc concentric with the ring on square and non-square canvases.
-- ~~**Default the host's focus to the first member to join** rather than the nearest.~~ Resolved: `FocusPolicy.resolveFocus` falls back to the first member in discovery order, and a guest to the host, so the default is stable instead of moving with whoever is closest. **Caveat:** there is still no join *timestamp* on a peer, so "first to join" is standing in for "first to be discovered" — a member who joins late and is nearest could be picked. Adding a join time to `RadarPeerUpdate` would close that.
-- ✅ Track one member at a time; the UWB session follows the selection. Defaults are role-based: a guest follows the host, the host follows the first member it saw.
-- **The two settings screens should not both own the event switches.** The host setup screen duplicates five of them and reaches the other two only through a link; one screen should own them all.
-
-**Radar — Chat**
-- ✅ Push notifications for chat, per-PingRing and app-wide, with independent sound and vibration.
-- ✅ **Embed an active beacon in the chat** so it stands out from ordinary messages. Every active beacon appears once, as a full-width colour-banded chat entry, the sender's own included: a beacon is broadcast to the ring, so every member's chat reads the same. The banner above the radar is kept for the local beacon, because that is where its Stop control lives.
-- ✅ ~~**An ended beacon keeps its place in the transcript.**~~ Resolved: `ChatTimelinePolicy` orders messages and ended beacons together by timestamp, so a beacon settles back where it was raised; a running beacon stays pinned to the near end. This also fixes a peer disconnecting mid-beacon silently deleting it from the record.
 
 **Radar — Beacon**
 - **Move Emergency off the first preset slot.** Presets render in enum order and `SOS` is first, so Emergency is the default selection when the sheet opens — and it is a one-line move in `BeaconPreset`.
