@@ -1,5 +1,6 @@
 package com.fkurevija.pingring
 
+import com.fkurevija.pingring.data.BleAdvertisementPayload
 import com.fkurevija.pingring.data.BleRangePolicy
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -25,10 +26,15 @@ class BleRangePolicyTest {
         // Growing the payload past the legacy limit makes the advert silently
         // untransmittable, which presents as a total range failure with no error
         // anywhere. This is a real budget, not a comment: 31 bytes is what legacy
-        // advertising can carry and 13 is what PingRing sends.
+        // advertising can carry and 20 is what PingRing now sends - the event
+        // code and its version byte are what the extra seven bought.
         assertTrue(BleRangePolicy.fitsInLegacyAdvertising())
         assertEquals(31, BleRangePolicy.MAX_LEGACY_SERVICE_DATA_BYTES)
-        assertEquals(13, BleRangePolicy.SERVICE_DATA_BYTES)
+        assertEquals(20, BleRangePolicy.SERVICE_DATA_BYTES)
+        assertEquals(
+            BleAdvertisementPayload.TOTAL_BYTES,
+            BleRangePolicy.SERVICE_DATA_BYTES
+        )
     }
 
     @Test
@@ -37,7 +43,11 @@ class BleRangePolicyTest {
         // should fail a test rather than silently break range on device.
         assertEquals(
             BleRangePolicy.MAX_LEGACY_SERVICE_DATA_BYTES - BleRangePolicy.SERVICE_DATA_BYTES,
-            18
+            BleRangePolicy.LEGACY_HEADROOM_BYTES
+        )
+        assertTrue(
+            "exhausting the legacy budget needs a decision, not a build",
+            BleRangePolicy.LEGACY_HEADROOM_BYTES > 0
         )
     }
 

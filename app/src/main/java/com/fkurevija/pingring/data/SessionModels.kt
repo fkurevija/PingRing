@@ -16,6 +16,17 @@ data class Event(
     val useWifiDirect: Boolean = true,
     val useHotspot: Boolean = false,
     val acceptsNewMembers: Boolean = true,
+    /**
+     * Whether this event advertises itself as one a nearby guest may find and
+     * join without being given a code.
+     *
+     * Distinct from [acceptsNewMembers], which is about the *host* saying yes.
+     * This is about the session being findable at all: a host that does not set
+     * it is still perfectly joinable by code, it simply does not appear in a
+     * guest's list of nearby sessions. Off by default, because a session that
+     * shows up unasked is a session somebody can wander into.
+     */
+    val isDiscoverable: Boolean = false,
     val chatNotificationsEnabled: Boolean = true,
 ) {
     companion object {

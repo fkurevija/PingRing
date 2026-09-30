@@ -68,26 +68,64 @@ data class ConnectivityStatus(
  * The repository builds it on the way out and reads it on the way in, and
  * [encode] and [decode] are the two halves of one format.
  *
- * Layout, big-endian (the platform `ByteBuffer` default):
+ * Layout, big-endian (the platform `ByteBuffer` default), version 2:
  *
  * ```
- * offset 0  4 bytes  event hash, the event id's String.hashCode()
- * offset 4  1 byte   flags, see the FLAG_* constants
- * offset 5  8 bytes  the advertiser's peer id, UTF-8, NUL-padded
+ * offset 0   1 byte   format version, see [VERSION]
+ * offset 1   4 bytes  event hash, the event id's String.hashCode()
+ * offset 5   1 byte   flags, see the FLAG_* constants
+ * offset 6   8 bytes  the advertiser's peer id, UTF-8, NUL-padded
+ * offset 14  6 bytes  the event code, UTF-8, NUL-padded
  * ```
  *
- * The peer-id field is padded rather than length-prefixed because a peer id is a
- * fixed 8 characters ([com.fkurevija.pingring.data.SessionManager] generates
- * exactly that many), which leaves the whole field accounted for and keeps the
- * total at exactly 13 bytes - the number that has to stay under the 31-byte
- * legacy advertising limit (see [BleRangePolicy]). The padding is whatever
- * [ByteBuffer.allocate] leaves, i.e. NUL, so [decode] strips NULs rather than
- * relying on `trim`, which does not treat them as whitespace.
+ * Version 1 had no version byte and was 13 bytes:
+ *
+ * ```
+ * offset 0   4 bytes  event hash
+ * offset 4   1 byte   flags
+ * offset 5   8 bytes  the advertiser's peer id, UTF-8, NUL-padded
+ * ```
+ *
+ * Both are read, so a v2 build can still see a v1 host. The version byte is
+ * what makes that safe in the other direction: a v1 build reading a v2 advert
+ * would otherwise decode the leading `0x02` as the top byte of the event hash
+ * and invent an event that does not exist, whereas with it the advert is simply
+ * ignored.
+ *
+ * The peer-id and event-code fields are padded rather than length-prefixed
+ * because both are generated at a fixed length ([SessionManager] makes exactly
+ * [PEER_ID_BYTES] characters of each), which leaves every byte accounted for and
+ * keeps the total at exactly [TOTAL_BYTES] - the number that has to stay under
+ * the 31-byte legacy advertising limit (see [BleRangePolicy]). The padding is
+ * whatever [ByteBuffer.allocate] leaves, i.e. NUL, so [decode] strips NULs
+ * rather than relying on `trim`, which does not treat them as whitespace.
+ *
+ * The event code is what makes a session discoverable: without it a guest
+ * scanning nearby has a hash it cannot reverse and no way to join, so browsing
+ * for a session would be a list of things it cannot act on. The display name is
+ * derived from the code rather than sent, because [Event] already names every
+ * event "PingRing &lt;code&gt;" - one less field, and no chance of two copies
+ * disagreeing.
  */
 object BleAdvertisementPayload {
 
+    /**
+     * Current wire format.
+     *
+     * Present from v2 onward, and the reason the two layouts can coexist: a
+     * build that only understands v1 sees an unknown leading byte rather than a
+     * plausible-looking misreading of the fields, and ignores the advert instead
+     * of showing a phantom member. Without it, v1 reading v2 would decode the
+     * version byte as the top byte of the event hash and invent a different
+     * event, which is worse than not seeing it at all.
+     */
+    const val VERSION = 2
+
+    /** The pre-versioning layout, still read so a v1 build can be understood. */
+    const val V1_TOTAL_BYTES = 13
+
     /** Must match [BleRangePolicy.SERVICE_DATA_BYTES]; the two are one budget. */
-    const val TOTAL_BYTES = 13
+    const val TOTAL_BYTES = 20
 
     /** The host owns the event; members follow it. */
     const val FLAG_HOST = 1
@@ -110,7 +148,20 @@ object BleAdvertisementPayload {
     /** New members are still being admitted. */
     const val FLAG_ACCEPTS_NEW_MEMBERS = 1 shl 6
 
+    /**
+     * The host is advertising itself as a session a guest may find and join
+     * without being told a code.
+     *
+     * Only the host sets it, and only when the event is discoverable: a guest
+     * that adopts a session from a neighbour's advert is asking to join, and
+     * that has to be the host's choice to offer, not a default.
+     */
+    const val FLAG_DISCOVERABLE = 1 shl 7
+
     private const val PEER_ID_BYTES = 8
+
+    /** The event code's field width, which [SessionManager] must match exactly. */
+    const val EVENT_CODE_BYTES = 6
 
     /** The byte a fixed-width field is padded with, as a Char for `trim`. */
     private const val NUL = '\u0000'
@@ -120,6 +171,14 @@ object BleAdvertisementPayload {
         val eventHash: Int,
         val flags: Int,
         val peerId: String,
+        /**
+         * The event code, or null for a v1 advert, which did not carry one.
+         *
+         * Null is not the same as empty: it means "this advert cannot be joined
+         * by browsing", and a caller has to fall back to asking for the code
+         * rather than offering a join that cannot work.
+         */
+        val eventCode: String? = null,
     ) {
         fun has(flag: Int): Boolean = flags and flag != 0
 
@@ -130,22 +189,63 @@ object BleAdvertisementPayload {
         val usesWifi: Boolean get() = has(FLAG_USE_WIFI)
         val isFull: Boolean get() = has(FLAG_RING_FULL)
         val acceptsNewMembers: Boolean get() = has(FLAG_ACCEPTS_NEW_MEMBERS)
+
+        /** Whether this advert offers a session a guest can find and join. */
+        val isDiscoverable: Boolean get() = has(FLAG_DISCOVERABLE) && eventCode != null
+
+        /**
+         * The name to show for a discovered session.
+         *
+         * Derived rather than transmitted. [com.fkurevija.pingring.data.Event]
+         * already names every event "PingRing <code>", so sending the code is
+         * enough to render the name on the far side - which is what keeps the
+         * advert inside the legacy size limit, and keeps two copies of a name
+         * from being able to disagree.
+         */
+        val displayName: String? get() = eventCode?.let { "PingRing $it" }
     }
 
     /**
      * Packs the advertisement.
      *
-     * The peer id is truncated or space-padded to exactly 8 bytes rather than
-     * rejected, because the id is generated at a fixed length and a mismatch
-     * would mean the two ends disagree about the identity scheme itself - which
-     * is worth surfacing, not something a peer can fix by trying again.
+     * The peer id and event code are truncated or space-padded to exactly their
+     * field width rather than rejected, because both are generated at a fixed
+     * length and a mismatch would mean the two ends disagree about the identity
+     * scheme itself - which is worth surfacing, not something a peer can fix by
+     * trying again.
+     *
+     * A code longer than its field is truncated, which is a silent failure worth
+     * naming: a guest adopting a truncated code would fail to join with nothing
+     * to say why. [SessionManager] generates exactly [EVENT_CODE_BYTES]
+     * characters and a test asserts it, so this cannot happen quietly.
      */
-    fun encode(eventHash: Int, flags: Int, peerIdBytes: ByteArray): ByteArray =
-        ByteBuffer.allocate(TOTAL_BYTES)
-            .putInt(eventHash)
-            .put(flags.toByte())
-            .put(peerIdBytes.copyOf(PEER_ID_BYTES))
-            .array()
+    fun encode(
+        eventHash: Int,
+        flags: Int,
+        peerIdBytes: ByteArray,
+        eventCode: String? = null,
+    ): ByteArray = ByteBuffer.allocate(TOTAL_BYTES)
+        .put(VERSION.toByte())
+        .putInt(eventHash)
+        .put(flags.toByte())
+        .put(peerIdBytes.copyOf(PEER_ID_BYTES))
+        .put(eventCodeBytes(eventCode))
+        .array()
+
+    /**
+     * The event code as a fixed-width, NUL-padded field.
+     *
+     * Zero-filled first so a short code is padded, then the code is copied into
+     * the front and truncated at the field width: an over-long code would
+     * otherwise push every later field out of the payload.
+     */
+    private fun eventCodeBytes(eventCode: String?): ByteArray {
+        if (eventCode == null) return ByteArray(EVENT_CODE_BYTES)
+        val encoded = eventCode.toByteArray(StandardCharsets.UTF_8)
+        val field = ByteArray(EVENT_CODE_BYTES)
+        encoded.copyInto(field, endIndex = minOf(encoded.size, EVENT_CODE_BYTES))
+        return field
+    }
 
     /**
      * Unpacks an advertisement, or null if it is not one of ours.
@@ -156,23 +256,42 @@ object BleAdvertisementPayload {
      * neighbouring fields as a peer id and put a phantom member on the radar.
      */
     fun decode(serviceData: ByteArray): Decoded? {
-        if (serviceData.size < TOTAL_BYTES) return null
+        if (serviceData.size < V1_TOTAL_BYTES) return null
+
+        // A v1 advert carries no version byte, so it is recognised by being
+        // exactly the old size. Anything longer is v2 or later, and the leading
+        // byte decides whether this build understands it.
+        if (serviceData.size < TOTAL_BYTES) return decodeV1(serviceData)
+        if (serviceData[0].toInt() != VERSION) return null
+
+        val payload = ByteBuffer.wrap(serviceData)
+        payload.get() // the version byte, already checked above
+        val eventHash = payload.int
+        val flags = payload.get().toInt()
+        val peerId = readField(payload, PEER_ID_BYTES)
+        val eventCode = readField(payload, EVENT_CODE_BYTES).takeIf { it.isNotEmpty() }
+        return Decoded(eventHash, flags, peerId, eventCode)
+    }
+
+    private fun decodeV1(serviceData: ByteArray): Decoded {
         val payload = ByteBuffer.wrap(serviceData)
         val eventHash = payload.int
         val flags = payload.get().toInt()
-        // Exactly the field width, never `remaining()`: a newer build that adds
-        // a trailing field must not have those bytes folded into the peer id.
-        val peerIdBytes = ByteArray(PEER_ID_BYTES).also(payload::get)
-        // The field is fixed-width and NUL-padded, and `trim` does not consider
-        // NUL whitespace - so a peer id shorter than the field would otherwise
-        // come back with NUL characters attached and be used as a routing key
-        // that matches nothing. Spaces are stripped as well, because a peer id
-        // carrying them is equally unusable.
-        val peerId = String(peerIdBytes, StandardCharsets.UTF_8)
+        return Decoded(eventHash, flags, readField(payload, PEER_ID_BYTES))
+    }
+
+    /**
+     * Reads a fixed-width, NUL-padded field.
+     *
+     * Exactly the field width, never `remaining()`: a newer build that adds a
+     * trailing field must not have those bytes folded into this one. `trim` does
+     * not consider NUL whitespace, so they are stripped explicitly, and spaces
+     * with them - a field carrying either is equally unusable as a routing key.
+     */
+    private fun readField(payload: ByteBuffer, width: Int): String =
+        String(ByteArray(width).also(payload::get), StandardCharsets.UTF_8)
             .trimEnd(NUL, ' ')
             .trimStart(NUL)
-        return Decoded(eventHash, flags, peerId)
-    }
 }
 
 @SuppressLint("MissingPermission")
@@ -196,6 +315,7 @@ class DiscoveryRepository(
     private val useWifiFlag = BleAdvertisementPayload.FLAG_USE_WIFI
     private val pingRingFullFlag = BleAdvertisementPayload.FLAG_RING_FULL
     private val acceptsNewMembersFlag = BleAdvertisementPayload.FLAG_ACCEPTS_NEW_MEMBERS
+    private val discoverableFlag = BleAdvertisementPayload.FLAG_DISCOVERABLE
 
     private val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
     private val bluetoothAdapter = bluetoothManager?.adapter
@@ -852,7 +972,15 @@ class DiscoveryRepository(
             (if (currentEvent.useUwb) useUwbFlag else 0) or
             (if (currentEvent.useWifiDirect) useWifiFlag else 0) or
             (if (isFull) pingRingFullFlag else 0) or
-            (if (currentEvent.acceptsNewMembers) acceptsNewMembersFlag else 0)
+            (if (currentEvent.acceptsNewMembers) acceptsNewMembersFlag else 0) or
+            // Only a host offers a session to be found: a guest advertising
+            // itself discoverable would be offering to be joined into an event
+            // it does not own, and every guest scans every other guest.
+            (if (sessionManager.sessionState.value.isHost && currentEvent.isDiscoverable) {
+                discoverableFlag
+            } else {
+                0
+            })
         val servicePayload = buildServicePayload(currentEvent.id.hashCode(), flags, peerIdBytes)
 
         val settings = BleRangePolicy.advertiseSettings()
@@ -1004,8 +1132,21 @@ class DiscoveryRepository(
         }
     }
 
+    /**
+     * Builds the service payload for the current session.
+     *
+     * The event code is supplied here rather than by each caller so that no
+     * advert can go out without it: a v2 advert missing its code decodes as
+     * undiscoverable, which silently drops the session out of every guest's
+     * browse list rather than failing visibly.
+     */
     private fun buildServicePayload(eventHash: Int, flags: Int, peerIdBytes: ByteArray): ByteArray =
-        BleAdvertisementPayload.encode(eventHash, flags, peerIdBytes)
+        BleAdvertisementPayload.encode(
+            eventHash = eventHash,
+            flags = flags,
+            peerIdBytes = peerIdBytes,
+            eventCode = sessionManager.sessionState.value.currentEvent?.id
+        )
 
     private companion object {
         const val CLOSURE_ANNOUNCEMENT_DURATION_MILLIS = 5_000L

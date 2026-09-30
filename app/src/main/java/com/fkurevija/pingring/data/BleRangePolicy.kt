@@ -128,9 +128,25 @@ object BleRangePolicy {
      * Worth asserting rather than assuming: growing this payload past the
      * legacy limit makes the advert silently untransmittable, which presents
      * as a total range failure with no error anywhere.
+     *
+     * The two are one budget rather than two numbers that happen to agree -
+     * [BleAdvertisementPayload.TOTAL_BYTES] is the payload's own size and must
+     * equal this, or the advert is built at a size nothing is testing against
+     * the limit that would reject it.
      */
     const val MAX_LEGACY_SERVICE_DATA_BYTES = 31
-    const val SERVICE_DATA_BYTES = 13
+
+    const val SERVICE_DATA_BYTES = 20
+
+    /**
+     * How much room is left before the legacy ceiling, in bytes.
+     *
+     * Named so the next field to be added can say what it costs. BLE 5 extended
+     * advertising would allow far more, but requiring it would drop every
+     * device that only does legacy - so growth here is deliberately bounded and
+     * a *future* decision, not something to spend by default.
+     */
+    const val LEGACY_HEADROOM_BYTES = MAX_LEGACY_SERVICE_DATA_BYTES - SERVICE_DATA_BYTES
 
     fun fitsInLegacyAdvertising(): Boolean = SERVICE_DATA_BYTES <= MAX_LEGACY_SERVICE_DATA_BYTES
 
