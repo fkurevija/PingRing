@@ -55,10 +55,10 @@ class DeviceIntegrationInstrumentedTest {
 
     @Test
     fun theAdvertisementPayloadFitsWhatThePlatformAdvertises() {
-        // The reason the payload is 13 bytes: legacy advertising cannot carry
-        // more than 31 bytes of service data, and going over makes the advert
-        // silently untransmittable. Checked against the real constants here so
-        // the two cannot drift apart unnoticed.
+        // The reason the payload is bounded at all: legacy advertising cannot
+        // carry more than 31 bytes of service data, and going over makes the
+        // advert silently untransmittable. Checked against the real constants
+        // here so the two cannot drift apart unnoticed.
         assertEquals(
             "the payload and the documented service-data size must be one number",
             BleRangePolicy.SERVICE_DATA_BYTES,

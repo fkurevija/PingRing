@@ -54,8 +54,8 @@ data class ConnectivityStatus(
 )
 
 /**
- * The 13 bytes PingRing puts in the service-data field of its BLE advertisement,
- * and the flags packed into the first of them.
+ * The bytes PingRing puts in the service-data field of its BLE advertisement,
+ * and the flags packed into one of them.
  *
  * This is the one thing on the discovery path that has to agree between two
  * devices with no negotiation at all: a host advertises, a guest scans, and
@@ -78,19 +78,19 @@ data class ConnectivityStatus(
  * offset 14  6 bytes  the event code, UTF-8, NUL-padded
  * ```
  *
- * Version 1 had no version byte and was 13 bytes:
+ * This is the only layout. Version 1 - no version byte, 13 bytes, no event
+ * code - is gone rather than read: it never shipped outside test devices, so
+ * every peer that would have used it is unreachable in practice, and a
+ * compatibility path is a standing invitation to keep both layouts working
+ * forever. A [VERSION] of 1 arriving here is now ignored like any other
+ * version this build does not know, which is the same outcome a v2 build
+ * already gave a v1 one.
  *
- * ```
- * offset 0   4 bytes  event hash
- * offset 4   1 byte   flags
- * offset 5   8 bytes  the advertiser's peer id, UTF-8, NUL-padded
- * ```
- *
- * Both are read, so a v2 build can still see a v1 host. The version byte is
- * what makes that safe in the other direction: a v1 build reading a v2 advert
- * would otherwise decode the leading `0x02` as the top byte of the event hash
- * and invent an event that does not exist, whereas with it the advert is simply
- * ignored.
+ * The version byte is therefore not about the past. It is what makes the next
+ * layout change safe: a newer build's advert is skipped rather than decoded
+ * into a plausible-looking event that does not exist. Without it, adding a
+ * field would mean every older build read the new leading byte as part of the
+ * fields it already knows.
  *
  * The peer-id and event-code fields are padded rather than length-prefixed
  * because both are generated at a fixed length ([SessionManager] makes exactly
@@ -110,19 +110,14 @@ data class ConnectivityStatus(
 object BleAdvertisementPayload {
 
     /**
-     * Current wire format.
+     * Current wire format, and the only one.
      *
-     * Present from v2 onward, and the reason the two layouts can coexist: a
-     * build that only understands v1 sees an unknown leading byte rather than a
-     * plausible-looking misreading of the fields, and ignores the advert instead
-     * of showing a phantom member. Without it, v1 reading v2 would decode the
-     * version byte as the top byte of the event hash and invent a different
-     * event, which is worse than not seeing it at all.
+     * Read as "is this advert mine, and do I understand it" rather than as a
+     * record of what came before. Anything else is ignored, including the v1
+     * layout that [decode] used to understand: see the format notes above for
+     * why that path was dropped rather than kept.
      */
     const val VERSION = 2
-
-    /** The pre-versioning layout, still read so a v1 build can be understood. */
-    const val V1_TOTAL_BYTES = 13
 
     /** Must match [BleRangePolicy.SERVICE_DATA_BYTES]; the two are one budget. */
     const val TOTAL_BYTES = 20
@@ -210,7 +205,14 @@ object BleAdvertisementPayload {
         val flags: Int,
         val peerId: String,
         /**
-         * The event code, or null for a v1 advert, which did not carry one.
+         * The event code, or null when the field came back empty.
+         *
+         * Null no longer means "a v1 advert": every advert this build reads is
+         * v2 and carries the field. It means the bytes were there and held
+         * nothing, which is what [DiscoveryRepository.buildServicePayload]
+         * produces when there is no event to name - the field is zero-filled
+         * rather than omitted, so absence cannot be told from an all-NUL read
+         * except by being empty.
          *
          * Null is not the same as empty: it means "this advert cannot be joined
          * by browsing", and a caller has to fall back to asking for the code
@@ -293,18 +295,16 @@ object BleAdvertisementPayload {
     /**
      * Unpacks an advertisement, or null if it is not one of ours.
      *
-     * A short buffer is the signature of a *different* app's PingRing-shaped
-     * service UUID, or of a truncated read, and must be ignored rather than
-     * parsed: reading past the end would either throw or, worse, decode
-     * neighbouring fields as a peer id and put a phantom member on the radar.
+     * Two rejections, both returning null rather than a best guess. A short
+     * buffer is the signature of a *different* app's PingRing-shaped service
+     * UUID, or of a truncated read, and must be ignored rather than parsed:
+     * reading past the end would either throw or, worse, decode neighbouring
+     * fields as a peer id and put a phantom member on the radar. A buffer this
+     * build does not understand - a later version, or the dropped v1 - fails
+     * the version check for the same reason.
      */
     fun decode(serviceData: ByteArray): Decoded? {
-        if (serviceData.size < V1_TOTAL_BYTES) return null
-
-        // A v1 advert carries no version byte, so it is recognised by being
-        // exactly the old size. Anything longer is v2 or later, and the leading
-        // byte decides whether this build understands it.
-        if (serviceData.size < TOTAL_BYTES) return decodeV1(serviceData)
+        if (serviceData.size < TOTAL_BYTES) return null
         if (serviceData[0].toInt() != VERSION) return null
 
         val payload = ByteBuffer.wrap(serviceData)
@@ -314,13 +314,6 @@ object BleAdvertisementPayload {
         val peerId = readField(payload, PEER_ID_BYTES)
         val eventCode = readField(payload, EVENT_CODE_BYTES).takeIf { it.isNotEmpty() }
         return Decoded(eventHash, flags, peerId, eventCode)
-    }
-
-    private fun decodeV1(serviceData: ByteArray): Decoded {
-        val payload = ByteBuffer.wrap(serviceData)
-        val eventHash = payload.int
-        val flags = payload.get().toInt()
-        return Decoded(eventHash, flags, readField(payload, PEER_ID_BYTES))
     }
 
     /**
@@ -1246,7 +1239,7 @@ class DiscoveryRepository(
      * Builds the service payload for the current session.
      *
      * The event code is supplied here rather than by each caller so that no
-     * advert can go out without it: a v2 advert missing its code decodes as
+     * advert can go out without it: an advert missing its code decodes as
      * undiscoverable, which silently drops the session out of every guest's
      * browse list rather than failing visibly.
      */

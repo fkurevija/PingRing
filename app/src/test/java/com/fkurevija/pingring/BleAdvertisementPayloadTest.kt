@@ -82,21 +82,39 @@ class BleAdvertisementPayloadTest {
     }
 
     @Test
-    fun `a v1 advert is still understood but carries no code`() {
-        // A v2 build meeting a v1 host must still see it as a member, and must
-        // know the session is not one it can join by browsing.
-        val v1 = java.nio.ByteBuffer.allocate(BleAdvertisementPayload.V1_TOTAL_BYTES)
+    fun `a v1 advert is ignored rather than understood`() {
+        // The v1 layout - no version byte, 13 bytes - used to be decoded here so
+        // a v2 build could still see a v1 host. It never shipped outside test
+        // devices, so that path was code serving nobody and was removed. What
+        // matters now is that the old bytes are *rejected* rather than read: a
+        // 13-byte buffer is now simply too short, and the leading 4 bytes of an
+        // event hash must not be mistaken for a version byte.
+        val v1 = java.nio.ByteBuffer.allocate(13)
             .putInt("EVENT".hashCode())
             .put(BleAdvertisementPayload.FLAG_HOST.toByte())
             .put(peerIdBytes)
             .array()
 
-        val decoded = BleAdvertisementPayload.decode(v1)!!
+        assertNull(BleAdvertisementPayload.decode(v1))
+    }
 
-        assertEquals("EVENT".hashCode(), decoded.eventHash)
-        assertEquals(peerId, decoded.peerId)
-        assertTrue(decoded.isHost)
-        assertNull("a v1 advert has no code to browse by", decoded.eventCode)
+    @Test
+    fun `a v1 advert padded to the v2 size is ignored rather than misread`() {
+        // The case a size check alone would miss. v1 had no version byte, so a
+        // v1 advert zero-padded up to 20 bytes would pass a length test and
+        // fail only on the version byte - which is the whole reason the check
+        // reads the byte rather than trusting the length. Without it this would
+        // decode as a real member with a hash nobody is in.
+        val v1 = java.nio.ByteBuffer.allocate(BleAdvertisementPayload.TOTAL_BYTES)
+            .putInt("EVENT".hashCode())
+            .put(BleAdvertisementPayload.FLAG_HOST.toByte())
+            .put(peerIdBytes)
+            .array()
+
+        assertNull(
+            "a v1 advert must not decode just because it is long enough",
+            BleAdvertisementPayload.decode(v1)
+        )
     }
 
     @Test
@@ -112,7 +130,10 @@ class BleAdvertisementPayloadTest {
 
     @Test
     fun `a too-short buffer is ignored`() {
-        val short = ByteArray(BleAdvertisementPayload.V1_TOTAL_BYTES - 1)
+        // Anything under the full layout is unreadable, including a v2 payload
+        // cut short. The version byte cannot rescue a truncated read either: a
+        // cut may land before it.
+        val short = ByteArray(BleAdvertisementPayload.TOTAL_BYTES - 1)
 
         assertNull(BleAdvertisementPayload.decode(short))
     }
@@ -144,10 +165,10 @@ class BleAdvertisementPayloadTest {
     @Test
     fun `the payload still has room to grow within legacy advertising`() {
         // Adding a field costs bytes, and this is where the cost is recorded.
-        // v2 spent 7 of the 18 bytes v1 left spare (version byte + code); the
-        // rest is what a later field can have without dropping legacy-only
-        // devices. Exceeding it is a decision, not an accident - it means moving
-        // to BLE 5 extended advertising and giving up the devices that cannot.
+        // Version 2 spent 7 bytes over v1 (version byte + code); the rest is
+        // what a later field can have without dropping legacy-only devices.
+        // Exceeding it is a decision, not an accident - it means moving to
+        // BLE 5 extended advertising and giving up the devices that cannot.
         assertEquals(11, BleRangePolicy.LEGACY_HEADROOM_BYTES)
         assertTrue(BleRangePolicy.LEGACY_HEADROOM_BYTES > 0)
     }
@@ -318,14 +339,13 @@ class BleAdvertisementPayloadTest {
         // The dangerous case: decoding past the end would either throw or read
         // neighbouring bytes as a peer id and put a phantom member on the radar.
         //
-        // Only the sub-v1 sizes are rejected outright. A truncated *v2* buffer
-        // that is still at least v1's 13 bytes decodes as a v1 advert, which is
-        // deliberate: the layouts share a prefix only by accident, so a v2
-        // payload cut short would otherwise be silently misread. The version
-        // byte cannot be trusted either, because a cut may land before it.
+        // Every size below the full layout is rejected, which now includes a v2
+        // payload cut short. That buffer used to decode as a v1 advert, because
+        // the two layouts shared a prefix only by accident - the safety came
+        // from misreading being impossible rather than from a check.
         val full = encode()
 
-        for (size in 0 until BleAdvertisementPayload.V1_TOTAL_BYTES) {
+        for (size in 0 until BleAdvertisementPayload.TOTAL_BYTES) {
             assertNull(
                 "a $size-byte payload must not decode",
                 BleAdvertisementPayload.decode(full.copyOf(size))

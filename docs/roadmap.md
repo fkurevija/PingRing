@@ -15,7 +15,7 @@ Three kinds of item: things that are **built but unverified**, things that are *
 
 ## Known limitations
 
-- **The BLE payload is now 20 of the 31 legacy bytes.** A v1 build ignores a v2 advert instead of misreading it, so mixed-version rings half-work: a v1 guest joins by code and appears as a member, but cannot browse. The 11 spare bytes are named and asserted; going past them means BLE 5 extended advertising and losing devices that only do legacy.
+- **The BLE payload is 20 of the 31 legacy bytes.** The 11 spare bytes are named and asserted; going past them means BLE 5 extended advertising and losing devices that only do legacy.
 - **No mesh extension.** Adding members adds density, not reach. Every link is host<->guest under `P2P_STAR`, and a guest-to-guest link forms only *after* both already reach the host.
 - **The host's tracked-member choice is not broadcast.** A guest resolves the *rule* independently - it defaults to the host - but it cannot learn which member the host itself picked. Adding a field is a wire-format change rather than a UI one, and it would consume most of the payload's 11 spare bytes. It only matters with **Track Host** off, where a guest may pick freely anyway.
 - **Relayed UWB offers are not end-to-end.** The STS key travels via the host. Same trust model as relayed chat - a host already brokers everything - but guest-to-guest ranging is not private against the host.
@@ -34,7 +34,6 @@ Grouped by area. Nothing here is known to be broken: these are things not built,
 **Global**
 - **Define the brand colour and match it to the logo.** *(NEEDS CONFIRMATION)* A violet (`#5C2BD9`) is now the app's fixed primary in both light and dark, and the launcher icon has been brought into the same family — but the colour was chosen by eye from a swatch, not derived from a logo, because no logo exists yet. **Confirm** it is the colour the brand should have before anything is built on it: the tone, the exact hex, whether dark mode should lighten it as it currently does, and whether amber is right for tertiary. If a logo is designed later this should be revisited rather than assumed to match.
 - **Per-user chat bubble colour**: 4 presets plus a "custom" option opening a colour wheel. Today every bubble uses the global theme colour. Beacon entries keep their own styling and the radar stays global — neither is affected by the choice.
-- **Replace the v1 advertisement compatibility path with v2 only.** v1 has never shipped outside test devices, so reading it is code that exists to serve nobody. Drop it unless v1 and v2 are deliberately kept for different hardware ages or API levels — in which case say so, because the current shape implies a compatibility promise the project has not made.
 - **Accessibility audit.** Decorative icons correctly pass `contentDescription = null`, but nothing has checked the app against an accessibility standard, and the radar is drawn on a `Canvas` that no screen reader can describe at all.
 - **Multi-language support.** Every string is a hard-coded literal.
 - **Help and documentation.** An open question rather than a decision: an offline in-app knowledge base versus spreading help through the app. Needs Iloha's input before it is worth building. The [User Guide](user-guide.md) is the first step towards this and should be extended alongside each new feature.

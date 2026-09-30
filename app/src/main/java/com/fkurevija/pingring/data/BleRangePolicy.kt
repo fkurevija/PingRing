@@ -48,7 +48,7 @@ object BleRangePolicy {
     /**
      * True when extended (BLE 5.0) advertising is available, which is the
      * public-API route to a larger advertising payload and a longer interval
-     * budget. PingRing's payload is only 13 bytes, so the size win is not
+     * budget. PingRing's payload is 20 bytes, so the size win is not
      * needed, but extended advertising is a genuinely better discovery
      * mechanism than legacy and costs nothing to prefer.
      */
