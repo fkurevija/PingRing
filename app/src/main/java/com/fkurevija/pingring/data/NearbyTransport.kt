@@ -1,6 +1,7 @@
 package com.fkurevija.pingring.data
 
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
 
 /**
  * Abstraction over the peer-to-peer transport used to discover and exchange
@@ -33,7 +34,42 @@ interface NearbyTransport {
      * therefore be a debug-only path as well.
      */
     val receivedMockRanging: SharedFlow<MockRangingDto>
+
+    /** The host's standing answer to devices asking to join. */
     var acceptsNewMembers: Boolean
+
+    /**
+     * Whether a device asking to join is held for the host to approve rather
+     * than admitted on arrival.
+     *
+     * Off by default, so upgrading does not put a prompt in front of a host who
+     * never asked for one: a join that used to be automatic is a decision only
+     * the host can make, and taking it by default would silently stop people
+     * joining events they were previously able to.
+     */
+    var requiresApproval: Boolean
+
+    /**
+     * Devices asking to join, oldest first, for the host to act on.
+     *
+     * Only ever non-empty on a host, and only while it is holding a request
+     * open. The LAN debug transport never emits any: a debug relay has no
+     * admission handshake to interrupt, and inventing one would make the two
+     * transports behave differently for no reason.
+     */
+    val pendingJoinRequests: StateFlow<List<PendingJoinRequest>>
+
+    /** Lets a held request in. Ignored if the request is no longer pending. */
+    fun approveJoinRequest(endpointId: String)
+
+    /**
+     * Turns a held request away, telling the guest.
+     *
+     * Ignoring an unknown endpoint is deliberate: a request can expire or the
+     * guest can vanish between the host tapping Deny and this arriving, and that
+     * is a normal race rather than an error worth surfacing.
+     */
+    fun denyJoinRequest(endpointId: String)
 
     fun startAdvertising(eventId: String, localPeerId: String, useWifiDirect: Boolean, useHotspot: Boolean)
     fun startDiscovery(eventId: String, localPeerId: String)

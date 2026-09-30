@@ -27,6 +27,16 @@ data class Event(
      * shows up unasked is a session somebody can wander into.
      */
     val isDiscoverable: Boolean = false,
+    /**
+     * Whether a device asking to join is held for the host to approve rather
+     * than admitted on arrival.
+     *
+     * Off by default: taking a join away by default would silently stop people
+     * joining events they could previously join, and a host who wants to vet
+     * arrivals has to ask for it. Distinct from [acceptsNewMembers], which is
+     * the standing yes/no; this is about whether a human sees each request.
+     */
+    val requiresApproval: Boolean = false,
     val chatNotificationsEnabled: Boolean = true,
 ) {
     companion object {

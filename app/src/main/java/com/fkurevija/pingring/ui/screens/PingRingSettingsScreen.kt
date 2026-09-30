@@ -19,7 +19,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.GroupAdd
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Rule
 import androidx.compose.material.icons.filled.Sensors
+import androidx.compose.material.icons.filled.TravelExplore
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -61,6 +63,8 @@ fun PingRingSettingsScreen(
     onLeaveEvent: () -> Unit,
 ) {
     var acceptsNewMembers by remember(event) { mutableStateOf(event.acceptsNewMembers) }
+    var isDiscoverable by remember(event) { mutableStateOf(event.isDiscoverable) }
+    var requiresApproval by remember(event) { mutableStateOf(event.requiresApproval) }
     val uwbAvailability = rememberUwbAvailability(uwbHardwareSupported)
     var useUwb by remember(event, uwbAvailability.isUsable) { mutableStateOf(event.useUwb && uwbAvailability.isUsable) }
     var useWifiDirect by remember(event) { mutableStateOf(event.useWifiDirect) }
@@ -96,6 +100,8 @@ fun PingRingSettingsScreen(
                     onClick = {
                         onSave(event.copy(
                             acceptsNewMembers = acceptsNewMembers,
+                            isDiscoverable = isDiscoverable,
+                            requiresApproval = requiresApproval,
                             description = if (acceptsNewMembers) "PingRing Event" else "Closed",
                             useUwb = useUwb,
                             useWifiDirect = useWifiDirect,
@@ -143,6 +149,44 @@ fun PingRingSettingsScreen(
                             Text("Allow nearby users to discover and join", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Switch(checked = acceptsNewMembers, onCheckedChange = { acceptsNewMembers = it })
+                    }
+
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.TravelExplore, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("Discoverable", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "List this PingRing for nearby phones to find. Anyone can still join with the code.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(checked = isDiscoverable, onCheckedChange = { isDiscoverable = it })
+                    }
+
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Rule, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("Approve Each Join", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "Hold new members until you allow them. Anyone can still join with the code.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(checked = requiresApproval, onCheckedChange = { requiresApproval = it })
                     }
 
                     HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))

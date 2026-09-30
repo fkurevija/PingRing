@@ -9,6 +9,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import com.fkurevija.pingring.data.BeaconVibrationPattern
+import com.fkurevija.pingring.data.PendingJoinRequest
 import com.fkurevija.pingring.data.QuickBeacon
 import com.fkurevija.pingring.data.SessionState
 import com.fkurevija.pingring.ui.screens.RadarScreen
@@ -52,6 +53,9 @@ class RadarScreenInstrumentedTest {
         sessionState: SessionState = SessionState(),
         quickBeacon: QuickBeacon? = null,
         onQuickBeaconChange: (QuickBeacon?) -> Unit = {},
+        pendingJoinRequests: List<PendingJoinRequest> = emptyList(),
+        onApproveJoinRequest: (String) -> Unit = {},
+        onDenyJoinRequest: (String) -> Unit = {},
         onEventSettings: () -> Unit = {},
         onLeaveEvent: () -> Unit = {},
         onEndEvent: () -> Unit = {},
@@ -66,11 +70,103 @@ class RadarScreenInstrumentedTest {
                 sessionState = sessionState,
                 quickBeacon = quickBeacon,
                 onQuickBeaconChange = onQuickBeaconChange,
+                pendingJoinRequests = pendingJoinRequests,
+                onApproveJoinRequest = onApproveJoinRequest,
+                onDenyJoinRequest = onDenyJoinRequest,
                 onEventSettings = onEventSettings,
                 onLeaveEvent = onLeaveEvent,
                 onEndEvent = onEndEvent,
             )
         }
+    }
+
+    @Test
+    fun aHostSeesWhoIsWaitingToJoin() {
+        showRadar(
+            isHost = true,
+            pendingJoinRequests = listOf(
+                PendingJoinRequest("endpoint-1", "Ana", requestedAtMillis = 1L)
+            )
+        )
+
+        // A request the host cannot see is a guest left waiting on a connection
+        // that was never going to be answered.
+        composeRule.onNodeWithText("1 device wants to join").assertIsDisplayed()
+        composeRule.onNodeWithText("Ana").assertIsDisplayed()
+    }
+
+    @Test
+    fun severalWaitingDevicesAreAllOfferedAtOnce() {
+        // A host working through a queue needs to see the whole queue, not one
+        // request at a time with the rest hidden.
+        showRadar(
+            isHost = true,
+            pendingJoinRequests = listOf(
+                PendingJoinRequest("endpoint-1", "Ana", requestedAtMillis = 1L),
+                PendingJoinRequest("endpoint-2", "Bo", requestedAtMillis = 2L)
+            )
+        )
+
+        composeRule.onNodeWithText("2 devices want to join").assertIsDisplayed()
+        composeRule.onNodeWithText("Ana").assertIsDisplayed()
+        composeRule.onNodeWithText("Bo").assertIsDisplayed()
+    }
+
+    @Test
+    fun allowingAWaitingDeviceReportsIt() {
+        var approved: String? = null
+        showRadar(
+            isHost = true,
+            pendingJoinRequests = listOf(
+                PendingJoinRequest("endpoint-1", "Ana", requestedAtMillis = 1L)
+            ),
+            onApproveJoinRequest = { approved = it }
+        )
+
+        composeRule.onNodeWithText("Allow").performClick()
+        composeRule.settle()
+
+        assertEquals("endpoint-1", approved)
+    }
+
+    @Test
+    fun turningAwayAWaitingDeviceReportsIt() {
+        var denied: String? = null
+        showRadar(
+            isHost = true,
+            pendingJoinRequests = listOf(
+                PendingJoinRequest("endpoint-1", "Ana", requestedAtMillis = 1L)
+            ),
+            onDenyJoinRequest = { denied = it }
+        )
+
+        composeRule.onNodeWithText("Deny").performClick()
+        composeRule.settle()
+
+        assertEquals("endpoint-1", denied)
+    }
+
+    @Test
+    fun aGuestIsNeverShownAJoinApproval() {
+        // Only the host is ever asked to approve. A guest seeing this would be
+        // being asked to make a decision about a ring it does not own.
+        showRadar(
+            isHost = false,
+            pendingJoinRequests = listOf(
+                PendingJoinRequest("endpoint-1", "Ana", requestedAtMillis = 1L)
+            )
+        )
+
+        composeRule.onNodeWithText("1 device wants to join").assertDoesNotExist()
+        composeRule.onNodeWithText("Allow").assertDoesNotExist()
+    }
+
+    @Test
+    fun nothingIsShownWhenNobodyIsWaiting() {
+        showRadar(isHost = true)
+
+        composeRule.onNodeWithText("Allow").assertDoesNotExist()
+        composeRule.onNodeWithText("Deny").assertDoesNotExist()
     }
 
     @Test

@@ -61,8 +61,19 @@ import com.fkurevija.pingring.ui.screens.HomeScreen
 import com.fkurevija.pingring.ui.screens.HostSetupScreen
 import com.fkurevija.pingring.ui.screens.RadarScreen
 import com.fkurevija.pingring.ui.theme.PingRingTheme
+import com.fkurevija.pingring.data.JOIN_REQUEST_TIMEOUT_MILLIS
 import com.fkurevija.pingring.data.PingRingRuntime
 import java.util.UUID
+
+/**
+ * How long a guest waits for a join to complete before giving up.
+ *
+ * A host can be holding the request open for approval, so this has to outlast
+ * [JOIN_REQUEST_TIMEOUT_MILLIS] rather than race it: the host giving up first
+ * and the guest then timing out on a request that was already refused would
+ * report a decision as a failure.
+ */
+private const val JOIN_WAIT_TIMEOUT_MILLIS = JOIN_REQUEST_TIMEOUT_MILLIS + 15_000L
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -162,6 +173,11 @@ fun MainNavigation(
     val currentThemeMode by rememberUpdatedState(themeMode)
     val savedUsername by appearanceSettings.userName.collectAsState(initial = "")
     val quickBeacon by appearanceSettings.quickBeacon.collectAsState(initial = null)
+    // Devices waiting on the host to approve. Collected here rather than inside
+    // the screen because the screen has to compose with no repository at all,
+    // which is the only way its layout is testable.
+    val pendingJoinRequests by discoveryRepository.pendingJoinRequests
+        .collectAsState(initial = emptyList())
 
     // Chat notifications are suppressed only while the radar/chat window is
     // the destination actually on top. Being inside the app is not enough:
@@ -266,11 +282,25 @@ fun MainNavigation(
                     val context = LocalContext.current
                     var isConnecting by remember { mutableStateOf(false) }
                     val coroutineScope = rememberCoroutineScope()
+                    val discoveredSessions by discoveryRepository.discoveredSessions
+                        .collectAsState(initial = emptyList())
+                    // Started when the screen appears rather than on every
+                    // recomposition, and cancelled when it leaves, so a scan
+                    // cannot outlive the screen that asked for it.
+                    LaunchedEffect(Unit) { discoveryRepository.startSessionBrowsing() }
+                    DisposableEffect(Unit) {
+                        onDispose { discoveryRepository.stopSessionBrowsing() }
+                    }
 
                     PingRingJoinScreen(
                         savedUsername = savedUsername,
                         existingMembers = sessionState.friends.map { it.name },
                         isConnecting = isConnecting,
+                        // Browsing is this screen's own scanning, started and
+                        // stopped with it: a scan running behind the join screen
+                        // would keep the BLE radio busy for a user who never
+                        // opened it.
+                        discoveredSessions = discoveredSessions,
                         // Back from here (arrow or system) always lands on Home,
                         // whatever is underneath on the stack.
                         onBack = { if (!isConnecting) backStack.resetTo(HomeKey) },
@@ -282,8 +312,15 @@ fun MainNavigation(
                                 val event = Event.create(id = eventCode)
                                 if (sessionManager.joinEvent(event)) {
                                     coroutineScope.launch {
+                                        // Long enough to outlast a host who is
+                                        // being asked to approve, and no longer.
+                                        // The old 2.5s was sized for a handshake
+                                        // that is automatic; under "Approve Each
+                                        // Join" a human is in the loop and a
+                                        // timeout here reported a perfectly good
+                                        // host as "not found".
                                         val connected = runCatching {
-                                            withTimeout(2500L) {
+                                            withTimeout(JOIN_WAIT_TIMEOUT_MILLIS) {
                                                 sessionManager.sessionState
                                                     .map { it.friends }
                                                     .first { it.isNotEmpty() }
@@ -298,7 +335,7 @@ fun MainNavigation(
                                             sessionManager.leaveEvent()
                                             Toast.makeText(
                                                 context,
-                                                "Failed to join PingRing: Host not found or event unavailable.",
+                                                "Failed to join PingRing: the host did not accept, or is unavailable.",
                                                 Toast.LENGTH_LONG
                                             ).show()
                                             isConnecting = false
@@ -371,6 +408,9 @@ fun MainNavigation(
                         sessionState = sessionState,
                         quickBeacon = quickBeacon,
                         onQuickBeaconChange = appearanceSettings::setQuickBeacon,
+                        pendingJoinRequests = pendingJoinRequests,
+                        onApproveJoinRequest = { discoveryRepository.approveJoinRequest(it) },
+                        onDenyJoinRequest = { discoveryRepository.denyJoinRequest(it) },
                         onEventSettings = { backStack.add(PingRingSettingsKey(key.eventId)) },
                         onLeaveEvent = {
                             discoveryRepository.stopDiscovery()

@@ -4,7 +4,11 @@ import android.content.Context
 import android.util.Log
 import com.google.android.gms.nearby.Nearby
 import com.google.android.gms.nearby.connection.*
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 
 /**
  * Whether a connection this device has just been notified about has to be
@@ -23,6 +27,92 @@ internal fun shouldRefuseConnection(
     acceptsNewMembers: Boolean,
     connectedPeerCount: Int
 ): Boolean = isIncoming && (!acceptsNewMembers || connectedPeerCount + 1 >= MAX_PARTICIPANTS)
+
+/**
+ * A device asking to join, waiting on the host's decision.
+ *
+ * The endpoint id is Nearby's opaque handle for the requester, not a peer id -
+ * the two are learned at different moments, and the peer id is not known until
+ * the request is accepted and the connection carries payloads.
+ */
+data class PendingJoinRequest(
+    val endpointId: String,
+    val deviceName: String,
+    val requestedAtMillis: Long,
+)
+
+/**
+ * How long a join request may sit unanswered before the host gives up on it.
+ *
+ * A request is a live Nearby connection held open, and a human answer is
+ * unbounded: a host who walks away mid-decision would otherwise leave a request
+ * pinned forever and the guest waiting on it with no outcome either way. The
+ * guest is told the request was dropped, so both sides end up in a known state
+ * rather than a connection that never resolves.
+ *
+ * Long enough to be usable - a host who is busy can come back to it - and
+ * short enough that nobody waits on a decision that will not come.
+ */
+const val JOIN_REQUEST_TIMEOUT_MILLIS = 120_000L
+
+/**
+ * What should happen to a connection request that has just arrived.
+ *
+ * Split out from the transport so the rules are testable without a radio, in
+ * the same way [shouldRefuseConnection] is.
+ */
+sealed interface JoinRequestDecision {
+    /** Turn it away now, and do not hold the request open. */
+    data object Refuse : JoinRequestDecision
+
+    /** Let it in without asking. */
+    data object Admit : JoinRequestDecision
+
+    /** Hold it open and put it in front of the host. */
+    data object AwaitApproval : JoinRequestDecision
+}
+
+/**
+ * Whether a request is refused outright, admitted outright, or held for the
+ * host to decide.
+ *
+ * The order matters and is the whole point. Capacity and the closed switch are
+ * the host's standing answer - a request that cannot be admitted is not worth
+ * asking about - so they are checked first and refused without troubling
+ * anyone. Only a request the host *could* admit becomes a question for a human.
+ *
+ * A guest is never asked anything: this is about devices asking to join, and
+ * the host's half of a handshake a guest started must go through untouched, for
+ * the reason given on [shouldRefuseConnection].
+ */
+fun decideJoinRequest(
+    isIncoming: Boolean,
+    requiresApproval: Boolean,
+    acceptsNewMembers: Boolean,
+    connectedPeerCount: Int,
+): JoinRequestDecision = when {
+    !isIncoming -> JoinRequestDecision.Admit
+    !acceptsNewMembers -> JoinRequestDecision.Refuse
+    // +1 for the device asking, and for the host itself.
+    connectedPeerCount + 1 >= MAX_PARTICIPANTS -> JoinRequestDecision.Refuse
+    requiresApproval -> JoinRequestDecision.AwaitApproval
+    else -> JoinRequestDecision.Admit
+}
+
+/**
+ * Drops a request that has waited too long.
+ *
+ * Returns the request to remove and the endpoints to refuse, which are the same
+ * thing here but are named apart because they are not the same at the call site:
+ * removal takes it off the host's list, refusal is what actually tells the
+ * guest.
+ */
+fun expiredJoinRequest(
+    request: PendingJoinRequest,
+    nowMillis: Long,
+): PendingJoinRequest? =
+    if (nowMillis - request.requestedAtMillis > JOIN_REQUEST_TIMEOUT_MILLIS) request else null
+
 
 class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
     private val TAG = "NearbyConnections"
@@ -86,6 +176,42 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
     private var localPeerId: String = ""
     override var acceptsNewMembers: Boolean = true
 
+    override var requiresApproval: Boolean = false
+
+    private val _pendingJoinRequests = MutableStateFlow<List<PendingJoinRequest>>(emptyList())
+    override val pendingJoinRequests: StateFlow<List<PendingJoinRequest>> = _pendingJoinRequests.asStateFlow()
+
+    override fun approveJoinRequest(endpointId: String) {
+        val request = _pendingJoinRequests.value.firstOrNull { it.endpointId == endpointId }
+        if (request == null) {
+            Log.w(TAG, "Ignoring approval of $endpointId: no such pending request")
+            return
+        }
+        _pendingJoinRequests.update { current -> current.filterNot { it.endpointId == endpointId } }
+        // The accept is what opens the payload channel, so this is the moment
+        // the guest actually becomes a member. Idempotent, so an approval that
+        // races an automatic accept is harmless.
+        acceptWithPayloadCallback(endpointId, "approved by host")
+        Log.i(TAG, "Approved join request from ${request.deviceName} ($endpointId)")
+    }
+
+    override fun denyJoinRequest(endpointId: String) {
+        val request = _pendingJoinRequests.value.firstOrNull { it.endpointId == endpointId }
+        if (request == null) {
+            // A normal race: the request may have expired, or the guest may have
+            // gone, between the host tapping Deny and this arriving.
+            Log.w(TAG, "Ignoring denial of $endpointId: no such pending request")
+            return
+        }
+        _pendingJoinRequests.update { current -> current.filterNot { it.endpointId == endpointId } }
+        // Rejecting is what tells the guest the answer. Accepted state is cleared
+        // too, so a guest that somehow still holds a channel cannot use it after
+        // being turned away.
+        acceptedEndpoints.remove(endpointId)
+        connectionsClient.rejectConnection(endpointId)
+        Log.i(TAG, "Denied join request from ${request.deviceName} ($endpointId)")
+    }
+
     private fun getServiceId(eventId: String): String = "com.fkurevija.pingring.$eventId"
 
     override fun startAdvertising(eventId: String, localPeerId: String, useWifiDirect: Boolean, useHotspot: Boolean) {
@@ -135,6 +261,9 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
         endpointToPeerId.clear()
         acceptedEndpoints.clear()
         requestedEndpoints.clear()
+        // Held requests die with the endpoints holding them; leaving them would
+        // greet the next event with approvals the host never gave.
+        _pendingJoinRequests.value = emptyList()
     }
 
     /**
@@ -299,25 +428,65 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
             // connection that never establishes, and receive nothing at all -
             // which looks exactly like broken chat. See [shouldRefuseConnection].
             val connectedPeerCount = connectedEndpoints.values.toSet().size
-            if (shouldRefuseConnection(isIncoming, acceptsNewMembers, connectedPeerCount)) {
-                Log.w(
-                    TAG,
-                    if (!acceptsNewMembers) {
-                        "Host is currently not accepting new members. Rejecting connection from $endpointId"
-                    } else {
-                        "PingRing is full ($connectedPeerCount connected peers + host >= $MAX_PARTICIPANTS). " +
-                            "Rejecting endpoint $endpointId"
-                    }
+            when (
+                decideJoinRequest(
+                    isIncoming = isIncoming,
+                    requiresApproval = requiresApproval,
+                    acceptsNewMembers = acceptsNewMembers,
+                    connectedPeerCount = connectedPeerCount
                 )
-                connectionsClient.rejectConnection(endpointId)
-                return
+            ) {
+                JoinRequestDecision.Refuse -> {
+                    Log.w(
+                        TAG,
+                        if (!acceptsNewMembers) {
+                            "Host is currently not accepting new members. Rejecting connection from $endpointId"
+                        } else {
+                            "PingRing is full ($connectedPeerCount connected peers + host >= $MAX_PARTICIPANTS). " +
+                                "Rejecting endpoint $endpointId"
+                        }
+                    )
+                    connectionsClient.rejectConnection(endpointId)
+                    return
+                }
+
+                JoinRequestDecision.Admit -> {
+                    endpointToPeerId[endpointId] = info.endpointName
+                    acceptWithPayloadCallback(
+                        endpointId,
+                        if (isIncoming) "connection initiated by peer" else "answering our own request"
+                    )
+                }
+
+                // Held rather than accepted. Deliberately *not* registering the
+                // payload callback yet: accepting is what grants the payload
+                // channel, and a guest the host may yet refuse must not have it.
+                JoinRequestDecision.AwaitApproval -> {
+                    endpointToPeerId[endpointId] = info.endpointName
+                    val request = PendingJoinRequest(
+                        endpointId = endpointId,
+                        deviceName = info.endpointName.ifBlank { "Unknown device" },
+                        requestedAtMillis = System.currentTimeMillis()
+                    )
+                    _pendingJoinRequests.update { current ->
+                        (current.filterNot { it.endpointId == endpointId } + request)
+                            .sortedBy { it.requestedAtMillis }
+                    }
+                    Log.i(TAG, "Holding join request from ${request.deviceName} ($endpointId) for approval")
+                }
             }
-            endpointToPeerId[endpointId] = info.endpointName
-            acceptWithPayloadCallback(endpointId, if (isIncoming) "connection initiated by peer" else "answering our own request")
         }
 
         override fun onConnectionResult(endpointId: String, result: ConnectionResolution) {
             if (result.status.isSuccess) {
+                // Held back pending approval. Accepting now would hand the guest
+                // its payload channel before the host has said yes, and the
+                // onDisconnected below is what tears the request down if the
+                // host says no.
+                if (endpointId in _pendingJoinRequests.value.map { it.endpointId }) {
+                    Log.i(TAG, "Connection to $endpointId established; still awaiting host approval")
+                    return
+                }
                 // Both sides have to accept for payloads to flow, and on the
                 // side that requested the connection this is the only place
                 // left to do it. Idempotent, so a host that already accepted in
@@ -338,6 +507,10 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
         }
 
         override fun onDisconnected(endpointId: String) {
+            // A request that ends without an answer is a guest that gave up or
+            // walked out of range, not a decision, so it leaves the host's list
+            // silently rather than being reported as denied.
+            _pendingJoinRequests.update { current -> current.filterNot { it.endpointId == endpointId } }
             val peerId = endpointToPeerId.remove(endpointId)
             if (peerId != null) {
                 connectedEndpoints.remove(peerId)

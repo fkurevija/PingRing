@@ -5,7 +5,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -70,6 +72,30 @@ class LanDebugConnectionsManager(
 
 
     override var acceptsNewMembers: Boolean = true
+
+    /**
+     * The relay admits a member the moment it connects, so there is no
+     * handshake to interrupt and nothing for a host to approve.
+     *
+     * Deliberately inert rather than emulated: the debug transport exists to
+     * exercise chat, ranging and discovery between an emulator and a device,
+     * and a fake approval prompt in front of it would stop the two transports
+     * behaving alike for no gain. The approval rules themselves are unit tested
+     * against [decideJoinRequest] rather than through this path.
+     */
+    override var requiresApproval: Boolean = false
+
+    /** Always empty here, for the reason given on [requiresApproval]. */
+    override val pendingJoinRequests: StateFlow<List<PendingJoinRequest>> =
+        MutableStateFlow(emptyList())
+
+    override fun approveJoinRequest(endpointId: String) {
+        Log.w(TAG, "Ignoring approval of $endpointId: the debug transport has no join requests")
+    }
+
+    override fun denyJoinRequest(endpointId: String) {
+        Log.w(TAG, "Ignoring denial of $endpointId: the debug transport has no join requests")
+    }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var connectionJob: Job? = null

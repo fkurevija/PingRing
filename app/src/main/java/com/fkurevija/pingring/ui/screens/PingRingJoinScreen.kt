@@ -19,6 +19,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -33,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.fkurevija.pingring.data.DiscoveredSession
 import com.fkurevija.pingring.data.MAX_PARTICIPANTS
 import com.fkurevija.pingring.ui.theme.PingRingTheme
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
@@ -49,6 +51,7 @@ fun PingRingJoinScreen(
     savedUsername: String = "",
     existingMembers: List<String> = emptyList(),
     isConnecting: Boolean = false,
+    discoveredSessions: List<DiscoveredSession> = emptyList(),
     onBack: () -> Unit,
     onJoinEvent: (eventCode: String, username: String) -> Unit
 ) {
@@ -243,6 +246,53 @@ fun PingRingJoinScreen(
                     }
 
                     Spacer(Modifier.height(20.dp))
+
+                    // Sessions nearby that are offering themselves. Tapping one
+                    // takes the same path as typing its code rather than
+                    // filling the field: the user has asked to join, and making
+                    // them confirm what they tapped adds a step to no end.
+                    if (discoveredSessions.isNotEmpty()) {
+                        Text(
+                            "Nearby PingRings",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        discoveredSessions.forEach { session ->
+                            val canJoin = session.joinable && !isConnecting
+                            OutlinedButton(
+                                onClick = { attemptJoin(session.eventCode) },
+                                enabled = canJoin,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        session.name,
+                                        fontWeight = FontWeight.SemiBold,
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                    Text(
+                                        if (session.joinable) {
+                                            "Tap to join"
+                                        } else {
+                                            "Full or not accepting members"
+                                        },
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Icon(
+                                    Icons.Default.ChevronRight,
+                                    contentDescription = "Join ${session.name}"
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(20.dp))
+                    }
                     val context = LocalContext.current
                     val hasCamera = remember(context) {
                         context.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY)

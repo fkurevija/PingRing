@@ -56,7 +56,7 @@ graph TD
 
 ### 📡 Mesh & Connectivity
 - **One-tap hosting**, no server registration. UWB and high-bandwidth Wi-Fi Direct toggleable on the fly.
-- **Admission control**: the Host can stop accepting members at creation or mid-event; connection attempts are then rejected, BLE status flags update, and the Radar's QR button hides until re-enabled.
+- **Admission control**: the Host can stop accepting members at creation or mid-event; connection attempts are then rejected, BLE status flags update, and the Radar's QR button hides until re-enabled. Two more switches: **Discoverable** lists the session on nearby phones' join screens, and **Approve Each Join** holds each new member on the radar until the host allows or denies them. Both are off by default and neither affects joining by code.
 - **Bounded capacity**: max **8 participants** (1 Host + 7 Guests), enforced by the Host (`8/8 - Full`). Prevents radio/socket starvation, guaranteeing 30 FPS UWB ranging and instant messaging.
 - **Automatic fallback** from sub-metre UWB to BLE RSSI proximity when UWB is unsupported or unavailable. The RSSI path is smoothed over a rolling **2-second window** — the mean is taken in dBm and the distance curve applied once to the result, so one reflected or dropped advert cannot move the readout. A time window rather than a per-sample average, because the advertising rate varies by peer and the app only ever sees the reports that arrive.
 
@@ -195,6 +195,9 @@ Two kinds of item: things that are **built but unverified**, and things **not bu
 
 ### Known limitations
 
+- **Discovery and join approval are unverified on real devices.** Both are built and unit tested, and the approval rules are tested as a pure function, but the part that cannot be tested that way is the one that matters: holding a live Nearby Connections request open across a human decision, and whether it survives a host who takes a minute to answer. The 2-minute request window and the guest's wait are reasoned about rather than measured. Everything here needs two real phones before it is trusted.
+- **The BLE payload is now 20 of the 31 legacy bytes.** A v1 build ignores a v2 advert instead of misreading it, so mixed-version rings half-work: a v1 guest joins by code and appears as a member, but cannot browse. The 11 spare bytes are named and asserted; going past them means BLE 5 extended advertising and losing devices that only do legacy.
+
 - **The range ceiling is the BLE scan radius.** Coded PHY is the only BLE setting that genuinely multiplies range, and the public SDK does not expose it — `ScanSettings` has only `PHY_LE_ALL_SUPPORTED` and `AdvertiseSettings.Builder` has no `setPreferredPhy` (verified against the API 37 `android.jar`). Getting it needs hidden APIs, a deliberate non-goal here. The commonly quoted "~4×" is a free-space figure: 4× range is 12 dB of extra link budget, and at the `PATH_LOSS_EXPONENT = 2.2` used here the same 12 dB is 3.5×. Silicon Labs quotes 4–6 dB of real-world sensitivity gain instead, which is 1.5–1.8× at that exponent. Either way it would not help PingRing: the gain applies to established connections via `HCI_LE_SetPhy`, and PingRing advertises non-connectable and never forms a link. UWB does not widen this: it never transports data, so a peer past the BLE radius is invisible to it too.
 - **No mesh extension.** Adding members adds density, not reach. Every link is host↔guest under `P2P_STAR`, and a guest-to-guest link forms only *after* both already reach the host.
 - **The host's tracked-member choice is not broadcast.** A guest resolves the *rule* independently — it defaults to the host — but it cannot learn which member the host itself picked. The advertisement is the only thing a device broadcasts before it has a transport, and all 13 bytes of it are accounted for: 4 for the event hash, 1 for flags, 8 for the peer id. Adding a field is a wire-format change, not a UI one. It only matters with **Track Host** off, where a guest may pick freely anyway.
@@ -224,7 +227,7 @@ Grouped by area. ✅ = already shipped, kept for reference.
 **Connectivity**
 - **Wire up the Wi-Fi Direct / hotspot settings** — see Known limitations.
 - **Choose the connection method by capability.** UWB defaults from `isUwbSupported()` and Wi-Fi Direct is hard-coded `true`; nothing considers API level or what members support. No dropdown or checkbox list exists, only two switches.
-- **Optionally make sessions discoverable** to nearby devices behind a setting, with the host approving individual joins rather than the current all-or-nothing switch.
+- ~~**Optionally make sessions discoverable** to nearby devices behind a setting, with the host approving individual joins rather than the current all-or-nothing switch.~~ Resolved: a **Discoverable** switch advertises the session, and the join screen lists whatever is nearby; an **Approve Each Join** switch holds new members for the host to allow or turn away. Both default to off, and neither changes code joining — a session that is not discoverable is still perfectly joinable by code. Advertising the event code is what made this possible at all, so the BLE payload is now versioned (v2, 20 bytes) and carries the code; a build that predates it ignores the advert rather than misreading it. See *Known limitations* for what is still unverified.
 
 **Radar**
 - ~~**Hide End / Leave PingRing while the keyboard is open.**~~ Resolved: the button moved to the **PingRing Settings** screen, and the radar keeps the navigation bar back arrow as the exit route.

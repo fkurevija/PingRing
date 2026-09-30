@@ -96,6 +96,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.FilterChip
 import androidx.compose.ui.platform.LocalContext
@@ -122,6 +123,7 @@ import com.fkurevija.pingring.data.DEFAULT_BEACON_TITLE
 import com.fkurevija.pingring.data.DiscoveryRepository
 import com.fkurevija.pingring.data.FocusPolicy
 import com.fkurevija.pingring.data.MAX_PARTICIPANTS
+import com.fkurevija.pingring.data.PendingJoinRequest
 import com.fkurevija.pingring.data.QuickBeacon
 import com.fkurevija.pingring.data.RadarDirectionPolicy
 import com.fkurevija.pingring.data.RadarPeerUpdate
@@ -166,6 +168,17 @@ fun RadarScreen(
     sessionState: SessionState,
     quickBeacon: QuickBeacon?,
     onQuickBeaconChange: (QuickBeacon?) -> Unit,
+    /**
+     * Devices waiting on the host to approve, and the host's answers to them.
+     *
+     * Parameters rather than read from the repository, like every other piece of
+     * state on this screen: the radar has to compose with no radio at all, which
+     * is the only way any of it is testable. Defaults keep the existing call
+     * sites and the tests below honest about a ring with nothing waiting.
+     */
+    pendingJoinRequests: List<PendingJoinRequest> = emptyList(),
+    onApproveJoinRequest: (String) -> Unit = {},
+    onDenyJoinRequest: (String) -> Unit = {},
     onEventSettings: () -> Unit,
     onLeaveEvent: () -> Unit,
     onEndEvent: () -> Unit,
@@ -219,6 +232,11 @@ fun RadarScreen(
     // transcript instead of disappearing. See ChatTimelinePolicy.
     val endedBeacons by discoveryRepository?.endedBeacons?.collectAsState()
         ?: remember { mutableStateOf(emptyList()) }
+    // Devices waiting on the host to say yes. Only ever non-empty on a host, and
+    // only while one is being held open - see NearbyTransport.pendingJoinRequests.
+    // Taken as a parameter rather than read from the repository, so the radar can
+    // be composed - and tested - with no radio at all.
+    val requestsToShow = pendingJoinRequests
     val localBeacon by discoveryRepository?.localBeacon?.collectAsState()
         ?: remember { mutableStateOf(null) }
     val haptic = LocalHapticFeedback.current
@@ -316,6 +334,59 @@ fun RadarScreen(
                         color = MaterialTheme.colorScheme.onErrorContainer,
                         modifier = Modifier.padding(12.dp)
                     )
+                }
+            }
+
+            // Devices waiting to be let in. Above the beacon banner: a request is
+            // a question being asked of the host right now, and a live beacon is
+            // a statement already made. Approving is the accept that opens the
+            // guest's payload channel, so it happens here and nowhere else.
+            if (isHost && requestsToShow.isNotEmpty()) {
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                    ),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
+                        Text(
+                            if (requestsToShow.size == 1) {
+                                "1 device wants to join"
+                            } else {
+                                "${requestsToShow.size} devices want to join"
+                            },
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        requestsToShow.forEach { request ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Default.PersonAdd,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    request.deviceName,
+                                    modifier = Modifier.weight(1f),
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                TextButton(onClick = { onDenyJoinRequest(request.endpointId) }) {
+                                    Text("Deny")
+                                }
+                                Spacer(Modifier.width(4.dp))
+                                Button(onClick = { onApproveJoinRequest(request.endpointId) }) {
+                                    Text("Allow")
+                                }
+                            }
+                        }
+                    }
                 }
             }
 

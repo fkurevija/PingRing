@@ -294,6 +294,20 @@ object BleAdvertisementPayload {
             .trimStart(NUL)
 }
 
+/**
+ * A session a nearby host is offering for joining.
+ *
+ * Keyed by the event code so the same host seen twice is one row rather than
+ * two, and so a re-advertisement refreshes what is known about it instead of
+ * appending.
+ */
+data class DiscoveredSession(
+    val eventCode: String,
+    val name: String,
+    /** False when the host is at capacity or has stopped admitting members. */
+    val joinable: Boolean,
+)
+
 @SuppressLint("MissingPermission")
 class DiscoveryRepository(
     private val context: Context,
@@ -390,6 +404,36 @@ class DiscoveryRepository(
     // Local Beacon state (null if not active)
     private val _localBeacon = MutableStateFlow<BeaconInfo?>(null)
     val localBeacon: StateFlow<BeaconInfo?> = _localBeacon.asStateFlow()
+
+    /**
+     * Devices waiting on the host to approve them, oldest first.
+     *
+     * Exposed so the radar can show the host what is waiting without the screen
+     * needing the transport itself; the transport is an implementation detail of
+     * this repository and the screen has no business reaching past it.
+     */
+    /** Devices waiting to be let in, oldest first. */
+    val pendingJoinRequests get() = nearbyConnectionsManager.pendingJoinRequests
+
+    /**
+     * Nearby sessions offering themselves to be joined, keyed by event code.
+     *
+     * Only discoverable hosts appear, and only while this device is not already
+     * in a session: scanning for sessions to join is a join screen's job, and
+     * once you are in a ring the adverts are being read for members instead.
+     *
+     * The name is derived from the code on the far side
+     * ([BleAdvertisementPayload.Decoded.displayName]) and rebuilt here, rather
+     * than transmitted, so there is one way to spell it rather than two.
+     */
+    private val _discoveredSessions = MutableStateFlow<List<DiscoveredSession>>(emptyList())
+    val discoveredSessions: StateFlow<List<DiscoveredSession>> = _discoveredSessions.asStateFlow()
+
+    /** Lets a held join request in. */
+    fun approveJoinRequest(endpointId: String) = nearbyConnectionsManager.approveJoinRequest(endpointId)
+
+    /** Turns a held join request away. */
+    fun denyJoinRequest(endpointId: String) = nearbyConnectionsManager.denyJoinRequest(endpointId)
 
     // Local peer ID
     val localPeerId: String get() = sessionManager.peerId.value
@@ -518,6 +562,28 @@ class DiscoveryRepository(
         return context.packageManager.hasSystemFeature("android.hardware.uwb")
     }
 
+    /**
+     * Starts scanning for sessions to join, with none of the machinery a live
+     * PingRing needs.
+     *
+     * Separate from [startDiscovery] rather than a mode of it: browsing wants
+     * the BLE scanner and nothing else - no advertising, no transport, no
+     * ranging session - and running the full path with a null event would mean
+     * setting up a ring that does not exist and tearing it down afterwards.
+     */
+    @SuppressLint("MissingPermission")
+    fun startSessionBrowsing() {
+        stopBleScanning()
+        _discoveredSessions.value = emptyList()
+        startBleScanning()
+    }
+
+    /** Stops browsing and forgets what was found. */
+    fun stopSessionBrowsing() {
+        stopBleScanning()
+        _discoveredSessions.value = emptyList()
+    }
+
     fun startDiscovery() {
         val event = sessionManager.sessionState.value.currentEvent
         val localPeerId = sessionManager.peerId.value
@@ -529,6 +595,7 @@ class DiscoveryRepository(
         // that are already connected.
         if (event != null) {
             nearbyConnectionsManager.acceptsNewMembers = event.acceptsNewMembers
+            nearbyConnectionsManager.requiresApproval = event.requiresApproval
         }
 
         if (event != null &&
@@ -1221,6 +1288,33 @@ class DiscoveryRepository(
         bleScanner = null
     }
 
+    /**
+     * Remembers a session a nearby host is advertising as joinable.
+     *
+     * Two filters, and the second is the one that matters. Only hosts that set
+     * the discoverable flag are recorded - a host that has not offered itself
+     * must not appear in a list just because it is nearby, which is the whole
+     * difference between "findable" and "trackable". And a session at capacity,
+     * or one that has stopped admitting members, is recorded but marked
+     * unjoinable: the reader can see that it is there and cannot join it, which
+     * beats a join button that silently fails.
+     */
+    private fun recordDiscoveredSession(decoded: BleAdvertisementPayload.Decoded) {
+        if (!decoded.isDiscoverable) return
+        val code = decoded.eventCode ?: return
+        val session = DiscoveredSession(
+            eventCode = code,
+            name = decoded.displayName ?: "PingRing $code",
+            joinable = decoded.acceptsNewMembers && !decoded.isFull
+        )
+        _discoveredSessions.update { current ->
+            // Keyed by code, so one host seen repeatedly is one row, and a host
+            // that fills up while you are looking updates in place.
+            (current.filterNot { it.eventCode == code } + session)
+                .sortedBy { it.eventCode }
+        }
+    }
+
     private fun handleScanResult(result: ScanResult) {
         val record = result.scanRecord ?: return
         val serviceData = record.getServiceData(ParcelUuid(PINGRING_SERVICE_UUID)) ?: return
@@ -1232,7 +1326,14 @@ class DiscoveryRepository(
         val eventHash = decoded.eventHash
         val isHostPeer = decoded.isHost
         val peerId = decoded.peerId
-        var currentEvent = sessionManager.sessionState.value.currentEvent ?: return
+        var currentEvent = sessionManager.sessionState.value.currentEvent
+        if (currentEvent == null) {
+            // Not in a session, so this advert cannot be a member of anything we
+            // are in. It may be a session offering itself to be joined, which is
+            // the only thing worth reading it for here.
+            recordDiscoveredSession(decoded)
+            return
+        }
         if (eventHash != currentEvent.id.hashCode()) return
         if (isHostPeer && decoded.eventClosed) {
             sessionManager.endEventFromHost()
