@@ -22,10 +22,17 @@ name: Instrumented Tests
 #
 # The cost is paid back two ways. A failure is non-blocking (`continue-on-error`),
 # so a red UI test never stops an APK from being built and published - the failure
-# is surfaced in the summary and the artifacts instead of blocking a merge. And a
-# new push cancels the run in flight (see `concurrency` below), so the expensive
-# emulator is only ever working on the newest commit rather than queueing up
-# behind superseded ones.
+# is surfaced in the summary and the artifacts instead of blocking a merge. And
+# runs for the same ref queue rather than cancelling each other (see
+# `concurrency` below), so a burst of commits costs wall-clock time instead of
+# emulators: one at a time, every commit still gets a verdict.
+#
+# Queuing rather than cancelling is a deliberate choice over the usual one. The
+# tempting optimisation is to cancel superseded runs, since nobody installs the
+# build of a commit that has already been superseded. But the intermediate runs
+# are the diagnostic: when something breaks, what matters is knowing which commit
+# did it, and a cancelled run is a gap in exactly that history. It is cheap here
+# because nothing is blocked on the outcome.
 #
 # The consequence to be aware of: because failures do not block, this workflow's
 # green tick means "the suite ran to completion", not "the suite passed". The
@@ -51,16 +58,18 @@ permissions:
   contents: write
 
 concurrency:
-  # A new push supersedes an in-flight run for the same ref, which is what makes
-  # running this on every push affordable: the emulator is the most expensive
-  # thing in CI, and the answer for a superseded commit is almost always the
-  # same as for the one that replaced it.
+  # Runs for the same ref queue up rather than cancelling each other, which is
+  # the point: pushing several commits in a row should leave a result for each
+  # one. Cancelling would discard the intermediate runs, and those are exactly
+  # the runs that say which commit broke something - "it was fine on 1234, red
+  # on 5678" is the useful fact, and cancelling throws it away.
   #
-  # Grouped by ref rather than globally, so a pull request's run and master's run
-  # do not cancel each other, and a `v*` tag run is not cancelled by a later
-  # master push - different refs, different groups.
+  # The group is still worth having because it caps concurrency per ref: without
+  # it, five rapid pushes would boot five emulators at once and slow every one of
+  # them down. Queued runs are much cheaper than parallel ones, and here the
+  # waiting is free because nothing is blocked on the result.
   group: instrumented-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   connected-tests:
