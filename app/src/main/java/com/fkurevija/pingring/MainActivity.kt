@@ -274,6 +274,12 @@ fun MainNavigation(
                         },
                         onView = {
                             backStack.resetTo(RadarKey(key.eventCode))
+                        },
+                        // This screen duplicates some of the event settings, and
+                        // it does not have all of them - so it links to the screen
+                        // that owns the full set rather than drifting further.
+                        onOpenSettings = {
+                            backStack.add(PingRingSettingsKey(key.eventCode))
                         }
                     )
                 }

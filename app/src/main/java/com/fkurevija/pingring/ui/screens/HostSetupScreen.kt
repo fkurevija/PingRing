@@ -39,6 +39,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -69,7 +70,17 @@ fun HostSetupScreen(
     onEndEvent: () -> Unit,
     onSaveUsername: (String) -> Unit,
     onEventChange: (Boolean, Boolean, Boolean, Boolean, Boolean) -> Unit,
-    onView: () -> Unit
+    onView: () -> Unit,
+    /**
+     * Opens the full PingRing Settings screen.
+     *
+     * A link rather than more switches copied here. This screen already
+     * duplicates five of them, and it fell behind the moment Discoverable and
+     * Approve Each Join were added - a host who configures here could not see
+     * them at all. A second copy of every switch is how the two sets drift
+     * further; this points at the screen that owns them instead.
+     */
+    onOpenSettings: () -> Unit
 ) {
     var username by remember(savedUsername) { mutableStateOf(savedUsername.ifBlank { "Host" }) }
     var acceptsNewMembers by remember { mutableStateOf(true) }
@@ -107,6 +118,9 @@ fun HostSetupScreen(
                     IconButton(onClick = { showEndConfirmation = true }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "End PingRing")
                     }
+                },
+                actions = {
+                    TextButton(onClick = onOpenSettings) { Text("All Settings") }
                 }
             )
         },
