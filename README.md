@@ -181,7 +181,7 @@ Android still stops work after a force-stop, process kill, reboot, or revoked ru
 
 ## 📋 TODO
 
-Two kinds of item: things that are **built but unverified**, and things **not built yet**. Nothing here is known to be broken.
+Three kinds of item: things that are **built but unverified**, things that are **built and deliberately bounded**, and things that are **not being built**. Nothing here is known to be broken.
 
 ### Unverified — needs real hardware
 
@@ -191,15 +191,12 @@ Two kinds of item: things that are **built but unverified**, and things **not bu
 - **RSSI distance accuracy.** `RSSI_AT_ONE_METER = -59` and `PATH_LOSS_EXPONENT = 2.2` are literature defaults, not measurements on this hardware. -59 dBm at 1 m sits mid-band for a handset (-55 to -65 dBm is the commonly reported range), so it is a reasonable default rather than an arbitrary one — but the accuracy of the readout rests on both constants. One limit no amount of calibration removes: a received advert carries no transmit-power field, so a single fleet-wide constant is necessarily an average across peer models and antennas, and per-peer bias cannot be corrected from the packet. **Verify** by fitting `RSSI = A - 10n·log10(d)` against the UWB distances the app already computes for ranged peers, which needs no extra hardware.
 - **LAN relay teardown.** `Ctrl+C` and host-drop handling read as complete, but have only been exercised by `test_lan_debug_relay.py` — never a real dropped connection or killed host.
 - **The scripted radar is too clean.** `mock_radar.py` produces exact trajectories, so the radar never meets radio noise. The rolling window now smooths it, but nothing yet produces the *outliers* it is there to reject — a window averages a single bad advert away, which is correct, so the mock no longer proves the filter handles the case it exists for.
-
+- **Discovery and join approval.** Both are built and unit tested, and the approval rules are tested as a pure function, but the part that cannot be tested that way is the one that matters: holding a live Nearby Connections request open across a human decision, and whether it survives a host who takes a minute to answer. **Verify** by hosting on one phone with **Discoverable** and **Approve Each Join** on, and joining from the other: denial, a disconnect while the request is held, a full session, a closed session, and code joining with discovery off.
 
 ### Known limitations
 
-- **Discovery and join approval are unverified on real devices.** Both are built and unit tested, and the approval rules are tested as a pure function, but the part that cannot be tested that way is the one that matters: holding a live Nearby Connections request open across a human decision, and whether it survives a host who takes a minute to answer. Everything here needs two real phones before it is trusted.
 - **The host-side request timeout is not enforced.** `expiredJoinRequest` in `NearbyConnectionsManager` defines and tests the 2-minute rule, but nothing calls it, so a request the host walks away from stays pending indefinitely. The guest still times out at 2 min 15 s (`JOIN_WAIT_TIMEOUT_MILLIS` in `MainActivity`), so the failure is the host's side: a queue entry that can never be answered and no longer shows a failure. Wire it to a sweep, or delete the policy and say the host's answer is the only thing that ends a request.
 - **The BLE payload is now 20 of the 31 legacy bytes.** A v1 build ignores a v2 advert instead of misreading it, so mixed-version rings half-work: a v1 guest joins by code and appears as a member, but cannot browse. The 11 spare bytes are named and asserted; going past them means BLE 5 extended advertising and losing devices that only do legacy.
-
-- **The range ceiling is the BLE scan radius.** Coded PHY is the only BLE setting that genuinely multiplies range, and the public SDK does not expose it — `ScanSettings` has only `PHY_LE_ALL_SUPPORTED` and `AdvertiseSettings.Builder` has no `setPreferredPhy` (verified against the API 37 `android.jar`). Getting it needs hidden APIs, a deliberate non-goal here. The commonly quoted "~4×" is a free-space figure: 4× range is 12 dB of extra link budget, and at the `PATH_LOSS_EXPONENT = 2.2` used here the same 12 dB is 3.5×. Silicon Labs quotes 4–6 dB of real-world sensitivity gain instead, which is 1.5–1.8× at that exponent. Either way it would not help PingRing: the gain applies to established connections via `HCI_LE_SetPhy`, and PingRing advertises non-connectable and never forms a link. UWB does not widen this: it never transports data, so a peer past the BLE radius is invisible to it too.
 - **No mesh extension.** Adding members adds density, not reach. Every link is host↔guest under `P2P_STAR`, and a guest-to-guest link forms only *after* both already reach the host.
 - **The host's tracked-member choice is not broadcast.** A guest resolves the *rule* independently — it defaults to the host — but it cannot learn which member the host itself picked. The advertisement is the only thing a device broadcasts before it has a transport, and all 13 bytes of it are accounted for: 4 for the event hash, 1 for flags, 8 for the peer id. Adding a field is a wire-format change, not a UI one. It only matters with **Track Host** off, where a guest may pick freely anyway.
 - **Relayed UWB offers are not end-to-end.** The STS key travels via the host. Same trust model as relayed chat — a host already brokers everything — but guest-to-guest ranging is not private against the host.
@@ -207,12 +204,12 @@ Two kinds of item: things that are **built but unverified**, and things **not bu
 - **Advert flags are one bit from trouble.** `acceptsNewMembers` sits at bit 6; current combinations stay under 128, but any flag above bit 6 would truncate the byte silently.
 - **A retained member cannot be confirmed gone.** Holding a UWB session open across a transport drop buys an instant reconnect, but the far end stopping to range is indistinguishable from it having left the ring or from the host having ended it — all three produce the same silence. The app therefore reports a silent session as *unreachable* and says so, rather than claiming the member left. A real fix needs both sides to agree on a farewell message, which needs the transport that has just dropped.
 - **The `latest` release rolls on every non-tag push**, feature branches included. Restrict to `master` if releases should track it. Only tag pushes create a permanent version, so a build worth keeping is lost after 90 days unless it is tagged.
+- **Release signing.** Only debug APKs are built and published.
 
 ### Out of scope
 
 - **UWB ranging-initiated discovery** — waking a peer already out of BLE range, so UWB rather than BLE sets the reach ceiling. **Not possible on Android.** `androidx.core.uwb` exposes no discovery API at all: `UwbManager` has only the three session scopes plus availability, and `UwbControllerSessionScope` only accepts a `UwbAddress` you already hold. The spec's discovery exchange happens *inside* an established session and the platform does not expose it, so there is no way to learn a peer's 2-byte address before hearing from them. Reaching beyond BLE needs a different radio, not a different UWB API.
-- **Retained members cannot be confirmed gone.** While a member is held on UWB after a transport drop, the app cannot tell "walked out of range" from "left the ring" or "the host ended the ring" — a stopped UWB session is the only signal, and all three look the same. The retention window and the unreachable report are the mitigation, not a fix; see the entry under *Known limitations*.
-- **Release signing.** Only debug APKs are built and published.
+- **Extending range with a coded PHY.** Coded PHY is the only BLE setting that genuinely multiplies range, and the public SDK does not expose it — `ScanSettings` has only `PHY_LE_ALL_SUPPORTED` and `AdvertiseSettings.Builder` has no `setPreferredPhy` (verified against the API 37 `android.jar`). Getting it needs hidden APIs, a deliberate non-goal here. The commonly quoted "~4×" is a free-space figure: 4× range is 12 dB of extra link budget, and at the `PATH_LOSS_EXPONENT = 2.2` used here the same 12 dB is 3.5×. Silicon Labs quotes 4–6 dB of real-world sensitivity gain instead, which is 1.5–1.8× at that exponent. Either way it would not help PingRing: the gain applies to established connections via `HCI_LE_SetPhy`, and PingRing advertises non-connectable and never forms a link. UWB does not widen the reach either — it never transports data, so a peer past the BLE radius is invisible to it too.
 
 ### Planned work
 
@@ -230,12 +227,12 @@ Grouped by area. Nothing here is known to be broken: these are things not built,
 
 **Home — Host / Join**
 - ✅ Host and join entry points, with each option explained.
-- ✅ Admission control: accept/deny, capacity, Discoverable, Approve Each Join. See *Known limitations* for what is unverified.
+- ✅ Admission control: accept/deny, capacity, Discoverable, Approve Each Join. See *Unverified* for what still needs two real phones.
 
 **Connectivity**
 - **Implement Wi-Fi Direct, or a host hotspot with clients joining it.** Both switches are currently inert, and multi-client support is the open question: Wi-Fi Direct is P2P by nature, and a hotspot is the more likely shape for eight members. See *Known limitations*.
 - **Choose the connection method by capability.** UWB defaults from `isUwbSupported()` and Wi-Fi Direct is hard-coded `true`; nothing considers API level or what members support. No dropdown or checkbox list exists, only two switches.
-- ~~**Optionally make sessions discoverable** to nearby devices behind a setting, with the host approving individual joins rather than the current all-or-nothing switch.~~ Resolved: a **Discoverable** switch advertises the session and the join screen lists what is nearby; **Approve Each Join** holds new members for the host to allow or turn away. Both default to off, and neither changes code joining. Advertising the event code is what made this possible at all, so the BLE payload is now versioned (v2, 20 bytes); see *Known limitations* for the v1 question and for what is unverified.
+- ~~**Optionally make sessions discoverable** to nearby devices behind a setting, with the host approving individual joins rather than the current all-or-nothing switch.~~ Resolved: a **Discoverable** switch advertises the session and the join screen lists what is nearby; **Approve Each Join** holds new members for the host to allow or turn away. Both default to off, and neither changes code joining. Advertising the event code is what made this possible at all, so the BLE payload is now versioned (v2, 20 bytes); see *Known limitations* for the v1 question and *Unverified* for what still needs two phones.
 - **Tune antenna use across BLE, UWB and Wi-Fi.** Three radios competing on one battery, with BLE scanning continuously and UWB ranging held open for 45 s after a drop. Nothing has measured what that costs.
 
 **Radar**
