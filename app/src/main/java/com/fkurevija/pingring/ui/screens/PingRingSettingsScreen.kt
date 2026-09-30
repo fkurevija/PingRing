@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.GroupAdd
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Rule
@@ -222,6 +223,13 @@ fun PingRingSettingsScreen(
                                 context.packageManager.hasSystemFeature(PackageManager.FEATURE_WIFI)
                     }
 
+                    // Not a switch, and deliberately so. Nearby Connections
+                    // carries its payload channel over Wi-Fi Direct and exposes
+                    // no way to turn that off - AdvertisingOptions has no such
+                    // setting - so this was a control that could only ever be on.
+                    // Offering it invited somebody to disable high-bandwidth
+                    // transport and watch nothing change, which is worse than
+                    // not mentioning it.
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
@@ -231,12 +239,21 @@ fun PingRingSettingsScreen(
                         Column(Modifier.weight(1f)) {
                             Text("High Bandwidth (Wi-Fi)", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                             Text(
-                                if (wifiDirectSupported) "Wi-Fi Direct mesh for fast sync" else "Not supported on this device",
+                                if (wifiDirectSupported) {
+                                    "Always on. Nearby Connections carries chat and beacons over Wi-Fi Direct automatically; there is nothing to turn off."
+                                } else {
+                                    "Not supported on this device"
+                                },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        Switch(checked = useWifiDirect && wifiDirectSupported, enabled = wifiDirectSupported, onCheckedChange = { useWifiDirect = it })
+                        Icon(
+                            Icons.Default.Check,
+                            contentDescription = "Always on",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
                     }
 
                     HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))

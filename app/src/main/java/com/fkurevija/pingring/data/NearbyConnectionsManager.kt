@@ -1,6 +1,8 @@
 package com.fkurevija.pingring.data
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import com.google.android.gms.nearby.Nearby
 import com.google.android.gms.nearby.connection.*
@@ -113,6 +115,42 @@ fun expiredJoinRequest(
 ): PendingJoinRequest? =
     if (nowMillis - request.requestedAtMillis > JOIN_REQUEST_TIMEOUT_MILLIS) request else null
 
+/**
+ * The requests that have waited too long, and how long until the next one does.
+ *
+ * Returns both because the caller needs them for different things: the expired
+ * requests to refuse, and the delay before there is anything left worth waking
+ * up for. With nothing pending the delay is null, so the caller stops the timer
+ * entirely rather than waking every few seconds to find an empty queue - a sweep
+ * that keeps running on an idle host is a wakeup nobody asked for.
+ *
+ * Pure, like the rest of the join rules, so the timing is testable without a
+ * clock or a radio. Note the sweep only *reports*; refusing the endpoint is a
+ * transport action and belongs to the caller.
+ */
+fun sweepExpiredJoinRequests(
+    requests: List<PendingJoinRequest>,
+    nowMillis: Long,
+): ExpiredJoinRequestSweep {
+    val expired = requests.filter { expiredJoinRequest(it, nowMillis) != null }
+    val survivors = requests.filter { expiredJoinRequest(it, nowMillis) == null }
+    val nextDue = survivors.minOfOrNull { request ->
+        (request.requestedAtMillis + JOIN_REQUEST_TIMEOUT_MILLIS) - nowMillis
+    }
+    return ExpiredJoinRequestSweep(
+        expired = expired,
+        nextCheckInMillis = nextDue?.coerceAtLeast(0L),
+    )
+}
+
+/** What a sweep found, and when to look again. */
+data class ExpiredJoinRequestSweep(
+    /** Requests past the window, which the caller must refuse. */
+    val expired: List<PendingJoinRequest>,
+    /** Milliseconds until the next request expires, or null when none remain. */
+    val nextCheckInMillis: Long?,
+)
+
 
 class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
     private val TAG = "NearbyConnections"
@@ -181,18 +219,29 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
     private val _pendingJoinRequests = MutableStateFlow<List<PendingJoinRequest>>(emptyList())
     override val pendingJoinRequests: StateFlow<List<PendingJoinRequest>> = _pendingJoinRequests.asStateFlow()
 
+    /**
+     * Carries the expiry sweep. A [Handler] rather than a coroutine because the
+     * transport already runs on the platform's callback thread and owns no scope
+     * of its own - introducing one here would need cancelling in [stopAll] and
+     * would leak if it were forgotten.
+     */
+    private val handler = Handler(Looper.getMainLooper())
+    private var sweepRunnable: Runnable? = null
+
     override fun approveJoinRequest(endpointId: String) {
         val request = _pendingJoinRequests.value.firstOrNull { it.endpointId == endpointId }
         if (request == null) {
             Log.w(TAG, "Ignoring approval of $endpointId: no such pending request")
             return
         }
+        cancelJoinRequestSweep()
         _pendingJoinRequests.update { current -> current.filterNot { it.endpointId == endpointId } }
         // The accept is what opens the payload channel, so this is the moment
         // the guest actually becomes a member. Idempotent, so an approval that
         // races an automatic accept is harmless.
         acceptWithPayloadCallback(endpointId, "approved by host")
         Log.i(TAG, "Approved join request from ${request.deviceName} ($endpointId)")
+        scheduleJoinRequestSweep()
     }
 
     override fun denyJoinRequest(endpointId: String) {
@@ -203,6 +252,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
             Log.w(TAG, "Ignoring denial of $endpointId: no such pending request")
             return
         }
+        cancelJoinRequestSweep()
         _pendingJoinRequests.update { current -> current.filterNot { it.endpointId == endpointId } }
         // Rejecting is what tells the guest the answer. Accepted state is cleared
         // too, so a guest that somehow still holds a channel cannot use it after
@@ -210,6 +260,66 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
         acceptedEndpoints.remove(endpointId)
         connectionsClient.rejectConnection(endpointId)
         Log.i(TAG, "Denied join request from ${request.deviceName} ($endpointId)")
+        scheduleJoinRequestSweep()
+    }
+
+    /**
+     * Refuses every request that has waited past [JOIN_REQUEST_TIMEOUT_MILLIS].
+     *
+     * Without this, a host who puts the phone down mid-decision leaves a request
+     * pinned forever: the guest is told nothing, the host's list shows somebody
+     * waiting who cannot be admitted, and re-tapping Allow much later accepts a
+     * connection the guest has long since given up on. The guest times out on
+     * its own side ([JOIN_WAIT_TIMEOUT_MILLIS] in MainActivity, deliberately
+     * longer than this window), so refusing here is what tells it the request
+     * was dropped rather than leaving it to infer that from a dead socket.
+     */
+    private fun sweepExpiredJoinRequests() {
+        val now = System.currentTimeMillis()
+        val sweep = sweepExpiredJoinRequests(_pendingJoinRequests.value, now)
+        if (sweep.expired.isNotEmpty()) {
+            Log.i(
+                TAG,
+                "Refusing ${sweep.expired.size} join request(s) unanswered for over " +
+                    "${JOIN_REQUEST_TIMEOUT_MILLIS / 1000}s: " +
+                    sweep.expired.joinToString { "${it.deviceName} (${it.endpointId})" }
+            )
+        }
+        // Removed from the queue whatever the outcome, so a refusal cannot loop
+        // on a request that somehow stays visible.
+        if (sweep.expired.isNotEmpty()) {
+            val expiredEndpoints = sweep.expired.map { it.endpointId }.toSet()
+            _pendingJoinRequests.update { current ->
+                current.filterNot { it.endpointId in expiredEndpoints }
+            }
+            sweep.expired.forEach {
+                acceptedEndpoints.remove(it.endpointId)
+                connectionsClient.rejectConnection(it.endpointId)
+            }
+        }
+        scheduleJoinRequestSweep()
+    }
+
+    /**
+     * Arms a single one-shot check for whenever the oldest request is due, and
+     * disarms entirely once nothing is pending.
+     *
+     * Self-rescheduling rather than a repeating timer: an idle host should cost
+     * nothing, and a repeating 2-minute wakeup on a phone that is only hosting
+     * would be a battery cost bought for a case that cannot happen.
+     */
+    private fun scheduleJoinRequestSweep() {
+        cancelJoinRequestSweep()
+        val sweep = sweepExpiredJoinRequests(_pendingJoinRequests.value, System.currentTimeMillis())
+        val delay = sweep.nextCheckInMillis ?: return
+        sweepRunnable = Runnable { sweepExpiredJoinRequests() }.also { runnable ->
+            handler.postDelayed(runnable, delay)
+        }
+    }
+
+    private fun cancelJoinRequestSweep() {
+        sweepRunnable?.let(handler::removeCallbacks)
+        sweepRunnable = null
     }
 
     private fun getServiceId(eventId: String): String = "com.fkurevija.pingring.$eventId"
@@ -264,6 +374,9 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
         // Held requests die with the endpoints holding them; leaving them would
         // greet the next event with approvals the host never gave.
         _pendingJoinRequests.value = emptyList()
+        // Disarmed before clearing, so a sweep already queued cannot fire into
+        // the next event and refuse an endpoint that now belongs to somebody else.
+        cancelJoinRequestSweep()
     }
 
     /**
@@ -473,6 +586,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
                             .sortedBy { it.requestedAtMillis }
                     }
                     Log.i(TAG, "Holding join request from ${request.deviceName} ($endpointId) for approval")
+                    scheduleJoinRequestSweep()
                 }
             }
         }
@@ -511,6 +625,9 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
             // walked out of range, not a decision, so it leaves the host's list
             // silently rather than being reported as denied.
             _pendingJoinRequests.update { current -> current.filterNot { it.endpointId == endpointId } }
+            // The guest is gone, so whatever was left of its request goes with
+            // it; the sweep has nothing left to refuse and must not wake for it.
+            scheduleJoinRequestSweep()
             val peerId = endpointToPeerId.remove(endpointId)
             if (peerId != null) {
                 connectedEndpoints.remove(peerId)

@@ -6,8 +6,10 @@ import com.fkurevija.pingring.data.MAX_PARTICIPANTS
 import com.fkurevija.pingring.data.PendingJoinRequest
 import com.fkurevija.pingring.data.decideJoinRequest
 import com.fkurevija.pingring.data.expiredJoinRequest
+import com.fkurevija.pingring.data.sweepExpiredJoinRequests
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
@@ -118,6 +120,93 @@ class JoinApprovalPolicyTest {
         assertTrue(
             "the guest must wait longer than the host holds a request",
             guestWait > JOIN_REQUEST_TIMEOUT_MILLIS
+        )
+    }
+
+    @Test
+    fun `a sweep refuses every request past the window and keeps the rest`() {
+        // The behaviour the host-side timeout exists for: one stale request in a
+        // queue must not shield the fresh ones behind it, and one fresh request
+        // must not protect a stale one beside it.
+        val stale = PendingJoinRequest("old", "Ana", requestedAtMillis = 0L)
+        val fresh = PendingJoinRequest("new", "Bo", requestedAtMillis = JOIN_REQUEST_TIMEOUT_MILLIS)
+        val now = JOIN_REQUEST_TIMEOUT_MILLIS + 5_000L
+
+        val sweep = sweepExpiredJoinRequests(listOf(stale, fresh), now)
+
+        assertEquals("only the stale request should expire", listOf(stale), sweep.expired)
+    }
+
+    @Test
+    fun `a sweep of an empty queue asks for no further check`() {
+        // Null rather than zero: an idle host should stop the timer entirely
+        // instead of waking repeatedly to find nothing pending.
+        val sweep = sweepExpiredJoinRequests(emptyList(), nowMillis = 1_000L)
+
+        assertNull("nothing pending, nothing to check", sweep.nextCheckInMillis)
+        assertTrue("nothing pending, nothing to refuse", sweep.expired.isEmpty())
+    }
+
+    @Test
+    fun `the sweep wakes exactly when the oldest request is due`() {
+        // Timing the next wake to the oldest pending request is what keeps an
+        // idle host at zero wakeups. Getting this wrong in the slow direction
+        // leaves stale requests on screen past their window; in the fast
+        // direction it just burns battery.
+        val oldest = PendingJoinRequest("a", "Ana", requestedAtMillis = 0L)
+        val freshest = PendingJoinRequest(
+            "b", "Bo", requestedAtMillis = JOIN_REQUEST_TIMEOUT_MILLIS / 2
+        )
+        val now = JOIN_REQUEST_TIMEOUT_MILLIS / 4
+
+        val sweep = sweepExpiredJoinRequests(listOf(freshest, oldest), now)
+
+        assertEquals(
+            "should wake when the oldest request expires",
+            JOIN_REQUEST_TIMEOUT_MILLIS - now,
+            sweep.nextCheckInMillis
+        )
+    }
+
+    @Test
+    fun `a sweep only ever schedules a survivor, never an expired one`() {
+        // The clamp on nextCheckInMillis is defensive: by construction anything
+        // left in the survivors list has NOT expired, so its remaining time is
+        // positive by definition. Asserting that here pins the property the
+        // clamp protects - Handler.postDelayed accepts a negative delay and
+        // fires immediately, which would turn one sweep into a spin.
+        val now = JOIN_REQUEST_TIMEOUT_MILLIS * 2
+        val overdue = PendingJoinRequest("a", "Ana", requestedAtMillis = 0L)
+        val alsoOverdue = PendingJoinRequest(
+            "b", "Bo", requestedAtMillis = -JOIN_REQUEST_TIMEOUT_MILLIS - 1L
+        )
+
+        // Both are past the window at this instant: nothing survives, so there
+        // is nothing left to wake for.
+        val allExpired = sweepExpiredJoinRequests(listOf(overdue, alsoOverdue), nowMillis = now)
+        assertEquals("both are overdue", 2, allExpired.expired.size)
+        assertNull("nothing left to wake for", allExpired.nextCheckInMillis)
+
+        // A survivor is scheduled with time remaining, never zero or negative.
+        val waiting = PendingJoinRequest("c", "Cy", requestedAtMillis = now)
+        val sweep = sweepExpiredJoinRequests(listOf(waiting), nowMillis = now)
+        assertEquals(
+            "a brand new request gets the full window",
+            JOIN_REQUEST_TIMEOUT_MILLIS,
+            sweep.nextCheckInMillis
+        )
+    }
+
+    @Test
+    fun `a request is expired once the window has passed, whatever its timestamp`() {
+        // The clock is a parameter precisely so it can be wrong. A device whose
+        // clock jumps forward between the request arriving and the sweep running
+        // must expire it rather than compute a wildly negative delay.
+        val request = PendingJoinRequest("e1", "Ana", requestedAtMillis = 0L)
+
+        assertNotNull(
+            "a request well past the window must expire",
+            expiredJoinRequest(request, nowMillis = JOIN_REQUEST_TIMEOUT_MILLIS * 2)
         )
     }
 }

@@ -158,6 +158,44 @@ object BleAdvertisementPayload {
      */
     const val FLAG_DISCOVERABLE = 1 shl 7
 
+    /**
+     * Every flag this build defines.
+     *
+     * Listed rather than derived by reflection so that [encode]'s callers, the
+     * bit-overlap test and the range check all read from one place. A flag added
+     * here and nowhere else is caught by the overlap test; a bit assembled at a
+     * call site and never declared is caught by [assertFlagsFitTheByte].
+     */
+    val ALL_FLAGS = listOf(
+        FLAG_HOST, FLAG_TRACK_HOST, FLAG_EVENT_CLOSED, FLAG_USE_UWB,
+        FLAG_USE_WIFI, FLAG_RING_FULL, FLAG_ACCEPTS_NEW_MEMBERS, FLAG_DISCOVERABLE,
+    )
+
+    /**
+     * Fails if any flag has moved outside the single byte that carries them.
+     *
+     * The byte is written as `flags.toByte()`, which keeps the low eight bits and
+     * throws the rest away. A ninth flag would therefore not fail: it would be
+     * silently dropped on the way out, and the peer on the other side would read
+     * the advert perfectly happily while never learning the new fact. That is the
+     * worst shape of bug - a feature that appears to work and quietly does
+     * nothing - and it costs nothing to rule out here.
+     *
+     * Called from [encode], so the failure lands in the build's own test run
+     * rather than on somebody's phone at an event.
+     */
+    internal fun assertFlagsFitTheByte(flags: Int) {
+        // Checked on the value being written, not on the constant list: encode
+        // is handed a combination assembled at the call site, so a bit nobody
+        // declared - the ninth flag, added by hand in one place - is exactly what
+        // would vanish. Inspecting ALL_FLAGS instead would pass while the very
+        // failure being guarded against went straight through.
+        require(flags in 0..0xFF) {
+            "advert flags must fit in one unsigned byte (0..255), but $flags does not; " +
+                "the byte would be truncated and peers would never see those bits"
+        }
+    }
+
     private const val PEER_ID_BYTES = 8
 
     /** The event code's field width, which [SessionManager] must match exactly. */
@@ -224,13 +262,18 @@ object BleAdvertisementPayload {
         flags: Int,
         peerIdBytes: ByteArray,
         eventCode: String? = null,
-    ): ByteArray = ByteBuffer.allocate(TOTAL_BYTES)
-        .put(VERSION.toByte())
-        .putInt(eventHash)
-        .put(flags.toByte())
-        .put(peerIdBytes.copyOf(PEER_ID_BYTES))
-        .put(eventCodeBytes(eventCode))
-        .array()
+    ): ByteArray {
+        // Checked before the buffer is built: `flags.toByte()` on the line below
+        // is exactly the silent truncation this prevents.
+        assertFlagsFitTheByte(flags)
+        return ByteBuffer.allocate(TOTAL_BYTES)
+            .put(VERSION.toByte())
+            .putInt(eventHash)
+            .put(flags.toByte())
+            .put(peerIdBytes.copyOf(PEER_ID_BYTES))
+            .put(eventCodeBytes(eventCode))
+            .array()
+    }
 
     /**
      * The event code as a fixed-width, NUL-padded field.

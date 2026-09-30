@@ -7,6 +7,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
 import java.nio.charset.StandardCharsets
 
@@ -196,23 +197,48 @@ class BleAdvertisementPayloadTest {
     @Test
     fun `theFlagBitsDoNotOverlap`() {
         // Overlapping bits would make "track the host" also mean "use UWB", which
-        // no test of behaviour would catch.
-        val flags = listOf(
-            BleAdvertisementPayload.FLAG_HOST,
-            BleAdvertisementPayload.FLAG_TRACK_HOST,
-            BleAdvertisementPayload.FLAG_EVENT_CLOSED,
-            BleAdvertisementPayload.FLAG_USE_UWB,
-            BleAdvertisementPayload.FLAG_USE_WIFI,
-            BleAdvertisementPayload.FLAG_RING_FULL,
-            BleAdvertisementPayload.FLAG_ACCEPTS_NEW_MEMBERS,
-        )
-
-        flags.forEach { a ->
-            flags.forEach { b ->
+        // no test of behaviour would catch. Driven from ALL_FLAGS rather than a
+        // list written out here, because a hand-copied list is exactly how the
+        // one omission happened: FLAG_DISCOVERABLE was missing from this test
+        // while existing and working.
+        BleAdvertisementPayload.ALL_FLAGS.forEach { a ->
+            BleAdvertisementPayload.ALL_FLAGS.forEach { b ->
                 if (a != b) {
                     assertEquals("flags $a and $b share a bit", 0, a and b)
                 }
             }
+        }
+    }
+
+    @Test
+    fun `everyFlagFitsInTheByteThatCarriesThem`() {
+        // The flags byte is written with `flags.toByte()`, which discards
+        // anything above bit 7. All eight bits are now spoken for, so a ninth
+        // flag is the realistic failure: it would be dropped on the way out and
+        // the peer would read the advert fine while never learning the new fact.
+        // The guard makes that a build failure instead of a silent one.
+        BleAdvertisementPayload.ALL_FLAGS.forEach { flag ->
+            assertTrue(
+                "flag $flag does not fit in an unsigned byte",
+                flag in 1..0xFF
+            )
+        }
+        BleAdvertisementPayload.assertFlagsFitTheByte(BleAdvertisementPayload.ALL_FLAGS.sum())
+    }
+
+    @Test
+    fun `encodingRefusesAFlagThatWouldBeTruncated`() {
+        // A hypothetical ninth flag, at bit 8. encode() must reject it rather
+        // than quietly writing a byte without it.
+        val ninthFlag = 1 shl 8
+        try {
+            encode(flags = BleAdvertisementPayload.FLAG_HOST or ninthFlag)
+            fail("a flag outside the byte must not be encoded")
+        } catch (expected: IllegalArgumentException) {
+            assertTrue(
+                "the failure should say the byte would truncate",
+                expected.message?.contains("byte") == true
+            )
         }
     }
     @Test
