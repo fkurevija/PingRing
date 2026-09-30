@@ -1,4 +1,4 @@
-package com.fkurevija.pingring.ui.screens
+﻿package com.fkurevija.pingring.ui.screens
 
 import android.content.pm.PackageManager
 import androidx.activity.compose.BackHandler
@@ -22,23 +22,18 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.GpsFixed
-import androidx.compose.material.icons.filled.GroupAdd
-import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Sensors
-import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -59,8 +54,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import com.fkurevija.pingring.data.DiscoveryRepository
-import com.fkurevija.pingring.data.MAX_PARTICIPANTS
-import com.fkurevija.pingring.ui.permissions.rememberUwbAvailability
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -70,26 +63,21 @@ fun HostSetupScreen(
     discoveryRepository: DiscoveryRepository,
     onEndEvent: () -> Unit,
     onSaveUsername: (String) -> Unit,
-    onEventChange: (Boolean, Boolean, Boolean, Boolean, Boolean) -> Unit,
     onView: () -> Unit,
     /**
-     * Opens the full PingRing Settings screen.
+     * Opens PingRing Settings, which owns every event switch.
      *
-     * A link rather than more switches copied here. This screen already
-     * duplicates five of them, and it fell behind the moment Discoverable and
-     * Approve Each Join were added - a host who configures here could not see
-     * them at all. A second copy of every switch is how the two sets drift
-     * further; this points at the screen that owns them instead.
+     * This screen used to carry five of them - Accept New Members, Track Host
+     * Only, UWB, Wi-Fi and Chat Notifications - and reached Discoverable and
+     * Approve Each Join only through a link. Two copies of one control is how
+     * they drift: the pair already disagreed, because the switches added later
+     * existed on only one screen and a host who configured here could not see
+     * them at all. So the duplicates are gone and this screen is what it is
+     * actually for - the code to share, a name, and the way in.
      */
     onOpenSettings: () -> Unit
 ) {
     var username by remember(savedUsername) { mutableStateOf(savedUsername.ifBlank { "Host" }) }
-    var acceptsNewMembers by remember { mutableStateOf(true) }
-    var trackHost by remember { mutableStateOf(false) }
-    val uwbAvailability = rememberUwbAvailability(discoveryRepository.isUwbSupported())
-    var useUwb by remember(uwbAvailability.isUsable) { mutableStateOf(uwbAvailability.isUsable) }
-    var useWifiDirect by remember { mutableStateOf(true) }
-    var chatNotificationsEnabled by remember { mutableStateOf(true) }
     var showEndConfirmation by remember { mutableStateOf(false) }
 
     // The PingRing is already live on this screen - the host is advertising as
@@ -99,7 +87,7 @@ fun HostSetupScreen(
     // still running and nobody told.
     BackHandler { showEndConfirmation = true }
 
-    LaunchedEffect(discoveryRepository, acceptsNewMembers, trackHost, useUwb, useWifiDirect) {
+    LaunchedEffect(discoveryRepository) {
         discoveryRepository.startDiscovery()
     }
     // Deliberately no onDispose-triggered stopDiscovery() here: HostSetupScreen
@@ -232,7 +220,9 @@ fun HostSetupScreen(
                 modifier = Modifier.fillMaxWidth()
             )
 
-            // Settings Group Card
+            // One link, not a second copy of the switches. Every event switch
+            // lives on PingRing Settings, which is one tap away and the only
+            // place any of them change.
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(18.dp),
@@ -240,166 +230,26 @@ fun HostSetupScreen(
             ) {
                 Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                     Text(
-                        "Mesh & Telemetry Settings",
+                        "Event settings",
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
                     )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "Membership, tracking, UWB and notifications are all set in one place.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                     Spacer(Modifier.height(12.dp))
-
-                    // Accept New Members switch
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
+                    OutlinedButton(
+                        onClick = onOpenSettings,
+                        modifier = Modifier.fillMaxWidth().height(50.dp),
+                        shape = RoundedCornerShape(14.dp)
                     ) {
-                        Icon(Icons.Default.GroupAdd, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
-                        Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text("Accept New Members", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                            Text("Allow nearby users to discover and join this PingRing.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        Switch(
-                            checked = acceptsNewMembers,
-                            onCheckedChange = {
-                                acceptsNewMembers = it
-                                onEventChange(it, trackHost, useUwb, useWifiDirect, chatNotificationsEnabled)
-                            }
-                        )
-                    }
-
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-
-                    // Track host switch
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Default.GpsFixed, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
-                        Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text("Track Host Only", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                            Text("Joined members track only you. You still track everyone.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        Switch(
-                            checked = trackHost,
-                            onCheckedChange = {
-                                trackHost = it
-                                onEventChange(acceptsNewMembers, it, useUwb, useWifiDirect, chatNotificationsEnabled)
-                            }
-                        )
-                    }
-
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-
-                    // UWB switch
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable(enabled = !uwbAvailability.isUsable) { uwbAvailability.onRequestAccess() },
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Default.Sensors, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
-                        Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text("Ultra-wideband (UWB)", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                            Text(
-                                when {
-                                    !uwbAvailability.hardwareSupported -> "Not supported on this device"
-                                    !uwbAvailability.permissionGranted -> "Tap to grant UWB permission"
-                                    else -> "Sub-metre ranging on supported hardware."
-                                },
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Switch(
-                            checked = useUwb,
-                            enabled = uwbAvailability.isUsable,
-                            onCheckedChange = {
-                                useUwb = it
-                                onEventChange(acceptsNewMembers, trackHost, it, useWifiDirect, chatNotificationsEnabled)
-                            }
-                        )
-                    }
-
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-
-                    // High bandwidth Wi-Fi switch
-                    val context = LocalContext.current
-                    val wifiDirectSupported = remember(context) {
-                        context.packageManager.hasSystemFeature(PackageManager.FEATURE_WIFI_DIRECT) ||
-                                context.packageManager.hasSystemFeature(PackageManager.FEATURE_WIFI)
-                    }
-
-                    // Not a switch, and deliberately so. Nearby Connections
-                    // carries its payload channel over Wi-Fi Direct and exposes
-                    // no way to turn that off - AdvertisingOptions has no such
-                    // setting - so this was a control that could only ever be on.
-                    // Offering it invited somebody to disable high-bandwidth
-                    // transport and watch nothing change, which is worse than
-                    // not mentioning it.
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Default.Wifi, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
-                        Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text("High Bandwidth (Wi-Fi)", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                            Text(
-                                if (wifiDirectSupported) {
-                                    "Always on. Nearby Connections carries chat and beacons over Wi-Fi Direct automatically; there is nothing to turn off."
-                                } else {
-                                    "Not supported on this device"
-                                },
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        // Confirms the state rather than inviting a change that
-                        // cannot happen.
-                        Icon(
-                            Icons.Default.Check,
-                            contentDescription = "Always on",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-
-                    // Chat Notifications switch
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Default.Notifications, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
-                        Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text("Chat Notifications", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                            Text("Enable message notifications for this PingRing.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        Switch(
-                            checked = chatNotificationsEnabled,
-                            onCheckedChange = {
-                                chatNotificationsEnabled = it
-                                onEventChange(acceptsNewMembers, trackHost, useUwb, useWifiDirect, it)
-                            }
-                        )
-                    }
-
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Default.GpsFixed, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
-                        Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text("Max Capacity", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                            Text("Limited to $MAX_PARTICIPANTS members (1 Host + 7 Guests) for radio performance.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
+                        Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Event Settings", fontWeight = FontWeight.SemiBold)
                     }
                 }
             }

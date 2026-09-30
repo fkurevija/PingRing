@@ -26,11 +26,11 @@ class BleRangePolicyTest {
         // Growing the payload past the legacy limit makes the advert silently
         // untransmittable, which presents as a total range failure with no error
         // anywhere. This is a real budget, not a comment: 31 bytes is what legacy
-        // advertising can carry and 20 is what PingRing now sends - the event
-        // code and its version byte are what the extra seven bought.
+        // advertising can carry and 28 is what PingRing now sends - the join
+        // timestamp is what the last eight bought.
         assertTrue(BleRangePolicy.fitsInLegacyAdvertising())
         assertEquals(31, BleRangePolicy.MAX_LEGACY_SERVICE_DATA_BYTES)
-        assertEquals(20, BleRangePolicy.SERVICE_DATA_BYTES)
+        assertEquals(28, BleRangePolicy.SERVICE_DATA_BYTES)
         assertEquals(
             BleAdvertisementPayload.TOTAL_BYTES,
             BleRangePolicy.SERVICE_DATA_BYTES

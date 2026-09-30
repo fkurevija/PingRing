@@ -254,6 +254,7 @@ fun RadarScreen(
         val resolvedId = FocusPolicy.resolveFocus(
             selectedPeerId = focusSelection,
             availablePeerIds = peers.map { it.peerId },
+            peerJoinedAt = peers.associate { it.peerId to it.joinedAtMillis },
             isHost = isHost,
             trackHost = trackHost,
             localPeerId = discoveryRepository?.localPeerId ?: "",

@@ -261,23 +261,12 @@ fun MainNavigation(
                             appearanceSettings.setUserName(username)
                             sessionManager.setUserName(username)
                         },
-                        onEventChange = { acceptsNewMembers, trackHost, useUwb, useWifiDirect, chatNotificationsEnabled ->
-                            sessionManager.updateEvent(
-                                event.copy(
-                                    acceptsNewMembers = acceptsNewMembers,
-                                    trackHost = trackHost,
-                                    useUwb = useUwb,
-                                    useWifiDirect = useWifiDirect,
-                                    chatNotificationsEnabled = chatNotificationsEnabled
-                                )
-                            )
-                        },
                         onView = {
                             backStack.resetTo(RadarKey(key.eventCode))
                         },
-                        // This screen duplicates some of the event settings, and
-                        // it does not have all of them - so it links to the screen
-                        // that owns the full set rather than drifting further.
+                        // PingRing Settings owns every event switch. This screen
+                        // deliberately carries none of them, so there is no
+                        // second copy here to drift out of step with the first.
                         onOpenSettings = {
                             backStack.add(PingRingSettingsKey(key.eventCode))
                         }

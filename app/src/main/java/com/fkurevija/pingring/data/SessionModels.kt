@@ -107,5 +107,15 @@ data class SessionState(
     val friends: List<Friend> = emptyList(),
     val chatMessages: List<ChatMessage> = emptyList(),
     val activeBeacons: Map<String, BeaconInfo> = emptyMap(),
-    val userName: String = ""
+    val userName: String = "",
+    /**
+     * When this device joined the current event, in epoch millis.
+     *
+     * Set once, on join or host, and advertised from then on. It is the fact
+     * "first to join" is decided on - without it the host can only fall back to
+     * discovery order, which answers a different question (who it happened to
+     * hear first). Cleared with the event, so a new event starts from a fresh
+     * arrival time rather than inheriting the last one's.
+     */
+    val joinedAtMillis: Long? = null
 )

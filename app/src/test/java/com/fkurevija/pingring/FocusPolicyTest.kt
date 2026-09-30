@@ -35,6 +35,75 @@ class FocusPolicyTest {
     }
 
     @Test
+    fun theHostTracksWhoseverJoinedFirstNotWhoseverWasHeardFirst() {
+        // The reason the join timestamp exists. Alice arrived ten minutes ago;
+        // Bob wandered in a second ago and is being scanned first because he is
+        // nearest. Before the timestamp this returned Bob, which read as "first
+        // to join" and was not.
+        val focus = FocusPolicy.resolveFocus(
+            selectedPeerId = null,
+            // Discovery order puts Bob first, which is the whole point.
+            availablePeerIds = listOf(bob, alice),
+            peerJoinedAt = mapOf(alice to 1_000L, bob to 600_000L),
+            isHost = true,
+            trackHost = false,
+            localPeerId = local,
+            hostPeerId = null
+        )
+        assertEquals(alice, focus)
+    }
+
+    @Test
+    fun aPeerThatNeverSaidWhenItJoinedSortsLast() {
+        // A peer whose advert predates the field, or one seen only over the
+        // debug transport, has no arrival time. It must not be treated as
+        // arriving before everyone else - that is what reading zero as epoch
+        // 1970 would do - and it must not lose to someone who did say either.
+        val focus = FocusPolicy.resolveFocus(
+            selectedPeerId = null,
+            availablePeerIds = listOf(bob, alice),
+            peerJoinedAt = mapOf(alice to 1_000L),
+            isHost = true,
+            trackHost = false,
+            localPeerId = local,
+            hostPeerId = null
+        )
+        assertEquals(alice, focus)
+    }
+
+    @Test
+    fun aPeerWithNoTimestampsAtAllFallsBackToDiscoveryOrder() {
+        // Nothing to go on, so the old behaviour stands. It has to stay
+        // deterministic, which is why the tie-break must not be the peer id.
+        val focus = FocusPolicy.resolveFocus(
+            selectedPeerId = null,
+            availablePeerIds = listOf(bob, alice),
+            peerJoinedAt = emptyMap(),
+            isHost = true,
+            trackHost = false,
+            localPeerId = local,
+            hostPeerId = null
+        )
+        assertEquals(bob, focus)
+    }
+
+    @Test
+    fun aZeroTimestampIsUnknownRatherThanTheEarliestPossibleArrival() {
+        // What a device outside an event advertises. Same shape as a missing
+        // entry, and it must not win the tie.
+        val focus = FocusPolicy.resolveFocus(
+            selectedPeerId = null,
+            availablePeerIds = listOf(bob, alice),
+            peerJoinedAt = mapOf(bob to 0L, alice to 1_000L),
+            isHost = true,
+            trackHost = false,
+            localPeerId = local,
+            hostPeerId = null
+        )
+        assertEquals(alice, focus)
+    }
+
+    @Test
     fun theHostFallsBackToTheFirstMemberNotTheNearest() {
         // Whoever arrived first is a stable choice; "nearest" moves underneath
         // the user every time somebody walks, which is not a selection at all.

@@ -13,12 +13,29 @@ class InMemoryEventCoordinationRepository : EventCoordinationRepository {
     override val syncStatus: StateFlow<CoordinationSyncStatus> = _syncStatus.asStateFlow()
 
     override fun joinEvent(event: Event, peerId: String) {
-        _sessionState.update { it.copy(currentEvent = event, isHost = false) }
+        // Stamped here rather than by the caller so every path into an event
+        // records one, including the ones that arrive from the debug transport.
+        // Re-joining the event already in progress keeps the original time:
+        // a reconnect is not a new arrival, and moving it would let a peer that
+        // dropped out win "first to join" by coming back.
+        _sessionState.update {
+            it.copy(
+                currentEvent = event,
+                isHost = false,
+                joinedAtMillis = it.joinedAtMillis ?: System.currentTimeMillis(),
+            )
+        }
         markSynced()
     }
 
     override fun hostEvent(event: Event, peerId: String) {
-        _sessionState.update { it.copy(currentEvent = event, isHost = true) }
+        _sessionState.update {
+            it.copy(
+                currentEvent = event,
+                isHost = true,
+                joinedAtMillis = it.joinedAtMillis ?: System.currentTimeMillis(),
+            )
+        }
         markSynced()
     }
 
@@ -29,7 +46,15 @@ class InMemoryEventCoordinationRepository : EventCoordinationRepository {
 
     override fun leaveEvent(peerId: String) {
         _sessionState.update {
-            it.copy(currentEvent = null, isHost = false, friends = emptyList(), chatMessages = emptyList())
+            // joinedAtMillis goes with the event: the next one is a new arrival
+            // and must not inherit this one's place in the order.
+            it.copy(
+                currentEvent = null,
+                isHost = false,
+                friends = emptyList(),
+                chatMessages = emptyList(),
+                joinedAtMillis = null,
+            )
         }
         _syncStatus.value = CoordinationSyncStatus()
     }

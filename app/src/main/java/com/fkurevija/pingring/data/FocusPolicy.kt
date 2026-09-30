@@ -31,21 +31,30 @@ object FocusPolicy {
      *  - Otherwise a selection the user made wins, as long as that peer is
      *    still present. Ephemeral ids rotate, so a stale selection has to fall
      *    back rather than leaving the radar pointed at nobody.
-     *  - Otherwise a guest falls back to the host, and the host to the first
-     *    member it saw.
+     *  - Otherwise a guest falls back to the host, and the host to the member
+     *    that has been in the ring longest.
      *
      * The fallbacks are role-based rather than distance-based on purpose. A
      * guest's job in a ring is to follow the host and a host's is to watch
      * whoever arrived first - neither is "whoever happens to be closest right
      * now", which changes underneath the user as people move.
      *
-     * [availablePeerIds] is passed in rather than recomputed here so this stays
-     * a pure function of its arguments; the caller already has the peers, in
-     * the order it discovered them.
+     * [peerJoinedAt] maps peer id to when that peer reported joining, and is
+     * what makes "arrived first" mean what it says. It used to be
+     * [availablePeerIds] order, which is discovery order, and that is a
+     * different thing: a member who joins late and happens to be nearest is
+     * heard first, so the host would default to whoever wandered in last.
+     *
+     * Peers missing from the map - one seen only over the debug transport, or
+     * one whose advert predates the field - sort *after* every peer that has
+     * said when it arrived, rather than tying at some arbitrary point. Among
+     * those, [availablePeerIds] order breaks the tie so the answer is stable
+     * rather than dependent on map iteration.
      */
     fun resolveFocus(
         selectedPeerId: String?,
         availablePeerIds: List<String>,
+        peerJoinedAt: Map<String, Long?> = emptyMap(),
         isHost: Boolean,
         trackHost: Boolean,
         localPeerId: String,
@@ -67,11 +76,28 @@ object FocusPolicy {
         if (!isHost && hostPeerId != null && hostPeerId in candidates) {
             return hostPeerId
         }
-        // First discovered, not nearest: whoever joined the ring first is the
-        // stable choice, whereas "nearest" is a moving target. There is no join
-        // timestamp on a peer yet, so discovery order stands in for it.
-        return candidates.first()
+        return earliestJoiner(candidates, peerJoinedAt)
     }
+
+    /**
+     * The candidate that reported joining first, or the first candidate when
+     * none did.
+     *
+     * Sorted stably by timestamp with unknown last, so the result does not
+     * depend on the order of the incoming map. Kotlin's [sortedWith] is stable,
+     * which is what lets peers that tie - two that never said when they arrived
+     * - keep [candidates] order instead of being reordered arbitrarily. No
+     * secondary key is given on purpose: adding one, such as peer id, would
+     * sort ties alphabetically and quietly turn discovery order back into
+     * something else.
+     */
+    private fun earliestJoiner(
+        candidates: List<String>,
+        peerJoinedAt: Map<String, Long?>,
+    ): String = candidates.sortedWith(
+        // A missing or zero timestamp sorts as unknown, and unknown loses.
+        compareBy { peerJoinedAt[it]?.takeIf { millis -> millis > 0L } ?: Long.MAX_VALUE }
+    ).first()
 
     /**
      * Whether the local user may change what is being tracked.

@@ -33,14 +33,10 @@ How to use PingRing as it exists today — what each screen does and which switc
 1. Tap **Create a PingRing** on the home screen.
 2. Enter a **Username**. It is saved on the device and pre-filled next time. Names must be unique within a session — a collision is refused with an alert.
 3. Read the **PingRing Code**: a 6-character code (`e.g. AB12CD`) shown under a QR code. This is what guests use to join.
-4. Optionally adjust the quick switches on this screen:
-   - **Accept New Members** — turn off to close the ring to newcomers.
-   - **Track Host Only** — force every guest's radar to follow you. See [Tracking](#the-radar).
-   - **Ultra-wideband (UWB)** — sub-metre ranging. Disabled with a reason on phones without the hardware; tap the row to grant UWB permission if it is simply missing.
-   - **Chat Notifications** — notifications for this event.
-   - **High Bandwidth (Wi-Fi)** — informational only. Nearby Connections always carries chat and beacons over Wi-Fi Direct; there is nothing to turn off.
-   **All Settings** (top right) opens the full PingRing Settings, which additionally holds **Discoverable** and **Approve Each Join**.
+4. If you want to change anything about the ring — who may join, tracking, UWB, notifications — tap **Event Settings**, or **All Settings** in the top bar. That screen owns every one of them; this one deliberately carries none, so there is only ever one copy of each switch.
 5. Tap **Launch Radar**.
+
+Everything in step 4 has a working default, so you can skip it and launch straight away.
 
 ### Letting people find you
 
@@ -82,7 +78,7 @@ The radar draws **one person at a time** — the member you are *tracking* — w
 
 Use the **Tracking** dropdown, or the button on a member's row. Both set the same thing.
 
-- With nothing chosen, the choice is automatic: a **guest follows the host**; the **host follows the first member it saw**. It is role-based rather than nearest, because "nearest" changes underneath you as people move.
+- With nothing chosen, the choice is automatic: a **guest follows the host**; the **host follows whoever joined first**. It is role-based rather than nearest, because "nearest" changes underneath you as people move. Members announce when they arrived, so "first" is genuine arrival — not whoever the host happened to hear first, which is often the person standing closest.
 - Tap a member's row button to track them; the row is marked **TRACKING** and the card is highlighted.
 - Tap the tracked row again to go back to automatic.
 - If the host turned on **Track Host Only**, your Tracking picker is visible but disabled — the host's decision, not a bug.
@@ -144,7 +140,7 @@ If none is set, tapping Quick Beacon says so and opens the beacon sheet, rather 
 
 ## PingRing Settings
 
-Reached from the host setup screen's **All Settings** link, or from **Settings** in the radar's top bar (hosts only). Changes apply to the live PingRing — press **Save Changes**, or **Cancel** to discard.
+Reached from the host setup screen's **Event Settings** card or its **All Settings** link, or from **Settings** in the radar's top bar (hosts only). This is the only screen that owns the event switches — the host setup screen deliberately carries none, so there is only one copy of each. Changes apply to the live PingRing — press **Save Changes**, or **Cancel** to discard.
 
 **Connectivity & Participation**
 - **Accept New Members** — allow nearby users to discover and join. Turning it off rejects further attempts, updates the BLE status flags and hides the QR button until it is back on.

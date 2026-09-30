@@ -16,15 +16,36 @@ import org.junit.Test
 /**
  * The screen a host configures a new PingRing on.
  *
- * The one thing worth asserting here is the route to the full settings: this
- * screen carries a subset of the event switches, and the two new ones -
- * Discoverable and Approve Each Join - exist only on PingRing Settings. A host
- * who configures here has to be able to reach them, or they are invisible.
+ * It used to carry five of the seven event switches, duplicating PingRing
+ * Settings, and reached the other two only through a link - so the two screens
+ * disagreed and the later additions were invisible from here. The duplicates
+ * are gone, and what this asserts is that they stay gone: no event switch may
+ * appear on this screen, and the full set must still be reachable.
+ *
+ * A test per switch would be brittle - renaming one would fail for the wrong
+ * reason - so it asserts the *absence* of the switches as a set, which is the
+ * property that actually matters.
  */
 class HostSetupScreenInstrumentedTest {
 
     @get:Rule
     val composeRule = createAndroidComposeRule<androidx.activity.ComponentActivity>()
+
+    /**
+     * Every event switch PingRing Settings owns. None of them may appear here.
+     *
+     * Checked as text because that is what a user reads; a switch whose label
+     * has drifted is still a switch appearing in the wrong place.
+     */
+    private val eventSwitchesOwnedByPingRingSettings = listOf(
+        "Accept New Members",
+        "Track Host Only",
+        "Ultra-wideband (UWB)",
+        "High Bandwidth (Wi-Fi)",
+        "Chat Notifications",
+        "Discoverable",
+        "Approve Each Join",
+    )
 
     private fun show(onOpenSettings: () -> Unit = {}) {
         val context = ApplicationProvider.getApplicationContext<Context>()
@@ -45,7 +66,6 @@ class HostSetupScreenInstrumentedTest {
                     discoveryRepository = repository,
                     onEndEvent = {},
                     onSaveUsername = {},
-                    onEventChange = { _, _, _, _, _ -> },
                     onView = {},
                     onOpenSettings = onOpenSettings
                 )
@@ -63,6 +83,28 @@ class HostSetupScreenInstrumentedTest {
         composeRule.waitForIdle()
 
         assertEquals(1, opened)
+    }
+
+    @Test
+    fun noEventSwitchIsDuplicatedHere() {
+        show()
+
+        // The regression this screen is most likely to fall back into: someone
+        // adding a switch here because it is more convenient at setup time,
+        // without noticing PingRing Settings already owns it.
+        eventSwitchesOwnedByPingRingSettings.forEach { label ->
+            composeRule.onNodeWithText(label, substring = true)
+                .assertDoesNotExist()
+        }
+    }
+
+    @Test
+    fun thereIsAVisibleRouteToThem() {
+        show()
+
+        // Removing the duplicates only helps if the way in is obvious. The card
+        // is the whole point of this screen now, so it has to be findable.
+        composeRule.onNodeWithText("Event Settings").assertIsDisplayed()
     }
 
     @Test

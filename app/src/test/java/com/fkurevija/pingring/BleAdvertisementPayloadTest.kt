@@ -37,7 +37,8 @@ class BleAdvertisementPayloadTest {
         flags: Int = BleAdvertisementPayload.FLAG_HOST,
         peerId: ByteArray = peerIdBytes,
         eventCode: String? = null,
-    ) = BleAdvertisementPayload.encode(eventHash, flags, peerId, eventCode)
+        joinedAtMillis: Long = 0L,
+    ) = BleAdvertisementPayload.encode(eventHash, flags, peerId, eventCode, joinedAtMillis)
 
     @Test
     fun `the event code is exactly the width the payload reserves`() {
@@ -99,29 +100,38 @@ class BleAdvertisementPayloadTest {
     }
 
     @Test
-    fun `a v1 advert padded to the v2 size is ignored rather than misread`() {
-        // The case a size check alone would miss. v1 had no version byte, so a
-        // v1 advert zero-padded up to 20 bytes would pass a length test and
-        // fail only on the version byte - which is the whole reason the check
-        // reads the byte rather than trusting the length. Without it this would
-        // decode as a real member with a hash nobody is in.
-        val v1 = java.nio.ByteBuffer.allocate(BleAdvertisementPayload.TOTAL_BYTES)
+    fun `the previous wire version is ignored rather than misread`() {
+        // This is what bumping to version 3 actually risks. A version 2 advert
+        // carries a real peer id, a real event hash and real flags - everything
+        // except the join time - so if the version check were ever dropped or
+        // loosened, a v2 peer would decode cleanly and then be ranked by a
+        // join time read out of the bytes after the event code. Those bytes are
+        // whatever the field held, not a timestamp.
+        //
+        // Supersedes an earlier test about a padded v1 advert. That one stopped
+        // meaning anything when v1 was dropped - and its buffer began with 0x03
+        // by coincidence once the version moved to 3, so it decoded rather than
+        // being rejected. The version that actually exists is the one worth
+        // pinning.
+        val v2 = java.nio.ByteBuffer.allocate(BleAdvertisementPayload.TOTAL_BYTES)
+            .put(2) // version 2, where the join time did not exist
             .putInt("EVENT".hashCode())
             .put(BleAdvertisementPayload.FLAG_HOST.toByte())
             .put(peerIdBytes)
+            .put(eventCodeBytes)
             .array()
 
         assertNull(
-            "a v1 advert must not decode just because it is long enough",
-            BleAdvertisementPayload.decode(v1)
+            "a version 2 advert must not decode as version 3",
+            BleAdvertisementPayload.decode(v2)
         )
     }
 
     @Test
     fun `an unknown version is ignored rather than misread`() {
         // The whole reason for the version byte: a future build's advert must be
-        // skipped, not decoded as a different event. Reading it as v2 would
-        // produce a plausible-looking hash for an event that does not exist.
+        // skipped, not decoded as a different event. Reading it as this version
+        // would produce a plausible-looking hash for an event that does not exist.
         val future = encode(eventCode = eventCode)
         future[0] = 99
 
@@ -163,13 +173,54 @@ class BleAdvertisementPayloadTest {
     }
 
     @Test
+    fun `the join time survives the round trip`() {
+        // The field the whole "first to join" decision rests on. A Long rather
+        // than a narrower type, so the values below are ones that would be
+        // truncated or wrapped by anything smaller.
+        val joinedAt = 1_726_000_123_456L
+        val decoded = BleAdvertisementPayload.decode(
+            encode(joinedAtMillis = joinedAt)
+        )!!
+
+        assertEquals(joinedAt, decoded.joinedAtMillis)
+    }
+
+    @Test
+    fun `a join time of zero means the peer did not say`() {
+        // Zero is what a device outside an event advertises. It must not be
+        // confused with a real arrival: FocusPolicy sorts it last, so a zero
+        // read as "epoch 1970" would make that peer win every tie.
+        val decoded = BleAdvertisementPayload.decode(encode(joinedAtMillis = 0L))!!
+
+        assertEquals(0L, decoded.joinedAtMillis)
+        assertTrue(
+            "a zero timestamp must not read as a real arrival",
+            decoded.joinedAtMillis <= 0L
+        )
+    }
+
+    @Test
+    fun `the join time costs exactly eight bytes`() {
+        // Recorded because the budget is what it is: v2 was 20 bytes and this
+        // field is 8 of the 11 that were spare. If this ever changes, the
+        // headroom assertion above is what needs re-reading.
+        assertEquals(8, BleAdvertisementPayload.JOINED_AT_BYTES)
+        assertEquals(
+            20 + BleAdvertisementPayload.JOINED_AT_BYTES,
+            BleAdvertisementPayload.TOTAL_BYTES
+        )
+    }
+
+    @Test
     fun `the payload still has room to grow within legacy advertising`() {
         // Adding a field costs bytes, and this is where the cost is recorded.
-        // Version 2 spent 7 bytes over v1 (version byte + code); the rest is
-        // what a later field can have without dropping legacy-only devices.
-        // Exceeding it is a decision, not an accident - it means moving to
-        // BLE 5 extended advertising and giving up the devices that cannot.
-        assertEquals(11, BleRangePolicy.LEGACY_HEADROOM_BYTES)
+        // Version 3 spent 8 of the 11 bytes v2 left spare, on the join timestamp.
+        // Three bytes is thin but not zero - enough for a flag or a small
+        // counter, and not enough for another epoch-millis Long.
+        //
+        // Exceeding it is a decision, not an accident: it means moving to BLE 5
+        // extended advertising and giving up the devices that cannot.
+        assertEquals(3, BleRangePolicy.LEGACY_HEADROOM_BYTES)
         assertTrue(BleRangePolicy.LEGACY_HEADROOM_BYTES > 0)
     }
 

@@ -136,7 +136,14 @@ object BleRangePolicy {
      */
     const val MAX_LEGACY_SERVICE_DATA_BYTES = 31
 
-    const val SERVICE_DATA_BYTES = 20
+    /**
+     * Service-data size PingRing puts in an advertisement.
+     *
+     * Must equal [BleAdvertisementPayload.TOTAL_BYTES]; the two are one budget.
+     * Version 3 spent 8 bytes on the join timestamp, which took it from 20 to
+     * 28 and left [LEGACY_HEADROOM_BYTES] at 3.
+     */
+    const val SERVICE_DATA_BYTES = 28
 
     /**
      * How much room is left before the legacy ceiling, in bytes.

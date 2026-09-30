@@ -45,7 +45,18 @@ data class RadarPeerUpdate(
     val worldDirectionX: Float?,
     val worldDirectionY: Float?,
     val worldDirectionZ: Float?,
-    val lastSeen: Long
+    val lastSeen: Long,
+    /**
+     * When this peer reported that it joined the event, in epoch millis.
+     *
+     * Null when the peer has not said, which is the case for one whose advert
+     * predates the field and for one seen only over the debug transport. The
+     * distinction matters because [FocusPolicy] breaks ties by this value: a
+     * peer with no timestamp has to sort as *unknown* rather than as
+     * arbitrarily early, or a member on an older build would win the host's
+     * default for the wrong reason.
+     */
+    val joinedAtMillis: Long? = null
 )
 
 data class ConnectivityStatus(
@@ -68,7 +79,7 @@ data class ConnectivityStatus(
  * The repository builds it on the way out and reads it on the way in, and
  * [encode] and [decode] are the two halves of one format.
  *
- * Layout, big-endian (the platform `ByteBuffer` default), version 2:
+ * Layout, big-endian (the platform `ByteBuffer` default), version 3:
  *
  * ```
  * offset 0   1 byte   format version, see [VERSION]
@@ -76,15 +87,29 @@ data class ConnectivityStatus(
  * offset 5   1 byte   flags, see the FLAG_* constants
  * offset 6   8 bytes  the advertiser's peer id, UTF-8, NUL-padded
  * offset 14  6 bytes  the event code, UTF-8, NUL-padded
+ * offset 20  8 bytes  when the advertiser joined the event, epoch millis
  * ```
  *
+ * The join time is what lets "first to join" be answered from the advert
+ * rather than guessed from discovery order. It costs eight bytes and it is
+ * worth them: without it the host's default tracked member is whoever it
+ * happened to hear first, so a member who joins late and stands nearest can be
+ * picked over the person who has been here since the start. See
+ * [FocusPolicy.resolveFocus].
+ *
+ * Eight bytes is a full epoch-millis Long rather than something smaller on
+ * purpose. A 4-byte value would have to be relative - seconds since some shared
+ * epoch nobody agrees on - and there is no such epoch here: peers only ever
+ * meet over BLE, with no server to hand out a common start time and no
+ * handshake wide enough to agree one. Truncating to 32 bits would work only by
+ * comparing timestamps taken on different clocks, which is a bug waiting for
+ * anyone whose phone is minutes off. The bytes are available: 8 of the 11
+ * legacy headroom, leaving 3.
+ *
  * This is the only layout. Version 1 - no version byte, 13 bytes, no event
- * code - is gone rather than read: it never shipped outside test devices, so
- * every peer that would have used it is unreachable in practice, and a
- * compatibility path is a standing invitation to keep both layouts working
- * forever. A [VERSION] of 1 arriving here is now ignored like any other
- * version this build does not know, which is the same outcome a v2 build
- * already gave a v1 one.
+ * code - was removed for the same reason, and version 2 never shipped outside
+ * test devices, so there is nothing to keep reading. A [VERSION] other than
+ * this one is ignored like any other advert this build does not understand.
  *
  * The version byte is therefore not about the past. It is what makes the next
  * layout change safe: a newer build's advert is skipped rather than decoded
@@ -117,10 +142,13 @@ object BleAdvertisementPayload {
      * layout that [decode] used to understand: see the format notes above for
      * why that path was dropped rather than kept.
      */
-    const val VERSION = 2
+    const val VERSION = 3
 
     /** Must match [BleRangePolicy.SERVICE_DATA_BYTES]; the two are one budget. */
-    const val TOTAL_BYTES = 20
+    const val TOTAL_BYTES = 28
+
+    /** Width of the join-time field: a full epoch-millis Long. */
+    const val JOINED_AT_BYTES = 8
 
     /** The host owns the event; members follow it. */
     const val FLAG_HOST = 1
@@ -219,6 +247,16 @@ object BleAdvertisementPayload {
          * rather than offering a join that cannot work.
          */
         val eventCode: String? = null,
+        /**
+         * When the advertiser joined, in epoch millis, or 0 when it did not say.
+         *
+         * 0 rather than null on purpose: the field is a fixed-width Long in a
+         * fixed-width slot, so there is no such thing as an absent value here -
+         * there is only a zero. A zero is also safe to treat as "unknown" rather
+         * than as epoch 1970, which is why [FocusPolicy] sorts it last instead of
+         * treating it as the earliest possible arrival.
+         */
+        val joinedAtMillis: Long = 0L,
     ) {
         fun has(flag: Int): Boolean = flags and flag != 0
 
@@ -264,6 +302,7 @@ object BleAdvertisementPayload {
         flags: Int,
         peerIdBytes: ByteArray,
         eventCode: String? = null,
+        joinedAtMillis: Long = 0L,
     ): ByteArray {
         // Checked before the buffer is built: `flags.toByte()` on the line below
         // is exactly the silent truncation this prevents.
@@ -274,6 +313,7 @@ object BleAdvertisementPayload {
             .put(flags.toByte())
             .put(peerIdBytes.copyOf(PEER_ID_BYTES))
             .put(eventCodeBytes(eventCode))
+            .putLong(joinedAtMillis)
             .array()
     }
 
@@ -313,7 +353,8 @@ object BleAdvertisementPayload {
         val flags = payload.get().toInt()
         val peerId = readField(payload, PEER_ID_BYTES)
         val eventCode = readField(payload, EVENT_CODE_BYTES).takeIf { it.isNotEmpty() }
-        return Decoded(eventHash, flags, peerId, eventCode)
+        val joinedAtMillis = payload.long
+        return Decoded(eventHash, flags, peerId, eventCode, joinedAtMillis)
     }
 
     /**
@@ -564,9 +605,11 @@ class DiscoveryRepository(
         val event = state.currentEvent ?: return null
         return FocusPolicy.resolveFocus(
             selectedPeerId = _focusedPeerId.value,
-            // The map is insertion-ordered, so this is discovery order - the
-            // stand-in for join order that resolveFocus falls back to.
+            // The map is insertion-ordered, so this is discovery order. It is
+            // only the tie-break now: a peer that reported when it joined is
+            // ranked ahead of one that did not.
             availablePeerIds = _peerUpdates.value.keys.toList(),
+            peerJoinedAt = _peerUpdates.value.mapValues { (_, peer) -> peer.joinedAtMillis },
             isHost = state.isHost,
             trackHost = event.trackHost,
             localPeerId = sessionManager.peerId.value,
@@ -1248,7 +1291,12 @@ class DiscoveryRepository(
             eventHash = eventHash,
             flags = flags,
             peerIdBytes = peerIdBytes,
-            eventCode = sessionManager.sessionState.value.currentEvent?.id
+            eventCode = sessionManager.sessionState.value.currentEvent?.id,
+            // Advertised so a host can answer "who arrived first" from what we
+            // say rather than from when it happened to hear us. Zero when this
+            // device is not in an event, which decodes as "unknown" rather than
+            // as the earliest possible arrival.
+            joinedAtMillis = sessionManager.sessionState.value.joinedAtMillis ?: 0L,
         )
 
     private companion object {
@@ -1416,7 +1464,13 @@ class DiscoveryRepository(
             worldDirectionX = existing?.worldDirectionX,
             worldDirectionY = existing?.worldDirectionY,
             worldDirectionZ = existing?.worldDirectionZ,
-            lastSeen = System.currentTimeMillis()
+            lastSeen = System.currentTimeMillis(),
+            // From the advert, and sticky: a packet read without one must not
+            // erase a timestamp an earlier advert carried, or a peer's place in
+            // the arrival order would reset whenever one of its adverts was
+            // short. Zero means "did not say", which is null here rather than
+            // epoch 1970 - see RadarPeerUpdate.joinedAtMillis.
+            joinedAtMillis = decoded.joinedAtMillis.takeIf { it > 0L } ?: existing?.joinedAtMillis
         )
 
         _peerUpdates.update { current ->
@@ -1493,7 +1547,11 @@ class DiscoveryRepository(
             worldDirectionX = existing?.worldDirectionX,
             worldDirectionY = existing?.worldDirectionY,
             worldDirectionZ = existing?.worldDirectionZ,
-            lastSeen = System.currentTimeMillis()
+            lastSeen = System.currentTimeMillis(),
+            // Carried over, not reset: a transport connection says nothing about
+            // when the peer joined, and clearing it here would drop a member to
+            // the bottom of the arrival order every time its connection blipped.
+            joinedAtMillis = existing?.joinedAtMillis
         )
         _peerUpdates.update { current -> current + (peerId to updated) }
         syncFriend(updated)
@@ -2022,7 +2080,11 @@ class DiscoveryRepository(
             worldDirectionX = existing?.worldDirectionX,
             worldDirectionY = existing?.worldDirectionY,
             worldDirectionZ = existing?.worldDirectionZ,
-            lastSeen = System.currentTimeMillis()
+            lastSeen = System.currentTimeMillis(),
+            // Mock ranging reports carry no advert, so this peer has no arrival
+            // time to learn from one. Carrying the existing value keeps it
+            // ranked where BLE put it rather than dropping it to last.
+            joinedAtMillis = existing?.joinedAtMillis
         )
 
         _peerUpdates.update { current ->
