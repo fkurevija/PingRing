@@ -1935,19 +1935,42 @@ class DiscoveryRepository(
         if (peerId.isEmpty() || peerId == sessionManager.peerId.value) return
         if (sessionManager.sessionState.value.currentEvent == null) return
 
-        // A scripted report has a distance but no real signal strength, so an
-        // RSSI is derived by inverting the curve the BLE scan path uses, via
+        // A scripted report carries a distance but no real signal strength, so
+        // an RSSI is derived by inverting the curve the BLE scan path uses, via
         // RssiDistanceEstimator. Without it the hot/cold ring and the dBm
         // readout would sit at their "no signal" values and stop reacting to
         // the scripted movement, which is half of what the radar has to be
-        // tested for. A scripted report is a real measurement, so it also
+        // tested for. A scripted distance is a real measurement, so it also
         // pins the peer the way a UWB fix would.
-        val rssi = dto.distance?.let { RssiDistanceEstimator.rssiForDistance(it) }?.toInt()
         val existing = _peerUpdates.value[peerId]
-        if (dto.distance != null) {
+        val rssi: Int? = dto.rssi
+            ?: dto.distance?.let { RssiDistanceEstimator.rssiForDistance(it) }?.toInt()
+
+        // Two quite different things can arrive here, and conflating them is
+        // what made the scripted radar too clean to be useful:
+        //
+        //  - A distance (with or without an explicit dBm) is a ranging fix. It
+        //    is precise by definition, so it pins the peer and clears any
+        //    signal history: a UWB measurement outranks an estimate, and the
+        //    two must not be blended.
+        //  - An rssi with no distance is a *signal* reading, which is what a
+        //    non-UWB peer actually provides. It goes through RssiSmoother on
+        //    the same path a BLE advert takes, so scripted noise, outliers and
+        //    dropouts exercise the real filter instead of bypassing it.
+        val isRangingFix = dto.distance != null
+        if (isRangingFix) {
             uwbRangedPeers.add(peerId)
             rssiSmoothers.remove(peerId)
         }
+        // Mirrors the BLE path: the estimate is what the distance becomes, and
+        // a null estimate means the peer has dropped below the noise floor, in
+        // which case the last good distance stands rather than being invented.
+        val rssiEstimate = if (isRangingFix) {
+            null
+        } else {
+            rssi?.let { rssiSmoothers.getOrPut(peerId) { RssiSmoother() }.add(it, System.currentTimeMillis()) }
+        }
+
         val updated = RadarPeerUpdate(
             peerId = peerId,
             name = dto.name?.takeIf { it.isNotBlank() } ?: existing?.name ?: peerDisplayNames.labelFor(peerId),
@@ -1957,7 +1980,7 @@ class DiscoveryRepository(
                 rssi >= -70 -> "Hot"
                 else -> "Cold"
             },
-            distance = dto.distance ?: existing?.distance,
+            distance = dto.distance ?: rssiEstimate ?: existing?.distance,
             azimuth = dto.azimuth ?: existing?.azimuth,
             elevation = dto.elevation ?: existing?.elevation,
             worldDirectionX = existing?.worldDirectionX,

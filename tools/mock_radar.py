@@ -33,11 +33,32 @@ produce (see DiscoveryRepository.updateMockRanging).
 import argparse
 import asyncio
 import json
+import math
+import random
 import sys
 
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8942
 SCRIPT_PEER_ID = "mock-radar"
+
+# Mirrors RssiDistanceEstimator, so a report the script builds is one the app
+# could plausibly have received from a real radio. Changing these here without
+# changing them there would make the mock quietly wrong rather than obviously
+# wrong, which is the failure mode worth avoiding.
+RSSI_AT_ONE_METER = -59.0
+PATH_LOSS_EXPONENT = 2.2
+SENSITIVITY_FLOOR_DBM = -96.0
+
+
+def rssi_for_distance(metres):
+    """The RSSI a real peer at this distance would report, absent noise.
+
+    The inverse of the app's estimator, so a scripted distance and a scripted
+    dBm mean the same thing.
+    """
+    clamped = max(0.3, metres)
+    rssi = RSSI_AT_ONE_METER - 10.0 * PATH_LOSS_EXPONENT * math.log10(clamped)
+    return max(SENSITIVITY_FLOOR_DBM, min(0.0, rssi))
 
 # approach: walks between --start and --end metres, in place. This is the one
 #   that crosses the < 2 m proximity haptic twice per period.
@@ -49,6 +70,64 @@ PATTERNS = ("approach", "orbit", "walk", "static")
 
 # Never report a negative distance, however silly the arguments are.
 MIN_DISTANCE_METERS = 0.0
+
+
+def _gaussian(rng):
+    """Box-Muller: two uniforms in, one standard normal out.
+
+    Real RSSI noise is roughly symmetric around the true value, and a uniform
+    perturbation would not be: it would make far readings as noisy as near ones
+    in absolute dBm, or in metres, which is not how a radio misbehaves.
+
+    The generator is passed in rather than drawn from the module, so seeding the
+    Radio seeds this too - otherwise --seed would fix the outliers and the
+    dropouts but leave the underlying jitter running from the global RNG, and a
+    "reproducible" run would still differ.
+    """
+    u1 = rng.random()
+    u2 = rng.random()
+    # log(0) is -inf, so keep the first uniform away from exactly zero.
+    return math.sqrt(-2.0 * math.log(1.0 - u1)) * math.cos(2.0 * math.pi * u2)
+
+
+class Radio:
+    """The noise a real radio puts on a measurement.
+
+    This is what the script was missing. A scripted trajectory is smooth by
+    construction, so it can only ever show that the radar draws a clean signal
+    correctly - never that the filters survive a dirty one. The app smooths RSSI
+    over a two-second window precisely to absorb the things modelled here:
+
+      noise    - symmetric jitter in dBm. This is what the window exists for.
+      outlier  - a single wildly wrong reading. Multi-path does this: a packet
+                 reflects off a wall or a body and arrives with far more power
+                 than the path deserves, reading as a peer right in your face.
+      dropout  - adverts simply not arriving, which is what a peer walking past
+                 a crowd looks like from the other end.
+      floor    - a peer below the noise floor, which must read as *gone* at once
+                 rather than being averaged away by the ten good readings the
+                 window still holds.
+    """
+
+    def __init__(self, noise_db=0.0, outlier_rate=0.0, dropout_rate=0.0, rng=None):
+        self.noise_db = noise_db
+        self.outlier_rate = outlier_rate
+        self.dropout_rate = dropout_rate
+        self.rng = rng or random.Random()
+
+    def apply(self, rssi):
+        """The reading actually sent this sample, or None if it was lost."""
+        if self.dropout_rate > 0.0 and self.rng.random() < self.dropout_rate:
+            return None
+        value = float(rssi)
+        if self.noise_db > 0.0:
+            value += _gaussian(self.rng) * self.noise_db
+        if self.outlier_rate > 0.0 and self.rng.random() < self.outlier_rate:
+            # Wildly *stronger*, not weaker: the failure mode of a reflected
+            # packet. A peer reads as closer than it is for one sample, which is
+            # the case a naive average gets visibly wrong.
+            value += abs(_gaussian(self.rng)) * self.noise_db * 4.0 + 12.0
+        return int(round(max(SENSITIVITY_FLOOR_DBM, min(0.0, value))))
 
 def _triangle(phase, start, end):
     """Ping-pong between `start` and `end`, one leg per half cycle."""
@@ -82,14 +161,39 @@ def sample(pattern, phase, start, end, distance, azimuth, elevation):
 
 
 def build_range_envelope(event_id, peer_id, distance, azimuth, elevation, name=None,
-                         sender_peer_id=SCRIPT_PEER_ID):
-    """The "data" envelope carrying one range report for `peer_id`."""
-    report = {
-        "peerId": peer_id,
-        "distance": round(distance, 3),
-        "azimuth": round(azimuth, 2),
-        "elevation": round(elevation, 2),
-    }
+                         sender_peer_id=SCRIPT_PEER_ID, radio=None, as_rssi=False):
+    """The "data" envelope carrying one range report for `peer_id`.
+
+    Returns None when this sample was dropped, so the caller sends nothing that
+    tick - a lost advert, rather than a report of zero or of the last value.
+    """
+    # None from the radio means this advert was dropped. Absent a radio there is
+    # simply no noise configured, which is not the same thing and must not be
+    # mistaken for a lost sample.
+    if radio is not None:
+        noisy = radio.apply(rssi_for_distance(distance))
+        if noisy is None:
+            return None
+    else:
+        noisy = None
+    # Two quite different readings are on offer, and which one the app *uses*
+    # is the whole point. A distance is a ranging fix: precise, so it wins and
+    # the smoothing filter is skipped. An rssi on its own is what a peer
+    # without UWB actually provides, and it goes through the real rolling-window
+    # filter - which is the only way to test that filter at all.
+    report = {"peerId": peer_id}
+    if as_rssi:
+        # Without a radio there is no reading to send, and sending the clean
+        # inverse would silently turn a lossy test into an ideal one.
+        if noisy is None:
+            return None
+        report["rssi"] = noisy
+    else:
+        report["distance"] = round(distance, 3)
+        if noisy is not None:
+            report["rssi"] = noisy
+    report["azimuth"] = round(azimuth % 360.0, 2)
+    report["elevation"] = round(elevation, 2)
     if name:
         report["name"] = name
     inner = {"type": "mock-range", "payload": json.dumps(report, separators=(",", ":"))}
@@ -111,6 +215,16 @@ class MockRadar:
         self.reader = None
         self.writer = None
         self.stopped = asyncio.Event()
+        # Seeded so a failing run can be replayed exactly. Noise that changes on
+        # every attempt is untestable: you cannot tell a filter that coped from
+        # one that got a lucky draw. getattr with defaults because the test
+        # harness builds a Namespace by hand rather than through parse_args.
+        self.radio = Radio(
+            getattr(args, "noise_db", 0.0),
+            getattr(args, "outlier_rate", 0.0),
+            getattr(args, "dropout_rate", 0.0),
+            random.Random(getattr(args, "seed", None)),
+        )
 
     # --- connection -------------------------------------------------------
 
@@ -246,14 +360,22 @@ class MockRadar:
                     self.args.elevation,
                 )
                 readings.append((peer_id, distance, azimuth))
-                await self.send(build_range_envelope(
+                envelope = build_range_envelope(
                     self.args.event,
                     peer_id,
                     distance,
                     azimuth,
                     elevation,
                     name=self.args.name,
-                ))
+                    radio=self.radio,
+                    as_rssi=getattr(self.args, "rssi_only", False),
+                )
+                # A dropped sample sends nothing at all: the point of --dropout
+                # is a peer whose adverts simply fail to arrive, and repeating
+                # the last value or sending a zero would both be a lie the
+                # filter could hide behind.
+                if envelope is not None:
+                    await self.send(envelope)
 
             now = loop.time()
             if now - last_printed >= 0.5:
@@ -302,11 +424,37 @@ def parse_args(argv):
     parser.add_argument("--rate", type=float, default=5.0, help="reports sent per second per peer")
     parser.add_argument("--spread", action="store_true",
                         help="give each driven peer its own slice of the circle instead of the same bearing")
+    parser.add_argument("--rssi-only", action="store_true",
+                        help="report signal strength instead of distance, so the reading goes through the "
+                             "app's real RSSI smoothing. Without this a report is a ranging fix and the "
+                             "smoother is skipped, so --noise and --outliers would only add jitter to a "
+                             "number the app already trusts exactly")
+    parser.add_argument("--noise-db", type=float, default=0.0,
+                        help="standard deviation of symmetric jitter added to each reading, in dBm "
+                             "(try 3.0 for a realistic indoor peer)")
+    parser.add_argument("--outliers", type=float, default=0.0, metavar="RATE",
+                        help="probability (0-1) that a single reading is wildly too strong, as a "
+                             "multi-path reflection does. These are what the two-second window exists "
+                             "to absorb, so this is the flag that tests it")
+    parser.add_argument("--dropout", type=float, default=0.0, metavar="RATE",
+                        help="probability (0-1) that an advert never arrives. The reading is dropped "
+                             "entirely rather than replaced with a stale value")
+    parser.add_argument("--seed", type=int, default=None,
+                        help="seed the noise, so a failing run replays identically")
     args = parser.parse_args(argv)
     if args.rate <= 0:
         parser.error("--rate must be greater than zero")
     if args.period <= 0:
         parser.error("--period must be greater than zero")
+    for name, value in (("--noise-db", args.noise_db), ("--outliers", args.outliers),
+                        ("--dropout", args.dropout)):
+        if value < 0:
+            parser.error(f"{name} must not be negative")
+    # A probability outside 0-1 is always a typo, and a silent clamp would hide
+    # it: --outliers 5 reads as plausible but would never fire.
+    for name, value in (("--outliers", args.outliers), ("--dropout", args.dropout)):
+        if value > 1:
+            parser.error(f"{name} is a probability and must be between 0 and 1")
     return args
 
 

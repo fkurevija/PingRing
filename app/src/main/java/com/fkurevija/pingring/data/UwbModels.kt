@@ -73,5 +73,18 @@ data class MockRangingDto(
     val distance: Float? = null,
     val azimuth: Float? = null,
     val elevation: Float? = null,
-    val name: String? = null
+    val name: String? = null,
+    /**
+     * A raw signal strength in dBm, for driving the RSSI path instead of
+     * pretending to be a ranging fix.
+     *
+     * A report carrying [distance] is treated as a UWB-style measurement: it is
+     * precise by definition, so it wins over any signal-derived estimate. That
+     * makes it useless for testing the *smoothing* of signal readings, because
+     * a scripted distance is never noisy - it goes on screen exactly as sent.
+     * A report with [rssi] and no [distance] is the BLE case instead: the
+     * reading is fed through [RssiSmoother] like a real advert, so noise,
+     * outliers and dropouts can be exercised against the real filter.
+     */
+    val rssi: Int? = null
 )

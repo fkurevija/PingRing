@@ -149,6 +149,9 @@ Over this transport nothing can measure a distance: neither the emulator (no UWB
 python tools\mock_radar.py <event-id> --pattern approach
 python tools\mock_radar.py <event-id> --pattern orbit --distance 3
 python tools\mock_radar.py <event-id> --peer a1b2c3d4 --name "Alice"
+
+# A peer with no UWB, so the distance comes from the noisy signal instead
+python tools\mock_radar.py <event-id> --rssi-only --noise-db 3 --outliers 0.05 --dropout 0.02
 ```
 
 | Option | What it does |
@@ -160,8 +163,17 @@ python tools\mock_radar.py <event-id> --peer a1b2c3d4 --name "Alice"
 | `--peer` | Only drive these peer ids (repeatable). Default: every member of the event |
 | `--name` | Display name for the driven peer(s), so two scripted pins are told apart |
 | `--period`, `--rate`, `--azimuth`, `--elevation`, `--spread` | Cycle length, reports/second, starting bearing, elevation, and one bearing slice per peer |
+| `--rssi-only` | Send a signal strength instead of a distance, so the reading goes through the real RSSI smoothing. **Required for the noise flags to mean anything** — see below |
+| `--noise-db` | Standard deviation of symmetric jitter per reading, in dBm. `3.0` is a realistic indoor peer |
+| `--outliers` | Probability a single reading arrives wildly *too strong*, as a multi-path reflection does |
+| `--dropout` | Probability an advert never arrives. It is dropped, never replaced with a stale value |
+| `--seed` | Seed the noise, so a failing run replays identically |
 
-The radar reacts exactly as it would to real UWB: distance readout, "Direction locked" line, rings, arrow, haptics and the 15 s staleness sweep all follow the script. Run `python tools/test_mock_radar.py` to check the script and relay path with no device attached.
+**Why `--rssi-only` matters.** A report carrying a distance is treated by the app as a ranging fix: precise by definition, so it wins outright and the smoothing filter is skipped. Adding noise to such a report only produces jitter on a number the app already trusts exactly — the filter is never involved. Sending `rssi` instead reproduces the case the filter actually exists for: a peer with no UWB, whose distance is inferred from noisy adverts. Under that mode the app runs the reading through the same `RssiSmoother` a BLE advert takes, so `--noise-db` and `--outliers` test the real filter.
+
+Against a peer holding station at 3.16 m with one reading in twenty a 20 dB reflection — each claiming the peer is 0.39 m away — the readout stays within 0.57 m. That is the filter doing visible work, and it is exactly the case a smooth scripted trajectory could never produce.
+
+The radar reacts as it would to real UWB: distance readout, "Direction locked" line, rings, arrow, haptics and the 15 s staleness sweep all follow the script. Run `python tools/test_mock_radar.py` to check the script and relay path with no device attached.
 
 ---
 
@@ -190,7 +202,6 @@ Three kinds of item: things that are **built but unverified**, things that are *
 - **BLE reach.** The second scan pass is a reliability gain, not a range multiplier. The ceiling is the radio's own sensitivity, not an app setting: TI's LE 1M reference is -93 dBm, which working back from `RSSI_AT_ONE_METER` is roughly 50 m in free space, 35 m at the `PATH_LOSS_EXPONENT = 2.2` used here, and 14 m at the n=3.0 that crowded indoor venues produce. Treat ~14 m indoors as the expected figure and the exact drop-out as unmeasured. **Verify** by walking two phones apart — clear line-of-sight and through a doorway — until the peer stops appearing.
 - **RSSI distance accuracy.** `RSSI_AT_ONE_METER = -59` and `PATH_LOSS_EXPONENT = 2.2` are literature defaults, not measurements on this hardware. -59 dBm at 1 m sits mid-band for a handset (-55 to -65 dBm is the commonly reported range), so it is a reasonable default rather than an arbitrary one — but the accuracy of the readout rests on both constants. One limit no amount of calibration removes: a received advert carries no transmit-power field, so a single fleet-wide constant is necessarily an average across peer models and antennas, and per-peer bias cannot be corrected from the packet. **Verify** by fitting `RSSI = A - 10n·log10(d)` against the UWB distances the app already computes for ranged peers, which needs no extra hardware.
 - **LAN relay teardown.** `Ctrl+C` and host-drop handling read as complete, but have only been exercised by `test_lan_debug_relay.py` — never a real dropped connection or killed host.
-- **The scripted radar is too clean.** `mock_radar.py` produces exact trajectories, so the radar never meets radio noise. The rolling window now smooths it, but nothing yet produces the *outliers* it is there to reject — a window averages a single bad advert away, which is correct, so the mock no longer proves the filter handles the case it exists for.
 - **Discovery and join approval.** Both are built and unit tested, and the approval rules are tested as a pure function, but the part that cannot be tested that way is the one that matters: holding a live Nearby Connections request open across a human decision, and whether it survives a host who takes a minute to answer. **Verify** by hosting on one phone with **Discoverable** and **Approve Each Join** on, and joining from the other: denial, a disconnect while the request is held, a full session, a closed session, and code joining with discovery off.
 
 ### Known limitations

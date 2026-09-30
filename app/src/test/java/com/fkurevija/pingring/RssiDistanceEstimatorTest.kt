@@ -163,6 +163,76 @@ class RssiDistanceEstimatorTest {
     }
 
     @Test
+    fun anOutlierBurstFromAMultiPathReflectionDoesNotMoveTheReadout() {
+        // What tools/mock_radar.py now generates under --outliers: a peer
+        // holding a steady distance whose adverts occasionally arrive far
+        // stronger than the path deserves, because a packet reflected off a
+        // wall or a body. Every one of those readings is a real, decodable
+        // advert, so nothing upstream rejects them - the window is the only
+        // thing standing between one reflection and a peer appearing in your
+        // face. This is the case the filter exists for, and it is the one a
+        // smooth scripted trajectory could never produce.
+        val smoother = RssiSmoother()
+        val steady = -70
+        val steadyDistance = RssiDistanceEstimator.estimate(steady)!!
+        // One reading in twenty is a reflection. That is a busy indoor rate, not
+        // a pathological one: measured against the window, 2% holds the readout
+        // within ~0.3 m and 5% within ~0.6 m, while the reflection itself claims
+        // a peer under 0.6 m. At a rate like this the window is doing real work
+        // rather than meeting a caricature of one.
+        val readings = mutableListOf(steady)
+        repeat(40) { index ->
+            readings += if (index % 20 == 0) steady + 20 else steady
+        }
+
+        // The window has to be full before a reflection means anything. An
+        // outlier arriving against two samples averages to 1.1 m, which says
+        // nothing about the filter - it says the filter had barely started. A
+        // peer that has been in range for a moment is the case being tested.
+        var at = 0L
+        var worstDrift = 0f
+        repeat(20) {
+            smoother.add(steady, at)
+            at += 100
+        }
+        readings.forEach { rssi ->
+            val shown = smoother.add(rssi, at)!!
+            at += 100
+            worstDrift = maxOf(worstDrift, kotlin.math.abs(shown - steadyDistance))
+        }
+
+        assertTrue(
+            "the reflection must be big enough for this test to mean anything",
+            RssiDistanceEstimator.estimate(steady + 20)!! < 0.6f
+        )
+        assertTrue(
+            "a peer holding station at ${steadyDistance}m drifted $worstDrift m under reflections",
+            worstDrift < 1.0f
+        )
+    }
+
+    @Test
+    fun aPeerBelowTheNoiseFloorReadsAsGoneDespiteTheWindowHoldingGoodReadings() {
+        // The other half of the same problem. A peer walking out of range sends
+        // adverts below the floor, and carrying the last ten good readings
+        // forward would keep reporting a distance for somebody who is not there
+        // - the old distance, too, since one deep fade barely moves a mean of
+        // strong readings. mock_radar.py drives this with --dropout.
+        val smoother = RssiSmoother()
+        var at = 0L
+        repeat(10) {
+            smoother.add(-70, at)
+            at += 100
+        }
+        assertNotNull("the peer should be reported while it is audible", smoother.distance(at))
+
+        assertNull(
+            "one reading below the floor must read as gone, not as the old distance",
+            smoother.add(RssiDistanceEstimator.SENSITIVITY_FLOOR_DBM.toInt() - 1, at)
+        )
+    }
+
+    @Test
     fun aPeerDropsOutAroundTheDocumentedDistance() {
         // The README states peers stop appearing at roughly 35 m at the 2.2
         // exponent. That is the -59 dBm/1 m reference reading falling to the
