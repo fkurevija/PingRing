@@ -2,6 +2,8 @@
 
 **Serverless, Real-Time P2P Crowd-Finding & Peer Coordination for Android**
 
+[![Build APK](https://github.com/fkurevija/PingRing/actions/workflows/build-apk.yml/badge.svg)](https://github.com/fkurevija/PingRing/actions/workflows/build-apk.yml)
+[![Instrumented Tests](https://github.com/fkurevija/PingRing/actions/workflows/instrumented-tests.yml/badge.svg)](https://github.com/fkurevija/PingRing/actions/workflows/instrumented-tests.yml)
 [![Platform](https://img.shields.io/badge/Platform-Android_10%2B_%28API_29%2B%29-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://developer.android.com)
 [![Language](https://img.shields.io/badge/Language-Kotlin-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)](https://kotlinlang.org)
 [![UI](https://img.shields.io/badge/UI-Jetpack_Compose_&_Material_3-4285F4?style=for-the-badge&logo=jetpackcompose&logoColor=white)](https://developer.android.com/jetpack/compose)
@@ -19,7 +21,9 @@
 
 **Offline is the product** — this app exists for the moment a venue's data network stops working. There is no server, no account, and nothing to configure; phones find each other directly over BLE and Nearby Connections, and ranging falls back rather than dying.
 
-Using **Nearby Connections**, **BLE** and **UWB**, it forms an ad-hoc peer-to-peer mesh directly between nearby phones. Participants locate each other on a real-world radar, raise haptic beacons, and chat in real time — with no cellular data and no external server.
+Using **Nearby Connections**, **BLE**, **UWB** and **Wi-Fi RTT**, it forms an ad-hoc peer-to-peer mesh directly between nearby phones. Participants locate each other on a real-world radar, raise haptic beacons, and chat in real time — with no cellular data and no external server.
+
+Location permission is required because the radios doing the ranging are proximity sensors Android gates behind it, not because anything is uploaded. There is nowhere to upload it to.
 
 ---
 
@@ -42,7 +46,8 @@ Every document links back here at the top and bottom.
 ### 📡 Mesh & Connectivity
 - **One-tap hosting**, no server registration, with **admission control** — close the ring mid-event, list it on nearby phones (**Discoverable**), or approve each join by hand.
 - **Bounded capacity**: max **8 participants** (1 Host + 7 Guests), enforced by the Host.
-- **Automatic fallback** from sub-metre UWB to smoothed BLE RSSI proximity when UWB is unavailable.
+- **Ranked ranging, not a binary switch**: distance runs down a chain — **UWB** → **Wi-Fi RTT** → **GNSS** → **BLE RSSI** — so losing the most precise method costs accuracy, not the feature. The app names *which* rung is running and why a better one is unavailable. UWB and RSSI are live today; RTT and GNSS are in the chain as policy only, pending the work in the [roadmap](docs/roadmap.md).
+- **The method is chosen by capability, not assumption**: hardware and OS support are separated from what the user asked for, so a device that reports UWB on an OS too old to permit it is told the truth instead of being offered a prompt that cannot appear.
 
 ### 👤 Identity & Join
 - **Custom usernames**, saved locally and unique within a session.
@@ -54,6 +59,7 @@ Every document links back here at the top and bottom.
 
 ### 🧭 Radar
 - **30 FPS sensor-fusion tracking** with a directional needle, proximity haptics under 2 m, and a user-controlled tracking choice.
+- **UWB readings cross-checked against BLE.** In a crowd, UWB's dominant error is not noise but *obstruction* — a body between two phones makes the distance read long, often by metres. BLE degrades under that same body, so it is an independent measurement of the same geometry, and the radar reports **Cross-checked**, **Someone may be in the way**, or **Distance estimate only** when there is only one source.
 - **Device-aware permissions** — unsupported hardware is explained, never asked for.
 
 Full detail, and the reasoning behind each of these: **[Features](docs/features.md)**.
@@ -69,7 +75,9 @@ Full detail, and the reasoning behind each of these: **[Features](docs/features.
 | **P2P Transport** | Google Nearby Connections API (`play-services-nearby`) |
 | **Spatial Ranging** | Jetpack UWB (`androidx.core.uwb`) |
 | **QR Scanning** | CameraX + Google ML Kit Barcode Scanning |
+| **Serialization** | Moshi (relay payloads) + kotlinx.serialization |
 | **Persistence / Asynchrony** | Jetpack DataStore Preferences, Kotlin Coroutines & StateFlow |
+| **Testing** | JUnit 4, `kotlinx-coroutines-test`, Compose UI Test, JaCoCo |
 
 ---
 
@@ -82,8 +90,11 @@ git clone https://github.com/fkurevija/PingRing.git
 cd PingRing
 
 ./gradlew testDebugUnitTest   # unit tests
+./gradlew uiTest              # Compose UI + device tests (needs a booted device)
 ./gradlew assembleDebug       # debug APK
 ```
+
+`check` and `build` deliberately skip the instrumented tests so a slow machine can stay fast — CI runs them on every push instead.
 
 Releases, signing, CI behaviour, the emulator↔device LAN debug transport and scripted-distance testing are all in **[Building & Testing](docs/building.md)**.
 
