@@ -52,6 +52,14 @@ Grouped by area. Nothing here is known to be broken: these are things not built,
 - ~~**Tune antenna use across BLE, UWB and Wi-Fi.**~~ Partly done. `RadioPowerPolicy` now decides the BLE scan mode, the scan pass count and the UWB retention window from the actual load — member count, whether UWB is ranging, whether the phone is on mains — and `DiscoveryRepository` applies it to both call sites. A second scan pass is only added once a ring is crowded enough to need it, the scan drops to the platform default when two other radios are already up off mains, and a retained UWB session is given up sooner under the same conditions. Wi-Fi Direct is still not a lever: Nearby owns that transport and exposes no setting, which is the same finding that removed the High Bandwidth switch. **Still unverified**: no device has measured what this actually saves. The thresholds are reasoned, not measured, and `RadioPowerPolicy.describe` writes the chosen plan to logcat so a device run can be checked after the fact.
 
 
+- **Wi-Fi RTT ranging — foundation only, and the constraints are harder than they look.** `RangingSourcePolicy` exists and is fully tested: it orders the three sources (UWB → Wi-Fi RTT → BLE RSSI) and reports *why* RTT is unavailable rather than silently dropping it. The capability probe is written. **The ranging itself is not wired up**, and four things block it, none of which can be settled without hardware:
+  1. **`startRanging` takes no peer list.** `WifiRttManager.startRanging(RangingRequest, Executor, RangingResultCallback)` has no way to say *which* peers to range — the platform picks RTT-capable peers from its own scan. Correlating a result to a specific member is the whole problem, and PingRing identifies members by ephemeral BLE peer ids with no MAC anywhere.
+  2. **The only public correlation handle is `RangingResult.getUsdPeerId()`**, from Wi-Fi Direct Service Discovery. Members would have to *also* publish and subscribe over Wi-Fi P2P — a second discovery path alongside BLE.
+  3. **Nearby Connections already owns Wi-Fi Direct.** Whether our own `WifiP2pManager` usage can coexist with it is untested, and may be mutually exclusive on some devices.
+  4. **Location services must be on**, and RTT returns nothing when they are off device-wide even with the permission granted. That is a user-visible cost for a privacy-first app.
+
+  **Verify before building further**: on two API 34+ devices with RTT hardware, do USD peer ids actually appear on `RangingResult`, and can a P2P session coexist with Nearby? If either answer is no, this closes like the transport item above.
+
 **Radar — Beacon**
 - **Move Emergency off the first preset slot.** Presets render in enum order and `SOS` is first, so Emergency is the default selection when the sheet opens — and it is a one-line move in `BeaconPreset`.
 
