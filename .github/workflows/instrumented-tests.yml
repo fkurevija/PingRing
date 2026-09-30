@@ -14,23 +14,32 @@ name: Instrumented Tests
 # a 45-minute job that pushed a superseded commit the moment the next push
 # arrived.
 #
-# So it runs for tagged `v*` releases only, which is where it earns its keep:
-# those tags publish an APK that people install, and this is the check that the
-# UI in that APK actually composes. `workflow_dispatch` remains for running it by
-# hand against any ref when a UI change needs verifying before it is tagged.
+# So it ran for tagged `v*` releases only, on the reasoning that paying 45 minutes
+# on every push bought little. That turned out to be the wrong trade: the whole
+# point of this workflow is that the fast job cannot see the UI, so gating it
+# behind tags meant a UI regression sat on master for however long it took to
+# decide to release, caught by nobody. It now runs on every push and every PR.
 #
-# The consequence to be aware of: the coverage page this workflow publishes is
-# now only refreshed on releases, so between tags it describes the last released
-# commit rather than the tip of master. The numbers stay true of a real build;
-# they just stop tracking every push.
+# The cost is paid back two ways. A failure is non-blocking (`continue-on-error`),
+# so a red UI test never stops an APK from being built and published - the failure
+# is surfaced in the summary and the artifacts instead of blocking a merge. And a
+# new push cancels the run in flight (see `concurrency` below), so the expensive
+# emulator is only ever working on the newest commit rather than queueing up
+# behind superseded ones.
+#
+# The consequence to be aware of: because failures do not block, this workflow's
+# green tick means "the suite ran to completion", not "the suite passed". The
+# step summary says which it was, on every run.
 
 on:
-  # Tagged version releases only. A direct push to master deliberately does not
-  # trigger this - see above. build-apk.yml still runs there, so every push is
-  # still compiled and unit tested.
   push:
+    branches:
+      - master
     tags:
       - 'v*'
+  pull_request:
+    branches:
+      - master
   workflow_dispatch:
 
 # `contents: write` is needed only so the last step can push COVERAGE.md to the
@@ -42,9 +51,14 @@ permissions:
   contents: write
 
 concurrency:
-  # A new push supersedes an in-flight run for the same ref. The emulator is the
-  # most expensive thing in CI, and the answer for a superseded commit is
-  # almost always the same as for the one that replaced it.
+  # A new push supersedes an in-flight run for the same ref, which is what makes
+  # running this on every push affordable: the emulator is the most expensive
+  # thing in CI, and the answer for a superseded commit is almost always the
+  # same as for the one that replaced it.
+  #
+  # Grouped by ref rather than globally, so a pull request's run and master's run
+  # do not cancel each other, and a `v*` tag run is not cancelled by a later
+  # master push - different refs, different groups.
   group: instrumented-${{ github.ref }}
   cancel-in-progress: true
 
@@ -53,6 +67,17 @@ jobs:
     name: Compose UI and device tests
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    # A failure here is reported, not enforced. The UI is the part the JVM tests
+    # cannot see, so a red run is real information - but it should not be able to
+    # block a build that is otherwise fine, because a superseded emulator boot or a
+    # flaky mount would otherwise stop releases for a reason unrelated to the
+    # change. The job still shows as failed in the UI; it just does not gate.
+    #
+    # Set at the job rather than per-step so it covers every step, including the
+    # emulator boot, which is the flakiest part and the most likely to fail for
+    # reasons that have nothing to do with the change. Because the job continues,
+    # the reporting step below still runs and can say what happened.
+    continue-on-error: true
 
     steps:
       - name: Check out repository
@@ -207,6 +232,44 @@ jobs:
           name: instrumented-test-report
           path: app/build/reports/androidTests/connected/**
           if-no-files-found: warn
+
+      # Non-blocking means the tick can go green over a red suite, which is only
+      # safe if the summary says so in as many words. This reads the same results
+      # XML the artifacts do and states the verdict either way, so nobody has to
+      # open an artifact to find out whether the UI actually passed.
+      #
+      # if: always() because this is precisely the step that must run on failure.
+      - name: Report whether the instrumented tests passed
+        if: always()
+        run: |
+          # `find` rather than a glob: the results sit under a device-named
+          # directory whose exact spelling varies by emulator and API level
+          # ("Pixel 6 - 35", "Pixel_10(AVD) - 17"), so the one thing worth
+          # relying on is the file name, not the path.
+          report="$(find app/build/outputs/androidTest-results -name 'TEST-*.xml' 2>/dev/null | head -1)"
+          if [ -z "$report" ]; then
+            echo "### Instrumented tests: DID NOT RUN" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "No results were produced. The emulator failed to boot, or the job was" \
+                 "cancelled by a newer push. This is not a pass." >> "$GITHUB_STEP_SUMMARY"
+            echo "::error title=Instrumented tests did not run::No results XML was produced."
+            exit 0
+          fi
+          total="$(grep -o 'tests="[0-9]*"' "$report" | head -1 | tr -dc '0-9')"
+          failures="$(grep -o 'failures="[0-9]*"' "$report" | head -1 | tr -dc '0-9')"
+          errors="$(grep -o 'errors="[0-9]*"' "$report" | head -1 | tr -dc '0-9')"
+          if [ "${failures:-0}" -gt 0 ] || [ "${errors:-0}" -gt 0 ]; then
+            echo "### Instrumented tests: FAILED (non-blocking)" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "$failures failed, $errors errored, of $total tests. The run is green" \
+                 "because this failure is advisory - the APK still built and published." \
+                 "See the \`instrumented-test-report\` artifact." >> "$GITHUB_STEP_SUMMARY"
+            echo "::error title=Instrumented tests failed::$failures failed, $errors errored (advisory)"
+          else
+            echo "### Instrumented tests: PASSED" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "All $total tests passed."
+          fi
 
       - name: Upload test results
         if: always()

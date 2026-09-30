@@ -20,6 +20,26 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  # A new push supersedes an in-flight run for the same ref, so the queue never
+  # builds commits nobody is going to install. Grouped by ref rather than
+  # globally, so a pull request's run and master's run do not cancel each other -
+  # and so a `v*` tag build is not cancelled by an unrelated master push.
+  #
+  # Cancelling mid-publish is safe for branch builds because every publish step is
+  # idempotent against its own target: the next run rewrites the `latest` release
+  # and re-points the tag at whichever commit it actually built, so a cancelled run
+  # just leaves the previous pointer in place - exactly what the run before it
+  # published.
+  #
+  # Tag builds are the exception and are never cancelled. A tag will not be
+  # re-triggered by a later push, so a run cancelled between creating its release
+  # and uploading its APK leaves an empty release that nothing will ever fix. Since
+  # `v1.2.3` and `master` are different refs they already land in different
+  # concurrency groups, so a tag cannot be cancelled by a master push regardless.
+  group: build-apk-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
 jobs:
   build-apk:
     runs-on: ubuntu-latest
