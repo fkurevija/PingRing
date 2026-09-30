@@ -1,6 +1,7 @@
 package com.fkurevija.pingring
 
 import com.fkurevija.pingring.data.RssiDistanceEstimator
+import com.fkurevija.pingring.data.RssiSmoother
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -82,36 +83,83 @@ class RssiDistanceEstimatorTest {
     @Test
     fun firstSampleSeedsTheEstimateExactly() {
         val raw = RssiDistanceEstimator.estimate(-70)!!
-        assertEquals(raw, RssiDistanceEstimator.smooth(null, raw)!!, 0.0001f)
+        val smoother = RssiSmoother()
+
+        assertEquals(raw, smoother.add(-70, 0L)!!, 0.0001f)
     }
 
     @Test
     fun smoothingMovesTowardTheNewReadingWithoutJumpingToIt() {
+        // A reading that differs sharply from the window is outvoted by the rest
+        // rather than replacing the estimate outright: one reflected packet
+        // should not move the readout the length of the room.
+        val smoother = RssiSmoother()
         val near = RssiDistanceEstimator.estimate(-50)!!
         val far = RssiDistanceEstimator.estimate(-90)!!
-        val smoothed = RssiDistanceEstimator.smooth(near, far)!!
-        assertTrue("expected a value between the two samples", smoothed > near && smoothed < far)
+        var at = 0L
+        repeat(6) {
+            smoother.add(-50, at)
+            at += 100
+        }
+        val before = smoother.distance(at)!!
+        val after = smoother.add(-90, at)!!
+
+        assertEquals("a steady peer should have settled near the near value", near, before, 0.5f)
+        assertTrue(
+            "expected to move toward the far reading but not reach it",
+            after > before && after < far
+        )
     }
 
     @Test
     fun smoothingDampsJitterAroundASteadyPeer() {
-        val steady = RssiDistanceEstimator.estimate(-70)!!
-        var running = steady
-        // A peer standing still still produces noisy RSSI; the smoothed value
-        // should stay much tighter than the raw samples.
-        var spread = 0f
-        listOf(-68, -72, -69, -71, -67, -73).forEach { noisy ->
+        // A peer standing still still produces noisy RSSI. This is the property
+        // the whole window exists for: the estimate moves much less for the same
+        // sequence of readings than the raw samples do.
+        val smoother = RssiSmoother()
+        val readings = listOf(-68, -72, -69, -71, -67, -73, -68, -70, -69, -72)
+        var at = 0L
+        val rawSteps = mutableListOf<Float>()
+        val smoothedSteps = mutableListOf<Float>()
+        var previousRaw: Float? = null
+        var previousSmoothed: Float? = null
+
+        readings.forEach { noisy ->
             val raw = RssiDistanceEstimator.estimate(noisy)!!
-            spread = maxOf(spread, kotlin.math.abs(raw - steady))
-            running = RssiDistanceEstimator.smooth(running, raw)!!
+            val smoothed = smoother.add(noisy, at)!!
+            previousRaw?.let { rawSteps += kotlin.math.abs(raw - it) }
+            previousSmoothed?.let { smoothedSteps += kotlin.math.abs(smoothed - it) }
+            previousRaw = raw
+            previousSmoothed = smoothed
+            at += 100
         }
-        assertTrue("smoothed value drifted too far: $running", kotlin.math.abs(running - steady) < spread)
+
+        val rawTotal = rawSteps.sum()
+        val smoothedTotal = smoothedSteps.sum()
+        assertTrue(
+            "a steady peer should not move the readout: raw drifted $rawTotal m, " +
+                "smoothed drifted $smoothedTotal m",
+            smoothedTotal < rawTotal
+        )
     }
 
     @Test
     fun outOfRangeReadingDropsTheEstimateRatherThanFreezingIt() {
-        val previous = 4f
-        assertNull(RssiDistanceEstimator.smooth(previous, null))
+        val smoother = RssiSmoother()
+        var at = 0L
+        repeat(4) {
+            smoother.add(-70, at)
+            at += 100
+        }
+
+        assertNull(smoother.add(-120, at))
+        // And it must not come back as the old distance when the peer returns:
+        // the window was cleared, so this is the new reading and nothing else.
+        assertEquals(
+            RssiDistanceEstimator.estimate(-80)!!,
+            smoother.add(-80, at + 100)!!,
+            0.0001f
+        )
     }
 
     @Test

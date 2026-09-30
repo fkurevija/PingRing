@@ -63,36 +63,39 @@ object RssiDistanceEstimator {
     const val MAX_DISTANCE_METERS = 40f
 
     /**
-     * Weight of the newest sample in the exponential moving average. 0.2 keeps
-     * the readout steady enough to read while still tracking a peer who is
-     * genuinely moving.
+     * How far back a reading still counts toward the smoothed RSSI, in
+     * milliseconds. Two seconds is roughly ten adverts from a typical peer, so
+     * one dropped or reflected packet is outvoted by the rest, while a peer
+     * genuinely walking is still tracked with about a second of lag.
+     *
+     * A window rather than an exponential moving average, because an EMA
+     * weighted per *sample* has a time constant that depends on how often the
+     * peer happens to advertise. The same alpha that averages out noise on a
+     * phone advertising every 100 ms will lag badly on one advertising every
+     * second, and the app cannot see the advertising interval - it only gets
+     * the reports that actually arrive.
      */
-    const val SMOOTHING_ALPHA = 0.2f
+    const val SMOOTHING_WINDOW_MILLIS = 2_000L
 
     /**
      * Single-sample RSSI -> distance estimate, or `null` when the reading is
      * below the noise floor and no honest number can be given.
      */
-    fun estimate(rssi: Int): Float? {
+    fun estimate(rssi: Int): Float? = estimateFromRssi(rssi.toFloat())
+
+    /**
+     * The curve on its own, for an already-smoothed RSSI value.
+     *
+     * Split out from [estimate] so the window can average in dBm - where the
+     * mean is meaningful, since power is what falls off linearly with distance
+     * - and the curve is applied once at the end. Smoothing the *distances*
+     * instead would average the log of the readings, which is not the same
+     * thing and flattens the result.
+     */
+    fun estimateFromRssi(rssi: Float): Float? {
         if (rssi < SENSITIVITY_FLOOR_DBM) return null
         val metres = 10f.pow((RSSI_AT_ONE_METER - rssi) / (10f * PATH_LOSS_EXPONENT))
         return metres.coerceIn(MIN_DISTANCE_METERS, MAX_DISTANCE_METERS)
-    }
-
-    /**
-     * Folds a new reading into a running estimate.
-     *
-     * A weak signal is noisy in both directions, so the raw value alone makes
-     * the number jump around. Averaging exponentially keeps it legible. The
-     * first sample seeds the estimate directly rather than being blended into
-     * an arbitrary starting point, and a `null` reading (peer out of range)
-     * drops back to the unfiltered sample so a peer that returns is not shown
-     * a long-stale average.
-     */
-    fun smooth(previous: Float?, rawEstimate: Float?): Float? {
-        if (rawEstimate == null) return null
-        if (previous == null) return rawEstimate
-        return previous + SMOOTHING_ALPHA * (rawEstimate - previous)
     }
 
     /**
@@ -108,5 +111,78 @@ object RssiDistanceEstimator {
         val clamped = metres.coerceIn(MIN_DISTANCE_METERS, MAX_DISTANCE_METERS)
         val rssi = RSSI_AT_ONE_METER - 10f * PATH_LOSS_EXPONENT * kotlin.math.log10(clamped)
         return rssi.coerceIn(SENSITIVITY_FLOOR_DBM, 0f)
+    }
+}
+
+/**
+ * A rolling average of one peer's RSSI over the last [windowMillis], and the
+ * distance that average implies.
+ *
+ * One instance per peer, so the readings of eight members in a ring cannot
+ * contaminate each other. [DiscoveryRepository] keeps them in a map keyed by
+ * peer id and drops the entry when the peer does.
+ *
+ * The average is taken in dBm rather than in metres. Received power is what
+ * falls off with distance and dBm is already a logarithmic scale, so the plain
+ * arithmetic mean of a set of readings is the right thing to average. Averaging
+ * the resulting *distances* instead would average the logarithms and pull every
+ * estimate toward the middle of the range - a worse filter, because it shrinks
+ * a genuinely far peer instead of merely steadying them.
+ *
+ * The timestamp is a parameter rather than read from a clock here, so this is a
+ * pure function of what it is given and can be tested without real time passing.
+ */
+class RssiSmoother(
+    private val windowMillis: Long = RssiDistanceEstimator.SMOOTHING_WINDOW_MILLIS,
+) {
+    /** One reading, and when it was taken. */
+    private data class Sample(val rssi: Float, val atMillis: Long)
+
+    private val samples = ArrayDeque<Sample>()
+
+    /** The smoothed RSSI over the window, or null when nothing recent is held. */
+    fun smoothedRssi(nowMillis: Long): Float? {
+        prune(nowMillis)
+        if (samples.isEmpty()) return null
+        // Summed as Double: a mean of many Float readings accumulates error in
+        // Float, and the whole point of averaging is to be more precise than any
+        // one sample.
+        return (samples.sumOf { it.rssi.toDouble() } / samples.size).toFloat()
+    }
+
+    /** The distance the smoothed RSSI implies, or null when nothing is held. */
+    fun distance(nowMillis: Long): Float? =
+        smoothedRssi(nowMillis)?.let { RssiDistanceEstimator.estimateFromRssi(it) }
+
+    /**
+     * Adds a reading and returns the resulting smoothed distance, or null when
+     * the peer is below the noise floor.
+     *
+     * A below-floor reading clears the window rather than being averaged in. A
+     * peer that has walked out of range should read as gone at once, and
+     * carrying ten older readings forward would keep reporting a distance for
+     * somebody who is not there - the *old* distance, too, since one deep fade
+     * barely moves the mean of a set of strong readings.
+     */
+    fun add(rssi: Int, nowMillis: Long): Float? {
+        if (rssi < RssiDistanceEstimator.SENSITIVITY_FLOOR_DBM) {
+            samples.clear()
+            return null
+        }
+        samples.addLast(Sample(rssi.toFloat(), nowMillis))
+        // Pruned before averaging so a stale reading cannot hold a value on
+        // screen after the peer has gone quiet.
+        prune(nowMillis)
+        return distance(nowMillis)
+    }
+
+    /** Forgets every reading, for a peer that has left or been dropped. */
+    fun clear() = samples.clear()
+
+    /** Drops readings older than the window. */
+    private fun prune(nowMillis: Long) {
+        while (samples.isNotEmpty() && nowMillis - samples.first().atMillis > windowMillis) {
+            samples.removeFirst()
+        }
     }
 }

@@ -286,7 +286,10 @@ class DiscoveryRepository(
 
     // Running RSSI distance estimate per peer, fed through an exponential
     // moving average so the readout does not jitter with every advertisement.
-    private val estimatedDistances = mutableMapOf<String, Float?>()
+    // Rolling RSSI average per peer, so the radar does not show a distance that
+    // twitches with every advert. One instance per peer: the readings of eight
+    // members in a ring must not average into each other.
+    private val rssiSmoothers = mutableMapOf<String, RssiSmoother>()
 
     /**
      * The member the user has chosen to track, or null for "auto" (nearest).
@@ -1066,13 +1069,11 @@ class DiscoveryRepository(
 
         // A UWB measurement is real ranging, so it always wins over an RSSI
         // guess. Only peers that have never been ranged fall back to the
-        // estimate, and it is recomputed on every scan so it tracks a peer who
-        // is walking rather than freezing on first contact.
-        val rssiEstimate = RssiDistanceEstimator.smooth(
-            previous = estimatedDistances[peerId],
-            rawEstimate = RssiDistanceEstimator.estimate(rssi)
-        )
-        estimatedDistances[peerId] = rssiEstimate
+        // estimate, which is a rolling average over the last couple of seconds
+        // of adverts - the curve is applied to the mean, not to each reading,
+        // so one reflected packet cannot move the readout.
+        val rssiEstimate = rssiSmoothers.getOrPut(peerId) { RssiSmoother() }
+            .add(rssi, System.currentTimeMillis())
         val hasUwbFix = uwbRangedPeers.contains(peerId)
 
         val updated = RadarPeerUpdate(
@@ -1132,7 +1133,7 @@ class DiscoveryRepository(
         // old flags would suppress its RSSI estimate, and keeping the old
         // average would seed it with a distance from a session that is over.
         uwbRangedPeers.remove(peerId)
-        estimatedDistances.remove(peerId)
+        rssiSmoothers.remove(peerId)
         lastUwbMeasurementAt.remove(peerId)
         retainedRangingPeerIds.remove(peerId)
         // Forget the label too, so a member who leaves and rejoins is numbered
@@ -1599,7 +1600,7 @@ class DiscoveryRepository(
         // From here on this peer has a real measurement, so later BLE
         // advertisements must not replace it with an estimate.
         uwbRangedPeers.add(peerId)
-        estimatedDistances.remove(peerId)
+        rssiSmoothers.remove(peerId)
         // Timestamp of the last real ranging result. This is the only evidence
         // available that a retained peer's far end still has a live session, so
         // it is what separates "out of range but still there" from "gone".
@@ -1650,7 +1651,7 @@ class DiscoveryRepository(
         val existing = _peerUpdates.value[peerId]
         if (dto.distance != null) {
             uwbRangedPeers.add(peerId)
-            estimatedDistances.remove(peerId)
+            rssiSmoothers.remove(peerId)
         }
         val updated = RadarPeerUpdate(
             peerId = peerId,
