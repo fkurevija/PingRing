@@ -75,8 +75,8 @@ graph TD
 
 ### 🧭 Radar, Theming & Hardware Adaptation
 - **30 FPS sensor-fusion tracking**: rotation-vector, magnetometer and accelerometer orient peer vectors into world space while concurrent non-blocking UWB sessions stream sub-metre distance, azimuth and elevation.
-- **Proximity haptics** under 2 m; **stale peers expire** from the radar after 15 s.
-- **Who is tracked, and who decides**: with nothing chosen, a guest follows the **host** and the host follows the **first member it saw** — role-based rather than nearest, because "nearest" changes underneath the user as people walk. Turning on **Track Host** locks every guest to the host and disables the picker for them, visibly rather than by hiding it, so the radar is never pointed at somebody with no way to find out why. The host is never locked: the policy asks *members* to follow it, it does not constrain the host. Everyone still *receives* every message regardless of who is tracked.
+- **Proximity haptics** under 2 m; **stale peers expire** from the radar after 15 s. The RSSI distance is the mean of a rolling 2-second window in dBm, with one window per peer, so a single reflected or dropped advert cannot move the readout and eight members cannot average into each other. It is a window in *time* rather than a count of samples on purpose: a sample-weighted average would smooth differently depending on how often a peer happens to advertise, which the app cannot see.
+- **Who is tracked, and who decides**: a **Tracking** dropdown names whoever the radar and the single UWB session are following, and changes it — the per-row buttons can also set it, and tapping the tracked row again returns to the automatic choice. With nothing chosen, a guest follows the **host** and the host follows the **first member it saw** — role-based rather than nearest, because "nearest" changes underneath the user as people walk. Turning on **Track Host** locks every guest to the host and disables the picker for them, visibly rather than by hiding it, so the radar is never pointed at somebody with no way to find out why. The host is never locked: the policy asks *members* to follow it, it does not constrain the host. Everyone still *receives* every message regardless of who is tracked.
 - **Directional radar**: a needle points at the tracked member and a lit arc on the ring widens as they approach — a sliver when far, the whole ring within arm's reach (1.5 m). Width is spaced logarithmically, so each doubling of distance gets an equal share of the arc. With no UWB bearing the ring stays plain - signal strength only tints it - rather than inventing a direction.
 - **UWB sessions survive a transport drop**: if a member walks out of BLE range while still being tracked, the ranging session is held open for 45 s so walking back is instant instead of renegotiating. Ending or leaving the ring discards every retained address.
 - **Theming**: Material You dynamic colour, system light/dark, an adaptive navy-and-white radar icon, and a monochrome `ic_launcher_monochrome.xml` for Android 13+ launchers.
@@ -195,7 +195,8 @@ Two kinds of item: things that are **built but unverified**, and things **not bu
 
 ### Known limitations
 
-- **Discovery and join approval are unverified on real devices.** Both are built and unit tested, and the approval rules are tested as a pure function, but the part that cannot be tested that way is the one that matters: holding a live Nearby Connections request open across a human decision, and whether it survives a host who takes a minute to answer. The 2-minute request window and the guest's wait are reasoned about rather than measured. Everything here needs two real phones before it is trusted.
+- **Discovery and join approval are unverified on real devices.** Both are built and unit tested, and the approval rules are tested as a pure function, but the part that cannot be tested that way is the one that matters: holding a live Nearby Connections request open across a human decision, and whether it survives a host who takes a minute to answer. Everything here needs two real phones before it is trusted.
+- **The host-side request timeout is not enforced.** `expiredJoinRequest` in `NearbyConnectionsManager` defines and tests the 2-minute rule, but nothing calls it, so a request the host walks away from stays pending indefinitely. The guest still times out at 2 min 15 s (`JOIN_WAIT_TIMEOUT_MILLIS` in `MainActivity`), so the failure is the host's side: a queue entry that can never be answered and no longer shows a failure. Wire it to a sweep, or delete the policy and say the host's answer is the only thing that ends a request.
 - **The BLE payload is now 20 of the 31 legacy bytes.** A v1 build ignores a v2 advert instead of misreading it, so mixed-version rings half-work: a v1 guest joins by code and appears as a member, but cannot browse. The 11 spare bytes are named and asserted; going past them means BLE 5 extended advertising and losing devices that only do legacy.
 
 - **The range ceiling is the BLE scan radius.** Coded PHY is the only BLE setting that genuinely multiplies range, and the public SDK does not expose it — `ScanSettings` has only `PHY_LE_ALL_SUPPORTED` and `AdvertiseSettings.Builder` has no `setPreferredPhy` (verified against the API 37 `android.jar`). Getting it needs hidden APIs, a deliberate non-goal here. The commonly quoted "~4×" is a free-space figure: 4× range is 12 dB of extra link budget, and at the `PATH_LOSS_EXPONENT = 2.2` used here the same 12 dB is 3.5×. Silicon Labs quotes 4–6 dB of real-world sensitivity gain instead, which is 1.5–1.8× at that exponent. Either way it would not help PingRing: the gain applies to established connections via `HCI_LE_SetPhy`, and PingRing advertises non-connectable and never forms a link. UWB does not widen this: it never transports data, so a peer past the BLE radius is invisible to it too.
@@ -215,33 +216,43 @@ Two kinds of item: things that are **built but unverified**, and things **not bu
 
 ### Planned work
 
-Grouped by area. ✅ = already shipped, kept for reference.
+Grouped by area. Nothing here is known to be broken: these are things not built, or built and unverified. Resolved items are struck through and kept only where the reasoning is worth not re-deriving.
 
 **Global**
-- ✅ Theme colour applied app-wide, including to chat bubbles.
-- **Design the logo**, then match the theme colour to it. The colour currently has no logo to be derived from.
+- **Define the brand colour and match it to the logo.** The theme colour is applied throughout today — including chat bubbles, until a user picks their own — but there is no logo to derive it from, so the identity is undefined.
+- **Per-user chat bubble colour**: 4 presets plus a "custom" option opening a colour wheel. Today every bubble uses the global theme colour. Beacon entries keep their own styling and the radar stays global — neither is affected by the choice.
+- **Replace the v1 advertisement compatibility path with v2 only.** v1 has never shipped outside test devices, so reading it is code that exists to serve nobody. Drop it unless v1 and v2 are deliberately kept for different hardware ages or API levels — in which case say so, because the current shape implies a compatibility promise the project has not made.
+- **Accessibility audit.** Decorative icons correctly pass `contentDescription = null`, but nothing has checked the app against an accessibility standard, and the radar is drawn on a `Canvas` that no screen reader can describe at all.
+- **Multi-language support.** Every string is a hard-coded literal.
+- **Help and documentation.** An open question rather than a decision: an offline in-app knowledge base versus spreading help through the app. Needs Iloha's input before it is worth building.
+- **Security review.** Untested and unaudited: whether connections can be eavesdropped, and whether the BLE advert or the Nearby handshake can be leveraged against a device. The app's privacy claims rest on this being answered.
+- **Development request portal.** Consider a form or bot that opens — and de-duplicates against existing — GitHub issues, so requests are tracked rather than living in chat.
 
 **Home — Host / Join**
-- **Per-user chat bubble colour**: 4–6 presets plus a "custom" option opening a colour wheel. Today every bubble uses the global theme colour. Beacon entries in chat keep their own styling.
+- ✅ Host and join entry points, with each option explained.
+- ✅ Admission control: accept/deny, capacity, Discoverable, Approve Each Join. See *Known limitations* for what is unverified.
 
 **Connectivity**
-- **Wire up the Wi-Fi Direct / hotspot settings** — see Known limitations.
+- **Implement Wi-Fi Direct, or a host hotspot with clients joining it.** Both switches are currently inert, and multi-client support is the open question: Wi-Fi Direct is P2P by nature, and a hotspot is the more likely shape for eight members. See *Known limitations*.
 - **Choose the connection method by capability.** UWB defaults from `isUwbSupported()` and Wi-Fi Direct is hard-coded `true`; nothing considers API level or what members support. No dropdown or checkbox list exists, only two switches.
-- ~~**Optionally make sessions discoverable** to nearby devices behind a setting, with the host approving individual joins rather than the current all-or-nothing switch.~~ Resolved: a **Discoverable** switch advertises the session, and the join screen lists whatever is nearby; an **Approve Each Join** switch holds new members for the host to allow or turn away. Both default to off, and neither changes code joining — a session that is not discoverable is still perfectly joinable by code. Advertising the event code is what made this possible at all, so the BLE payload is now versioned (v2, 20 bytes) and carries the code; a build that predates it ignores the advert rather than misreading it. See *Known limitations* for what is still unverified.
+- ~~**Optionally make sessions discoverable** to nearby devices behind a setting, with the host approving individual joins rather than the current all-or-nothing switch.~~ Resolved: a **Discoverable** switch advertises the session and the join screen lists what is nearby; **Approve Each Join** holds new members for the host to allow or turn away. Both default to off, and neither changes code joining. Advertising the event code is what made this possible at all, so the BLE payload is now versioned (v2, 20 bytes); see *Known limitations* for the v1 question and for what is unverified.
+- **Tune antenna use across BLE, UWB and Wi-Fi.** Three radios competing on one battery, with BLE scanning continuously and UWB ranging held open for 45 s after a drop. Nothing has measured what that costs.
 
 **Radar**
 - ~~**Hide End / Leave PingRing while the keyboard is open.**~~ Resolved: the button moved to the **PingRing Settings** screen, and the radar keeps the navigation bar back arrow as the exit route.
 - ~~**Replace Nudge with a favourite beacon.**~~ Resolved: Nudge is gone everywhere, wire format included; the beacon screen sets a configuration as the **Quick Beacon** (**Set as Quick Beacon**, kept in DataStore) and the radar's **Quick Beacon** button sends it in one tap — toasting and opening the beacon screen when none is set.
 - ~~**Fix radar rendering.**~~ Resolved: the lit arc was inscribed in an oval the size of the *canvas* instead of the ring's own square, which put the arc's centre nearly a full radius below-right of the ring's, so the highlight rendered as a stray arc beside the ring, clipped where it left the canvas. The ring and its arc now come from one `RadarDirectionPolicy.ringGeometry`, and unit tests pin the arc concentric with the ring on square and non-square canvases.
 - ~~**Default the host's focus to the first member to join** rather than the nearest.~~ Resolved: `FocusPolicy.resolveFocus` falls back to the first member in discovery order, and a guest to the host, so the default is stable instead of moving with whoever is closest. **Caveat:** there is still no join *timestamp* on a peer, so "first to join" is standing in for "first to be discovered" — a member who joins late and is nearest could be picked. Adding a join time to `RadarPeerUpdate` would close that.
-- ✅ Track one member at a time; the UWB session follows the selection.
+- ✅ Track one member at a time; the UWB session follows the selection. Defaults are role-based: a guest follows the host, the host follows the first member it saw.
+- **The two settings screens should not both own the event switches.** The host setup screen duplicates five of them and reaches the other two only through a link; one screen should own them all.
 
 **Radar — Chat**
 - ✅ Push notifications for chat, per-PingRing and app-wide, with independent sound and vibration.
+- ✅ **Embed an active beacon in the chat** so it stands out from ordinary messages. Every active beacon appears once, as a full-width colour-banded chat entry, the sender's own included: a beacon is broadcast to the ring, so every member's chat reads the same. The banner above the radar is kept for the local beacon, because that is where its Stop control lives.
+- ✅ ~~**An ended beacon keeps its place in the transcript.**~~ Resolved: `ChatTimelinePolicy` orders messages and ended beacons together by timestamp, so a beacon settles back where it was raised; a running beacon stays pinned to the near end. This also fixes a peer disconnecting mid-beacon silently deleting it from the record.
 
 **Radar — Beacon**
-- **Move Emergency off the first preset slot.** Presets render in enum order and `SOS` is first, so Emergency is the default selection when the sheet opens.
-- ✅ **Embed an active beacon in the chat** so it stands out from ordinary messages. Every active beacon appears once, as a full-width colour-banded chat entry, the sender's own included: a beacon is broadcast to the ring, so every member's chat reads the same. The banner above the radar is kept for the local beacon, because that is where its Stop control lives.
+- **Move Emergency off the first preset slot.** Presets render in enum order and `SOS` is first, so Emergency is the default selection when the sheet opens — and it is a one-line move in `BeaconPreset`.
 
 **Radar Settings · App Settings**
 - No items yet.
