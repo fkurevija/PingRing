@@ -761,7 +761,8 @@ class DiscoveryRepository(
                     senderPeerId = dto.senderPeerId,
                     senderName = dto.senderName,
                     messageText = dto.text,
-                    timestamp = dto.timestamp
+                    timestamp = dto.timestamp,
+                    colorArgb = dto.colorArgb,
                 )
                 sessionManager.receiveLocalChatMessage(chatMessage)
 
@@ -802,7 +803,8 @@ class DiscoveryRepository(
                             senderPeerId = message.senderPeerId,
                             senderName = message.senderName,
                             text = message.messageText,
-                            timestamp = message.timestamp
+                            timestamp = message.timestamp,
+                            colorArgb = message.colorArgb,
                         )
                     }
                     nearbyConnectionsManager.sendChatHistoryToPeer(peerId, history)
@@ -1024,7 +1026,7 @@ class DiscoveryRepository(
         _peerUpdates.value = emptyMap()
     }
 
-    fun broadcastOutgoingChatMessage(text: String, senderName: String) {
+    fun broadcastOutgoingChatMessage(text: String, senderName: String, colorArgb: Long?) {
         val sanitizedText = text.take(MAX_CHAT_LENGTH).trim()
         val sanitizedName = senderName.take(MAX_USERNAME_LENGTH).trim()
         if (sanitizedText.isBlank() || sanitizedName.isBlank()) return
@@ -1034,7 +1036,8 @@ class DiscoveryRepository(
             senderPeerId = localPeerId,
             senderName = sanitizedName,
             text = sanitizedText,
-            timestamp = System.currentTimeMillis()
+            timestamp = System.currentTimeMillis(),
+            colorArgb = colorArgb,
         )
         
         // Append locally immediately
@@ -1044,7 +1047,8 @@ class DiscoveryRepository(
                 senderPeerId = dto.senderPeerId,
                 senderName = dto.senderName,
                 messageText = dto.text,
-                timestamp = dto.timestamp
+                timestamp = dto.timestamp,
+                colorArgb = dto.colorArgb,
             )
         )
 

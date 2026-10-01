@@ -24,6 +24,7 @@ enum class ThemeMode {
 private val Context.appearanceDataStore by preferencesDataStore(name = "appearance")
 private val themeModeKey = stringPreferencesKey("theme_mode")
 private val userNameKey = stringPreferencesKey("user_name")
+private val chatBubbleColorKey = longPreferencesKey("chat_bubble_color")
 private val chatNotificationsEnabledKey = booleanPreferencesKey("chat_notifications_enabled")
 private val notificationSoundEnabledKey = booleanPreferencesKey("notification_sound_enabled")
 private val notificationVibrationEnabledKey = booleanPreferencesKey("notification_vibration_enabled")
@@ -49,6 +50,11 @@ class AppearanceSettingsRepository(private val context: Context) {
 
     val userName: Flow<String> = context.appearanceDataStore.data.map { preferences ->
         preferences[userNameKey] ?: ""
+    }
+
+    /** Null means that outgoing messages keep the current theme's bubble colour. */
+    val chatBubbleColor: Flow<Long?> = context.appearanceDataStore.data.map { preferences ->
+        preferences[chatBubbleColorKey]
     }
 
     val chatNotificationsEnabled: Flow<Boolean> = context.appearanceDataStore.data.map { preferences ->
@@ -81,6 +87,15 @@ class AppearanceSettingsRepository(private val context: Context) {
         scope.launch {
             context.appearanceDataStore.edit { preferences ->
                 preferences[userNameKey] = name
+            }
+        }
+    }
+
+    fun setChatBubbleColor(colorArgb: Long?) {
+        scope.launch {
+            context.appearanceDataStore.edit { preferences ->
+                if (colorArgb == null) preferences.remove(chatBubbleColorKey)
+                else preferences[chatBubbleColorKey] = colorArgb
             }
         }
     }

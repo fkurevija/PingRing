@@ -5,6 +5,11 @@ import android.content.Intent
 import android.os.Build
 import android.os.Vibrator
 import android.os.VibratorManager
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,6 +21,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -25,6 +31,8 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenuItem
@@ -39,18 +47,27 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -59,7 +76,10 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.fkurevija.pingring.BuildConfig
 import com.fkurevija.pingring.DeviceEnvironment
 import com.fkurevija.pingring.data.AppearanceSettingsRepository
+import com.fkurevija.pingring.data.ChatBubbleColorPreset
 import com.fkurevija.pingring.data.ThemeMode
+import kotlin.math.atan2
+import kotlin.math.sqrt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -74,8 +94,10 @@ fun AppSettingsScreen(
     val chatNotificationsEnabled by appearanceSettings.chatNotificationsEnabled.collectAsState(initial = true)
     val notificationSoundEnabled by appearanceSettings.notificationSoundEnabled.collectAsState(initial = true)
     val notificationVibrationEnabled by appearanceSettings.notificationVibrationEnabled.collectAsState(initial = true)
+    val chatBubbleColor by appearanceSettings.chatBubbleColor.collectAsState(initial = null)
     var themeMenuExpanded by remember { mutableStateOf(false) }
     var selectedTheme by remember(themeMode) { mutableStateOf(themeMode) }
+    var showCustomChatColorPicker by remember { mutableStateOf(false) }
     val lanDebugEnabled by appearanceSettings.lanDebugEnabled.collectAsState(initial = false)
     val debuggingActive by rememberDebuggingActive()
 
@@ -145,6 +167,47 @@ fun AppSettingsScreen(
                                     }
                                 )
                             }
+                        }
+                    }
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 14.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                    )
+                    Text("Chat Bubble Colour", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "Shown on new messages you send",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        ChatBubbleColorPreset.entries.forEach { preset ->
+                            val selected = chatBubbleColor == preset.colorArgb
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .background(Color(preset.colorArgb), CircleShape)
+                                    .semantics { contentDescription = "Set chat bubble colour to ${preset.label}" }
+                                    .clickable { appearanceSettings.setChatBubbleColor(preset.colorArgb) }
+                                    .then(
+                                        if (selected) Modifier.background(
+                                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f),
+                                            CircleShape
+                                        ) else Modifier
+                                    )
+                            )
+                        }
+                        TextButton(onClick = { showCustomChatColorPicker = true }) {
+                            Text("Custom")
+                        }
+                    }
+                    if (chatBubbleColor != null) {
+                        TextButton(onClick = { appearanceSettings.setChatBubbleColor(null) }) {
+                            Text("Use theme colour")
                         }
                     }
                 }
@@ -333,6 +396,70 @@ fun AppSettingsScreen(
             }
         }
     }
+
+    if (showCustomChatColorPicker) {
+        ChatBubbleColorPickerDialog(
+            onDismiss = { showCustomChatColorPicker = false },
+            onConfirm = {
+                appearanceSettings.setChatBubbleColor(it)
+                showCustomChatColorPicker = false
+            }
+        )
+    }
+}
+
+@Composable
+private fun ChatBubbleColorPickerDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (Long) -> Unit,
+) {
+    var hue by remember { mutableFloatStateOf(0f) }
+    val selectedColor = Color.hsv(hue, 0.72f, 0.72f)
+    val wheelColors = listOf(
+        Color.Red,
+        Color.Yellow,
+        Color.Green,
+        Color.Cyan,
+        Color.Blue,
+        Color.Magenta,
+        Color.Red,
+    )
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Custom Chat Colour") },
+        text = {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Canvas(
+                    modifier = Modifier
+                        .size(220.dp)
+                        .semantics { contentDescription = "Chat colour hue wheel" }
+                        .pointerInput(Unit) {
+                            detectTapGestures { tap ->
+                                val centre = Offset(size.width / 2f, size.height / 2f)
+                                val fromCentre = tap - centre
+                                if (sqrt(fromCentre.x * fromCentre.x + fromCentre.y * fromCentre.y) <= minOf(size.width, size.height) / 2f) {
+                                    hue = ((Math.toDegrees(atan2(fromCentre.y.toDouble(), fromCentre.x.toDouble())) + 90.0 + 360.0) % 360.0).toFloat()
+                                }
+                            }
+                        }
+                ) {
+                    drawCircle(brush = Brush.sweepGradient(wheelColors))
+                    drawCircle(color = selectedColor, radius = size.minDimension * 0.12f)
+                }
+                Spacer(Modifier.height(12.dp))
+                Text("Choose a hue", style = MaterialTheme.typography.bodyMedium)
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    onConfirm(selectedColor.toArgb().toLong() and 0xFFFF_FFFFL)
+                }
+            ) { Text("Use colour") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
 }
 
 private val ThemeMode.label: String

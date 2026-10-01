@@ -163,6 +163,7 @@ Reached from the host setup screen's **Event Settings** card or its **All Settin
 The gear icon on the home screen, before hosting or joining. These are your device-wide preferences.
 
 - **Appearance → Theme Mode** — *System Default*, *Light Theme* or *Dark Theme*. PingRing uses a fixed violet brand palette in both modes; it deliberately does not follow Material You wallpaper colours, so a ring looks the same on everyone's phone.
+- **Appearance → Chat Bubble Colour** — choose Ocean, Berry, Gold, Slate, or **Custom**. The custom picker is a hue wheel. Your selection is saved on this phone and is included with new chat messages, so other current builds render your bubbles in the colour you chose; clearing it returns new messages to the normal theme colour.
 - **Alerts & Hardware Haptics**
   - **Haptic Proximity Alerts** — vibrate when a tracked member comes within 2 m. Disabled with a reason on phones with no vibrator.
   - **In-app Notification Banners** — alerts for active beacons.

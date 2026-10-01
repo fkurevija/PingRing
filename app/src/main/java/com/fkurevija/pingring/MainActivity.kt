@@ -173,6 +173,7 @@ fun MainNavigation(
     val currentThemeMode by rememberUpdatedState(themeMode)
     val savedUsername by appearanceSettings.userName.collectAsState(initial = "")
     val quickBeacon by appearanceSettings.quickBeacon.collectAsState(initial = null)
+    val chatBubbleColor by appearanceSettings.chatBubbleColor.collectAsState(initial = null)
     // Devices waiting on the host to approve. Collected here rather than inside
     // the screen because the screen has to compose with no repository at all,
     // which is the only way its layout is testable.
@@ -402,6 +403,7 @@ fun MainNavigation(
                         coordinationError = syncStatus.errorMessage,
                         sessionState = sessionState,
                         quickBeacon = quickBeacon,
+                        chatBubbleColorArgb = chatBubbleColor,
                         onQuickBeaconChange = appearanceSettings::setQuickBeacon,
                         pendingJoinRequests = pendingJoinRequests,
                         onApproveJoinRequest = { discoveryRepository.approveJoinRequest(it) },

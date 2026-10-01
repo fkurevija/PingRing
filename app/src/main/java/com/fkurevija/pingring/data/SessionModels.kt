@@ -85,7 +85,9 @@ data class ChatMessage(
     val senderPeerId: String,
     val senderName: String,
     val messageText: String,
-    val timestamp: Long
+    val timestamp: Long,
+    /** The sender's chosen bubble colour, or null for the legacy themed style. */
+    val colorArgb: Long? = null,
 )
 
 @Serializable

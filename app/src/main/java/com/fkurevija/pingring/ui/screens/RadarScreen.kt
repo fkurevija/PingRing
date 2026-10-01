@@ -167,6 +167,7 @@ fun RadarScreen(
     discoveryRepository: DiscoveryRepository?,
     sessionState: SessionState,
     quickBeacon: QuickBeacon?,
+    chatBubbleColorArgb: Long?,
     onQuickBeaconChange: (QuickBeacon?) -> Unit,
     /**
      * Devices waiting on the host to approve, and the host's answers to them.
@@ -599,6 +600,7 @@ fun RadarScreen(
                                                 msg.senderPeerId,
                                                 discoveryRepository?.localPeerId
                                             )
+                                            val senderBubbleColor = msg.colorArgb?.let(::Color)
                                             Column(
                                                 modifier = Modifier.fillMaxWidth(),
                                                 horizontalAlignment = if (isMe) Alignment.End else Alignment.Start
@@ -611,7 +613,7 @@ fun RadarScreen(
                                                         bottomEnd = if (isMe) 4.dp else 14.dp
                                                     ),
                                                     colors = CardDefaults.cardColors(
-                                                        containerColor = if (isMe) {
+                                                        containerColor = senderBubbleColor ?: if (isMe) {
                                                             MaterialTheme.colorScheme.primaryContainer
                                                         } else {
                                                             MaterialTheme.colorScheme.surface
@@ -623,7 +625,7 @@ fun RadarScreen(
                                                                     msg.senderName,
                                                                     style = MaterialTheme.typography.labelSmall,
                                                                     fontWeight = FontWeight.Bold,
-                                                                    color = if (isMe) {
+                                                                    color = senderBubbleColor?.readableOnIt() ?: if (isMe) {
                                                                         MaterialTheme.colorScheme.onPrimaryContainer
                                                                     } else {
                                                                         MaterialTheme.colorScheme.primary
@@ -632,7 +634,8 @@ fun RadarScreen(
                                                                 Text(
                                                                     msg.messageText,
                                                                     style = MaterialTheme.typography.bodyMedium,
-                                                                    color = if (isMe) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                                                                    color = senderBubbleColor?.readableOnIt()
+                                                                        ?: if (isMe) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
                                                                 )
                                                             }
                                                         }
@@ -664,7 +667,11 @@ fun RadarScreen(
                                     Button(
                                         onClick = {
                                             if (chatText.isNotBlank()) {
-                                                discoveryRepository?.broadcastOutgoingChatMessage(chatText.trim(), senderName)
+                                                discoveryRepository?.broadcastOutgoingChatMessage(
+                                                    chatText.trim(),
+                                                    senderName,
+                                                    chatBubbleColorArgb,
+                                                )
                                                 chatText = ""
                                                 focusManager.clearFocus()
                                             }

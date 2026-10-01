@@ -100,7 +100,9 @@ data class ChatPayloadDto(
     val senderPeerId: String,
     val senderName: String,
     val text: String,
-    val timestamp: Long
+    val timestamp: Long,
+    /** Null preserves the themed bubble used by messages from older builds. */
+    val colorArgb: Long? = null,
 )
 
 @JsonClass(generateAdapter = true)
@@ -131,6 +133,13 @@ enum class BeaconVibrationPattern(val displayName: String, val pattern: LongArra
         fun fromName(name: String): BeaconVibrationPattern =
             entries.find { it.name == name } ?: STEADY_PULSE
     }
+}
+
+enum class ChatBubbleColorPreset(val label: String, val colorArgb: Long) {
+    OCEAN("Ocean", 0xFF00695C),
+    BERRY("Berry", 0xFFAD1457),
+    GOLD("Gold", 0xFF8D5A00),
+    SLATE("Slate", 0xFF455A64),
 }
 
 enum class BeaconPreset(

@@ -2,6 +2,7 @@ package com.fkurevija.pingring
 
 import com.fkurevija.pingring.data.BeaconPreset
 import com.fkurevija.pingring.data.BeaconVibrationPattern
+import com.fkurevija.pingring.data.ChatBubbleColorPreset
 import com.fkurevija.pingring.data.ChatMessageOwnership
 import com.fkurevija.pingring.data.ChatNotificationPolicy
 import com.fkurevija.pingring.data.CoordinationSyncState
@@ -123,6 +124,16 @@ class AppRulesTest {
         assertNotEquals(BeaconPreset.SOS, BeaconPreset.entries.first())
         assertTrue("SOS is kept away from the first slot", BeaconPreset.entries.indexOf(BeaconPreset.SOS) > 0)
         assertEquals(BeaconPreset.CUSTOM, BeaconPreset.entries.last())
+    }
+
+    @Test
+    fun chatBubblePresetsAreFourDistinctVisibleColors() {
+        assertEquals(4, ChatBubbleColorPreset.entries.size)
+        assertEquals(
+            ChatBubbleColorPreset.entries.size,
+            ChatBubbleColorPreset.entries.map { it.colorArgb }.distinct().size,
+        )
+        assertTrue(ChatBubbleColorPreset.entries.all { it.label.isNotBlank() && it.colorArgb != 0L })
     }
 
     @Test

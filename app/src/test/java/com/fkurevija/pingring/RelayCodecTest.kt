@@ -157,6 +157,20 @@ class RelayCodecTest {
     }
 
     @Test
+    fun aChatBubbleColorSurvivesTheWireAndOlderMessagesKeepNoColor() {
+        val coloredChat = chat.copy(colorArgb = 0xFF00695C)
+
+        assertEquals(coloredChat, payloadOf(decoded(RelayCodec.CHAT, encodedJson(coloredChat))))
+
+        val olderChat = payloadOf(
+            RelayCodec.decodeUnwrapped(
+                """{"id":"m1","senderPeerId":"peer-b","senderName":"Bob","text":"hi","timestamp":1700000000000}"""
+            )!!
+        ) as ChatPayloadDto
+        assertNull("messages from older builds retain the theme color", olderChat.colorArgb)
+    }
+
+    @Test
     fun aScriptedRangeReportNeverSwallowsAnotherPayload() {
         // Every field of a range report is optional, so recognising one has to be
         // kept last and has to demand a peer id: otherwise a message that names a
