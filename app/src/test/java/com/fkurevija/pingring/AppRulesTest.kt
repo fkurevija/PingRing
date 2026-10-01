@@ -10,6 +10,7 @@ import com.fkurevija.pingring.data.CoordinationSyncStatus
 import com.fkurevija.pingring.data.Event
 import com.fkurevija.pingring.data.MAX_PARTICIPANTS
 import com.fkurevija.pingring.data.RelayEnvelope
+import com.fkurevija.pingring.data.RadarAccessibilityPolicy
 import com.fkurevija.pingring.data.SessionState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -134,6 +135,24 @@ class AppRulesTest {
             ChatBubbleColorPreset.entries.map { it.colorArgb }.distinct().size,
         )
         assertTrue(ChatBubbleColorPreset.entries.all { it.label.isNotBlank() && it.colorArgb != 0L })
+    }
+
+    @Test
+    fun radarSummaryNamesTheTrackedMemberAndItsAvailableSpatialCues() {
+        assertEquals(
+            "Radar for Ana. 3.5 meters away. Direction 42 degrees. Active beacon: Regroup here.",
+            RadarAccessibilityPolicy.describe(
+                peerName = "Ana",
+                distanceMeters = 3.5f,
+                azimuthDegrees = 42f,
+                proximity = "Warm",
+                beaconTitle = "Regroup here",
+            )
+        )
+        assertEquals(
+            "Radar. No tracked member. Direction unavailable.",
+            RadarAccessibilityPolicy.describe(null, null, null, null, null)
+        )
     }
 
     @Test

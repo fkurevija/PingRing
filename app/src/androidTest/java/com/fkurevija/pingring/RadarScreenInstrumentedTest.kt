@@ -308,6 +308,15 @@ class RadarScreenInstrumentedTest {
     }
 
     @Test
+    fun theRadarCanvasHasAScreenReaderSummaryBeforePeersArrive() {
+        showRadar()
+
+        composeRule.onNodeWithContentDescription(
+            "Radar. No tracked member. Direction unavailable."
+        ).assertIsDisplayed()
+    }
+
+    @Test
     fun theBeaconScreenOpens() {
         showRadar()
 

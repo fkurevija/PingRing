@@ -103,6 +103,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -125,6 +127,7 @@ import com.fkurevija.pingring.data.FocusPolicy
 import com.fkurevija.pingring.data.MAX_PARTICIPANTS
 import com.fkurevija.pingring.data.PendingJoinRequest
 import com.fkurevija.pingring.data.QuickBeacon
+import com.fkurevija.pingring.data.RadarAccessibilityPolicy
 import com.fkurevija.pingring.data.RadarDirectionPolicy
 import com.fkurevija.pingring.data.RadarPeerUpdate
 import com.fkurevija.pingring.data.SessionState
@@ -978,6 +981,13 @@ private fun RadarContent(
             arrowDegrees = peer?.azimuth,
             distanceMeters = peer?.distance,
             beacon = beacon,
+            accessibilityDescription = RadarAccessibilityPolicy.describe(
+                peerName = peer?.name,
+                distanceMeters = peer?.distance,
+                azimuthDegrees = peer?.azimuth,
+                proximity = peer?.proximity,
+                beaconTitle = beacon?.title,
+            ),
             // Sized from the available width rather than fixed. The caller used
             // to pin this column to 260.dp while the ring inside it was also
             // 260.dp, so the name above and the distance readout below had
@@ -1013,6 +1023,7 @@ private fun ProximityRing(
     arrowDegrees: Float?,
     distanceMeters: Float?,
     beacon: BeaconInfo?,
+    accessibilityDescription: String,
     modifier: Modifier
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "beaconPulse")
@@ -1039,6 +1050,7 @@ private fun ProximityRing(
         Canvas(
             Modifier
                 .fillMaxSize()
+                .semantics { contentDescription = accessibilityDescription }
                 // The beacon pulse is deliberately drawn larger than the ring
                 // (see beaconPulseRadius above), so without this it escapes the
                 // composable's bounds and paints over whatever sits above the

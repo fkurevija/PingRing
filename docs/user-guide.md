@@ -92,6 +92,10 @@ Each row shows a status dot (beacon colour if they have a beacon running, otherw
 
 Your phone vibrates when the **tracked** member comes within **2 m**. Toggle this off globally in [App Settings](#app-settings) → *Haptic Proximity Alerts*.
 
+### Screen readers
+
+The radar has a spoken summary of the tracked member's distance or signal state, direction when available, and active beacon. It updates with the radar, so TalkBack can describe the same live state shown by the ring.
+
 ### Showing the code again
 
 Tap the **QR icon** in the top bar to reopen the "Scan to Join" dialog — useful when somebody arrives late. The button is hidden while the ring is closed to new members.
