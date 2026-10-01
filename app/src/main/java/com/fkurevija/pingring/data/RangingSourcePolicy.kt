@@ -70,9 +70,26 @@ object RangingSourcePolicy {
          * ranging that never produces a reading.
          */
         val locationServicesEnabled: Boolean,
+        /**
+         * The OS level, as `Build.VERSION.SDK_INT`.
+         *
+         * A fourth condition rather than part of [rttAvailable], because it is
+         * the one that is true while looking false: a phone can carry an RTT
+         * radio, hold the permission and have location on, and still be too old
+         * to connect a ranging result to a peer. Folding it into `rttAvailable`
+         * would report that as missing hardware and send the user after
+         * something they cannot change by any means at all.
+         *
+         * Defaults to the minimum supported level so the gate is inert unless a
+         * caller supplies a real one; [probeWifiRtt] always passes the device's.
+         */
+        val apiLevel: Int = MIN_API_LEVEL,
     ) {
         val isUsable: Boolean
-            get() = rttAvailable && locationPermissionGranted && locationServicesEnabled
+            get() = apiLevel >= MIN_API_LEVEL &&
+                rttAvailable &&
+                locationPermissionGranted &&
+                locationServicesEnabled
     }
 
     /**
@@ -87,6 +104,16 @@ object RangingSourcePolicy {
         NO_HARDWARE,
         NO_LOCATION_PERMISSION,
         LOCATION_SERVICES_OFF,
+
+        /**
+         * The OS predates the only public way to correlate a ranging result to
+         * a peer.
+         *
+         * Last, and deliberately so: a phone that is too old *and* missing the
+         * permission should still be told to grant it, because an upgrade is a
+         * bigger ask than a tap and mentioning the tap first costs nothing.
+         */
+        UNSUPPORTED_OS_VERSION,
     }
 
     /** What the device settled on, and what it could not use. */
@@ -170,12 +197,15 @@ object RangingSourcePolicy {
      * Extracted so the ordering - which blocker is reported first - lives in one
      * place. Hardware comes before permission because it is not actionable: a
      * user with no RTT radio cannot be helped by granting anything, and telling
-     * them to would send them down a dead end.
+     * them to would send them down a dead end. The OS version goes last for the
+     * opposite reason: it is the least actionable, so it must not hide an
+     * actionable one.
      */
     fun wifiRttRefusal(capability: WifiRttCapability): WifiRttUnavailable? = when {
         !capability.rttAvailable -> WifiRttUnavailable.NO_HARDWARE
         !capability.locationPermissionGranted -> WifiRttUnavailable.NO_LOCATION_PERMISSION
         !capability.locationServicesEnabled -> WifiRttUnavailable.LOCATION_SERVICES_OFF
+        capability.apiLevel < MIN_API_LEVEL -> WifiRttUnavailable.UNSUPPORTED_OS_VERSION
         else -> null
     }
 
@@ -186,6 +216,8 @@ object RangingSourcePolicy {
             "Wi-Fi RTT ranging needs location permission. Tap to grant it."
         WifiRttUnavailable.LOCATION_SERVICES_OFF ->
             "Turn on location services to use Wi-Fi RTT ranging."
+        WifiRttUnavailable.UNSUPPORTED_OS_VERSION ->
+            "Wi-Fi RTT ranging needs Android 14 or newer."
     }
 
     /**
@@ -220,6 +252,7 @@ object RangingSourcePolicy {
             rttAvailable = rttAvailable,
             locationPermissionGranted = permissionGranted,
             locationServicesEnabled = locationServicesEnabled,
+            apiLevel = Build.VERSION.SDK_INT,
         )
     }
 

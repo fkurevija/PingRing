@@ -25,10 +25,12 @@ class RangingSourcePolicyTest {
         rtt: Boolean = true,
         permission: Boolean = true,
         locationOn: Boolean = true,
+        apiLevel: Int = RangingSourcePolicy.MIN_API_LEVEL,
     ) = WifiRttCapability(
         rttAvailable = rtt,
         locationPermissionGranted = permission,
         locationServicesEnabled = locationOn,
+        apiLevel = apiLevel,
     )
 
     @Test
@@ -185,6 +187,87 @@ class RangingSourcePolicyTest {
         )
 
         assertNull(selection.rttRefusedBy)
+    }
+
+    @Test
+    fun `an os too old to correlate results is refused`() {
+        // The case that was silently wrong: every capability says yes, but the
+        // OS has no way to attach a result to a peer, so a session would open,
+        // produce numbers, and none of them could be attributed to anybody.
+        val selection = RangingSourcePolicy.select(
+            uwbActive = false,
+            useWifiRtt = true,
+            wifiRtt = capability(apiLevel = RangingSourcePolicy.MIN_API_LEVEL - 1),
+        )
+
+        assertEquals(RangingSource.BLE_RSSI, selection.source)
+        assertEquals(
+            WifiRttUnavailable.UNSUPPORTED_OS_VERSION,
+            selection.rttRefusedBy,
+        )
+    }
+
+    @Test
+    fun `the os gate is part of usability not just of the refusal`() {
+        assertFalse(capability(apiLevel = RangingSourcePolicy.MIN_API_LEVEL - 1).isUsable)
+        assertTrue(capability(apiLevel = RangingSourcePolicy.MIN_API_LEVEL).isUsable)
+    }
+
+    @Test
+    fun `an actionable blocker outranks the os version`() {
+        // A phone that is too old *and* has never granted the permission should
+        // still be told to grant it. An upgrade is a much bigger ask than a tap,
+        // so naming the tap first costs nothing and the upgrade can be named
+        // once it is the only thing left.
+        assertEquals(
+            WifiRttUnavailable.NO_LOCATION_PERMISSION,
+            RangingSourcePolicy.select(
+                uwbActive = false,
+                useWifiRtt = true,
+                wifiRtt = capability(
+                    permission = false,
+                    apiLevel = RangingSourcePolicy.MIN_API_LEVEL - 1,
+                ),
+            ).rttRefusedBy,
+        )
+        assertEquals(
+            WifiRttUnavailable.NO_HARDWARE,
+            RangingSourcePolicy.select(
+                uwbActive = false,
+                useWifiRtt = true,
+                wifiRtt = capability(
+                    rtt = false,
+                    apiLevel = RangingSourcePolicy.MIN_API_LEVEL - 1,
+                ),
+            ).rttRefusedBy,
+        )
+    }
+
+    @Test
+    fun `no combination of capabilities selects rtt on too old an os`() {
+        // Sweeps the OS level as well, so adding apiLevel to the gate cannot be
+        // quietly undone by a later edit to the ordering above it.
+        for (rtt in listOf(true, false)) {
+            for (permission in listOf(true, false)) {
+                for (locationOn in listOf(true, false)) {
+                    for (api in listOf(0, RangingSourcePolicy.MIN_API_LEVEL - 1)) {
+                        val caps = capability(rtt, permission, locationOn, api)
+                        val selection = RangingSourcePolicy.select(
+                            uwbActive = false,
+                            useWifiRtt = true,
+                            wifiRtt = caps,
+                        )
+
+                        if (selection.source == RangingSource.WIFI_RTT) {
+                            assertTrue(
+                                "rtt selected on an unsupported os: $caps",
+                                caps.isUsable,
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 
     @Test

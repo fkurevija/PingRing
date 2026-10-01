@@ -38,7 +38,7 @@ graph TD
 1. **No external infrastructure to fail.** There is no server, no account, no remote logging, and no dependency on anyone's uptime. Nothing to be down, because nothing is there. Discovery, transport, chat, ranging and beacons are all local.
 2. **Nothing to configure.** No network to join, no SSID, no password, no login. Phones find each other directly over BLE and Nearby Connections.
 3. **It works before it works.** A phone with no SIM, in aeroplane mode with Wi-Fi and Bluetooth on, runs a full PingRing.
-4. **It degrades rather than dies.** Ranging runs down a ranked chain — UWB, then Wi-Fi RTT, then GNSS, then BLE signal strength — so losing the most precise method costs accuracy, not the feature. `RangingSourcePolicy` holds the ordering and reports which rung is running and why a better one is unavailable. Only UWB and Wi-Fi RTT are wired up so far; GNSS and RTT sit in the chain behind their integration (see the roadmap).
+4. **It degrades rather than dies.** Ranging runs down a ranked chain — UWB, then Wi-Fi RTT, then GNSS, then BLE signal strength — so losing the most precise method costs accuracy, not the feature. `RangingSourcePolicy` holds the ordering and reports which rung is running and why a better one is unavailable. **UWB and RSSI are the only rungs live today.** Wi-Fi RTT has its policy, its capability probe and its correlation layer (`WifiRttCorrelation`, which decides which member a result belongs to and discards anything it cannot attribute) but no ranging session; GNSS is policy only, and still has no way to share a fix between phones. See the roadmap.
 
 ### Ephemeral identity
 
