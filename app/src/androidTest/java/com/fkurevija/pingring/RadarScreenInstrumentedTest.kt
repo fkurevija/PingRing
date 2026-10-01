@@ -53,6 +53,7 @@ class RadarScreenInstrumentedTest {
         sessionState: SessionState = SessionState(),
         quickBeacon: QuickBeacon? = null,
         chatBubbleColorArgb: Long? = null,
+        radarScreenReaderSummaryEnabled: Boolean = false,
         onQuickBeaconChange: (QuickBeacon?) -> Unit = {},
         pendingJoinRequests: List<PendingJoinRequest> = emptyList(),
         onApproveJoinRequest: (String) -> Unit = {},
@@ -71,6 +72,7 @@ class RadarScreenInstrumentedTest {
                 sessionState = sessionState,
                 quickBeacon = quickBeacon,
                 chatBubbleColorArgb = chatBubbleColorArgb,
+                radarScreenReaderSummaryEnabled = radarScreenReaderSummaryEnabled,
                 onQuickBeaconChange = onQuickBeaconChange,
                 pendingJoinRequests = pendingJoinRequests,
                 onApproveJoinRequest = onApproveJoinRequest,
@@ -308,8 +310,14 @@ class RadarScreenInstrumentedTest {
     }
 
     @Test
-    fun theRadarCanvasHasAScreenReaderSummaryBeforePeersArrive() {
+    fun theRadarCanvasScreenReaderSummaryIsOptIn() {
         showRadar()
+
+        composeRule.onNodeWithContentDescription(
+            "Radar. No tracked member. Direction unavailable."
+        ).assertDoesNotExist()
+
+        showRadar(radarScreenReaderSummaryEnabled = true)
 
         composeRule.onNodeWithContentDescription(
             "Radar. No tracked member. Direction unavailable."

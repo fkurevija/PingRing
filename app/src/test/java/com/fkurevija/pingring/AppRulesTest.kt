@@ -2,6 +2,7 @@ package com.fkurevija.pingring
 
 import com.fkurevija.pingring.data.BeaconPreset
 import com.fkurevija.pingring.data.BeaconVibrationPattern
+import com.fkurevija.pingring.data.AccessibilityFeature
 import com.fkurevija.pingring.data.ChatBubbleColorPreset
 import com.fkurevija.pingring.data.ChatMessageOwnership
 import com.fkurevija.pingring.data.ChatNotificationPolicy
@@ -153,6 +154,12 @@ class AppRulesTest {
             "Radar. No tracked member. Direction unavailable.",
             RadarAccessibilityPolicy.describe(null, null, null, null, null)
         )
+    }
+
+    @Test
+    fun accessibilityFeaturesAreDisabledUntilTheUserEnablesThem() {
+        assertTrue(AccessibilityFeature.entries.isNotEmpty())
+        assertTrue(AccessibilityFeature.entries.none { it.defaultEnabled })
     }
 
     @Test

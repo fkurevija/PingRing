@@ -25,6 +25,7 @@ private val Context.appearanceDataStore by preferencesDataStore(name = "appearan
 private val themeModeKey = stringPreferencesKey("theme_mode")
 private val userNameKey = stringPreferencesKey("user_name")
 private val chatBubbleColorKey = longPreferencesKey("chat_bubble_color")
+private val radarScreenReaderSummaryEnabledKey = booleanPreferencesKey("radar_screen_reader_summary_enabled")
 private val chatNotificationsEnabledKey = booleanPreferencesKey("chat_notifications_enabled")
 private val notificationSoundEnabledKey = booleanPreferencesKey("notification_sound_enabled")
 private val notificationVibrationEnabledKey = booleanPreferencesKey("notification_vibration_enabled")
@@ -55,6 +56,11 @@ class AppearanceSettingsRepository(private val context: Context) {
     /** Null means that outgoing messages keep the current theme's bubble colour. */
     val chatBubbleColor: Flow<Long?> = context.appearanceDataStore.data.map { preferences ->
         preferences[chatBubbleColorKey]
+    }
+
+    val radarScreenReaderSummaryEnabled: Flow<Boolean> = context.appearanceDataStore.data.map { preferences ->
+        preferences[radarScreenReaderSummaryEnabledKey]
+            ?: AccessibilityFeature.RADAR_SCREEN_READER_SUMMARY.defaultEnabled
     }
 
     val chatNotificationsEnabled: Flow<Boolean> = context.appearanceDataStore.data.map { preferences ->
@@ -96,6 +102,14 @@ class AppearanceSettingsRepository(private val context: Context) {
             context.appearanceDataStore.edit { preferences ->
                 if (colorArgb == null) preferences.remove(chatBubbleColorKey)
                 else preferences[chatBubbleColorKey] = colorArgb
+            }
+        }
+    }
+
+    fun setRadarScreenReaderSummaryEnabled(enabled: Boolean) {
+        scope.launch {
+            context.appearanceDataStore.edit { preferences ->
+                preferences[radarScreenReaderSummaryEnabledKey] = enabled
             }
         }
     }

@@ -48,6 +48,7 @@ import com.fkurevija.pingring.data.PingRingService
 import com.fkurevija.pingring.data.SessionManager
 import com.fkurevija.pingring.data.ThemeMode
 import com.fkurevija.pingring.ui.navigation.AppSettingsKey
+import com.fkurevija.pingring.ui.navigation.AccessibilitySettingsKey
 import com.fkurevija.pingring.ui.navigation.PingRingJoinKey
 import com.fkurevija.pingring.ui.navigation.PingRingSettingsKey
 import com.fkurevija.pingring.ui.navigation.HomeKey
@@ -55,6 +56,7 @@ import com.fkurevija.pingring.ui.navigation.HostSetupKey
 import com.fkurevija.pingring.ui.navigation.RadarKey
 import com.fkurevija.pingring.ui.permissions.PermissionWrapper
 import com.fkurevija.pingring.ui.screens.AppSettingsScreen
+import com.fkurevija.pingring.ui.screens.AccessibilitySettingsScreen
 import com.fkurevija.pingring.ui.screens.PingRingJoinScreen
 import com.fkurevija.pingring.ui.screens.PingRingSettingsScreen
 import com.fkurevija.pingring.ui.screens.HomeScreen
@@ -174,6 +176,7 @@ fun MainNavigation(
     val savedUsername by appearanceSettings.userName.collectAsState(initial = "")
     val quickBeacon by appearanceSettings.quickBeacon.collectAsState(initial = null)
     val chatBubbleColor by appearanceSettings.chatBubbleColor.collectAsState(initial = null)
+    val radarScreenReaderSummaryEnabled by appearanceSettings.radarScreenReaderSummaryEnabled.collectAsState(initial = false)
     // Devices waiting on the host to approve. Collected here rather than inside
     // the screen because the screen has to compose with no repository at all,
     // which is the only way its layout is testable.
@@ -350,7 +353,16 @@ fun MainNavigation(
                         themeMode = currentThemeMode,
                         onThemeModeChange = appearanceSettings::setThemeMode,
                         appearanceSettings = appearanceSettings,
+                        onOpenAccessibility = { backStack.add(AccessibilitySettingsKey) },
                         onBack = { backStack.popBack() }
+                    )
+                }
+
+                is AccessibilitySettingsKey -> {
+                    AccessibilitySettingsScreen(
+                        radarScreenReaderSummaryEnabled = radarScreenReaderSummaryEnabled,
+                        onRadarScreenReaderSummaryChange = appearanceSettings::setRadarScreenReaderSummaryEnabled,
+                        onBack = { backStack.popBack() },
                     )
                 }
 
@@ -404,6 +416,7 @@ fun MainNavigation(
                         sessionState = sessionState,
                         quickBeacon = quickBeacon,
                         chatBubbleColorArgb = chatBubbleColor,
+                        radarScreenReaderSummaryEnabled = radarScreenReaderSummaryEnabled,
                         onQuickBeaconChange = appearanceSettings::setQuickBeacon,
                         pendingJoinRequests = pendingJoinRequests,
                         onApproveJoinRequest = { discoveryRepository.approveJoinRequest(it) },

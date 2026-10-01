@@ -171,6 +171,7 @@ fun RadarScreen(
     sessionState: SessionState,
     quickBeacon: QuickBeacon?,
     chatBubbleColorArgb: Long?,
+    radarScreenReaderSummaryEnabled: Boolean,
     onQuickBeaconChange: (QuickBeacon?) -> Unit,
     /**
      * Devices waiting on the host to approve, and the host's answers to them.
@@ -455,6 +456,7 @@ fun RadarScreen(
                             focusedPeer,
                             peers.isNotEmpty(),
                             focusedBeacon,
+                            radarScreenReaderSummaryEnabled,
                             Modifier.width(paneWidth)
                         )
                         PeerList(
@@ -709,6 +711,7 @@ fun RadarScreen(
                                 focusedPeer,
                                 peers.isNotEmpty(),
                                 focusedBeacon,
+                                radarScreenReaderSummaryEnabled,
                                 // Height is left to the content: a fixed height
                                 // clipped the ring, since the ring plus the name
                                 // above it and the readout below need more room
@@ -925,6 +928,7 @@ private fun RadarContent(
     peer: RadarPeerUpdate?,
     hasPeers: Boolean,
     beacon: BeaconInfo?,
+    radarScreenReaderSummaryEnabled: Boolean,
     modifier: Modifier
 ) {
     val hotness = ((peer?.rssi ?: -100) + 100).coerceIn(0, 100) / 100f
@@ -988,6 +992,7 @@ private fun RadarContent(
                 proximity = peer?.proximity,
                 beaconTitle = beacon?.title,
             ),
+            accessibilityEnabled = radarScreenReaderSummaryEnabled,
             // Sized from the available width rather than fixed. The caller used
             // to pin this column to 260.dp while the ring inside it was also
             // 260.dp, so the name above and the distance readout below had
@@ -1024,6 +1029,7 @@ private fun ProximityRing(
     distanceMeters: Float?,
     beacon: BeaconInfo?,
     accessibilityDescription: String,
+    accessibilityEnabled: Boolean,
     modifier: Modifier
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "beaconPulse")
@@ -1050,7 +1056,10 @@ private fun ProximityRing(
         Canvas(
             Modifier
                 .fillMaxSize()
-                .semantics { contentDescription = accessibilityDescription }
+                .then(
+                    if (accessibilityEnabled) Modifier.semantics { contentDescription = accessibilityDescription }
+                    else Modifier
+                )
                 // The beacon pulse is deliberately drawn larger than the ring
                 // (see beaconPulseRadius above), so without this it escapes the
                 // composable's bounds and paints over whatever sits above the

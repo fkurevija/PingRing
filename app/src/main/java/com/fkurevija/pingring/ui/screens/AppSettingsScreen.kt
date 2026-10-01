@@ -87,6 +87,7 @@ fun AppSettingsScreen(
     themeMode: ThemeMode,
     onThemeModeChange: (ThemeMode) -> Unit,
     appearanceSettings: AppearanceSettingsRepository,
+    onOpenAccessibility: () -> Unit,
     onBack: () -> Unit
 ) {
     var hapticsEnabled by remember { mutableStateOf(true) }
@@ -210,6 +211,24 @@ fun AppSettingsScreen(
                             Text("Use theme colour")
                         }
                     }
+                }
+            }
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onOpenAccessibility),
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+            ) {
+                Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                    Text("Accessibility", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "Configure optional screen-reader features",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
 

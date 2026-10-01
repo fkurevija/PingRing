@@ -94,7 +94,7 @@ Your phone vibrates when the **tracked** member comes within **2 m**. Toggle thi
 
 ### Screen readers
 
-The radar has a spoken summary of the tracked member's distance or signal state, direction when available, and active beacon. It updates with the radar, so TalkBack can describe the same live state shown by the ring.
+In **App Settings → Accessibility**, turn on **Radar screen-reader summary** to let TalkBack describe the tracked member's distance or signal state, direction when available, and active beacon. It updates with the radar, so TalkBack can describe the same live state shown by the ring. Accessibility features are off by default.
 
 ### Showing the code again
 
@@ -168,6 +168,7 @@ The gear icon on the home screen, before hosting or joining. These are your devi
 
 - **Appearance → Theme Mode** — *System Default*, *Light Theme* or *Dark Theme*. PingRing uses a fixed violet brand palette in both modes; it deliberately does not follow Material You wallpaper colours, so a ring looks the same on everyone's phone.
 - **Appearance → Chat Bubble Colour** — choose Ocean, Berry, Gold, Slate, or **Custom**. The custom picker is a hue wheel. Your selection is saved on this phone and is included with new chat messages, so other current builds render your bubbles in the colour you chose; clearing it returns new messages to the normal theme colour.
+- **Accessibility** — opens optional accessibility features. **Radar screen-reader summary** is off by default; enable it to have TalkBack announce the tracked member, distance or signal state, direction, and active beacon.
 - **Alerts & Hardware Haptics**
   - **Haptic Proximity Alerts** — vibrate when a tracked member comes within 2 m. Disabled with a reason on phones with no vibrator.
   - **In-app Notification Banners** — alerts for active beacons.

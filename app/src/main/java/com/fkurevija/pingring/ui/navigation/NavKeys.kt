@@ -16,6 +16,9 @@ data class HostSetupKey(val eventCode: String) : NavKey
 data object AppSettingsKey : NavKey
 
 @Serializable
+data object AccessibilitySettingsKey : NavKey
+
+@Serializable
 data class PingRingSettingsKey(val eventId: String) : NavKey
 
 @Serializable
