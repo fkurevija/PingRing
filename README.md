@@ -21,7 +21,7 @@
 
 **Offline is the product** — this app exists for the moment a venue's data network stops working. There is no server, no account, and nothing to configure; phones find each other directly over BLE and Nearby Connections, and ranging falls back rather than dying.
 
-Using **Nearby Connections**, **BLE**, **UWB** and **Wi-Fi RTT**, it forms an ad-hoc peer-to-peer mesh directly between nearby phones. Participants locate each other on a real-world radar, raise haptic beacons, and chat in real time — with no cellular data and no external server.
+Using **Nearby Connections** with BLE discovery, it forms an ad-hoc host-and-guests group directly between nearby phones. Where supported, UWB ranges the focused member; BLE signal strength is the fallback. Participants locate each other on a real-world radar, raise haptic beacons, and chat in real time — with no cellular data and no external server.
 
 Location permission is required because the radios doing the ranging are proximity sensors Android gates behind it, not because anything is uploaded. There is nowhere to upload it to.
 
@@ -46,9 +46,7 @@ Every document links back here at the top and bottom.
 ### 📡 Mesh & Connectivity
 - **One-tap hosting**, no server registration, with **admission control** — close the ring mid-event, list it on nearby phones (**Discoverable**), or approve each join by hand.
 - **Bounded capacity**: max **8 participants** (1 Host + 7 Guests), enforced by the Host.
-- **Ranked ranging, not a binary switch**: distance runs down a chain — **UWB** → **Wi-Fi RTT** → **GNSS** → **BLE RSSI** — so losing the most precise method costs accuracy, not the feature. The app names *which* rung is running and why a better one is unavailable. UWB and RSSI are live today; RTT has its policy, capability probe and result-correlation rules but no ranging session, and GNSS is policy only — both pending the work in the [roadmap](docs/roadmap.md).
-- **The method is chosen by capability, not assumption**: hardware and OS support are separated from what the user asked for, so a device that reports UWB on an OS too old to permit it is told the truth instead of being offered a prompt that cannot appear. The same gate covers Wi-Fi RTT: a phone with an RTT radio on an OS too old to correlate a result to a peer is told that, rather than being offered a session whose readings could never be attributed to anyone.
-- **A reading is either attributable or discarded**: an RTT session reports whatever peers the platform found, including devices that are not in your event. PingRing never guesses — an unattributable distance is dropped rather than assigned to the tracked or nearest member, because a stranger's distance shown under someone's name is indistinguishable from a correct one.
+- **UWB ranging with BLE RSSI fallback**: UWB supplies distance and bearing for the focused member when supported; otherwise BLE signal strength estimates proximity. Wi-Fi RTT and GNSS policy foundations are not connected to live ranging yet; see [Known limitations](docs/roadmap.md#known-limitations).
 
 ### 👤 Identity & Join
 - **Custom usernames**, saved locally and unique within a session.
@@ -59,7 +57,7 @@ Every document links back here at the top and bottom.
 - **Offline group chat** with sender-labelled bubbles, beacons in the transcript, and host-replayed history for latecomers.
 
 ### 🧭 Radar
-- **30 FPS sensor-fusion tracking** with a directional needle, proximity haptics under 2 m, and a user-controlled tracking choice.
+- **Sensor-fusion tracking** with a directional needle, proximity haptics under 2 m, and a user-controlled tracking choice.
 - **UWB readings cross-checked against BLE.** In a crowd, UWB's dominant error is not noise but *obstruction* — a body between two phones makes the distance read long, often by metres. BLE degrades under that same body, so it is an independent measurement of the same geometry, and the radar reports **Cross-checked**, **Someone may be in the way**, or **Distance estimate only** when there is only one source.
 - **Device-aware permissions** — unsupported hardware is explained, never asked for.
 

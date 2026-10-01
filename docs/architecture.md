@@ -9,17 +9,15 @@ Star/mesh hybrid over Nearby Connections (`P2P_STAR`) with BLE background discov
 ```mermaid
 graph TD
     subgraph "Local Ad-Hoc PingRing Mesh"
-        Host["Host Node (Nearby Connections Advertiser)"]
-        PeerA["Guest Peer A (Nearby Connections Discoverer)"]
-        PeerB["Guest Peer B (Nearby Connections Discoverer)"]
-        PeerC["Guest Peer C (Nearby Connections Discoverer)"]
+        Host["Host Node (Nearby Connections)"]
+        PeerA["Guest Peer A"]
+        PeerB["Guest Peer B"]
+        PeerC["Guest Peer C"]
 
-        Host <-->|"Wi-Fi Direct / BLE Mesh"| PeerA
-        Host <-->|"Wi-Fi Direct / BLE Mesh"| PeerB
-        Host <-->|"Wi-Fi Direct / BLE Mesh"| PeerC
-
-        PeerA -.-|"Direct Jetpack UWB Ranging (30 FPS)"| PeerB
-        Host -.-|"Direct Jetpack UWB Ranging (30 FPS)"| PeerA
+        Host <-->|"Nearby Connections (transport selected by Nearby)"| PeerA
+        Host <-->|"Nearby Connections"| PeerB
+        Host <-->|"Nearby Connections"| PeerC
+        Host -.-|"Focused UWB ranging when supported"| PeerA
     end
 ```
 
@@ -27,7 +25,7 @@ graph TD
 1. **Discovery**: Host advertises over BLE Service UUID `0000fa1b-0000-1000-8000-00805f9b34fb`.
 2. **P2P Handshake**: Guests discover the advertiser and establish an encrypted Nearby Connections session.
 3. **Data Sync**: The Host brokers and re-broadcasts chat and beacons to all connected nodes.
-4. **Spatial Ranging**: Concurrent UWB sessions run for sub-metre 3D positioning (distance, azimuth, elevation).
+4. **Spatial Ranging**: a focused UWB session provides distance and bearing when supported; otherwise the app estimates distance from BLE RSSI. Wi-Fi RTT and GNSS are not connected to live ranging in this build.
 
 ---
 
@@ -38,7 +36,7 @@ graph TD
 1. **No external infrastructure to fail.** There is no server, no account, no remote logging, and no dependency on anyone's uptime. Nothing to be down, because nothing is there. Discovery, transport, chat, ranging and beacons are all local.
 2. **Nothing to configure.** No network to join, no SSID, no password, no login. Phones find each other directly over BLE and Nearby Connections.
 3. **It works before it works.** A phone with no SIM, in aeroplane mode with Wi-Fi and Bluetooth on, runs a full PingRing.
-4. **It degrades rather than dies.** Ranging runs down a ranked chain — UWB, then Wi-Fi RTT, then GNSS, then BLE signal strength — so losing the most precise method costs accuracy, not the feature. `RangingSourcePolicy` holds the ordering and reports which rung is running and why a better one is unavailable. **UWB and RSSI are the only rungs live today.** Wi-Fi RTT has its policy, its capability probe and its correlation layer (`WifiRttCorrelation`, which decides which member a result belongs to and discards anything it cannot attribute) but no ranging session; GNSS is policy only, and still has no way to share a fix between phones. See the roadmap.
+4. **It degrades rather than dies.** UWB provides distance and bearing when supported; BLE signal strength is the fallback estimate. Wi-Fi RTT has policy, capability and correlation helpers but no ranging session, while GNSS is policy-only and has no peer-fix sharing path. Neither is connected to live ranging. See [Known limitations](roadmap.md#known-limitations).
 
 ### Ephemeral identity
 
@@ -48,7 +46,7 @@ A random peer ID per session, rotated on leave — so there is nothing that carr
 
 Location permission is required because the radios that make this work are proximity sensors that Android gates behind it — not because anything is uploaded anywhere.
 
-- **Turning location off breaks ranging.** Wi-Fi RTT returns nothing when location services are off device-wide, even with the permission granted, and UWB has the same dependency. PingRing names which one is blocking rather than silently showing a stale distance.
+- **Turning location off can break ranging.** UWB depends on location access. Wi-Fi RTT also requires location services, but is not an active ranging source in this build.
 - **Location is used for ranging between nearby devices, and nothing else.** No coordinates are transmitted, because there is nowhere to transmit them to.
 
 ## Background operation
