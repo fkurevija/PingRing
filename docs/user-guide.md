@@ -90,7 +90,7 @@ Each row shows a status dot (beacon colour if they have a beacon running, otherw
 
 ### Haptics
 
-Your phone vibrates when the **tracked** member comes within **2 m**. Toggle this off globally in [App Settings](#app-settings) → *Haptic Proximity Alerts*.
+Your phone vibrates when the **tracked** member comes within **2 m**.
 
 ### Screen readers
 
@@ -164,19 +164,12 @@ Reached from the host setup screen's **Event Settings** card or its **All Settin
 
 ## App Settings
 
-The gear icon on the home screen, before hosting or joining. These are your device-wide preferences.
+The gear icon on the home screen, before hosting or joining. These are device-wide preferences, grouped so one control has one clear owner.
 
-- **Appearance → Theme Mode** — *System Default*, *Light Theme* or *Dark Theme*. PingRing uses a fixed violet brand palette in both modes; it deliberately does not follow Material You wallpaper colours, so a ring looks the same on everyone's phone.
-- **Appearance → Chat Bubble Colour** — choose Ocean, Berry, Gold, Slate, or **Custom**. The custom picker is a hue wheel. Your selection is saved on this phone and is included with new chat messages, so other current builds render your bubbles in the colour you chose; clearing it returns new messages to the normal theme colour.
-- **Accessibility** — opens optional accessibility features. **Radar screen-reader summary** is off by default; enable it to have TalkBack announce the tracked member, distance or signal state, direction, and active beacon.
-- **Alerts & Hardware Haptics**
-  - **Haptic Proximity Alerts** — vibrate when a tracked member comes within 2 m. Disabled with a reason on phones with no vibrator.
-  - **In-app Notification Banners** — alerts for active beacons.
-  - **Chat Push Notifications** — system notifications for incoming messages.
-  - **Notification Sound** — tone on incoming messages.
-  - **Notification Vibration** — vibration on incoming messages. Disabled on phones with no vibrator.
-
-A **Developer Options** card (LAN Debug Transport) appears in debug builds on a device set up for development. See [Building & Testing](building.md) for how to run with it.
+- **Appearance** — *Theme Mode* is *System Default*, *Light Theme* or *Dark Theme*. PingRing uses a fixed violet brand palette in both modes; it deliberately does not follow Material You wallpaper colours. **Chat Bubble Colour** offers Ocean, Berry, Gold, Slate, or **Custom** from a hue wheel. The choice is saved on this phone and included with new chat messages; clearing it returns new messages to the normal theme colour.
+- **Notifications** — **Chat Push Notifications**, **Notification Sound**, and **Notification Vibration** govern device-wide incoming-chat notifications. The PingRing-specific **Chat Notifications** switch remains in [PingRing Settings](#pingring-settings), where it controls only that event.
+- **Accessibility** — optional accessibility features. **Radar screen-reader summary** is off by default; enable it to have TalkBack announce the tracked member, distance or signal state, direction, and active beacon.
+- **Developer Options** — shown only in debug builds. It contains the LAN Debug Transport and relay host. See [Building & Testing](building.md) for how to use it.
 
 ---
 

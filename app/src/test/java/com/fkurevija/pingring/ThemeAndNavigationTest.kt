@@ -2,11 +2,14 @@ package com.fkurevija.pingring
 
 import androidx.compose.ui.graphics.Color
 import java.io.File
+import com.fkurevija.pingring.ui.navigation.AppearanceSettingsKey
 import com.fkurevija.pingring.ui.navigation.AppSettingsKey
+import com.fkurevija.pingring.ui.navigation.DeveloperSettingsKey
 import com.fkurevija.pingring.ui.navigation.HomeKey
 import com.fkurevija.pingring.ui.navigation.HostSetupKey
 import com.fkurevija.pingring.ui.navigation.PingRingJoinKey
 import com.fkurevija.pingring.ui.navigation.PingRingSettingsKey
+import com.fkurevija.pingring.ui.navigation.NotificationSettingsKey
 import com.fkurevija.pingring.ui.navigation.RadarKey
 import com.fkurevija.pingring.ui.theme.DarkColorScheme
 import com.fkurevija.pingring.ui.theme.LightColorScheme
@@ -224,6 +227,9 @@ class ThemeAndNavigationTest {
         assertEquals(HomeKey, HomeKey)
         assertEquals(PingRingJoinKey, PingRingJoinKey)
         assertEquals(AppSettingsKey, AppSettingsKey)
+        assertEquals(AppearanceSettingsKey, AppearanceSettingsKey)
+        assertEquals(NotificationSettingsKey, NotificationSettingsKey)
+        assertEquals(DeveloperSettingsKey, DeveloperSettingsKey)
     }
 
     @Test
@@ -241,7 +247,8 @@ class ThemeAndNavigationTest {
     @Test
     fun `keys for different destinations never collide`() {
         val keys = listOf(
-            HomeKey, PingRingJoinKey, AppSettingsKey,
+            HomeKey, PingRingJoinKey, AppSettingsKey, AppearanceSettingsKey, NotificationSettingsKey,
+            DeveloperSettingsKey,
             HostSetupKey("E1"), RadarKey("E1"), PingRingSettingsKey("E1"),
         )
 

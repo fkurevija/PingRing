@@ -48,7 +48,10 @@ import com.fkurevija.pingring.data.PingRingService
 import com.fkurevija.pingring.data.SessionManager
 import com.fkurevija.pingring.data.ThemeMode
 import com.fkurevija.pingring.ui.navigation.AppSettingsKey
+import com.fkurevija.pingring.ui.navigation.AppearanceSettingsKey
 import com.fkurevija.pingring.ui.navigation.AccessibilitySettingsKey
+import com.fkurevija.pingring.ui.navigation.DeveloperSettingsKey
+import com.fkurevija.pingring.ui.navigation.NotificationSettingsKey
 import com.fkurevija.pingring.ui.navigation.PingRingJoinKey
 import com.fkurevija.pingring.ui.navigation.PingRingSettingsKey
 import com.fkurevija.pingring.ui.navigation.HomeKey
@@ -56,7 +59,10 @@ import com.fkurevija.pingring.ui.navigation.HostSetupKey
 import com.fkurevija.pingring.ui.navigation.RadarKey
 import com.fkurevija.pingring.ui.permissions.PermissionWrapper
 import com.fkurevija.pingring.ui.screens.AppSettingsScreen
+import com.fkurevija.pingring.ui.screens.AppearanceSettingsScreen
 import com.fkurevija.pingring.ui.screens.AccessibilitySettingsScreen
+import com.fkurevija.pingring.ui.screens.DeveloperSettingsScreen
+import com.fkurevija.pingring.ui.screens.NotificationSettingsScreen
 import com.fkurevija.pingring.ui.screens.PingRingJoinScreen
 import com.fkurevija.pingring.ui.screens.PingRingSettingsScreen
 import com.fkurevija.pingring.ui.screens.HomeScreen
@@ -350,11 +356,35 @@ fun MainNavigation(
 
                 is AppSettingsKey -> {
                     AppSettingsScreen(
+                        onOpenAppearance = { backStack.add(AppearanceSettingsKey) },
+                        onOpenNotifications = { backStack.add(NotificationSettingsKey) },
+                        onOpenAccessibility = { backStack.add(AccessibilitySettingsKey) },
+                        showDeveloperOptions = BuildConfig.DEBUG,
+                        onOpenDeveloperOptions = { backStack.add(DeveloperSettingsKey) },
+                        onBack = { backStack.popBack() }
+                    )
+                }
+
+                is AppearanceSettingsKey -> {
+                    AppearanceSettingsScreen(
                         themeMode = currentThemeMode,
                         onThemeModeChange = appearanceSettings::setThemeMode,
                         appearanceSettings = appearanceSettings,
-                        onOpenAccessibility = { backStack.add(AccessibilitySettingsKey) },
-                        onBack = { backStack.popBack() }
+                        onBack = { backStack.popBack() },
+                    )
+                }
+
+                is NotificationSettingsKey -> {
+                    NotificationSettingsScreen(
+                        appearanceSettings = appearanceSettings,
+                        onBack = { backStack.popBack() },
+                    )
+                }
+
+                is DeveloperSettingsKey -> {
+                    DeveloperSettingsScreen(
+                        appearanceSettings = appearanceSettings,
+                        onBack = { backStack.popBack() },
                     )
                 }
 
