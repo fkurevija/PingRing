@@ -106,7 +106,7 @@ A beacon is a loud, coloured, vibrating "come here" signal that every member's p
 
 Tap **New Beacon** on the radar (the button reads **My Beacon** while one of yours is running). In the sheet:
 
-1. **Select Preset** — ✨ Found Something, 📍 Regroup Here, ⚠️ Caution, ⚡ Custom, 🚨 Emergency. Picking one fills in the message, colour and rhythm; edit any of them afterwards.
+1. **Select Preset** — ✨ Found Something, 📍 Regroup Here, ⚠️ Caution, 🚨 Emergency, ⚡ Custom. Picking one fills in the message, colour and rhythm; edit any of them afterwards.
 2. **Colour** — Red, Amber, Green, Cyan or Purple.
 3. **Vibration** — SOS / Urgent, Rapid Alert, Steady Pulse, Gentle Pulse, or No Vibration. **Test Vibration** plays the rhythm on your own phone first.
 4. **Beacon Message / Intent** — the text other people will read.

@@ -66,7 +66,7 @@ Grouped by area. Nothing here is known to be broken: these are things not built,
 - **Nothing below UWB is wired up yet.** UWB and BLE RSSI are live. Wi-Fi RTT now has three of its four layers — policy, capability and **correlation** (`WifiRttCorrelation`) — and is missing only the session itself; GNSS remains policy only, and additionally needs a way to share a fix between phones that has not been built. See the RTT item above.
 
 **Radar — Beacon**
-- ✅ **Emergency is no longer the first preset in the picker.** The preset order now starts with the routine options, and the beacon sheet defaults to the first entry instead of hard-coding `SOS` as the initial selection. This closes the accidental “Emergency by default” issue called out in the roadmap.
+- ✅ **Routine presets stay first, with Custom last.** The beacon picker now starts with the ordinary intent options and ends with **Custom**, and the sheet defaults to the first item rather than hard-coding `SOS` as the initial selection. This closes the accidental “Emergency by default” issue called out in the roadmap and keeps the editing preset from crowding the common actions.
 
 **Radar Settings · App Settings**
 - No items yet.
