@@ -1,8 +1,51 @@
 package com.fkurevija.pingring.data
 
 import kotlinx.serialization.Serializable
+import java.security.SecureRandom
+import java.util.Base64
 
 const val MAX_PARTICIPANTS = 8
+
+@Serializable
+data class InviteSecretPayloadDto(
+    val eventCode: String,
+    val inviteSecret: String,
+    val hostPeerId: String,
+)
+
+@Serializable
+data class JoinProofPayloadDto(
+    val eventCode: String,
+    val inviteSecret: String?,
+)
+
+@Serializable
+data class EventControlPayloadDto(
+    val eventCode: String,
+    val hostPeerId: String,
+    val trackHost: Boolean,
+    val useUwb: Boolean,
+    val useWifiDirect: Boolean,
+    val acceptsNewMembers: Boolean,
+    val isFull: Boolean,
+    val isClosed: Boolean = false,
+)
+
+object InviteSecret {
+    private const val SECRET_BYTES = 32
+    private val secureRandom = SecureRandom()
+
+    fun generate(): String = Base64.getUrlEncoder().withoutPadding().encodeToString(
+        ByteArray(SECRET_BYTES).also(secureRandom::nextBytes)
+    )
+
+    fun decode(value: String): ByteArray? {
+        if (value.length != 43) return null
+        return runCatching {
+            Base64.getUrlDecoder().decode(value).takeIf { it.size == SECRET_BYTES }
+        }.getOrNull()
+    }
+}
 
 @Serializable
 data class Event(
@@ -38,6 +81,7 @@ data class Event(
      */
     val requiresApproval: Boolean = false,
     val chatNotificationsEnabled: Boolean = true,
+    val inviteSecret: String? = null,
 ) {
     companion object {
         /**
@@ -60,6 +104,7 @@ data class Event(
             id: String,
             hostPeerId: String? = null,
             useUwb: Boolean = true,
+            inviteSecret: String? = null,
         ): Event = Event(
             id = id,
             name = "PingRing $id",
@@ -67,6 +112,7 @@ data class Event(
             expiryTimestamp = System.currentTimeMillis() + DURATION_MILLIS,
             hostPeerId = hostPeerId,
             useUwb = useUwb,
+            inviteSecret = inviteSecret,
         )
     }
 }

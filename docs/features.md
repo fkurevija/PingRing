@@ -6,7 +6,7 @@ For step-by-step instructions on using any of this, see the [User Guide](user-gu
 
 ## 📡 Mesh & Connectivity
 - **One-tap hosting**, no server registration. UWB can be enabled or disabled; Nearby Connections selects its transport, with no app-level Wi-Fi Direct selector.
-- **Admission control**: the Host can stop accepting members at creation or mid-event; connection attempts are then rejected, BLE status flags update, and the Radar's QR button hides until re-enabled. Two more switches: **Discoverable** lists the session on nearby phones' join screens, and **Approve Each Join** holds each new member on the radar until the host allows or denies them. Both are off by default and neither affects joining by code. A request the host never answers is refused after two minutes, so putting the phone down mid-decision cannot pin a guest waiting forever.
+- **Admission control**: the Host can stop accepting members at creation or mid-event; authenticated Nearby requests are rejected and the Radar's QR button hides until re-enabled. **Discoverable** lists a public event locator on nearby phones' join screens. **Approve Each Join** holds QR-secret joins for the host; typed-code joins always require approval. Nearby's shared digits must be compared on both phones before the connection is accepted. Unanswered requests expire after two minutes.
 - **Bounded capacity**: max **8 participants** (1 Host + 7 Guests), enforced by the Host (`8/8 - Full`). This bounds the amount of connection, message and ranging work; it is not a measured performance guarantee.
 - **Current ranging sources**: UWB provides distance and bearing for the focused member when supported; BLE RSSI supplies the fallback estimate. Wi-Fi RTT and GNSS are not wired into live ranging; see [Known limitations](roadmap.md#known-limitations).
 - **Automatic fallback** from sub-metre UWB to BLE RSSI proximity when UWB is unsupported or unavailable. The RSSI path is smoothed over a rolling **2-second window** — the mean is taken in dBm and the distance curve applied once to the result, so one reflected or dropped advert cannot move the readout. A time window rather than a per-sample average, because the advertising rate varies by peer and the app only ever sees the reports that arrive.
@@ -14,7 +14,8 @@ For step-by-step instructions on using any of this, see the [User Guide](user-gu
 ## 👤 Identity & Join
 - **Custom usernames**, saved locally via DataStore and pre-filled on future sessions. Names are enforced unique within a session, with an alert on collision.
 - **Join via QR** (ML Kit, on the Host's on-screen code) or a **6-character PingRing Code** (`e.g. AB12CD`). Code fields force ALL CAPS, usernames use Word Capitalization. The Radar's QR button re-opens the code mid-event for latecomers.
-- **Join validation**: a 2.5s timeout verifies the host; on failure the session is cleaned up and the user stays on the join screen to retry.
+- **Invite secret stays in the QR**: each event gets a random 256-bit secret. The six-character code is only a public locator; code-only joins require host approval. BLE never carries the secret.
+- **Join verification**: both devices compare Nearby's shared digits before accepting. Code-only joins wait for host approval; unanswered requests expire after two minutes and are cleaned up so the guest can retry.
 
 ## 🚨 Beacons & Chat
 - **Intent presets**: ✨ Found Something, 📍 Regroup Here, ⚠️ Caution, 🚨 Emergency, ⚡ Custom — with 5 colour palettes (Crimson, Amber, Emerald, Cyan, Purple) and 5 vibration rhythms (SOS/Urgent, Rapid Alert, Steady Pulse, Gentle Pulse, No Vibration). Beacons illuminate radar rings, peer pins and wave animations on receivers.

@@ -61,6 +61,7 @@ import com.fkurevija.pingring.R
 @Composable
 fun HostSetupScreen(
     eventCode: String,
+    inviteSecret: String? = null,
     savedUsername: String,
     discoveryRepository: DiscoveryRepository,
     onEndEvent: () -> Unit,
@@ -161,8 +162,11 @@ fun HostSetupScreen(
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(Modifier.height(12.dp))
-                    val qrCodeBitmap = remember(eventCode) {
-                        generateQrCode(eventCode).asImageBitmap()
+                    val qrValue = remember(eventCode, inviteSecret) {
+                        PingRingInvite(eventCode, inviteSecret).toQrValue()
+                    }
+                    val qrCodeBitmap = remember(qrValue) {
+                        generateQrCode(qrValue).asImageBitmap()
                     }
                     Box(
                         modifier = Modifier

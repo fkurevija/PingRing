@@ -9,52 +9,47 @@
 
 This was a static source review of the production Android paths. No packet capture, active radio spoofing, or two-device man-in-the-middle exercise was possible in this environment, so exploitability has not been demonstrated on hardware. The threat model is a person within BLE/Nearby radio range who can observe and transmit advertisements or advertise a Nearby service. It does not assume control of either phone's OS.
 
-Nearby Connections encrypts established payload transport, but that does not authenticate which app peer is on the other end. Google's [connection-management guidance](https://developers.google.com/nearby/connections/android/manage-connections#authenticate_the_connection) says the token provided during connection initiation should be authenticated and warns that connections accepted without authentication are insecure. PingRing accepts connections without checking that token.
+Nearby Connections encrypts established payload transport, but encryption alone does not authenticate which app peer is on the other end. Google's [connection-management guidance](https://developers.google.com/nearby/connections/android/manage-connections#authenticate_the_connection) recommends comparing the shared authentication digits. PingRing now requires an explicit user confirmation before accepting the transport connection.
 
-## Findings
+## Implemented Mitigations
 
-### High: Forged BLE advertisements can close a guest's event
+### BLE control spoofing no longer changes session state
 
-BLE service data is a public, unsigned broadcast. A guest accepts an advertisement when its 32-bit `eventHash` matches the current event, then treats any packet with the host and closure flags as authoritative and leaves the event. The packet is not checked against an authenticated host identity, and the full event code is present in advertisements, so a nearby sender can construct the matching hash and closure flags. The same trust issue applies to host policy flags and fabricated member IDs. See [advertisement encoding and decoding](../app/src/main/java/com/fkurevija/pingring/data/DiscoveryRepository.kt) and [scan-result handling](../app/src/main/java/com/fkurevija/pingring/data/DiscoveryRepository.kt).
+BLE v4 signs the 28-byte advertisement prefix with HMAC-SHA256 truncated to 88 bits, keyed by the 256-bit invite secret. In-session peers verify the tag before using a peer ID or reading proximity. The invite secret is not present in BLE. BLE host, closure, admission, and ranging flags are no longer applied; only the public discoverability hint is read before joining. Session closure and host controls travel over the authenticated Nearby endpoint. See [advertisement encoding and verification](../app/src/main/java/com/fkurevija/pingring/data/DiscoveryRepository.kt).
 
-**Impact:** a nearby attacker can remove guests from an active PingRing or inject false members and host state. The 15-second cleanup limits the lifetime of phantom members but does not protect event closure.
+### Nearby transport requires SAS confirmation
 
-### High: The join code is disclosed in every active member advertisement
+Both endpoints display Nearby's shared authentication digits and must explicitly confirm before the encrypted control channel is accepted. Users are instructed to compare digits with the intended person. The host then verifies QR-secret proof or holds a code-only join for approval. SAS prompts expire after two minutes, are capped at eight concurrent requests, and are limited to twelve per minute. See [SAS request handling](../app/src/main/java/com/fkurevija/pingring/data/NearbyConnectionsManager.kt) and [the confirmation dialog](../app/src/main/java/com/fkurevija/pingring/ui/screens/ConnectionAuthenticationDialog.kt).
 
-`buildServicePayload` writes `currentEvent.id` into the BLE packet for every member, whether or not the host enabled **Discoverable**. The code is generated from the first six hexadecimal characters of a UUID, giving 24 bits, and is also used as the Nearby service ID. A passive observer can read it directly from BLE rather than guessing it. Because accepting new members and automatic admission are defaults, an observer can use the code to request a connection and, if admitted, receive relayed chat, beacons, and history. **Discoverable** currently controls the browse-list flag, not whether the code is broadcast. See [event-code generation](../app/src/main/java/com/fkurevija/pingring/MainActivity.kt) and [BLE payload creation](../app/src/main/java/com/fkurevija/pingring/data/DiscoveryRepository.kt).
+### Sender identities are bound to accepted endpoints
 
-### High: Nearby connections are encrypted but not peer-authenticated
+The host accepts chat, beacon, and UWB sender claims only when they match the peer ID bound to that confirmed endpoint. Guests accept relayed sender-attributed traffic and host controls only from the authenticated host endpoint. UWB offers are checked against their source endpoint before the host relays them. See [payload authorization](../app/src/main/java/com/fkurevija/pingring/data/NearbyConnectionsManager.kt).
 
-`onConnectionInitiated` ignores the authentication token supplied on `ConnectionInfo` and proceeds to automatic admission or host approval based on the incoming flag and local settings. Nearby's encrypted transport therefore protects against passive payload sniffing, but PingRing does not authenticate the endpoint as the intended host/member; an active nearby attacker can impersonate an endpoint or attempt a man-in-the-middle attack. The endpoint name is attacker-supplied metadata, not proof of identity. See [Nearby connection handling](../app/src/main/java/com/fkurevija/pingring/data/NearbyConnectionsManager.kt).
+### Logs and join queues are bounded
 
-### Medium: Accepted members can forge another member's payload identity
+Production logs no longer include chat text, beacon titles, raw payload JSON, or UWB STS keys. SAS prompts and pending join approvals are capped at eight; SAS attempts are limited to twelve per minute, and capacity is rechecked when a peer is authorized. See [Nearby request limits and logging](../app/src/main/java/com/fkurevija/pingring/data/NearbyConnectionsManager.kt).
 
-The transport callback passes the endpoint ID to envelope dispatch, but chat and beacon routing discard it and trust `senderPeerId` and `senderName` from the payload body. There is no binding between an accepted endpoint and the identity claimed in those fields. A connected member can therefore send chat or beacons under another member's name, and the host may preserve or relay that forged identity. See [payload dispatch](../app/src/main/java/com/fkurevija/pingring/data/NearbyConnectionsManager.kt), [wire routing](../app/src/main/java/com/fkurevija/pingring/data/RelayCodec.kt), and [message handling](../app/src/main/java/com/fkurevija/pingring/data/DiscoveryRepository.kt).
+## Residual Risks
 
-### Medium: Logs contain chat text and UWB session secrets
+### Event code remains a public locator
 
-Production code logs outgoing chat text, received chat text, beacon titles, and the complete incoming payload JSON. A UWB offer contains the static STS key, so logging its raw JSON exposes that key to anyone who can collect device logs or bug reports. These are local diagnostic disclosures, not passive over-the-air disclosure; Nearby encrypts the transport. See [Nearby logging](../app/src/main/java/com/fkurevija/pingring/data/NearbyConnectionsManager.kt) and [transport event logging](../app/src/main/java/com/fkurevija/pingring/data/TransportEvents.kt).
+The six-hex code is still broadcast so a discoverable session can be found; it is a locator, not a credential. A typed-code join has no secret proof and always requires host approval. QR scans carry the 256-bit secret. Unauthenticated pre-join discovery hints can still be forged to create false nearby-list rows, but they cannot create an authenticated member or change event state. The browse list is capped at 16 entries. Protect the QR like an invitation, and compare Nearby's digits before confirming.
 
-### Medium: Join approval has no app-level queue or rate limit
+### Invited members share the BLE group key
 
-When approval is enabled, each incoming request is appended to the pending list and remains there for up to two minutes. The list has no app-level size or per-source rate limit; pending requests are not reserved against capacity, and approval does not recheck capacity. A nearby sender can flood the host's approval UI, and a burst of approvals can exceed the intended capacity bound. The timeout prevents permanent retention, not request flooding. See [approval queue and admission handling](../app/src/main/java/com/fkurevija/pingring/data/NearbyConnectionsManager.kt).
+Every admitted member receives the same invite secret so it can verify other members' BLE advertisements. A malicious admitted member can therefore forge another peer's BLE proximity identity; the shared key proves ring membership, not which member sent an advert. It cannot use BLE to close the event or change host policy, and it cannot forge that peer's authenticated Nearby sender identity. Individual BLE identities would need a different key distribution or signature scheme and likely a larger radio format.
 
-## Existing Controls and Residual Trust
+### LAN debug transport is not production-secure
 
-- Nearby encrypts established payload transport and requires both endpoints to accept, but PingRing does not authenticate the connection token.
-- The host can disable new joins or require manual approval. Approval is off by default, and the event code is still broadcast over BLE.
-- Connected-member capacity is enforced at connection initiation. BLE-discovered peer records are not authenticated or capped before entering the radar model.
-- Guest-to-guest UWB offers are relayed through the host. Their STS key is intentionally visible to the host; this trust boundary is documented separately in [Known limitations](roadmap.md#known-limitations).
+The debug-only emulator/device TCP relay does not provide Nearby's encrypted transport; it is intended for a trusted development LAN and must not be used for real events or with untrusted networks. It is excluded from release builds.
 
-## Recommended Hardening
+### UWB offers remain host-visible
 
-1. Introduce a high-entropy event secret that is not broadcast in BLE. Bind it to the join flow and authenticate both the Nearby endpoint and the BLE advertisement before accepting identity or control flags.
-2. Do not apply host closure or policy flags from an unauthenticated advertisement. Keep an unauthenticated BLE sighting as a proximity hint only.
-3. Bind every accepted Nearby endpoint to a verified peer ID, reject payloads whose sender identity does not match that binding, and recheck capacity when an approval is granted.
-4. Bound pending join requests and rate-limit repeated attempts.
-5. Remove message text, full payload JSON, and STS key material from production logs; retain type, byte count, and opaque request IDs for diagnostics.
+Guest-to-guest UWB offers are relayed through the host. The host can read the STS key; this trust boundary is intentional and remains in [Known limitations](roadmap.md#known-limitations).
 
-These changes affect event-code sharing, peer identity, and wire compatibility; they should be designed and tested as a security-hardening change rather than patched independently at individual call sites.
+## Verification Limits
+
+This was a static code review plus unit/compile validation. A live two-phone SAS comparison, BLE spoof attempt, packet capture, join flood, and logcat collection test have not been performed on hardware. Verify those scenarios before treating the mitigations as device-tested.
 
 ---
 

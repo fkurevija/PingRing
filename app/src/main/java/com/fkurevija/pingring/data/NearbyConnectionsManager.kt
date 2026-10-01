@@ -30,6 +30,26 @@ internal fun shouldRefuseConnection(
     connectedPeerCount: Int
 ): Boolean = isIncoming && (!acceptsNewMembers || connectedPeerCount + 1 >= MAX_PARTICIPANTS)
 
+const val SAS_PROMPT_WINDOW_MILLIS = 60_000L
+const val MAX_SAS_PROMPTS_PER_WINDOW = 12
+
+internal fun isWithinSasPromptRateLimit(recentAttempts: List<Long>, nowMillis: Long): Boolean =
+    recentAttempts.count { nowMillis - it < SAS_PROMPT_WINDOW_MILLIS } < MAX_SAS_PROMPTS_PER_WINDOW
+
+internal fun joinRequiresHostApproval(hasValidInviteSecret: Boolean, hostRequiresApproval: Boolean): Boolean =
+    hostRequiresApproval || !hasValidInviteSecret
+
+internal fun isPayloadSenderAuthorized(
+    isLocalHost: Boolean,
+    endpointPeerId: String,
+    authenticatedHostPeerId: String?,
+    claimedSenderPeerId: String,
+): Boolean = if (isLocalHost) {
+    endpointPeerId.isNotBlank() && endpointPeerId == claimedSenderPeerId
+} else {
+    authenticatedHostPeerId != null && endpointPeerId == authenticatedHostPeerId
+}
+
 /**
  * A device asking to join, waiting on the host's decision.
  *
@@ -42,6 +62,21 @@ data class PendingJoinRequest(
     val deviceName: String,
     val requestedAtMillis: Long,
 )
+
+data class ConnectionAuthenticationRequest(
+    val endpointId: String,
+    val deviceName: String,
+    val authenticationDigits: String,
+    val isIncoming: Boolean,
+    val requestedAtMillis: Long = System.currentTimeMillis(),
+)
+
+internal fun expiredAuthenticationRequests(
+    requests: Collection<ConnectionAuthenticationRequest>,
+    nowMillis: Long,
+): List<ConnectionAuthenticationRequest> = requests.filter {
+    nowMillis - it.requestedAtMillis > JOIN_REQUEST_TIMEOUT_MILLIS
+}
 
 /**
  * How long a join request may sit unanswered before the host gives up on it.
@@ -56,6 +91,9 @@ data class PendingJoinRequest(
  * short enough that nobody waits on a decision that will not come.
  */
 const val JOIN_REQUEST_TIMEOUT_MILLIS = 120_000L
+private const val MAX_PENDING_AUTHENTICATIONS = 8
+private const val MAX_PENDING_JOIN_REQUESTS = 8
+private const val CLOSURE_SEND_GRACE_MILLIS = 2_000L
 
 /**
  * What should happen to a connection request that has just arrived.
@@ -174,13 +212,11 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
     override val connectionEstablished: SharedFlow<String> get() = events.connectionEstablished
     override val peerDisconnected: SharedFlow<String> get() = events.peerDisconnected
 
-    /**
-     * Never emitted: Nearby Connections has no server-side equivalent of "the
-     * event is over", so peers learn it from the host's BLE closure
-     * advertisement, which [DiscoveryRepository] already watches for.
-     */
+    /** Nearby peers receive closure as authenticated EventControl, not this LAN-only event. */
     override val eventClosed: SharedFlow<Unit> get() = events.eventClosed
     override val receivedBeacon: SharedFlow<BeaconPayloadDto> get() = events.receivedBeacon
+    override val receivedInviteSecret: SharedFlow<InviteSecretPayloadDto> get() = events.receivedInviteSecret
+    override val receivedEventControl: SharedFlow<EventControlPayloadDto> get() = events.receivedEventControl
 
     /**
      * Never emitted: Nearby Connections has no way of being told a distance that
@@ -192,6 +228,13 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
 
     private val connectedEndpoints = mutableMapOf<String, String>()
     private val endpointToPeerId = mutableMapOf<String, String>()
+    private val authorizedEndpoints = mutableSetOf<String>()
+    private val incomingEndpoints = mutableSetOf<String>()
+    private val pendingInviteProofEndpoints = mutableSetOf<String>()
+    private val pendingJoinProofs = mutableMapOf<String, JoinProofPayloadDto>()
+    private var authenticatedHostEndpoint: String? = null
+    private var localEventId: String? = null
+    private var isLocalHost: Boolean = false
 
     /**
      * Supplies the current event's host peer id, set by [DiscoveryRepository].
@@ -201,6 +244,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
      * a guest's UWB ranging offer to it.
      */
     var hostPeerIdProvider: (() -> String?)? = null
+    var inviteSecretProvider: (() -> String?)? = null
 
     // Endpoints this device has accepted, i.e. the ones a PayloadCallback is
     // registered for. Nearby only hands payloads to an accepted connection, and
@@ -218,6 +262,39 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
 
     private val _pendingJoinRequests = MutableStateFlow<List<PendingJoinRequest>>(emptyList())
     override val pendingJoinRequests: StateFlow<List<PendingJoinRequest>> = _pendingJoinRequests.asStateFlow()
+    private val authenticationRequests = linkedMapOf<String, ConnectionAuthenticationRequest>()
+    private val sasPromptTimes = mutableListOf<Long>()
+    override val pendingAuthentications: StateFlow<List<ConnectionAuthenticationRequest>>
+        get() = events.pendingAuthentications
+
+    override fun confirmConnectionAuthentication(endpointId: String) {
+        val request = authenticationRequests.remove(endpointId) ?: return
+        events.setPendingAuthentications(authenticationRequests.values.toList())
+        scheduleAuthenticationSweep()
+        endpointToPeerId[endpointId] = request.deviceName
+        if (request.isIncoming) {
+            incomingEndpoints.add(endpointId)
+            val reserved = authorizedEndpoints.size + _pendingJoinRequests.value.size
+            if (!acceptsNewMembers || reserved >= MAX_PARTICIPANTS - 1) {
+                connectionsClient.rejectConnection(endpointId)
+                return
+            }
+        } else {
+            authenticatedHostEndpoint = endpointId
+        }
+        // Establish only the encrypted control channel here. Ordinary payloads
+        // remain blocked until QR proof or explicit host approval authorizes it.
+        acceptWithPayloadCallback(endpointId, "SAS confirmed")
+    }
+
+    override fun rejectConnectionAuthentication(endpointId: String) {
+        if (authenticationRequests.remove(endpointId) == null) return
+        events.setPendingAuthentications(authenticationRequests.values.toList())
+        scheduleAuthenticationSweep()
+        endpointToPeerId.remove(endpointId)
+        requestedEndpoints.remove(endpointId)
+        connectionsClient.rejectConnection(endpointId)
+    }
 
     /**
      * Carries the expiry sweep. A [Handler] rather than a coroutine because the
@@ -227,6 +304,33 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
      */
     private val handler = Handler(Looper.getMainLooper())
     private var sweepRunnable: Runnable? = null
+    private var authenticationSweepRunnable: Runnable? = null
+    private var pendingClosureSends = 0
+    private var closureStopRequested = false
+    private var forceClosureStopRunnable: Runnable? = null
+
+    private fun scheduleAuthenticationSweep() {
+        authenticationSweepRunnable?.let(handler::removeCallbacks)
+        authenticationSweepRunnable = null
+        val oldest = authenticationRequests.values.minOfOrNull { it.requestedAtMillis } ?: return
+        val delayMillis = (oldest + JOIN_REQUEST_TIMEOUT_MILLIS - System.currentTimeMillis()).coerceAtLeast(0L)
+        authenticationSweepRunnable = Runnable { expireAuthenticationRequests() }.also { runnable ->
+            handler.postDelayed(runnable, delayMillis)
+        }
+    }
+
+    private fun expireAuthenticationRequests() {
+        authenticationSweepRunnable = null
+        val expired = expiredAuthenticationRequests(authenticationRequests.values, System.currentTimeMillis())
+        expired.forEach { request ->
+            authenticationRequests.remove(request.endpointId)
+            endpointToPeerId.remove(request.endpointId)
+            requestedEndpoints.remove(request.endpointId)
+            connectionsClient.rejectConnection(request.endpointId)
+        }
+        events.setPendingAuthentications(authenticationRequests.values.toList())
+        scheduleAuthenticationSweep()
+    }
 
     override fun approveJoinRequest(endpointId: String) {
         val request = _pendingJoinRequests.value.firstOrNull { it.endpointId == endpointId }
@@ -236,10 +340,13 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
         }
         cancelJoinRequestSweep()
         _pendingJoinRequests.update { current -> current.filterNot { it.endpointId == endpointId } }
-        // The accept is what opens the payload channel, so this is the moment
-        // the guest actually becomes a member. Idempotent, so an approval that
-        // races an automatic accept is harmless.
-        acceptWithPayloadCallback(endpointId, "approved by host")
+        if (endpointId !in pendingInviteProofEndpoints) {
+            connectionsClient.rejectConnection(endpointId)
+            scheduleJoinRequestSweep()
+            return
+        }
+        pendingInviteProofEndpoints.remove(endpointId)
+        authorizeEndpoint(endpointId)
         Log.i(TAG, "Approved join request from ${request.deviceName} ($endpointId)")
         scheduleJoinRequestSweep()
     }
@@ -258,6 +365,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
         // too, so a guest that somehow still holds a channel cannot use it after
         // being turned away.
         acceptedEndpoints.remove(endpointId)
+        pendingInviteProofEndpoints.remove(endpointId)
         connectionsClient.rejectConnection(endpointId)
         Log.i(TAG, "Denied join request from ${request.deviceName} ($endpointId)")
         scheduleJoinRequestSweep()
@@ -326,6 +434,8 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
 
     override fun startAdvertising(eventId: String, localPeerId: String, useWifiDirect: Boolean, useHotspot: Boolean) {
         this.localPeerId = localPeerId
+        this.localEventId = eventId
+        this.isLocalHost = true
         val serviceId = getServiceId(eventId)
         Log.i(TAG, "startAdvertising: serviceId=$serviceId, localPeerId=$localPeerId")
         val optionsBuilder = AdvertisingOptions.Builder()
@@ -345,6 +455,8 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
 
     override fun startDiscovery(eventId: String, localPeerId: String) {
         this.localPeerId = localPeerId
+        this.localEventId = eventId
+        this.isLocalHost = false
         val serviceId = getServiceId(eventId)
         Log.i(TAG, "startDiscovery: serviceId=$serviceId, localPeerId=$localPeerId")
         val options = DiscoveryOptions.Builder()
@@ -366,25 +478,46 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
         Log.i(TAG, "stopAll called; stopping advertising/discovery and clearing connected endpoints")
         connectionsClient.stopAdvertising()
         connectionsClient.stopDiscovery()
+        if (pendingClosureSends > 0) {
+            closureStopRequested = true
+            forceClosureStopRunnable?.let(handler::removeCallbacks)
+            forceClosureStopRunnable = Runnable { finishStopAll() }.also { runnable ->
+                handler.postDelayed(runnable, CLOSURE_SEND_GRACE_MILLIS)
+            }
+            return
+        }
+        finishStopAll()
+    }
+
+    private fun finishStopAll() {
+        forceClosureStopRunnable?.let(handler::removeCallbacks)
+        forceClosureStopRunnable = null
+        closureStopRequested = false
+        pendingClosureSends = 0
         connectionsClient.stopAllEndpoints()
         connectedEndpoints.clear()
         endpointToPeerId.clear()
         acceptedEndpoints.clear()
         requestedEndpoints.clear()
+        authorizedEndpoints.clear()
+        incomingEndpoints.clear()
+        pendingInviteProofEndpoints.clear()
+        pendingJoinProofs.clear()
+        authenticatedHostEndpoint = null
+        localEventId = null
         // Held requests die with the endpoints holding them; leaving them would
         // greet the next event with approvals the host never gave.
         _pendingJoinRequests.value = emptyList()
+        authenticationRequests.clear()
+        events.setPendingAuthentications(emptyList())
         // Disarmed before clearing, so a sweep already queued cannot fire into
         // the next event and refuse an endpoint that now belongs to somebody else.
         cancelJoinRequestSweep()
+        authenticationSweepRunnable?.let(handler::removeCallbacks)
+        authenticationSweepRunnable = null
     }
 
-    /**
-     * Nothing to do: peers of a real host find out the PingRing is over from the
-     * BLE closure advertisement that [DiscoveryRepository.announceEventClosure]
-     * broadcasts. The LAN debug transport is the one that needs to tell the
-     * relay instead.
-     */
+    /** Nearby peers receive closure through the authenticated EventControl payload. */
     override fun announceEventClosed() = Unit
 
     override fun sendUwbParameters(peerId: String, params: Any) {
@@ -425,7 +558,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
 
     override fun broadcastChatMessage(chatMsg: ChatPayloadDto) {
         val endpoints = connectedEndpoints.values.toSet()
-        Log.i(TAG, "Broadcasting chat message '${chatMsg.text}' (id=${chatMsg.id}) to ${endpoints.size} endpoint(s): $endpoints")
+        Log.i(TAG, "Broadcasting chat message ${chatMsg.id} to ${endpoints.size} endpoint(s)")
         if (endpoints.isEmpty()) {
             // The single most useful line when "chat does not work": it means
             // the transport never got this far, so no amount of parsing on the
@@ -461,18 +594,49 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
         sendPayloadToEndpoint(endpointId, beacon)
     }
 
+    override fun sendInviteSecret(peerId: String, secret: InviteSecretPayloadDto) {
+        val endpointId = connectedEndpoints[peerId] ?: return
+        sendPayloadToEndpoint(endpointId, secret)
+    }
+
+    override fun sendEventControl(peerId: String, control: EventControlPayloadDto) {
+        val endpointId = connectedEndpoints[peerId] ?: return
+        if (endpointId !in authorizedEndpoints) return
+        if (control.isClosed) {
+            pendingClosureSends++
+            sendPayloadToEndpoint(endpointId, control) {
+                handler.post {
+                    pendingClosureSends = (pendingClosureSends - 1).coerceAtLeast(0)
+                    if (closureStopRequested && pendingClosureSends == 0) finishStopAll()
+                }
+            }
+        } else {
+            sendPayloadToEndpoint(endpointId, control)
+        }
+    }
+
+    override fun sendJoinProofToHost(proof: JoinProofPayloadDto) {
+        val endpointId = authenticatedHostEndpoint
+            ?: hostPeerIdProvider?.invoke()?.let(connectedEndpoints::get)
+            ?: return
+        sendPayloadToEndpoint(endpointId, proof)
+    }
+
     override fun broadcastBeacon(beacon: BeaconPayloadDto) {
         val endpoints = connectedEndpoints.values.toSet()
-        Log.i(TAG, "Broadcasting beacon '${beacon.title}' to ${endpoints.size} endpoint(s)")
+        Log.i(TAG, "Broadcasting beacon ${beacon.id} to ${endpoints.size} endpoint(s)")
         endpoints.forEach { endpointId ->
             sendPayloadToEndpoint(endpointId, beacon)
         }
     }
 
-    private fun sendPayloadToEndpoint(endpointId: String, params: Any) {
+    private fun sendPayloadToEndpoint(endpointId: String, params: Any, onComplete: (() -> Unit)? = null) {
         // One mapping from DTO to wire type for the whole app, so a payload type
         // added on one side of the app cannot go missing on the other.
-        val encoded = RelayCodec.encode(params) ?: return
+        val encoded = RelayCodec.encode(params) ?: run {
+            onComplete?.invoke()
+            return
+        }
         val envelope = RelayEnvelope(type = encoded.wireType, payload = encoded.json)
         val envelopeJson = RelayCodec.encodeEnvelope(envelope)
         val payload = Payload.fromBytes(envelopeJson.toByteArray())
@@ -487,6 +651,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
                 val status = (error as? com.google.android.gms.common.api.ApiException)?.statusCode
                 Log.e(TAG, "sendPayload(${encoded.wireType}) to $endpointId failed, status=$status: ${error.message}", error)
             }
+            .addOnCompleteListener { onComplete?.invoke() }
     }
 
     /**
@@ -524,71 +689,61 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
             }
     }
 
+    private fun authorizeEndpoint(endpointId: String) {
+        if (endpointId !in connectedEndpoints.values) return
+        if (isLocalHost && (!acceptsNewMembers || authorizedEndpoints.size >= MAX_PARTICIPANTS - 1)) {
+            connectionsClient.rejectConnection(endpointId)
+            return
+        }
+        if (!authorizedEndpoints.add(endpointId)) return
+        val peerId = endpointToPeerId[endpointId]?.ifBlank { null } ?: endpointId
+        events.onPeerConnected(peerId)
+    }
+
+    private fun queueJoinApproval(endpointId: String, deviceName: String): Boolean {
+        if (_pendingJoinRequests.value.any { it.endpointId == endpointId }) return true
+        if (_pendingJoinRequests.value.size >= MAX_PENDING_JOIN_REQUESTS) {
+            connectionsClient.rejectConnection(endpointId)
+            return false
+        }
+        val request = PendingJoinRequest(
+            endpointId = endpointId,
+            deviceName = deviceName.ifBlank { "Unknown device" },
+            requestedAtMillis = System.currentTimeMillis(),
+        )
+        _pendingJoinRequests.update { (it + request).sortedBy { pending -> pending.requestedAtMillis } }
+        scheduleJoinRequestSweep()
+        return true
+    }
+
     private val connectionLifecycleCallback = object : ConnectionLifecycleCallback() {
         override fun onConnectionInitiated(endpointId: String, info: ConnectionInfo) {
             val isIncoming = info.isIncomingConnection
+            val now = System.currentTimeMillis()
+            sasPromptTimes.removeAll { now - it >= SAS_PROMPT_WINDOW_MILLIS }
+            if (!isWithinSasPromptRateLimit(sasPromptTimes, now)) {
+                connectionsClient.rejectConnection(endpointId)
+                return
+            }
+            if (authenticationRequests.size >= MAX_PENDING_AUTHENTICATIONS && endpointId !in authenticationRequests) {
+                connectionsClient.rejectConnection(endpointId)
+                return
+            }
+            sasPromptTimes += now
             Log.i(
                 TAG,
                 "Connection initiated for $endpointId " +
-                    "(${if (isIncoming) "requested by peer" else "answering our own request"}), " +
-                    "name: '${info.endpointName}'"
+                    "(${if (isIncoming) "requested by peer" else "answering our own request"})"
             )
-            // "Accepts new members" and the capacity limit are the *host's*
-            // admission policy, so they only get a say over a device asking to
-            // join. Answering the host's half of the handshake must never be
-            // gated by them, or a guest whose local event copy happens to have
-            // the switch off would refuse the host it just joined, sit on a
-            // connection that never establishes, and receive nothing at all -
-            // which looks exactly like broken chat. See [shouldRefuseConnection].
-            val connectedPeerCount = connectedEndpoints.values.toSet().size
-            when (
-                decideJoinRequest(
-                    isIncoming = isIncoming,
-                    requiresApproval = requiresApproval,
-                    acceptsNewMembers = acceptsNewMembers,
-                    connectedPeerCount = connectedPeerCount
-                )
-            ) {
-                JoinRequestDecision.Refuse -> {
-                    Log.w(
-                        TAG,
-                        if (!acceptsNewMembers) {
-                            "Host is currently not accepting new members. Rejecting connection from $endpointId"
-                        } else {
-                            "PingRing is full ($connectedPeerCount connected peers + host >= $MAX_PARTICIPANTS). " +
-                                "Rejecting endpoint $endpointId"
-                        }
-                    )
-                    connectionsClient.rejectConnection(endpointId)
-                    return
-                }
-
-                JoinRequestDecision.Admit -> {
-                    endpointToPeerId[endpointId] = info.endpointName
-                    acceptWithPayloadCallback(
-                        endpointId,
-                        if (isIncoming) "connection initiated by peer" else "answering our own request"
-                    )
-                }
-
-                // Held rather than accepted. Deliberately *not* registering the
-                // payload callback yet: accepting is what grants the payload
-                // channel, and a guest the host may yet refuse must not have it.
-                JoinRequestDecision.AwaitApproval -> {
-                    endpointToPeerId[endpointId] = info.endpointName
-                    val request = PendingJoinRequest(
-                        endpointId = endpointId,
-                        deviceName = info.endpointName.ifBlank { "Unknown device" },
-                        requestedAtMillis = System.currentTimeMillis()
-                    )
-                    _pendingJoinRequests.update { current ->
-                        (current.filterNot { it.endpointId == endpointId } + request)
-                            .sortedBy { it.requestedAtMillis }
-                    }
-                    Log.i(TAG, "Holding join request from ${request.deviceName} ($endpointId) for approval")
-                    scheduleJoinRequestSweep()
-                }
-            }
+            authenticationRequests[endpointId] = ConnectionAuthenticationRequest(
+                endpointId = endpointId,
+                deviceName = info.endpointName,
+                authenticationDigits = info.authenticationDigits,
+                isIncoming = isIncoming,
+            )
+            events.setPendingAuthentications(authenticationRequests.values.toList())
+            scheduleAuthenticationSweep()
+            Log.i(TAG, "Waiting for authentication confirmation from endpoint $endpointId")
         }
 
         override fun onConnectionResult(endpointId: String, result: ConnectionResolution) {
@@ -609,10 +764,32 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
                 val peerId = endpointToPeerId[endpointId]?.ifBlank { null } ?: endpointId
                 connectedEndpoints[peerId] = endpointId
                 connectedEndpoints[endpointId] = endpointId
-                events.onPeerConnected(peerId)
+                if (isLocalHost && endpointId in incomingEndpoints) {
+                    val pendingProof = pendingJoinProofs.remove(endpointId)
+                    if (pendingProof != null) {
+                        receiveJoinProof(pendingProof, endpointId)
+                    } else {
+                        pendingInviteProofEndpoints.add(endpointId)
+                    }
+                } else if (!isLocalHost) {
+                    val eventCode = localEventId ?: return
+                    sendPayloadToEndpoint(
+                        endpointId,
+                        JoinProofPayloadDto(eventCode, inviteSecretProvider?.invoke()),
+                    )
+                } else {
+                    authorizeEndpoint(endpointId)
+                }
                 Log.i(TAG, "Connection SUCCESS to $endpointId (Peer ID: $peerId). Active connected endpoints: $connectedEndpoints")
             } else {
                 endpointToPeerId.remove(endpointId)
+                authenticationRequests.remove(endpointId)
+                events.setPendingAuthentications(authenticationRequests.values.toList())
+                scheduleAuthenticationSweep()
+                incomingEndpoints.remove(endpointId)
+                pendingInviteProofEndpoints.remove(endpointId)
+                pendingJoinProofs.remove(endpointId)
+                authenticatedHostEndpoint = authenticatedHostEndpoint?.takeUnless { it == endpointId }
                 // A failed attempt is not "already requested": let the next
                 // advertisement try again.
                 requestedEndpoints.remove(endpointId)
@@ -625,6 +802,9 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
             // walked out of range, not a decision, so it leaves the host's list
             // silently rather than being reported as denied.
             _pendingJoinRequests.update { current -> current.filterNot { it.endpointId == endpointId } }
+            authenticationRequests.remove(endpointId)
+            events.setPendingAuthentications(authenticationRequests.values.toList())
+            scheduleAuthenticationSweep()
             // The guest is gone, so whatever was left of its request goes with
             // it; the sweep has nothing left to refuse and must not wake for it.
             scheduleJoinRequestSweep()
@@ -633,6 +813,11 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
                 connectedEndpoints.remove(peerId)
             }
             connectedEndpoints.remove(endpointId)
+            authorizedEndpoints.remove(endpointId)
+            incomingEndpoints.remove(endpointId)
+            pendingInviteProofEndpoints.remove(endpointId)
+            pendingJoinProofs.remove(endpointId)
+            authenticatedHostEndpoint = authenticatedHostEndpoint?.takeUnless { it == endpointId }
             // The payload callback died with the connection, and a reconnect
             // has to be accepted again to get a working one.
             acceptedEndpoints.remove(endpointId)
@@ -648,7 +833,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
 
     private val endpointDiscoveryCallback = object : EndpointDiscoveryCallback() {
         override fun onEndpointFound(endpointId: String, info: DiscoveredEndpointInfo) {
-            Log.i(TAG, "Endpoint found: $endpointId, name: '${info.endpointName}', serviceId: '${info.serviceId}'")
+            Log.i(TAG, "Endpoint found: $endpointId")
             // Remember the advertised peer id straight away. This is the only
             // place a requester can learn it, and without it the endpoint has
             // to be keyed by its opaque Nearby id, which then no longer matches
@@ -720,8 +905,117 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
      * itself.
      */
     private fun deliver(payload: DecodedPayload, endpointId: String): Boolean = when (payload) {
-        is DecodedPayload.UwbOffer -> relayOffer(payload.offer, endpointId)
-        else -> RelayCodec.route(payload, events)
+        is DecodedPayload.JoinProof -> receiveJoinProof(payload.proof, endpointId)
+        is DecodedPayload.InviteSecret -> receiveInviteSecret(payload.secret, endpointId)
+        else -> {
+            if (endpointId !in authorizedEndpoints) return false
+            val endpointPeerId = endpointToPeerId[endpointId] ?: return false
+            when (payload) {
+                is DecodedPayload.Chat ->
+                    if (isPayloadSenderAuthorized(
+                            isLocalHost,
+                            endpointPeerId,
+                            endpointToPeerId[authenticatedHostEndpoint],
+                            payload.message.senderPeerId,
+                        )
+                    ) {
+                        RelayCodec.route(payload, events)
+                    } else false
+                is DecodedPayload.Beacon ->
+                    if (isPayloadSenderAuthorized(
+                            isLocalHost,
+                            endpointPeerId,
+                            endpointToPeerId[authenticatedHostEndpoint],
+                            payload.beacon.senderPeerId,
+                        )
+                    ) {
+                        RelayCodec.route(payload, events)
+                    } else false
+                is DecodedPayload.ChatHistory ->
+                    !isLocalHost && endpointId == authenticatedHostEndpoint && RelayCodec.route(payload, events)
+                is DecodedPayload.UwbAddress ->
+                    isPayloadSenderAuthorized(
+                        isLocalHost,
+                        endpointPeerId,
+                        endpointToPeerId[authenticatedHostEndpoint],
+                        payload.address.peerId,
+                    ) && RelayCodec.route(payload, events)
+                is DecodedPayload.UwbParameters ->
+                    (!isLocalHost && endpointId == authenticatedHostEndpoint && payload.params.hostPeerId == endpointPeerId) &&
+                        RelayCodec.route(payload, events)
+                is DecodedPayload.EventControl ->
+                    (!isLocalHost && endpointId == authenticatedHostEndpoint &&
+                        payload.control.eventCode == localEventId &&
+                        payload.control.hostPeerId == endpointPeerId) && RelayCodec.route(payload, events)
+                is DecodedPayload.UwbOffer -> if (isLocalHost) {
+                    payload.offer.fromPeerId == endpointPeerId && relayOffer(payload.offer, endpointId)
+                } else if (endpointId == authenticatedHostEndpoint && payload.offer.targetPeerId == localPeerId) {
+                    events.onUwbRangingOfferReceived(payload.offer)
+                    true
+                } else false
+                is DecodedPayload.InviteSecret, is DecodedPayload.JoinProof, is DecodedPayload.MockRanging -> false
+            }
+        }
+    }
+
+    private fun receiveJoinProof(proof: JoinProofPayloadDto, endpointId: String): Boolean {
+        if (!isLocalHost || proof.eventCode != localEventId) return false
+        if (endpointId !in acceptedEndpoints || endpointId !in incomingEndpoints) return false
+        if (endpointId !in connectedEndpoints.values) {
+            pendingJoinProofs[endpointId] = proof
+            return true
+        }
+        if (endpointId in authorizedEndpoints) return true
+
+        val expectedSecret = inviteSecretProvider?.invoke() ?: return false
+        val hasValidInvite = proof.inviteSecret == expectedSecret &&
+            InviteSecret.decode(proof.inviteSecret.orEmpty()) != null
+        when (
+            decideJoinRequest(
+                isIncoming = true,
+                requiresApproval = joinRequiresHostApproval(hasValidInvite, requiresApproval),
+                acceptsNewMembers = acceptsNewMembers,
+                connectedPeerCount = authorizedEndpoints.size + _pendingJoinRequests.value.size,
+            )
+        ) {
+            JoinRequestDecision.Refuse -> {
+                pendingInviteProofEndpoints.remove(endpointId)
+                connectionsClient.rejectConnection(endpointId)
+                return true
+            }
+            JoinRequestDecision.Admit -> {
+                pendingInviteProofEndpoints.remove(endpointId)
+                authorizeEndpoint(endpointId)
+                return true
+            }
+            JoinRequestDecision.AwaitApproval -> Unit
+        }
+
+        pendingInviteProofEndpoints.add(endpointId)
+        val request = PendingJoinRequest(
+            endpointId = endpointId,
+            deviceName = endpointToPeerId[endpointId].orEmpty().ifBlank { "Unknown device" },
+            requestedAtMillis = System.currentTimeMillis(),
+        )
+        _pendingJoinRequests.update { current ->
+            (current.filterNot { it.endpointId == endpointId } + request)
+                .sortedBy { it.requestedAtMillis }
+        }
+        scheduleJoinRequestSweep()
+        return true
+    }
+
+    private fun receiveInviteSecret(secret: InviteSecretPayloadDto, endpointId: String): Boolean {
+        if (isLocalHost || endpointId != authenticatedHostEndpoint) return false
+        if (secret.eventCode != localEventId) return false
+        if (secret.hostPeerId != endpointToPeerId[endpointId]) return false
+        if (InviteSecret.decode(secret.inviteSecret) == null) return false
+        val existingSecret = inviteSecretProvider?.invoke()
+        if (existingSecret != null && existingSecret != secret.inviteSecret) return false
+        authorizedEndpoints.add(endpointId)
+        events.onPeerConnected(secret.hostPeerId)
+        events.onInviteSecret(secret)
+        return true
     }
 
     private fun relayOffer(offer: UwbRangingOfferDto, endpointId: String): Boolean {
@@ -753,7 +1047,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
             // is only ever accidentally right.
             val json = bytes.toString(Charsets.UTF_8)
             val peer = endpointToPeerId[endpointId] ?: "?"
-            Log.d(TAG, "Received ${bytes.size} bytes from $endpointId [peer=$peer]: $json")
+            Log.d(TAG, "Received ${bytes.size} bytes from $endpointId [peer=$peer]")
 
             // First try parsing as structured RelayEnvelope
             val envelope = RelayCodec.decodeEnvelope(json).getOrElse { error ->
@@ -770,7 +1064,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
             // Last resort: a payload sent without its envelope wrapper.
             val legacy = RelayCodec.decodeUnwrapped(json)
             if (legacy == null || !deliver(legacy, endpointId)) {
-                Log.w(TAG, "Unrecognised payload from $endpointId, dropped: $json")
+                Log.w(TAG, "Unrecognised ${bytes.size}-byte payload from $endpointId, dropped")
             }
         }
 

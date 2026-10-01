@@ -23,6 +23,8 @@ interface NearbyTransport {
     val peerDisconnected: SharedFlow<String>
     val eventClosed: SharedFlow<Unit>
     val receivedBeacon: SharedFlow<BeaconPayloadDto>
+    val receivedInviteSecret: SharedFlow<InviteSecretPayloadDto>
+    val receivedEventControl: SharedFlow<EventControlPayloadDto>
 
     /**
      * Debug-only: scripted range reports for a peer, as produced by
@@ -58,6 +60,7 @@ interface NearbyTransport {
      * transports behave differently for no reason.
      */
     val pendingJoinRequests: StateFlow<List<PendingJoinRequest>>
+    val pendingAuthentications: StateFlow<List<ConnectionAuthenticationRequest>>
 
     /** Lets a held request in. Ignored if the request is no longer pending. */
     fun approveJoinRequest(endpointId: String)
@@ -70,17 +73,14 @@ interface NearbyTransport {
      * is a normal race rather than an error worth surfacing.
      */
     fun denyJoinRequest(endpointId: String)
+    fun confirmConnectionAuthentication(endpointId: String)
+    fun rejectConnectionAuthentication(endpointId: String)
 
     fun startAdvertising(eventId: String, localPeerId: String, useWifiDirect: Boolean, useHotspot: Boolean)
     fun startDiscovery(eventId: String, localPeerId: String)
     fun stopAll()
 
-    /**
-     * Announces that this host is ending the PingRing, so peers can leave it
-     * too. [NearbyConnectionsManager] has nothing to do here - nearby devices
-     * see the host's BLE closure advertisement - while the LAN debug transport
-     * asks the relay to close the event and disconnect its members.
-     */
+    /** Announces closure out of band for transports that provide that channel; Nearby uses EventControl. */
     fun announceEventClosed()
 
     fun sendUwbParameters(peerId: String, params: Any)
@@ -109,4 +109,7 @@ interface NearbyTransport {
 
     fun sendBeaconToPeer(peerId: String, beacon: BeaconPayloadDto)
     fun broadcastBeacon(beacon: BeaconPayloadDto)
+    fun sendInviteSecret(peerId: String, secret: InviteSecretPayloadDto)
+    fun sendJoinProofToHost(proof: JoinProofPayloadDto)
+    fun sendEventControl(peerId: String, control: EventControlPayloadDto)
 }

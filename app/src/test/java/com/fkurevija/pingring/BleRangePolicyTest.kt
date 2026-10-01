@@ -25,9 +25,8 @@ class BleRangePolicyTest {
     fun `the service data fits in a legacy advertisement`() {
         // Growing the payload past the legacy limit makes the advert silently
         // untransmittable, which presents as a total range failure with no error
-        // anywhere. This is a real budget, not a comment: 31 bytes is what legacy
-        // advertising can carry and 28 is what PingRing now sends - the join
-        // timestamp is what the last eight bought.
+        // anywhere. The authenticated v4 payload preserves the 28-byte size,
+        // keeping the previous legacy-advertising compatibility.
         assertTrue(BleRangePolicy.fitsInLegacyAdvertising())
         assertEquals(31, BleRangePolicy.MAX_LEGACY_SERVICE_DATA_BYTES)
         assertEquals(28, BleRangePolicy.SERVICE_DATA_BYTES)
@@ -39,14 +38,14 @@ class BleRangePolicyTest {
 
     @Test
     fun `the service data has room to grow before it breaks`() {
-        // Not padding for its own sake: a future field that consumes the headroom
-        // should fail a test rather than silently break range on device.
+        // The 3-byte headroom is reserved: increasing this packet could break
+        // legacy advertising on supported devices.
         assertEquals(
             BleRangePolicy.MAX_LEGACY_SERVICE_DATA_BYTES - BleRangePolicy.SERVICE_DATA_BYTES,
             BleRangePolicy.LEGACY_HEADROOM_BYTES
         )
         assertTrue(
-            "exhausting the legacy budget needs a decision, not a build",
+            "the authenticated packet must retain the established size",
             BleRangePolicy.LEGACY_HEADROOM_BYTES > 0
         )
     }

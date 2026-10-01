@@ -1,7 +1,15 @@
 package com.fkurevija.pingring
 
 import com.fkurevija.pingring.data.MAX_PARTICIPANTS
+import com.fkurevija.pingring.data.ConnectionAuthenticationRequest
+import com.fkurevija.pingring.data.JOIN_REQUEST_TIMEOUT_MILLIS
 import com.fkurevija.pingring.data.shouldRefuseConnection
+import com.fkurevija.pingring.data.isPayloadSenderAuthorized
+import com.fkurevija.pingring.data.isWithinSasPromptRateLimit
+import com.fkurevija.pingring.data.expiredAuthenticationRequests
+import org.junit.Assert.assertEquals
+import com.fkurevija.pingring.data.joinRequiresHostApproval
+import com.fkurevija.pingring.data.SAS_PROMPT_WINDOW_MILLIS
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -37,5 +45,43 @@ class NearbyAdmissionPolicyTest {
         // is full) must still connect to the host it asked for.
         assertFalse(shouldRefuseConnection(isIncoming = false, acceptsNewMembers = false, connectedPeerCount = 0))
         assertFalse(shouldRefuseConnection(isIncoming = false, acceptsNewMembers = false, connectedPeerCount = MAX_PARTICIPANTS))
+    }
+
+    @Test
+    fun hostAcceptsOnlyTheIdentityBoundToTheAuthenticatedEndpoint() {
+        assertTrue(isPayloadSenderAuthorized(true, "peer-a", null, "peer-a"))
+        assertFalse(isPayloadSenderAuthorized(true, "peer-a", null, "peer-b"))
+    }
+
+    @Test
+    fun guestAcceptsSenderAttributedMessagesOnlyFromTheAuthenticatedHost() {
+        assertTrue(isPayloadSenderAuthorized(false, "host", "host", "peer-b"))
+        assertFalse(isPayloadSenderAuthorized(false, "guest", "host", "peer-b"))
+        assertFalse(isPayloadSenderAuthorized(false, "host", null, "peer-b"))
+    }
+
+    @Test
+    fun sasPromptRateLimitBoundsRepeatedNearbyRequests() {
+        val now = 120_000L
+        assertTrue(isWithinSasPromptRateLimit(emptyList(), now))
+        assertTrue(isWithinSasPromptRateLimit((0 until 11).map { now - it }, now))
+        assertFalse(isWithinSasPromptRateLimit((0 until 12).map { now - it }, now))
+        assertTrue(isWithinSasPromptRateLimit(listOf(now - SAS_PROMPT_WINDOW_MILLIS), now))
+    }
+
+    @Test
+    fun typedCodeJoinsAlwaysRequireHostApproval() {
+        assertTrue(joinRequiresHostApproval(hasValidInviteSecret = false, hostRequiresApproval = false))
+        assertFalse(joinRequiresHostApproval(hasValidInviteSecret = true, hostRequiresApproval = false))
+        assertTrue(joinRequiresHostApproval(hasValidInviteSecret = true, hostRequiresApproval = true))
+    }
+
+    @Test
+    fun unansweredSasPromptsExpireAfterTheJoinWindow() {
+        val now = 500_000L
+        val expired = ConnectionAuthenticationRequest("old", "Old", "000 000", true, now - JOIN_REQUEST_TIMEOUT_MILLIS - 1)
+        val current = ConnectionAuthenticationRequest("new", "New", "111 111", true, now)
+
+        assertEquals(listOf(expired), expiredAuthenticationRequests(listOf(expired, current), now))
     }
 }

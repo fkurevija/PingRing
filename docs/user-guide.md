@@ -32,7 +32,7 @@ How to use PingRing as it exists today — what each screen does and which switc
 
 1. Tap **Create a PingRing** on the home screen.
 2. Enter a **Username**. It is saved on the device and pre-filled next time. Names must be unique within a session — a collision is refused with an alert.
-3. Read the **PingRing Code**: a 6-character code (`e.g. AB12CD`) shown under a QR code. This is what guests use to join.
+3. Share the **QR code** when possible; it contains the 256-bit invitation secret. The 6-character **PingRing Code** (`e.g. AB12CD`) is a public event locator, not a secret.
 4. If you want to change anything about the ring — who may join, tracking, UWB, notifications — tap **Event Settings**, or **All Settings** in the top bar. That screen owns every one of them; this one deliberately carries none, so there is only ever one copy of each switch.
 5. Tap **Launch Radar**.
 
@@ -40,11 +40,12 @@ Everything in step 4 has a working default, so you can skip it and launch straig
 
 ### Letting people find you
 
-- **Join by code / QR** always works — the code is the credential, and nothing gates it.
+- **Join by QR** proves possession of the invitation secret. A typed code only locates the event; the host must approve code-only joins.
 - **Discoverable** (PingRing Settings, off by default) lists your session on nearby phones' **Nearby PingRings** list on their join screen.
-- **Approve Each Join** (PingRing Settings, off by default) holds each new member on your radar as a request. A card appears at the top of the radar — *"N devices want to join"* — with **Allow** / **Deny** per device. A request you never answer is refused automatically after **two minutes**.
+- **Approve Each Join** (PingRing Settings, off by default) holds QR-secret joins for your decision. A card appears at the top of the radar — *"N devices want to join"* — with **Allow** / **Deny** per device. Code-only joins always require approval. Unanswered requests are refused after **two minutes**.
+- For every Nearby connection, compare the six digits shown on both phones and confirm only if they match. Reject the request if they differ or you cannot compare them with the intended person.
 
-> Disabling **Accept New Members** mid-event rejects further connection attempts, updates the BLE status flags, and hides the radar's QR button until you re-enable it.
+> Disabling **Accept New Members** mid-event rejects further requests through the authenticated Nearby connection and hides the radar's QR button until you re-enable it.
 
 ---
 
@@ -52,14 +53,14 @@ Everything in step 4 has a working default, so you can skip it and launch straig
 
 1. Tap **Join a PingRing**.
 2. Enter your **Username** and one of:
-   - the **6-character PingRing Code** — the field forces capitals;
-   - the host's **QR code** — tap **Scan Host QR Code** (disabled with a reason if there is no camera);
-   - a session under **Nearby PingRings**, if the host turned on **Discoverable**. Tapping it joins directly — no confirmation step.
+  - the **6-character PingRing Code** — the field forces capitals; the host must approve this code-only request;
+  - the host's **QR code** — tap **Scan Host QR Code** (disabled with a reason if there is no camera); this includes the invitation secret;
+  - a session under **Nearby PingRings**, if the host turned on **Discoverable**. Tapping starts a Nearby connection; compare and confirm the digits shown on both phones.
 3. Tap **Connect**.
 
-Joining verifies the host within **2.5 seconds**. If it fails, the session is cleaned up and you stay on this screen to retry — nothing is left half-joined.
+Before the connection is accepted, compare the six Nearby digits with the person holding the other phone. Reject if they differ. A typed-code join then waits for the host's approval; unanswered requests expire after **two minutes**. If joining fails or is denied, the session is cleaned up and you can retry.
 
-Once the host has approved you (if approval is on), you land on the radar. The host keeps the chat transcript for the life of the PingRing and replays it to you, so you see what was said before you arrived.
+Once the digits match and the host has approved you when required, you land on the radar. The host keeps the chat transcript for the life of the PingRing and replays it to you, so you see what was said before you arrived.
 
 ---
 
@@ -147,9 +148,9 @@ If none is set, tapping Quick Beacon says so and opens the beacon sheet, rather 
 Reached from the host setup screen's **Event Settings** card or its **All Settings** link, or from **Settings** in the radar's top bar (hosts only). This is the only screen that owns the event switches — the host setup screen deliberately carries none, so there is only one copy of each. Changes apply to the live PingRing — press **Save Changes**, or **Cancel** to discard.
 
 **Connectivity & Participation**
-- **Accept New Members** — allow nearby users to discover and join. Turning it off rejects further attempts, updates the BLE status flags and hides the QR button until it is back on.
+- **Accept New Members** — allow new members to join. Turning it off rejects further authenticated Nearby requests and hides the QR button until it is back on.
 - **Discoverable** — list this session on nearby phones' **Nearby PingRings** list. Off by default. Does not affect joining by code.
-- **Approve Each Join** — hold each new member on the radar until you allow or deny them. Off by default. Requests you never answer are refused after two minutes.
+- **Approve Each Join** — hold QR-secret joins on the radar until you allow or deny them. Off by default. Code-only joins always need approval. Unanswered requests are refused after two minutes.
 - **Track Host Only** — ask every guest's radar to follow you. Guests can see the picker but cannot change it. You are never locked out of tracking whoever you like.
 - **Ultra-wideband (UWB)** — sub-metre ranging. When it is off, the row says *why*: this device has no UWB radio; ranging needs permission (tap the row to grant it); or ranging needs Android 12 or newer.
 - **High Bandwidth (Wi-Fi)** — always on, nothing to change.
@@ -177,7 +178,7 @@ The gear icon on the home screen, before hosting or joining. These are device-wi
 ## Leaving and ending
 
 - **Guest** — the radar's back arrow (top left) opens *Leave this PingRing?* → **Leave**. You stop sharing your position; the event carries on without you.
-- **Host** — the back arrow opens *End this PingRing?* → **End PingRing**. Every member is removed and returned to the home page, and a BLE closure packet is broadcast so their phones react immediately.
+- **Host** — the back arrow opens *End this PingRing?* → **End PingRing**. Every connected member is notified over the authenticated Nearby channel and returned to the home page.
 - Both routes are also in PingRing Settings → Danger Zone.
 
 ---
@@ -195,7 +196,7 @@ Android still stops the work after a **force-stop**, a **process kill**, a **reb
 | What you see | What it means |
 | --- | --- |
 | "Bluetooth is off. Enable it to discover nearby peers." | Nothing can be discovered until Bluetooth is on. Tap the eye icon to recheck. |
-| "Full or not accepting members" under a nearby PingRing | The host closed the ring or it is at 8/8. |
+| A nearby PingRing appears in the list | BLE discovery is only a hint. Confirm the Nearby digits; the host may still reject the request if the ring is closed or full. |
 | "Direction locked · 42°" | A UWB fix, with a bearing. The needle points that way. |
 | "BLE proximity mode" | No bearing for this peer — distance is inferred from signal strength, so only the ring tint changes. PingRing does not invent a direction. |
 | "N devices want to join" card | **Approve Each Join** is on. Allow or Deny each one; unanswered requests time out after two minutes. |

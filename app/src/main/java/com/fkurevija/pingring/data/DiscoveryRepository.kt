@@ -35,6 +35,9 @@ import java.nio.charset.StandardCharsets
 import java.nio.ByteBuffer
 import java.util.UUID
 import java.security.SecureRandom
+import java.security.MessageDigest
+import javax.crypto.Mac
+import javax.crypto.spec.SecretKeySpec
 
 data class RadarPeerUpdate(
     val peerId: String,
@@ -153,12 +156,13 @@ object BleAdvertisementPayload {
      * layout that [decode] used to understand: see the format notes above for
      * why that path was dropped rather than kept.
      */
-    const val VERSION = 3
+    const val VERSION = 4
 
     /** Must match [BleRangePolicy.SERVICE_DATA_BYTES]; the two are one budget. */
     const val TOTAL_BYTES = 28
 
-    /** Width of the join-time field: a full epoch-millis Long. */
+    /** Truncated HMAC-SHA256 tag: 88 bits within the established 28-byte payload. */
+    const val AUTH_TAG_BYTES = 11
     const val JOINED_AT_BYTES = 8
 
     /** The host owns the event; members follow it. */
@@ -230,7 +234,9 @@ object BleAdvertisementPayload {
         }
     }
 
-    private const val PEER_ID_BYTES = 8
+    private const val PEER_ID_BYTES = 4
+    private const val EVENT_CODE_FIELD_BYTES = 3
+    private const val PREFIX_BYTES = TOTAL_BYTES - AUTH_TAG_BYTES
 
     /** The event code's field width, which [SessionManager] must match exactly. */
     const val EVENT_CODE_BYTES = 6
@@ -240,7 +246,6 @@ object BleAdvertisementPayload {
 
     /** What a decoded advertisement said, once the bytes are unpacked. */
     data class Decoded(
-        val eventHash: Int,
         val flags: Int,
         val peerId: String,
         /**
@@ -294,6 +299,9 @@ object BleAdvertisementPayload {
         val displayName: String? get() = eventCode?.let { "PingRing $it" }
     }
 
+    /** Pre-join hint only; its flags and code are not authenticated. */
+    data class DiscoveryHint(val eventCode: String?, val isDiscoverable: Boolean)
+
     /**
      * Packs the advertisement.
      *
@@ -309,23 +317,31 @@ object BleAdvertisementPayload {
      * characters and a test asserts it, so this cannot happen quietly.
      */
     fun encode(
-        eventHash: Int,
         flags: Int,
         peerIdBytes: ByteArray,
         eventCode: String? = null,
         joinedAtMillis: Long = 0L,
+        inviteSecret: String,
     ): ByteArray {
         // Checked before the buffer is built: `flags.toByte()` on the line below
         // is exactly the silent truncation this prevents.
         assertFlagsFitTheByte(flags)
-        return ByteBuffer.allocate(TOTAL_BYTES)
+        require(peerIdBytes.size == 8) { "peer id must be exactly 8 bytes" }
+        val peerId = String(peerIdBytes, StandardCharsets.UTF_8)
+            .trimEnd(NUL, ' ')
+        require(peerId.length == 8 && peerId.all(::isHexDigit)) {
+            "peer id must be exactly 8 hexadecimal characters"
+        }
+        val codeBytes = eventCodeBytes(eventCode)
+        val prefix = ByteBuffer.allocate(PREFIX_BYTES)
             .put(VERSION.toByte())
-            .putInt(eventHash)
             .put(flags.toByte())
-            .put(peerIdBytes.copyOf(PEER_ID_BYTES))
-            .put(eventCodeBytes(eventCode))
+            .put(hexBytes(peerId))
+            .put(codeBytes)
             .putLong(joinedAtMillis)
             .array()
+        val authTag = authenticationTag(inviteSecret, prefix)
+        return prefix + authTag
     }
 
     /**
@@ -336,11 +352,11 @@ object BleAdvertisementPayload {
      * otherwise push every later field out of the payload.
      */
     private fun eventCodeBytes(eventCode: String?): ByteArray {
-        if (eventCode == null) return ByteArray(EVENT_CODE_BYTES)
-        val encoded = eventCode.toByteArray(StandardCharsets.UTF_8)
-        val field = ByteArray(EVENT_CODE_BYTES)
-        encoded.copyInto(field, endIndex = minOf(encoded.size, EVENT_CODE_BYTES))
-        return field
+        if (eventCode == null) return ByteArray(EVENT_CODE_FIELD_BYTES)
+        require(eventCode.length == EVENT_CODE_BYTES && eventCode.all(::isHexDigit)) {
+            "event code must be exactly 6 hexadecimal characters"
+        }
+        return hexBytes(eventCode)
     }
 
     /**
@@ -354,18 +370,35 @@ object BleAdvertisementPayload {
      * build does not understand - a later version, or the dropped v1 - fails
      * the version check for the same reason.
      */
-    fun decode(serviceData: ByteArray): Decoded? {
+    fun decode(serviceData: ByteArray, inviteSecret: String): Decoded? {
         if (serviceData.size < TOTAL_BYTES) return null
         if (serviceData[0].toInt() != VERSION) return null
 
-        val payload = ByteBuffer.wrap(serviceData)
+        val prefix = serviceData.copyOfRange(0, PREFIX_BYTES)
+        val storedTag = serviceData.copyOfRange(PREFIX_BYTES, TOTAL_BYTES)
+        val expectedTag = runCatching { authenticationTag(inviteSecret, prefix) }.getOrNull()
+            ?: return null
+        if (!MessageDigest.isEqual(storedTag, expectedTag)) return null
+
+        val payload = ByteBuffer.wrap(prefix)
         payload.get() // the version byte, already checked above
-        val eventHash = payload.int
         val flags = payload.get().toInt()
-        val peerId = readField(payload, PEER_ID_BYTES)
-        val eventCode = readField(payload, EVENT_CODE_BYTES).takeIf { it.isNotEmpty() }
+        val peerId = bytesToHex(ByteArray(PEER_ID_BYTES).also(payload::get)).lowercase()
+        val code = bytesToHex(ByteArray(EVENT_CODE_FIELD_BYTES).also(payload::get))
+            .takeIf { it != "000000" }
         val joinedAtMillis = payload.long
-        return Decoded(eventHash, flags, peerId, eventCode, joinedAtMillis)
+        return Decoded(flags, peerId, code, joinedAtMillis)
+    }
+
+    fun decodeDiscoveryHint(serviceData: ByteArray): DiscoveryHint? {
+        if (serviceData.size < TOTAL_BYTES || serviceData[0].toInt() != VERSION) return null
+        val payload = ByteBuffer.wrap(serviceData)
+        payload.get()
+        val flags = payload.get().toInt()
+        payload.position(1 + 1 + PEER_ID_BYTES)
+        val code = bytesToHex(ByteArray(EVENT_CODE_FIELD_BYTES).also(payload::get))
+            .takeIf { it != "000000" }
+        return DiscoveryHint(code, flags and FLAG_DISCOVERABLE != 0)
     }
 
     /**
@@ -376,10 +409,20 @@ object BleAdvertisementPayload {
      * not consider NUL whitespace, so they are stripped explicitly, and spaces
      * with them - a field carrying either is equally unusable as a routing key.
      */
-    private fun readField(payload: ByteBuffer, width: Int): String =
-        String(ByteArray(width).also(payload::get), StandardCharsets.UTF_8)
-            .trimEnd(NUL, ' ')
-            .trimStart(NUL)
+    private fun isHexDigit(char: Char): Boolean = char in '0'..'9' || char.lowercaseChar() in 'a'..'f'
+
+    private fun hexBytes(value: String): ByteArray = ByteArray(value.length / 2) { index ->
+        value.substring(index * 2, index * 2 + 2).toInt(16).toByte()
+    }
+
+    private fun bytesToHex(bytes: ByteArray): String = bytes.joinToString("") { "%02X".format(it) }
+
+    private fun authenticationTag(secret: String, prefix: ByteArray): ByteArray {
+        val key = InviteSecret.decode(secret) ?: throw IllegalArgumentException("invalid invite secret")
+        val mac = Mac.getInstance("HmacSHA256")
+        mac.init(SecretKeySpec(key, "HmacSHA256"))
+        return mac.doFinal(prefix).copyOf(AUTH_TAG_BYTES)
+    }
 }
 
 /**
@@ -396,6 +439,8 @@ data class DiscoveredSession(
     val joinable: Boolean,
 )
 
+const val MAX_DISCOVERED_SESSIONS = 16
+
 @SuppressLint("MissingPermission")
 class DiscoveryRepository(
     private val context: Context,
@@ -410,13 +455,6 @@ class DiscoveryRepository(
     // Aliases onto the single definition in BleAdvertisementPayload. They must
     // not be re-spelled here: a second copy of a flag value is how the two ends
     // of a discovery round trip stop agreeing about what was advertised.
-    private val hostFlag = BleAdvertisementPayload.FLAG_HOST
-    private val trackHostFlag = BleAdvertisementPayload.FLAG_TRACK_HOST
-    private val eventClosedFlag = BleAdvertisementPayload.FLAG_EVENT_CLOSED
-    private val useUwbFlag = BleAdvertisementPayload.FLAG_USE_UWB
-    private val useWifiFlag = BleAdvertisementPayload.FLAG_USE_WIFI
-    private val pingRingFullFlag = BleAdvertisementPayload.FLAG_RING_FULL
-    private val acceptsNewMembersFlag = BleAdvertisementPayload.FLAG_ACCEPTS_NEW_MEMBERS
     private val discoverableFlag = BleAdvertisementPayload.FLAG_DISCOVERABLE
 
     private val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
@@ -523,6 +561,14 @@ class DiscoveryRepository(
     /** Turns a held join request away. */
     fun denyJoinRequest(endpointId: String) = nearbyConnectionsManager.denyJoinRequest(endpointId)
 
+    val pendingAuthentications get() = nearbyConnectionsManager.pendingAuthentications
+
+    fun confirmConnectionAuthentication(endpointId: String) =
+        nearbyConnectionsManager.confirmConnectionAuthentication(endpointId)
+
+    fun rejectConnectionAuthentication(endpointId: String) =
+        nearbyConnectionsManager.rejectConnectionAuthentication(endpointId)
+
     // Local peer ID
     val localPeerId: String get() = sessionManager.peerId.value
 
@@ -557,6 +603,7 @@ class DiscoveryRepository(
     // restarting tore the transport down and dropped every live connection.
     private var activeDiscoveryEventId: String? = null
     private var activeDiscoveryPeerId: String? = null
+    private var activeDiscoveryInviteSecret: String? = null
     private var activeDiscoveryIsHost: Boolean? = null
     private var activeDiscoveryUseUwb: Boolean? = null
     private var activeDiscoveryUseWifiDirect: Boolean? = null
@@ -564,11 +611,7 @@ class DiscoveryRepository(
     private var bleAdvertiser: BluetoothLeAdvertiser? = null
     private var advertiseCallback: AdvertiseCallback? = null
     private var advertisingActive = false
-    private var closureAdvertiser: BluetoothLeAdvertiser? = null
-    private var closureAdvertiseCallback: AdvertiseCallback? = null
-    private var closureAdvertisingActive = false
     private var bleScanner: BluetoothLeScanner? = null
-    private var closureAnnouncementJob: Job? = null
     private val controlScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
     // UWB objects
@@ -691,6 +734,7 @@ class DiscoveryRepository(
         if (event != null &&
             event.id == activeDiscoveryEventId &&
             localPeerId == activeDiscoveryPeerId &&
+            event.inviteSecret == activeDiscoveryInviteSecret &&
             isHost == activeDiscoveryIsHost &&
             event.useUwb == activeDiscoveryUseUwb &&
             event.useWifiDirect == activeDiscoveryUseWifiDirect &&
@@ -715,6 +759,7 @@ class DiscoveryRepository(
         stopDiscovery()
         activeDiscoveryEventId = event?.id
         activeDiscoveryPeerId = localPeerId
+        activeDiscoveryInviteSecret = event?.inviteSecret
         activeDiscoveryIsHost = isHost
         activeDiscoveryUseUwb = event?.useUwb
         activeDiscoveryUseWifiDirect = event?.useWifiDirect
@@ -728,6 +773,9 @@ class DiscoveryRepository(
             // without this class reaching into the session itself.
             (nearbyConnectionsManager as? NearbyConnectionsManager)?.hostPeerIdProvider = {
                 sessionManager.sessionState.value.currentEvent?.hostPeerId
+            }
+            (nearbyConnectionsManager as? NearbyConnectionsManager)?.inviteSecretProvider = {
+                sessionManager.sessionState.value.currentEvent?.inviteSecret
             }
             if (isHost) {
                 nearbyConnectionsManager.startAdvertising(
@@ -753,6 +801,57 @@ class DiscoveryRepository(
         }
 
         // 2b. Start Chat Message Processing Queue Flow Listener Loop
+        repositoryScope?.launch {
+            nearbyConnectionsManager.receivedInviteSecret.collect { payload ->
+                val current = sessionManager.sessionState.value.currentEvent ?: return@collect
+                if (sessionManager.sessionState.value.isHost || payload.eventCode != current.id) return@collect
+                if (InviteSecret.decode(payload.inviteSecret) == null) return@collect
+                if (current.inviteSecret != null && current.inviteSecret != payload.inviteSecret) return@collect
+                if (payload.hostPeerId.isBlank()) return@collect
+                sessionManager.updateEvent(
+                    current.copy(inviteSecret = payload.inviteSecret, hostPeerId = payload.hostPeerId)
+                )
+                addConnectedPeer(payload.hostPeerId)
+                activeDiscoveryInviteSecret = payload.inviteSecret
+                stopBleAdvertising()
+                stopBleScanning()
+                startBleAdvertising()
+                startBleScanning()
+            }
+        }
+
+        repositoryScope?.launch {
+            nearbyConnectionsManager.receivedEventControl.collect { control ->
+                val current = sessionManager.sessionState.value.currentEvent ?: return@collect
+                if (sessionManager.sessionState.value.isHost || control.eventCode != current.id) return@collect
+                if (current.hostPeerId != null && control.hostPeerId != current.hostPeerId) return@collect
+                if (control.isClosed) {
+                    stopDiscovery()
+                    sessionManager.endEventFromHost()
+                    return@collect
+                }
+                val updated = current.copy(
+                    trackHost = control.trackHost,
+                    useUwb = control.useUwb,
+                    useWifiDirect = control.useWifiDirect,
+                    acceptsNewMembers = control.acceptsNewMembers,
+                    hostPeerId = control.hostPeerId,
+                )
+                if (updated != current) {
+                    sessionManager.updateEvent(updated)
+                    activeDiscoveryUseUwb = updated.useUwb
+                    activeDiscoveryUseWifiDirect = updated.useWifiDirect
+                    if (current.useUwb != updated.useUwb) {
+                        uwbSessionJob?.cancel()
+                        activeRangingJobs.values.forEach { it.cancel() }
+                        activeRangingJobs.clear()
+                        startUwbRangingSession()
+                    }
+                    onFocusChanged()
+                }
+            }
+        }
+
         repositoryScope?.launch {
             nearbyConnectionsManager.receivedChatMessage.collect { dto ->
                 updatePeerName(dto.senderPeerId, dto.senderName)
@@ -797,6 +896,26 @@ class DiscoveryRepository(
                 }
                 onFocusChanged()
                 if (sessionManager.sessionState.value.isHost) {
+                    sessionManager.sessionState.value.currentEvent?.let { event ->
+                        event.inviteSecret?.let { secret ->
+                            nearbyConnectionsManager.sendInviteSecret(
+                                peerId,
+                                InviteSecretPayloadDto(event.id, secret, sessionManager.peerId.value),
+                            )
+                        }
+                        nearbyConnectionsManager.sendEventControl(
+                            peerId,
+                            EventControlPayloadDto(
+                                eventCode = event.id,
+                                hostPeerId = sessionManager.peerId.value,
+                                trackHost = event.trackHost,
+                                useUwb = event.useUwb,
+                                useWifiDirect = event.useWifiDirect,
+                                acceptsNewMembers = event.acceptsNewMembers,
+                                isFull = sessionManager.sessionState.value.friends.size + 1 >= MAX_PARTICIPANTS,
+                            ),
+                        )
+                    }
                     val history = sessionManager.sessionState.value.chatMessages.map { message ->
                         ChatPayloadDto(
                             id = message.id,
@@ -905,12 +1024,9 @@ class DiscoveryRepository(
             }
         }
 
-        // The host ended the PingRing. Over real hardware that arrives as the
-        // host's BLE closure advertisement (see handleScanResult); the LAN debug
-        // transport reports it here instead, because the emulator has no BLE
-        // radio to hear that advertisement with. Either way the result is the
-        // same: leave the event, which clears the session and sends navigation
-        // back to Home.
+        // The LAN debug relay reports event closure here. Nearby peers receive
+        // authenticated EventControl on the separate receivedEventControl flow.
+        // Either way, leaving clears the session and returns navigation Home.
         repositoryScope?.launch {
             nearbyConnectionsManager.eventClosed.collect {
                 Log.i(TAG, "Host ended the PingRing; leaving the event")
@@ -984,6 +1100,7 @@ class DiscoveryRepository(
     fun stopDiscovery() {
         activeDiscoveryEventId = null
         activeDiscoveryPeerId = null
+        activeDiscoveryInviteSecret = null
         activeDiscoveryIsHost = null
         activeDiscoveryUseUwb = null
         activeDiscoveryUseWifiDirect = null
@@ -1132,25 +1249,19 @@ class DiscoveryRepository(
         if (!adapter.isEnabled) return
         val currentPeerId = sessionManager.peerId.value
         val currentEvent = sessionManager.sessionState.value.currentEvent ?: return
+        if (currentEvent.inviteSecret == null) return
         val advertiser = adapter.bluetoothLeAdvertiser ?: return
         val peerIdBytes = currentPeerId.toByteArray(StandardCharsets.UTF_8).copyOf(8)
         val currentMemberCount = sessionManager.sessionState.value.friends.size + 1
         val isFull = currentMemberCount >= MAX_PARTICIPANTS
-        val flags = (if (sessionManager.sessionState.value.isHost) hostFlag else 0) or
-            (if (currentEvent.trackHost) trackHostFlag else 0) or
-            (if (currentEvent.useUwb) useUwbFlag else 0) or
-            (if (currentEvent.useWifiDirect) useWifiFlag else 0) or
-            (if (isFull) pingRingFullFlag else 0) or
-            (if (currentEvent.acceptsNewMembers) acceptsNewMembersFlag else 0) or
-            // Only a host offers a session to be found: a guest advertising
-            // itself discoverable would be offering to be joined into an event
-            // it does not own, and every guest scans every other guest.
-            (if (sessionManager.sessionState.value.isHost && currentEvent.isDiscoverable) {
-                discoverableFlag
-            } else {
-                0
-            })
-        val servicePayload = buildServicePayload(currentEvent.id.hashCode(), flags, peerIdBytes)
+        // BLE flags are untrusted discovery hints. Host role, closure, policy,
+        // capacity and admission settings are sent over authenticated Nearby.
+        val flags = if (sessionManager.sessionState.value.isHost && currentEvent.isDiscoverable) {
+            discoverableFlag
+        } else {
+            0
+        }
+        val servicePayload = buildServicePayload(flags, peerIdBytes)
 
         val settings = BleRangePolicy.advertiseSettings()
 
@@ -1225,80 +1336,24 @@ class DiscoveryRepository(
      */
     fun announceEventClosure(event: Event) {
         nearbyConnectionsManager.announceEventClosed()
-        val adapter = bluetoothAdapter ?: return
-        if (!adapter.isEnabled) return
-        val advertiser = adapter.bluetoothLeAdvertiser ?: return
-        val data = AdvertiseData.Builder()
-            .setIncludeDeviceName(false)
-            .addServiceUuid(ParcelUuid(PINGRING_SERVICE_UUID))
-            .addServiceData(
-                ParcelUuid(PINGRING_SERVICE_UUID),
-                buildServicePayload(
-                    event.id.hashCode(),
-                    hostFlag or eventClosedFlag or (if (event.useUwb) useUwbFlag else 0) or (if (event.useWifiDirect) useWifiFlag else 0),
-                    sessionManager.peerId.value.toByteArray(StandardCharsets.UTF_8).copyOf(8)
-                )
-            )
-            .build()
-        try {
-            closureAnnouncementJob?.cancel()
-            stopClosureAdvertising()
-            stopBleAdvertising()
-            val callback = object : AdvertiseCallback() {
-                override fun onStartSuccess(settingsInEffect: AdvertiseSettings?) {
-                    synchronized(this@DiscoveryRepository) {
-                        if (closureAdvertiseCallback === this) {
-                            closureAdvertisingActive = true
-                        } else {
-                            advertiser.stopAdvertising(this)
-                        }
-                    }
-                }
-
-                override fun onStartFailure(errorCode: Int) {
-                    synchronized(this@DiscoveryRepository) {
-                        if (closureAdvertiseCallback === this) {
-                            closureAdvertiseCallback = null
-                            closureAdvertiser = null
-                            closureAdvertisingActive = false
-                        }
-                    }
-                    Log.e(TAG, "PingRing closure announcement failed to start: $errorCode")
-                }
-            }
-            closureAdvertiser = advertiser
-            closureAdvertiseCallback = callback
-            closureAdvertisingActive = false
-            advertiser.startAdvertising(
-                BleRangePolicy.advertiseSettings(),
-                data,
-                callback
-            )
-            closureAnnouncementJob = controlScope.launch {
-                delay(CLOSURE_ANNOUNCEMENT_DURATION_MILLIS)
-                stopClosureAdvertising()
-            }
-        } catch (exception: Exception) {
-            stopClosureAdvertising()
-            Log.e(TAG, "Unable to announce PingRing closure", exception)
-        }
+        broadcastEventControl(event, isClosed = true)
     }
 
-    @Synchronized
-    private fun stopClosureAdvertising() {
-        val advertiser = closureAdvertiser
-        val callback = closureAdvertiseCallback
-        closureAdvertiser = null
-        closureAdvertiseCallback = null
-        val shouldStop = closureAdvertisingActive
-        closureAdvertisingActive = false
-        if (advertiser != null && callback != null && shouldStop) {
-            try {
-                advertiser.stopAdvertising(callback)
-            } catch (exception: Exception) {
-                Log.e(TAG, "Unable to stop PingRing closure announcement", exception)
-            }
-        }
+    fun broadcastEventControl(event: Event, isClosed: Boolean = false) {
+        if (!sessionManager.sessionState.value.isHost) return
+        nearbyConnectionsManager.acceptsNewMembers = event.acceptsNewMembers
+        nearbyConnectionsManager.requiresApproval = event.requiresApproval
+        val control = EventControlPayloadDto(
+            eventCode = event.id,
+            hostPeerId = sessionManager.peerId.value,
+            trackHost = event.trackHost,
+            useUwb = event.useUwb,
+            useWifiDirect = event.useWifiDirect,
+            acceptsNewMembers = event.acceptsNewMembers,
+            isFull = sessionManager.sessionState.value.friends.size + 1 >= MAX_PARTICIPANTS,
+            isClosed = isClosed,
+        )
+        connectedPeerIds.forEach { peerId -> nearbyConnectionsManager.sendEventControl(peerId, control) }
     }
 
     /**
@@ -1309,21 +1364,23 @@ class DiscoveryRepository(
      * undiscoverable, which silently drops the session out of every guest's
      * browse list rather than failing visibly.
      */
-    private fun buildServicePayload(eventHash: Int, flags: Int, peerIdBytes: ByteArray): ByteArray =
-        BleAdvertisementPayload.encode(
-            eventHash = eventHash,
+    private fun buildServicePayload(flags: Int, peerIdBytes: ByteArray): ByteArray {
+        val event = sessionManager.sessionState.value.currentEvent ?: return ByteArray(0)
+        val secret = event.inviteSecret ?: return ByteArray(0)
+        return BleAdvertisementPayload.encode(
             flags = flags,
             peerIdBytes = peerIdBytes,
-            eventCode = sessionManager.sessionState.value.currentEvent?.id,
+            eventCode = event.id,
             // Advertised so a host can answer "who arrived first" from what we
             // say rather than from when it happened to hear us. Zero when this
             // device is not in an event, which decodes as "unknown" rather than
             // as the earliest possible arrival.
             joinedAtMillis = sessionManager.sessionState.value.joinedAtMillis ?: 0L,
+                inviteSecret = secret,
         )
+            }
 
     private companion object {
-        const val CLOSURE_ANNOUNCEMENT_DURATION_MILLIS = 5_000L
         const val PEER_CLEANUP_INTERVAL_MILLIS = 5_000L
         const val PEER_EXPIRY_TIMEOUT_MILLIS = 15_000L
 
@@ -1465,18 +1522,21 @@ class DiscoveryRepository(
      * unjoinable: the reader can see that it is there and cannot join it, which
      * beats a join button that silently fails.
      */
-    private fun recordDiscoveredSession(decoded: BleAdvertisementPayload.Decoded) {
-        if (!decoded.isDiscoverable) return
-        val code = decoded.eventCode ?: return
+    private fun recordDiscoveredSession(hint: BleAdvertisementPayload.DiscoveryHint) {
+        if (!hint.isDiscoverable) return
+        val code = hint.eventCode ?: return
         val session = DiscoveredSession(
             eventCode = code,
-            name = decoded.displayName ?: "PingRing $code",
-            joinable = decoded.acceptsNewMembers && !decoded.isFull
+            name = "PingRing $code",
+            // These flags are unauthenticated until the invite secret is known.
+            // Joining is safe to offer because Nearby admission is a separate step.
+            joinable = true
         )
         _discoveredSessions.update { current ->
             // Keyed by code, so one host seen repeatedly is one row, and a host
             // that fills up while you are looking updates in place.
             (current.filterNot { it.eventCode == code } + session)
+                .takeLast(MAX_DISCOVERED_SESSIONS)
                 .sortedBy { it.eventCode }
         }
     }
@@ -1488,32 +1548,19 @@ class DiscoveryRepository(
         // truncated read. Decoding it would put a phantom member on the radar.
         if (serviceData.size < BleAdvertisementPayload.TOTAL_BYTES) return
 
-        val decoded = BleAdvertisementPayload.decode(serviceData) ?: return
-        val eventHash = decoded.eventHash
-        val isHostPeer = decoded.isHost
-        val peerId = decoded.peerId
         var currentEvent = sessionManager.sessionState.value.currentEvent
         if (currentEvent == null) {
-            // Not in a session, so this advert cannot be a member of anything we
-            // are in. It may be a session offering itself to be joined, which is
-            // the only thing worth reading it for here.
-            recordDiscoveredSession(decoded)
+            // Before joining, there is no secret with which to authenticate the
+            // advert. Read only the untrusted locator hint for the browse list.
+            BleAdvertisementPayload.decodeDiscoveryHint(serviceData)
+                ?.let(::recordDiscoveredSession)
             return
         }
-        if (eventHash != currentEvent.id.hashCode()) return
-        if (isHostPeer && decoded.eventClosed) {
-            sessionManager.endEventFromHost()
-            return
-        }
-        if (isHostPeer && !sessionManager.sessionState.value.isHost) {
-            currentEvent = currentEvent.copy(
-                hostPeerId = peerId,
-                trackHost = decoded.tracksMembers,
-                useUwb = decoded.usesUwb,
-                useWifiDirect = decoded.usesWifi
-            )
-            sessionManager.updateEvent(currentEvent)
-        }
+        val inviteSecret = currentEvent.inviteSecret ?: return
+        val decoded = BleAdvertisementPayload.decode(serviceData, inviteSecret) ?: return
+        if (decoded.eventCode != currentEvent.id) return
+        val peerId = decoded.peerId
+        val isHostPeer = peerId == currentEvent.hostPeerId
         if (currentEvent.trackHost && !sessionManager.sessionState.value.isHost && !isHostPeer) return
         if (peerId.isEmpty() || peerId == sessionManager.peerId.value) return
 

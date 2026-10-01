@@ -55,7 +55,7 @@ fun PingRingJoinScreen(
     isConnecting: Boolean = false,
     discoveredSessions: List<DiscoveredSession> = emptyList(),
     onBack: () -> Unit,
-    onJoinEvent: (eventCode: String, username: String) -> Unit
+    onJoinEvent: (eventCode: String, username: String, inviteSecret: String?) -> Unit
 ) {
     var eventCode by remember { mutableStateOf("") }
     var username by remember(savedUsername) { mutableStateOf(savedUsername) }
@@ -70,7 +70,7 @@ fun PingRingJoinScreen(
     // entirely if this screen were ever the only entry on the stack.
     BackHandler { onBack() }
 
-    fun attemptJoin(codeToUse: String) {
+    fun attemptJoin(codeToUse: String, inviteSecret: String? = null) {
         val trimmedUsername = username.trim()
         if (trimmedUsername.isBlank()) {
             usernameError = context.getString(R.string.join_username_required)
@@ -89,17 +89,17 @@ fun PingRingJoinScreen(
             inputError = context.getString(R.string.join_code_invalid)
             return
         }
-        onJoinEvent(parsedEventCode, trimmedUsername)
+        onJoinEvent(parsedEventCode, trimmedUsername, inviteSecret)
     }
 
     if (showScanner) {
         QrScannerScreen(
             onCancel = { showScanner = false },
-            onJoinEvent = { scannedCode ->
-                eventCode = scannedCode
+            onJoinEvent = { invite ->
+                eventCode = invite.eventCode
                 showScanner = false
                 inputError = null
-                attemptJoin(scannedCode)
+                attemptJoin(invite.eventCode, invite.secret)
             }
         )
         return
@@ -325,7 +325,7 @@ fun PingRingJoinScreen(
 @Composable
 private fun QrScannerScreen(
     onCancel: () -> Unit,
-    onJoinEvent: (String) -> Unit
+    onJoinEvent: (PingRingInvite) -> Unit
 ) {
     val context = LocalContext.current
     val permissionState = rememberPermissionState(Manifest.permission.CAMERA)
@@ -366,9 +366,9 @@ private fun QrScannerScreen(
                     .weight(1f),
                 scanSessionId = scanSessionId,
                 onRawScanResult = { rawValue ->
-                    val parsedEventCode = PingRingCodeParser.parse(rawValue)
-                    if (parsedEventCode != null) {
-                        onJoinEvent(parsedEventCode)
+                    val invite = PingRingCodeParser.parseInvite(rawValue)
+                    if (invite != null) {
+                        onJoinEvent(invite)
                         true
                     } else {
                         scanMessage = context.getString(R.string.qr_code_invalid)
@@ -448,7 +448,7 @@ private fun PermissionDeniedCard(
 @Composable
 fun PingRingJoinScreenPreview() {
     PingRingTheme {
-        PingRingJoinScreen(onBack = {}, onJoinEvent = { _, _ -> })
+        PingRingJoinScreen(onBack = {}, onJoinEvent = { _, _, _ -> })
     }
 }
 

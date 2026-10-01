@@ -3,7 +3,10 @@ package com.fkurevija.pingring.data
 import android.util.Log
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 
 /**
@@ -18,6 +21,8 @@ internal interface PayloadSink {
     fun onChatMessage(message: ChatPayloadDto)
     fun onChatHistory(history: ChatHistoryPayloadDto)
     fun onBeacon(beacon: BeaconPayloadDto)
+    fun onInviteSecret(secret: InviteSecretPayloadDto)
+    fun onEventControl(control: EventControlPayloadDto)
     fun onUwbAddress(address: UwbPeerAddressDto)
     fun onUwbParameters(params: UwbControllerParametersDto)
 }
@@ -93,6 +98,21 @@ internal class TransportEvents(private val tag: String) : PayloadSink {
     )
     val receivedBeacon: SharedFlow<BeaconPayloadDto> = _receivedBeacon.asSharedFlow()
 
+    private val _receivedInviteSecret = MutableSharedFlow<InviteSecretPayloadDto>(
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+    val receivedInviteSecret: SharedFlow<InviteSecretPayloadDto> = _receivedInviteSecret.asSharedFlow()
+
+    private val _receivedEventControl = MutableSharedFlow<EventControlPayloadDto>(
+        extraBufferCapacity = 4,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+    val receivedEventControl: SharedFlow<EventControlPayloadDto> = _receivedEventControl.asSharedFlow()
+
+    private val _pendingAuthentications = MutableStateFlow<List<ConnectionAuthenticationRequest>>(emptyList())
+    val pendingAuthentications: StateFlow<List<ConnectionAuthenticationRequest>> = _pendingAuthentications.asStateFlow()
+
     /**
      * Scripted range reports arrive at a much higher rate than any real message
      * (up to a few per second per peer) and a dropped sample is worthless, so
@@ -109,6 +129,10 @@ internal class TransportEvents(private val tag: String) : PayloadSink {
 
     fun onPeerConnected(peerId: String) {
         _connectionEstablished.tryEmit(peerId)
+    }
+
+    fun setPendingAuthentications(requests: List<ConnectionAuthenticationRequest>) {
+        _pendingAuthentications.value = requests
     }
 
     fun onPeerDisconnected(peerId: String) {
@@ -135,7 +159,7 @@ internal class TransportEvents(private val tag: String) : PayloadSink {
     }
 
     override fun onChatMessage(message: ChatPayloadDto) {
-        Log.i(tag, "Received chat message '${message.text}' from ${message.senderName} (peer ${message.senderPeerId})")
+        Log.i(tag, "Received chat message ${message.id} from peer ${message.senderPeerId}")
         _receivedChatMessage.tryEmit(message)
     }
 
@@ -145,8 +169,16 @@ internal class TransportEvents(private val tag: String) : PayloadSink {
     }
 
     override fun onBeacon(beacon: BeaconPayloadDto) {
-        Log.i(tag, "Received beacon '${beacon.title}' from ${beacon.senderName}")
+        Log.i(tag, "Received beacon ${beacon.id} from peer ${beacon.senderPeerId}")
         _receivedBeacon.tryEmit(beacon)
+    }
+
+    override fun onInviteSecret(secret: InviteSecretPayloadDto) {
+        _receivedInviteSecret.tryEmit(secret)
+    }
+
+    override fun onEventControl(control: EventControlPayloadDto) {
+        _receivedEventControl.tryEmit(control)
     }
 
     override fun onUwbAddress(address: UwbPeerAddressDto) {

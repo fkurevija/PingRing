@@ -4,6 +4,9 @@ import com.fkurevija.pingring.data.BeaconPayloadDto
 import com.fkurevija.pingring.data.ChatHistoryPayloadDto
 import com.fkurevija.pingring.data.ChatPayloadDto
 import com.fkurevija.pingring.data.DecodedPayload
+import com.fkurevija.pingring.data.EventControlPayloadDto
+import com.fkurevija.pingring.data.InviteSecretPayloadDto
+import com.fkurevija.pingring.data.JoinProofPayloadDto
 import com.fkurevija.pingring.data.MockRangingDto
 import com.fkurevija.pingring.data.PayloadSink
 import com.fkurevija.pingring.data.RelayCodec
@@ -42,6 +45,14 @@ class RelayCodecTest {
 
         override fun onBeacon(beacon: BeaconPayloadDto) {
             delivered += beacon
+        }
+
+        override fun onInviteSecret(secret: InviteSecretPayloadDto) {
+            delivered += secret
+        }
+
+        override fun onEventControl(control: EventControlPayloadDto) {
+            delivered += control
         }
 
         override fun onUwbAddress(address: UwbPeerAddressDto) {
@@ -91,10 +102,23 @@ class RelayCodecTest {
         staticStsKey = "key"
     )
     private val report = MockRangingDto(peerId = "peer-b", distance = 2.5f, azimuth = 90f, elevation = 0f, name = "Bob")
+    private val inviteSecret = InviteSecretPayloadDto("4C1A9B", "secret", "peer-a")
+    private val joinProof = JoinProofPayloadDto("4C1A9B", null)
+    private val eventControl = EventControlPayloadDto("4C1A9B", "peer-a", true, true, true, true, false)
 
     @Test
     fun everyPayloadKindSurvivesItsOwnWireType() {
-        val payloads = listOf<Any>(chat, ChatHistoryPayloadDto(listOf(chat)), beacon, address, params, offer)
+        val payloads = listOf<Any>(
+            chat,
+            ChatHistoryPayloadDto(listOf(chat)),
+            beacon,
+            inviteSecret,
+            joinProof,
+            eventControl,
+            address,
+            params,
+            offer,
+        )
 
         payloads.forEach { payload ->
             val encoded = RelayCodec.encode(payload) ?: error("nothing encoded for $payload")
@@ -143,6 +167,7 @@ class RelayCodecTest {
     fun everyWireTypeTheAppUsesIsInTheKnownSet() {
         listOf(
             RelayCodec.CHAT, RelayCodec.CHAT_HISTORY, RelayCodec.BEACON,
+            RelayCodec.INVITE_SECRET, RelayCodec.JOIN_PROOF, RelayCodec.EVENT_CONTROL,
             RelayCodec.UWB_ADDRESS, RelayCodec.UWB_PARAMS, RelayCodec.UWB_OFFER, RelayCodec.MOCK_RANGING
         ).forEach { assertTrue("$it is not a known wire type", it in RelayCodec.knownWireTypes) }
     }
@@ -186,14 +211,17 @@ class RelayCodecTest {
 
         assertTrue(RelayCodec.route(DecodedPayload.Chat(chat), sink))
         assertTrue(RelayCodec.route(DecodedPayload.Beacon(beacon), sink))
-        assertEquals(listOf<Any>(chat, beacon), sink.delivered)
+        assertTrue(RelayCodec.route(DecodedPayload.InviteSecret(inviteSecret), sink))
+        assertTrue(RelayCodec.route(DecodedPayload.EventControl(eventControl), sink))
+        assertEquals(listOf<Any>(chat, beacon, inviteSecret, eventControl), sink.delivered)
 
         // A ranging offer is relayed by a host and consumed by the guest it names,
         // and a scripted range report exists on one transport only: both are the
         // caller's business, which is exactly why nothing is delivered here.
         assertFalse(RelayCodec.route(DecodedPayload.UwbOffer(offer), sink))
+        assertFalse(RelayCodec.route(DecodedPayload.JoinProof(joinProof), sink))
         assertFalse(RelayCodec.route(DecodedPayload.MockRanging(report), sink))
-        assertEquals(2, sink.delivered.size)
+        assertEquals(4, sink.delivered.size)
     }
 
     private fun encodedJson(payload: Any): String = RelayCodec.encode(payload)!!.json
@@ -214,6 +242,9 @@ class RelayCodecTest {
         is DecodedPayload.Chat -> decoded.message
         is DecodedPayload.ChatHistory -> decoded.history
         is DecodedPayload.Beacon -> decoded.beacon
+        is DecodedPayload.InviteSecret -> decoded.secret
+        is DecodedPayload.JoinProof -> decoded.proof
+        is DecodedPayload.EventControl -> decoded.control
         is DecodedPayload.UwbAddress -> decoded.address
         is DecodedPayload.UwbParameters -> decoded.params
         is DecodedPayload.UwbOffer -> decoded.offer

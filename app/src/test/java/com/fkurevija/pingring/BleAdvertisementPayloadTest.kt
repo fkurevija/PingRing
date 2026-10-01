@@ -1,15 +1,55 @@
 package com.fkurevija.pingring
 
-import com.fkurevija.pingring.data.BleAdvertisementPayload
+import com.fkurevija.pingring.data.BleAdvertisementPayload as SignedBleAdvertisementPayload
 import com.fkurevija.pingring.data.BleRangePolicy
+import com.fkurevija.pingring.data.InviteSecret
 import com.fkurevija.pingring.data.SessionManager
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
 import java.nio.charset.StandardCharsets
+
+private val testInviteSecret = InviteSecret.generate()
+private typealias BleDecoded = SignedBleAdvertisementPayload.Decoded
+
+private object BleAdvertisementPayload {
+    const val VERSION = SignedBleAdvertisementPayload.VERSION
+    const val TOTAL_BYTES = SignedBleAdvertisementPayload.TOTAL_BYTES
+    const val AUTH_TAG_BYTES = SignedBleAdvertisementPayload.AUTH_TAG_BYTES
+    const val JOINED_AT_BYTES = SignedBleAdvertisementPayload.JOINED_AT_BYTES
+    const val EVENT_CODE_BYTES = SignedBleAdvertisementPayload.EVENT_CODE_BYTES
+    const val FLAG_HOST = SignedBleAdvertisementPayload.FLAG_HOST
+    const val FLAG_TRACK_HOST = SignedBleAdvertisementPayload.FLAG_TRACK_HOST
+    const val FLAG_EVENT_CLOSED = SignedBleAdvertisementPayload.FLAG_EVENT_CLOSED
+    const val FLAG_USE_UWB = SignedBleAdvertisementPayload.FLAG_USE_UWB
+    const val FLAG_USE_WIFI = SignedBleAdvertisementPayload.FLAG_USE_WIFI
+    const val FLAG_RING_FULL = SignedBleAdvertisementPayload.FLAG_RING_FULL
+    const val FLAG_ACCEPTS_NEW_MEMBERS = SignedBleAdvertisementPayload.FLAG_ACCEPTS_NEW_MEMBERS
+    const val FLAG_DISCOVERABLE = SignedBleAdvertisementPayload.FLAG_DISCOVERABLE
+    val ALL_FLAGS = SignedBleAdvertisementPayload.ALL_FLAGS
+
+    fun assertFlagsFitTheByte(flags: Int) = SignedBleAdvertisementPayload.assertFlagsFitTheByte(flags)
+
+    fun encode(
+        flags: Int = FLAG_HOST,
+        peerIdBytes: ByteArray,
+        eventCode: String? = null,
+        joinedAtMillis: Long = 0L,
+    ): ByteArray = SignedBleAdvertisementPayload.encode(
+        flags = flags,
+        peerIdBytes = peerIdBytes,
+        eventCode = eventCode,
+        joinedAtMillis = joinedAtMillis,
+        inviteSecret = testInviteSecret,
+    )
+
+    fun decode(serviceData: ByteArray): BleDecoded? =
+        SignedBleAdvertisementPayload.decode(serviceData, testInviteSecret)
+}
 
 /**
  * The BLE advertisement: the one thing two phones have to agree on with no
@@ -33,12 +73,20 @@ class BleAdvertisementPayloadTest {
     private val eventCodeBytes = eventCode.toByteArray(StandardCharsets.UTF_8)
 
     private fun encode(
-        eventHash: Int = "EVENT".hashCode(),
         flags: Int = BleAdvertisementPayload.FLAG_HOST,
         peerId: ByteArray = peerIdBytes,
         eventCode: String? = null,
         joinedAtMillis: Long = 0L,
-    ) = BleAdvertisementPayload.encode(eventHash, flags, peerId, eventCode, joinedAtMillis)
+    ) = BleAdvertisementPayload.encode(flags, peerId, eventCode, joinedAtMillis)
+
+    private fun expectInvalidInput(block: () -> Unit) {
+        try {
+            block()
+            fail("invalid advertisement fields must be rejected")
+        } catch (_: IllegalArgumentException) {
+            // Expected: malformed identifiers must not be truncated into valid ones.
+        }
+    }
 
     @Test
     fun `the event code is exactly the width the payload reserves`() {
@@ -67,6 +115,57 @@ class BleAdvertisementPayloadTest {
 
         assertTrue(decoded.isDiscoverable)
         assertEquals("PingRing $eventCode", decoded.displayName)
+    }
+
+    @Test
+    fun `a different invite secret cannot authenticate an advertisement`() {
+        val payload = encode(flags = BleAdvertisementPayload.FLAG_HOST, eventCode = eventCode)
+
+        assertNull(SignedBleAdvertisementPayload.decode(payload, InviteSecret.generate()))
+        assertTrue(BleAdvertisementPayload.decode(payload)!!.isHost)
+    }
+
+    @Test
+    fun `tampering with host control flags invalidates the authentication tag`() {
+        val payload = encode(flags = BleAdvertisementPayload.FLAG_HOST, eventCode = eventCode)
+        payload[1] = (payload[1].toInt() xor BleAdvertisementPayload.FLAG_EVENT_CLOSED).toByte()
+
+        assertNull(BleAdvertisementPayload.decode(payload))
+    }
+
+    @Test
+    fun `the invite secret changes only the advertisement authentication tag`() {
+        val otherSecret = InviteSecret.generate()
+        val first = SignedBleAdvertisementPayload.encode(
+            flags = BleAdvertisementPayload.FLAG_HOST,
+            peerIdBytes = peerIdBytes,
+            eventCode = eventCode,
+            inviteSecret = testInviteSecret,
+        )
+        val second = SignedBleAdvertisementPayload.encode(
+            flags = BleAdvertisementPayload.FLAG_HOST,
+            peerIdBytes = peerIdBytes,
+            eventCode = eventCode,
+            inviteSecret = otherSecret,
+        )
+        val prefixSize = BleAdvertisementPayload.TOTAL_BYTES - BleAdvertisementPayload.AUTH_TAG_BYTES
+
+        assertArrayEquals(first.copyOf(prefixSize), second.copyOf(prefixSize))
+        assertFalse(first.copyOfRange(prefixSize, first.size).contentEquals(second.copyOfRange(prefixSize, second.size)))
+        assertNull(SignedBleAdvertisementPayload.decode(first, otherSecret))
+    }
+
+    @Test
+    fun `prejoin hint exposes only the public locator and discoverability bit`() {
+        val hint = SignedBleAdvertisementPayload.decodeDiscoveryHint(
+            encode(
+                flags = BleAdvertisementPayload.FLAG_DISCOVERABLE or BleAdvertisementPayload.FLAG_HOST,
+                eventCode = eventCode,
+            )
+        )!!
+
+        assertEquals(eventCode, hint.eventCode)
+        assertTrue(hint.isDiscoverable)
     }
 
     @Test
@@ -101,29 +200,11 @@ class BleAdvertisementPayloadTest {
 
     @Test
     fun `the previous wire version is ignored rather than misread`() {
-        // This is what bumping to version 3 actually risks. A version 2 advert
-        // carries a real peer id, a real event hash and real flags - everything
-        // except the join time - so if the version check were ever dropped or
-        // loosened, a v2 peer would decode cleanly and then be ranked by a
-        // join time read out of the bytes after the event code. Those bytes are
-        // whatever the field held, not a timestamp.
-        //
-        // Supersedes an earlier test about a padded v1 advert. That one stopped
-        // meaning anything when v1 was dropped - and its buffer began with 0x03
-        // by coincidence once the version moved to 3, so it decoded rather than
-        // being rejected. The version that actually exists is the one worth
-        // pinning.
-        val v2 = java.nio.ByteBuffer.allocate(BleAdvertisementPayload.TOTAL_BYTES)
-            .put(2) // version 2, where the join time did not exist
-            .putInt("EVENT".hashCode())
-            .put(BleAdvertisementPayload.FLAG_HOST.toByte())
-            .put(peerIdBytes)
-            .put(eventCodeBytes)
-            .array()
+        val previousVersion = encode(eventCode = eventCode).also { it[0] = 3 }
 
         assertNull(
-            "a version 2 advert must not decode as version 3",
-            BleAdvertisementPayload.decode(v2)
+            "a previous wire version must not decode as the authenticated format",
+            BleAdvertisementPayload.decode(previousVersion)
         )
     }
 
@@ -152,8 +233,8 @@ class BleAdvertisementPayloadTest {
     fun `whatIsEncodedIsWhatIsDecoded`() {
         val decoded = BleAdvertisementPayload.decode(encode())!!
 
-        assertEquals("EVENT".hashCode(), decoded.eventHash)
         assertEquals(peerId, decoded.peerId)
+        assertNull(decoded.eventCode)
         assertTrue("the host flag must survive the round trip", decoded.isHost)
     }
 
@@ -206,22 +287,15 @@ class BleAdvertisementPayloadTest {
         // headroom assertion above is what needs re-reading.
         assertEquals(8, BleAdvertisementPayload.JOINED_AT_BYTES)
         assertEquals(
-            20 + BleAdvertisementPayload.JOINED_AT_BYTES,
-            BleAdvertisementPayload.TOTAL_BYTES
+            BleAdvertisementPayload.TOTAL_BYTES - BleAdvertisementPayload.AUTH_TAG_BYTES - 9,
+            BleAdvertisementPayload.JOINED_AT_BYTES
         )
     }
 
     @Test
     fun `the payload still has room to grow within legacy advertising`() {
-        // Adding a field costs bytes, and this is where the cost is recorded.
-        // Version 3 spent 8 of the 11 bytes v2 left spare, on the join timestamp.
-        // Three bytes is thin but not zero - enough for a flag or a small
-        // counter, and not enough for another epoch-millis Long.
-        //
-        // Exceeding it is a decision, not an accident: it means moving to BLE 5
-        // extended advertising and giving up the devices that cannot.
         assertEquals(3, BleRangePolicy.LEGACY_HEADROOM_BYTES)
-        assertTrue(BleRangePolicy.LEGACY_HEADROOM_BYTES > 0)
+        assertEquals(88, BleAdvertisementPayload.AUTH_TAG_BYTES * 8)
     }
 
     @Test
@@ -248,7 +322,7 @@ class BleAdvertisementPayloadTest {
     fun `eachFlagIsIndependentlyReadable`() {
         // Bit flags that share a byte, so one wrong shift silently sets or clears
         // a neighbour. Each is set alone and must be the only one that reads true.
-        val readers: List<Pair<Int, (BleAdvertisementPayload.Decoded) -> Boolean>> = listOf(
+        val readers: List<Pair<Int, (BleDecoded) -> Boolean>> = listOf(
             BleAdvertisementPayload.FLAG_HOST to { d -> d.isHost },
             BleAdvertisementPayload.FLAG_TRACK_HOST to { d -> d.tracksMembers },
             BleAdvertisementPayload.FLAG_EVENT_CLOSED to { d -> d.eventClosed },
@@ -314,36 +388,9 @@ class BleAdvertisementPayloadTest {
         }
     }
     @Test
-    fun `anEventHashOfZeroStillRoundTrips`() {
-        // "".hashCode() is 0, and an all-zero payload is exactly what an
-        // uninitialised buffer looks like, so this edge is worth holding down.
-        val decoded = BleAdvertisementPayload.decode(encode(eventHash = 0))!!
-
-        assertEquals(0, decoded.eventHash)
-    }
-
-    @Test
-    fun `aFullRangeEventHashSurvivesTheSignBit`() {
-        // String.hashCode() can be negative, and the top bit of an Int is the
-        // sign. A payload that came back with its top bit flipped would be
-        // compared against a hash that never matched any event.
-        val decoded = BleAdvertisementPayload.decode(encode(eventHash = -1))!!
-
-        assertEquals(-1, decoded.eventHash)
-    }
-
-    @Test
-    fun `aShortPeerIdIsPaddedAndReadBackCleanly`() {
-        // The field is a fixed 8 bytes, so a shorter id is space-padded. Reading
-        // it back must not leave the padding in the id, or every peer would carry
-        // trailing spaces into its label and its routing key.
+    fun `aShortPeerIdIsRejected`() {
         val short = "ab".toByteArray(StandardCharsets.UTF_8)
-
-        val decoded = BleAdvertisementPayload.decode(
-            BleAdvertisementPayload.encode("E".hashCode(), 0, short)
-        )!!
-
-        assertEquals("ab", decoded.peerId)
+        expectInvalidInput { encode(peerId = short) }
     }
 
     @Test
@@ -351,28 +398,12 @@ class BleAdvertisementPayloadTest {
         // The opposite edge. Truncating keeps the payload a legal size rather
         // than writing a longer field than the layout allows.
         val long = "0123456789ABCDEF".toByteArray(StandardCharsets.UTF_8)
-
-        val payload = BleAdvertisementPayload.encode("E".hashCode(), 0, long)
-
-        assertEquals(BleAdvertisementPayload.TOTAL_BYTES, payload.size)
-        assertEquals(8, BleAdvertisementPayload.decode(payload)!!.peerId.length)
+        expectInvalidInput { encode(peerId = long) }
     }
 
     @Test
     fun `anOverlongEventCodeIsTruncatedToTheField`() {
-        // Same edge for the code, and the more dangerous of the two: a truncated
-        // code is still a *valid-looking* code that simply belongs to no event,
-        // so a guest adopting it fails to join with nothing to say why. The
-        // payload stays a legal size either way, which is why this needs saying.
-        val long = "TOOLONGCODE"
-
-        val payload = BleAdvertisementPayload.encode("E".hashCode(), 0, peerIdBytes, long)
-
-        assertEquals(BleAdvertisementPayload.TOTAL_BYTES, payload.size)
-        assertEquals(
-            BleAdvertisementPayload.EVENT_CODE_BYTES,
-            BleAdvertisementPayload.decode(payload)!!.eventCode!!.length
-        )
+        expectInvalidInput { encode(eventCode = "TOOLONGCODE") }
     }
 
     @Test
@@ -380,9 +411,7 @@ class BleAdvertisementPayloadTest {
         // The other direction for the same field: fewer characters than the
         // field holds must come back as exactly what was sent, not carrying the
         // NUL padding with it.
-        val payload = BleAdvertisementPayload.encode("E".hashCode(), 0, peerIdBytes, "AB")
-
-        assertEquals("AB", BleAdvertisementPayload.decode(payload)!!.eventCode)
+        expectInvalidInput { encode(eventCode = "AB") }
     }
 
     @Test
@@ -432,7 +461,6 @@ class BleAdvertisementPayloadTest {
 
         val decoded = BleAdvertisementPayload.decode(
             BleAdvertisementPayload.encode(
-                "E".hashCode(),
                 BleAdvertisementPayload.FLAG_HOST,
                 generated.toByteArray(StandardCharsets.UTF_8),
             )

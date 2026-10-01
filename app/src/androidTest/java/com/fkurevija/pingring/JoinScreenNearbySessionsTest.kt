@@ -27,7 +27,7 @@ class JoinScreenNearbySessionsTest {
 
     private fun show(
         discoveredSessions: List<DiscoveredSession> = emptyList(),
-        onJoinEvent: (String, String) -> Unit = { _, _ -> },
+        onJoinEvent: (String, String, String?) -> Unit = { _, _, _ -> },
     ) {
         composeRule.setContent {
             MaterialTheme {
@@ -70,7 +70,10 @@ class JoinScreenNearbySessionsTest {
         var joined: String? = null
         show(
             discoveredSessions = listOf(DiscoveredSession("4C1A9B", "PingRing 4C1A9B", joinable = true)),
-            onJoinEvent = { code, _ -> joined = code }
+            onJoinEvent = { code, _, secret ->
+                assertEquals(null, secret)
+                joined = code
+            }
         )
 
         composeRule.onNodeWithText("PingRing 4C1A9B").performClick()

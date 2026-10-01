@@ -52,6 +52,7 @@ Every document links back here at the top and bottom.
 ### 👤 Identity & Join
 - **Custom usernames**, saved locally and unique within a session.
 - **Join via QR** or a **6-character PingRing Code** (`e.g. AB12CD`), with a validated handshake.
+- **Verified nearby joins**: QR invitations carry a separate 256-bit secret; all Nearby links require both users to compare and confirm shared digits, and code-only joins require host approval.
 - **Localized interface** in English, Croatian, Spanish, French, Canadian French, German, and Russian. Android 13+ offers an app-specific language setting; older versions follow the device language.
 
 ### 🚨 Beacons & Chat

@@ -31,11 +31,11 @@ class BoundaryRulesTest {
     }
 
     @Test
-    fun `the shortest allowed code is accepted and one shorter is not`() {
-        // The pattern requires 3 characters; one shorter must be rejected rather
-        // than treated as a near miss.
-        assertEquals("abc", PingRingCodeParser.parse("abc"))
-        assertNull(PingRingCodeParser.parse("ab"))
+    fun `exactly six hexadecimal characters are required`() {
+        assertEquals("ABC123", PingRingCodeParser.parse("ABC123"))
+        assertNull(PingRingCodeParser.parse("abc"))
+        assertNull(PingRingCodeParser.parse("ABC12"))
+        assertNull(PingRingCodeParser.parse("ABC1234"))
     }
 
     @Test
@@ -43,13 +43,13 @@ class BoundaryRulesTest {
         // The pattern anchors the first character to alphanumeric deliberately: a
         // leading separator invites a truncated or concatenated read being taken
         // for a real code.
-        assertNull(PingRingCodeParser.parse("-abc"))
-        assertNull(PingRingCodeParser.parse("_abc"))
+        assertNull(PingRingCodeParser.parse("-ABC12"))
+        assertNull(PingRingCodeParser.parse("_ABC12"))
     }
 
     @Test
     fun `a code containing a path separator is rejected`() {
-        assertNull(PingRingCodeParser.parse("ab/cd"))
+        assertNull(PingRingCodeParser.parse("AB/CD"))
     }
 
     @Test
@@ -61,9 +61,8 @@ class BoundaryRulesTest {
 
     @Test
     fun `a percent-encoded code in a query is decoded`() {
-        // URLDecoder is applied to query values, so a code whose characters had to
-        // be escaped has to come back as the same code the host generated.
-        assertEquals("ABC-123", PingRingCodeParser.parse("pingring://join?event=ABC%2D123"))
+        // URLDecoder is applied to query values before the six-hex format check.
+        assertEquals("AB12CD", PingRingCodeParser.parse("pingring://join?event=%41B12CD"))
     }
 
     @Test
@@ -77,7 +76,7 @@ class BoundaryRulesTest {
     fun `an unknown query key is ignored rather than treated as a code`() {
         // A link with a tracking parameter must not have that parameter's value
         // mistaken for the event code.
-        assertEquals("REAL1", PingRingCodeParser.parse("pingring://join?utm_source=FAKE1&event=REAL1"))
+        assertEquals("DEAD12", PingRingCodeParser.parse("pingring://join?utm_source=FAKE1&event=DEAD12"))
     }
     // --- RssiDistanceEstimator: a bogus reading must never produce a number the
     // --- radar would then draw as fact.

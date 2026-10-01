@@ -6,6 +6,8 @@
 
 The interface resources cover English, Croatian, Spanish, French, Canadian French, German, and Russian. The locale smoke tests are in `LocalizationResourcesInstrumentedTest`; they run with `uiTest` on a booted device.
 
+The security-focused JVM coverage includes `BleAdvertisementPayloadTest`, `NearbyAdmissionPolicyTest`, `JoinApprovalPolicyTest`, `PingRingCodeParserTest`, and `RelayCodecTest`. `ConnectionAuthenticationDialogTest` checks the SAS confirmation UI as part of the instrumented suite. Run `uiTest` on a booted device to execute it.
+
 ```bash
 git clone https://github.com/fkurevija/PingRing.git
 cd PingRing

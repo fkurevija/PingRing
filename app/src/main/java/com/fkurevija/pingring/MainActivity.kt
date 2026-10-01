@@ -43,6 +43,7 @@ import com.fkurevija.pingring.data.LanDebugConnectionsManager
 import com.fkurevija.pingring.data.NearbyTransport
 import com.fkurevija.pingring.data.Event
 import com.fkurevija.pingring.data.ForegroundPresenceTracker
+import com.fkurevija.pingring.data.InviteSecret
 import com.fkurevija.pingring.data.NearbyConnectionsManager
 import com.fkurevija.pingring.data.PingRingService
 import com.fkurevija.pingring.data.SessionManager
@@ -62,6 +63,7 @@ import com.fkurevija.pingring.ui.screens.AppSettingsScreen
 import com.fkurevija.pingring.ui.screens.AppearanceSettingsScreen
 import com.fkurevija.pingring.ui.screens.AccessibilitySettingsScreen
 import com.fkurevija.pingring.ui.screens.DeveloperSettingsScreen
+import com.fkurevija.pingring.ui.screens.ConnectionAuthenticationDialog
 import com.fkurevija.pingring.ui.screens.NotificationSettingsScreen
 import com.fkurevija.pingring.ui.screens.PingRingJoinScreen
 import com.fkurevija.pingring.ui.screens.PingRingSettingsScreen
@@ -188,6 +190,8 @@ fun MainNavigation(
     // which is the only way its layout is testable.
     val pendingJoinRequests by discoveryRepository.pendingJoinRequests
         .collectAsState(initial = emptyList())
+    val pendingAuthentications by discoveryRepository.pendingAuthentications
+        .collectAsState(initial = emptyList())
 
     // Chat notifications are suppressed only while the radar/chat window is
     // the destination actually on top. Being inside the app is not enough:
@@ -203,6 +207,7 @@ fun MainNavigation(
         onDispose { ForegroundPresenceTracker.onRadarWindowVisibilityChanged(false) }
     }
 
+    Box(Modifier.fillMaxSize()) {
     NavDisplay(backStack) { key ->
         NavEntry(key) {
             val sessionState by sessionManager.sessionState.collectAsState()
@@ -232,6 +237,7 @@ fun MainNavigation(
                                         id = eventCode,
                                         hostPeerId = sessionManager.peerId.value,
                                         useUwb = discoveryRepository.isUwbSupported(),
+                                        inviteSecret = InviteSecret.generate(),
                                     )
                                 )
                                 backStack.add(HostSetupKey(eventCode))
@@ -252,6 +258,7 @@ fun MainNavigation(
                         }
                     } else HostSetupScreen(
                         eventCode = key.eventCode,
+                        inviteSecret = event.inviteSecret,
                         savedUsername = savedUsername,
                         discoveryRepository = discoveryRepository,
                         // Confirmed by the End PingRing dialog on that screen,
@@ -309,12 +316,12 @@ fun MainNavigation(
                         // Back from here (arrow or system) always lands on Home,
                         // whatever is underneath on the stack.
                         onBack = { if (!isConnecting) backStack.resetTo(HomeKey) },
-                        onJoinEvent = { eventCode, username ->
+                        onJoinEvent = { eventCode, username, inviteSecret ->
                             if (!isConnecting) {
                                 isConnecting = true
                                 appearanceSettings.setUserName(username)
                                 sessionManager.setUserName(username)
-                                val event = Event.create(id = eventCode)
+                                val event = Event.create(id = eventCode, inviteSecret = inviteSecret)
                                 if (sessionManager.joinEvent(event)) {
                                     coroutineScope.launch {
                                         // Long enough to outlast a host who is
@@ -407,6 +414,7 @@ fun MainNavigation(
                             onBack = { backStack.popBack() },
                             onSave = {
                                 sessionManager.updateEvent(it)
+                                discoveryRepository.broadcastEventControl(it)
                                 backStack.popBack()
                             },
                             // Ending announces closure first so every member is
@@ -467,6 +475,14 @@ fun MainNavigation(
                 }
             }
         }
+    }
+    pendingAuthentications.firstOrNull()?.let { request ->
+        ConnectionAuthenticationDialog(
+            request = request,
+            onConfirm = { discoveryRepository.confirmConnectionAuthentication(request.endpointId) },
+            onReject = { discoveryRepository.rejectConnectionAuthentication(request.endpointId) },
+        )
+    }
     }
 }
 

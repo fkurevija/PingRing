@@ -209,4 +209,8 @@
     <string name="service_notification_channel">PingRing Mesh Service</string>
     <string name="service_notification_channel_description">Keeps PingRing mesh and radar active in the background</string>
     <string name="join_failed">Failed to join PingRing: the host did not accept, or is unavailable.</string>
+    <string name="connection_authentication_title">Verify Nearby Connection</string>
+    <string name="connection_authentication_message">Connect to %1$s only if the digits on this device match the other device. Ask the other person to compare this code: %2$s</string>
+    <string name="connection_digits_match">Codes match</string>
+    <string name="connection_reject">Reject</string>
 </resources>

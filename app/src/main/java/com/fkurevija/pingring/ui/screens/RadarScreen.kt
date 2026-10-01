@@ -853,7 +853,9 @@ fun RadarScreen(
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Image(
-                                        bitmap = generateQrCode(eventId).asImageBitmap(),
+                                        bitmap = generateQrCode(
+                                            PingRingInvite(eventId, sessionState.currentEvent?.inviteSecret).toQrValue()
+                                        ).asImageBitmap(),
                                         contentDescription = stringResource(R.string.qr_code_for_pingring, eventId),
                                         modifier = Modifier.fillMaxSize()
                                     )

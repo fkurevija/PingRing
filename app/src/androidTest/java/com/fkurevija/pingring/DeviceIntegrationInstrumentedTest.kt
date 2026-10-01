@@ -5,6 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.fkurevija.pingring.data.BleAdvertisementPayload
 import com.fkurevija.pingring.data.BleRangePolicy
+import com.fkurevija.pingring.data.InviteSecret
 import com.fkurevija.pingring.data.SessionManager
 import com.fkurevija.pingring.data.ThemeMode
 import org.junit.Assert.assertEquals
@@ -76,13 +77,15 @@ class DeviceIntegrationInstrumentedTest {
         // than a hand-written fixture, because the id length and the field width
         // have to agree.
         val generated = SessionManager().peerId.value
+        val inviteSecret = InviteSecret.generate()
         val payload = BleAdvertisementPayload.encode(
-            eventHash = "DEVICE-TEST".hashCode(),
             flags = BleAdvertisementPayload.FLAG_HOST,
             peerIdBytes = generated.toByteArray(StandardCharsets.UTF_8),
+            eventCode = "DE71CE",
+            inviteSecret = inviteSecret,
         )
 
-        val decoded = BleAdvertisementPayload.decode(payload)
+        val decoded = BleAdvertisementPayload.decode(payload, inviteSecret)
 
         assertNotNull(decoded)
         assertEquals(generated, decoded!!.peerId)

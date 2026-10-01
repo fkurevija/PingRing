@@ -68,6 +68,8 @@ class LanDebugConnectionsManager(
     override val peerDisconnected: SharedFlow<String> get() = events.peerDisconnected
     override val eventClosed: SharedFlow<Unit> get() = events.eventClosed
     override val receivedBeacon: SharedFlow<BeaconPayloadDto> get() = events.receivedBeacon
+    override val receivedInviteSecret: SharedFlow<InviteSecretPayloadDto> get() = events.receivedInviteSecret
+    override val receivedEventControl: SharedFlow<EventControlPayloadDto> get() = events.receivedEventControl
     override val receivedMockRanging: SharedFlow<MockRangingDto> get() = events.receivedMockRanging
 
 
@@ -88,6 +90,8 @@ class LanDebugConnectionsManager(
     /** Always empty here, for the reason given on [requiresApproval]. */
     override val pendingJoinRequests: StateFlow<List<PendingJoinRequest>> =
         MutableStateFlow(emptyList())
+    override val pendingAuthentications: StateFlow<List<ConnectionAuthenticationRequest>> =
+        MutableStateFlow(emptyList())
 
     override fun approveJoinRequest(endpointId: String) {
         Log.w(TAG, "Ignoring approval of $endpointId: the debug transport has no join requests")
@@ -96,6 +100,10 @@ class LanDebugConnectionsManager(
     override fun denyJoinRequest(endpointId: String) {
         Log.w(TAG, "Ignoring denial of $endpointId: the debug transport has no join requests")
     }
+
+    override fun confirmConnectionAuthentication(endpointId: String) = Unit
+
+    override fun rejectConnectionAuthentication(endpointId: String) = Unit
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var connectionJob: Job? = null
@@ -138,10 +146,8 @@ class LanDebugConnectionsManager(
     }
 
     /**
-     * Tells the relay this host is ending the PingRing. The relay answers by
-     * telling the members the event is closed and disconnecting them, which is
-     * the LAN debug equivalent of the BLE closure advertisement the real
-     * transport relies on.
+    * Tells the relay this host is ending the PingRing. The relay tells the
+    * members the event is closed and disconnects them; Nearby uses EventControl.
      */
     override fun announceEventClosed() {
         eventClosedByRelay = true
@@ -228,7 +234,7 @@ class LanDebugConnectionsManager(
                         val reader = BufferedReader(InputStreamReader(newSocket.getInputStream()))
                         while (isActive) {
                             val line = reader.readLine() ?: break
-                            Log.d(TAG, "Received from relay: $line")
+                            Log.d(TAG, "Received ${line.length} characters from relay")
                             handleLine(line)
                             if (eventClosedByRelay) {
                                 // The host ended the event; the relay is closing
@@ -293,8 +299,7 @@ class LanDebugConnectionsManager(
                 envelope.senderPeerId?.let { events.onPeerDisconnected(it) }
             }
             RelayEnvelope.EVENT_CLOSED -> {
-                // The host ended the PingRing. This is the LAN debug stand-in
-                // for the BLE closure advertisement a real device would see.
+                // The relay's explicit closure signal mirrors Nearby EventControl.
                 Log.i(TAG, "Event ${envelope.eventId} was closed by host ${envelope.senderPeerId}")
                 eventClosedByRelay = true
                 events.onEventClosed()
@@ -347,7 +352,7 @@ class LanDebugConnectionsManager(
                 // Not connected right now (e.g. mid-reconnect) — queue it so
                 // it's flushed as soon as a connection comes back up instead
                 // of silently disappearing.
-                Log.w(TAG, "Not connected to relay, queuing envelope: $envelope")
+                Log.w(TAG, "Not connected to relay, queuing ${envelope.type} envelope")
                 synchronized(writeLock) { pendingEnvelopes.addLast(envelope) }
                 return@launch
             }
@@ -365,7 +370,7 @@ class LanDebugConnectionsManager(
                 activeWriter.write(json)
                 activeWriter.newLine()
                 activeWriter.flush()
-                Log.d(TAG, "Sent to relay: $json")
+                Log.d(TAG, "Sent ${json.length} characters to relay")
                 true
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to send to relay, queuing for retry", e)
@@ -444,6 +449,16 @@ class LanDebugConnectionsManager(
     override fun sendBeaconToPeer(peerId: String, beacon: BeaconPayloadDto) {
         sendPayload(peerId, beacon)
     }
+
+    override fun sendInviteSecret(peerId: String, secret: InviteSecretPayloadDto) {
+        sendPayload(peerId, secret)
+    }
+
+    override fun sendEventControl(peerId: String, control: EventControlPayloadDto) {
+        sendPayload(peerId, control)
+    }
+
+    override fun sendJoinProofToHost(proof: JoinProofPayloadDto) = Unit
 
     override fun broadcastBeacon(beacon: BeaconPayloadDto) {
         sendPayload(null, beacon)
