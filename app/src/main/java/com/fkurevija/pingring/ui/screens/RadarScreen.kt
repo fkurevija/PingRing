@@ -1407,7 +1407,7 @@ fun BeaconCustomizationDialog(
     onTestVibrate: (LongArray) -> Unit
 ) {
     var isVibrationMenuExpanded by remember { mutableStateOf(false) }
-    var selectedPreset by remember { mutableStateOf(BeaconPreset.SOS) }
+    var selectedPreset by remember { mutableStateOf(BeaconPreset.entries.first()) }
     // Prefills from what is live, else from the set Quick Beacon, else the
     // first preset: whichever the user is most likely to want on screen first.
     var title by remember { mutableStateOf(localBeacon?.title ?: quickBeacon?.title ?: selectedPreset.defaultTitle) }
