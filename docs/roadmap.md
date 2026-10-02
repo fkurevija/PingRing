@@ -28,14 +28,15 @@ This page separates behavior awaiting **verification**, constraints imposed by *
 ## Known limitations
 
 - **BLE member identity requires extended advertising.** V5 carries a 98-byte P-256 signed member advertisement. Devices without extended-advertising hardware do not send or accept RSSI-based member presence; they can still use Nearby and any other supported ranging. Extended advertising is supported by the public Android API at the current minimum SDK, but controller support varies by device.
+- **Nearby controls its transport.** The public Connections API has no transport selector, and a third-party app cannot create a joinable host hotspot using the public tethering/local-only-hotspot APIs. Nearby chooses the transport; selecting or replacing it would require a separate transport architecture.
 - **The LAN debug relay is plaintext.** It is debug-only and excluded from release builds, but traffic, including invite provisioning, is not encrypted by Nearby. Use it only on a trusted development LAN; see the planned hardening item below if that boundary changes.
 
 ## Out of scope
 
+These are verified limits of the public Android APIs or deliberate non-goals, not unverified hardware checks. Do not use hidden APIs to work around them. Revisit only if Android exposes the needed public capability or PingRing adopts a different radio/transport architecture.
+
 - **UWB ranging-initiated discovery** — waking a peer already out of BLE range, so UWB rather than BLE sets the reach ceiling. **Not possible on Android.** `androidx.core.uwb` exposes no discovery API at all: `UwbManager` has only the three session scopes plus availability, and `UwbControllerSessionScope` only accepts a `UwbAddress` you already hold. The spec's discovery exchange happens *inside* an established session and the platform does not expose it, so there is no way to learn a peer's 2-byte address before hearing from them. Reaching beyond BLE needs a different radio, not a different UWB API.
 - **Extending range with a coded PHY.** Coded PHY is the only BLE setting that genuinely multiplies range, and the public SDK does not expose it — `ScanSettings` has only `PHY_LE_ALL_SUPPORTED` and `AdvertiseSettings.Builder` has no `setPreferredPhy` (verified against the API 37 `android.jar`). Getting it needs hidden APIs, a deliberate non-goal here. The commonly quoted "~4×" is a free-space figure: 4× range is 12 dB of extra link budget, and at the `PATH_LOSS_EXPONENT = 2.2` used here the same 12 dB is 3.5×. Silicon Labs quotes 4–6 dB of real-world sensitivity gain instead, which is 1.5–1.8× at that exponent. Either way it would not help PingRing: the gain applies to established connections via `HCI_LE_SetPhy`, and PingRing advertises non-connectable and never forms a link. UWB does not widen the reach either — it never transports data, so a peer past the BLE radius is invisible to it too.
-
-- **Selecting a Nearby Connections transport or creating a joinable host hotspot.** The public `Connections.requestConnection` API has no transport selector, and a third-party app cannot use tethering or retrieve the connection details needed from a local-only hotspot. Nearby chooses the transport.
 
 ## Planned engineering and product work
 
@@ -46,6 +47,7 @@ This page separates behavior awaiting **verification**, constraints imposed by *
 - **Implement additional ranging sources.** Wi-Fi RTT needs live ranging/discovery, USD attribution and Nearby coexistence validation; GNSS needs a privacy-reviewed peer-fix sharing protocol. Neither is currently active.
 - **Decide product direction for the brand and in-app help.** The palette is provisional, and help placement/content has no offline product decision yet.
 - **Encrypt the LAN debug relay only if its trust boundary expands.** It remains plaintext and debug-only; do not use it outside a trusted development LAN.
+- **Consider a custom transport only if hardware validation shows Nearby's transport choice is insufficient.** A selector cannot be added around the public Nearby API; replacement or augmentation would require a separate architecture, protocol, and device-compatibility project.
 
 ---
 
