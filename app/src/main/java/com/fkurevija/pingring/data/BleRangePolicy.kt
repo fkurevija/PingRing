@@ -135,41 +135,28 @@ object BleRangePolicy {
         .setConnectable(false)
         .build()
 
-    /**
-     * Service-data size PingRing puts in an advertisement, and the legacy
-     * advertising ceiling it has to stay under.
-     *
-     * Worth asserting rather than assuming: growing this payload past the
-     * legacy limit makes the advert silently untransmittable, which presents
-     * as a total range failure with no error anywhere.
-     *
-     * The two are one budget rather than two numbers that happen to agree -
-     * [BleAdvertisementPayload.TOTAL_BYTES] is the payload's own size and must
-     * equal this, or the advert is built at a size nothing is testing against
-     * the limit that would reject it.
-     */
+    /** V5 signed service-data size; this deliberately exceeds the legacy limit. */
     const val MAX_LEGACY_SERVICE_DATA_BYTES = 31
+    const val LEGACY_V4_SERVICE_DATA_BYTES = 28
+    const val SERVICE_DATA_BYTES = BleIdentityAdvertisement.TOTAL_BYTES
+    /** UUID and AD structure bytes plus a conservative allowance for flags. */
+    const val EXTENDED_AD_STRUCTURE_OVERHEAD_BYTES = 39
+    const val MIN_EXTENDED_AD_DATA_BYTES = SERVICE_DATA_BYTES + EXTENDED_AD_STRUCTURE_OVERHEAD_BYTES
+    const val MAX_EXTENDED_AD_DATA_BYTES = 1650
 
-    /**
-    * Service-data size PingRing puts in an advertisement.
-     *
-     * Must equal [BleAdvertisementPayload.TOTAL_BYTES]; the two are one budget.
-    * Version 4 retains 28 bytes and uses reclaimed fields for authentication
-    * while preserving the arrival timestamp.
-     */
-    const val SERVICE_DATA_BYTES = 28
-
-    /**
-     * How much room is left before the legacy ceiling, in bytes.
-     *
-     * Named so the next field to be added can say what it costs. BLE 5 extended
-     * advertising would allow far more, but requiring it would drop every
-     * device that only does legacy - so growth here is deliberately bounded and
-     * a *future* decision, not something to spend by default.
-     */
-    const val LEGACY_HEADROOM_BYTES = MAX_LEGACY_SERVICE_DATA_BYTES - SERVICE_DATA_BYTES
+    const val LEGACY_HEADROOM_BYTES = MAX_LEGACY_SERVICE_DATA_BYTES - LEGACY_V4_SERVICE_DATA_BYTES
 
     fun fitsInLegacyAdvertising(): Boolean = SERVICE_DATA_BYTES <= MAX_LEGACY_SERVICE_DATA_BYTES
+
+    fun fitsInExtendedAdvertising(): Boolean = MIN_EXTENDED_AD_DATA_BYTES <= MAX_EXTENDED_AD_DATA_BYTES
+
+    fun supportsSignedBleIdentityAdvertising(context: Context): Boolean {
+        val adapter = context.getSystemService(BluetoothManager::class.java)?.adapter ?: return false
+        if (!adapter.isEnabled || !supportsExtendedAdvertising(context)) return false
+        return runCatching {
+            adapter.leMaximumAdvertisingDataLength >= MIN_EXTENDED_AD_DATA_BYTES
+        }.getOrDefault(false)
+    }
 
     /** Human-readable summary of the active configuration, for logcat and settings. */
     fun describe(context: Context): String {

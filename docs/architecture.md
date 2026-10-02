@@ -37,7 +37,7 @@ User-facing interface, accessibility, and notification-channel text lives in And
 
 ## Transport security
 
-Nearby encrypts established payload transport. PingRing requires both users to compare and confirm Nearby's shared authentication digits before accepting a connection. The QR carries a 256-bit invite secret; BLE advertises only the six-character public event locator and a discoverability hint, and its in-session packet is HMAC-authenticated. Host controls and closure travel over the confirmed Nearby link. A shared invite secret means BLE peer identities remain spoofable by an admitted member; the [Security Review](security-review.md) records this and the plaintext debug-relay boundary.
+Nearby encrypts established payload transport. PingRing requires both users to compare and confirm Nearby's shared authentication digits before accepting a connection. The QR carries a 256-bit invite secret; BLE advertises only the six-character public event locator and a discoverability hint before joining. In-session V5 advertisements are signed with per-event device keys registered over the confirmed Nearby link. Devices without extended-advertising support do not use RSSI-based presence. See the [Security Review](security-review.md) for replay limits and the plaintext debug-relay boundary.
 
 ---
 

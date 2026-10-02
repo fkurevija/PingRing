@@ -75,7 +75,8 @@ data class RadarPeerUpdate(
 
 data class ConnectivityStatus(
     val isBluetoothEnabled: Boolean,
-    val isWifiEnabled: Boolean
+    val isWifiEnabled: Boolean,
+    val supportsBleIdentity: Boolean = true,
 )
 
 /**
@@ -158,7 +159,7 @@ object BleAdvertisementPayload {
      */
     const val VERSION = 4
 
-    /** Must match [BleRangePolicy.SERVICE_DATA_BYTES]; the two are one budget. */
+    /** V4 legacy fixture size; the active V5 advertiser uses extended service data. */
     const val TOTAL_BYTES = 28
 
     /** Truncated HMAC-SHA256 tag: 88 bits within the established 28-byte payload. */
@@ -611,8 +612,17 @@ class DiscoveryRepository(
     private var bleAdvertiser: BluetoothLeAdvertiser? = null
     private var advertiseCallback: AdvertiseCallback? = null
     private var advertisingActive = false
+    private var signedBleAdvertiser: BluetoothLeAdvertiser? = null
+    private var signedAdvertisingSet: AdvertisingSet? = null
+    private var signedAdvertisingCallback: AdvertisingSetCallback? = null
+    private var signedAdvertisementRefreshJob: Job? = null
     private var bleScanner: BluetoothLeScanner? = null
     private val controlScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+    private var localBleIdentityKeyPair: java.security.KeyPair? = null
+    private var localBleIdentityKey: BleIdentityKeyPayloadDto? = null
+    private val bleIdentityKeys = java.util.concurrent.ConcurrentHashMap<String, BleIdentityKeyPayloadDto>()
+    private val latestBleAdvertisementSequences = java.util.concurrent.ConcurrentHashMap<String, Long>()
+    private val nextBleAdvertisementSequence = java.util.concurrent.atomic.AtomicLong()
 
     // UWB objects
     private var uwbManager: UwbManager? = null
@@ -684,7 +694,11 @@ class DiscoveryRepository(
     fun getConnectivityStatus(): ConnectivityStatus {
         val bleEnabled = bluetoothAdapter?.isEnabled ?: false
         val wifiEnabled = wifiManager?.isWifiEnabled ?: false
-        return ConnectivityStatus(bleEnabled, wifiEnabled)
+        return ConnectivityStatus(
+            isBluetoothEnabled = bleEnabled,
+            isWifiEnabled = wifiEnabled,
+            supportsBleIdentity = bleEnabled && BleRangePolicy.supportsSignedBleIdentityAdvertising(context),
+        )
     }
 
     fun refreshConnectivityStatus() {
@@ -764,6 +778,20 @@ class DiscoveryRepository(
         activeDiscoveryUseUwb = event?.useUwb
         activeDiscoveryUseWifiDirect = event?.useWifiDirect
         activeDiscoveryUseHotspot = event?.useHotspot
+        if (event != null) {
+            val keyPair = BleIdentityCrypto.generateKeyPair()
+            localBleIdentityKeyPair = keyPair
+            localBleIdentityKey = BleIdentityKeyPayloadDto(
+                eventCode = event.id,
+                peerId = localPeerId,
+                publicKey = BleIdentityCrypto.encodePublicKey(keyPair.public),
+            ).also { identity ->
+                bleIdentityKeys.clear()
+                latestBleAdvertisementSequences.clear()
+                nextBleAdvertisementSequence.set(0L)
+                bleIdentityKeys[localPeerId] = identity
+            }
+        }
         repositoryScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
         refreshConnectivityStatus()
 
@@ -813,10 +841,30 @@ class DiscoveryRepository(
                 )
                 addConnectedPeer(payload.hostPeerId)
                 activeDiscoveryInviteSecret = payload.inviteSecret
+                localBleIdentityKey?.let { identityKey ->
+                    nearbyConnectionsManager.sendBleIdentityKey(payload.hostPeerId, identityKey)
+                }
                 stopBleAdvertising()
                 stopBleScanning()
-                startBleAdvertising()
+                startSignedBleAdvertising()
                 startBleScanning()
+            }
+        }
+
+        repositoryScope?.launch {
+            nearbyConnectionsManager.receivedBleIdentityKey.collect { identityKey ->
+                val currentEvent = sessionManager.sessionState.value.currentEvent ?: return@collect
+                if (identityKey.eventCode != currentEvent.id || identityKey.peerId == sessionManager.peerId.value) {
+                    return@collect
+                }
+                if (BleIdentityCrypto.decodePublicKey(identityKey.publicKey) == null) return@collect
+                val previous = bleIdentityKeys.put(identityKey.peerId, identityKey)
+                if (previous?.publicKey != identityKey.publicKey) {
+                    latestBleAdvertisementSequences.remove(identityKey.peerId)
+                }
+                if (sessionManager.sessionState.value.isHost) {
+                    nearbyConnectionsManager.broadcastBleIdentityKey(identityKey)
+                }
             }
         }
 
@@ -903,6 +951,12 @@ class DiscoveryRepository(
                                 InviteSecretPayloadDto(event.id, secret, sessionManager.peerId.value),
                             )
                         }
+                        localBleIdentityKey?.let { identityKey ->
+                            nearbyConnectionsManager.sendBleIdentityKey(peerId, identityKey)
+                        }
+                        bleIdentityKeys.values
+                            .filter { it.peerId != sessionManager.peerId.value && it.peerId != peerId }
+                            .forEach { identityKey -> nearbyConnectionsManager.sendBleIdentityKey(peerId, identityKey) }
                         nearbyConnectionsManager.sendEventControl(
                             peerId,
                             EventControlPayloadDto(
@@ -1087,7 +1141,7 @@ class DiscoveryRepository(
         }
 
         // 3. Start BLE Advertising & Scanning
-        startBleAdvertising()
+        startSignedBleAdvertising()
         startBleScanning()
 
         // 3. Start Sensor Fusion
@@ -1128,6 +1182,11 @@ class DiscoveryRepository(
         activeFocusRangingTarget = null
         connectedPeerIds.clear()
         peerUwbAddresses.clear()
+        localBleIdentityKeyPair = null
+        localBleIdentityKey = null
+        bleIdentityKeys.clear()
+        latestBleAdvertisementSequences.clear()
+        nextBleAdvertisementSequence.set(0L)
         // Every retained address goes too, and this is the only place that does
         // it. Leaving, or the host ending the ring, must leave nothing rangeable
         // behind: a member that left is not still a member, and a session that
@@ -1243,6 +1302,95 @@ class DiscoveryRepository(
         nearbyConnectionsManager.broadcastBeacon(beaconDto)
     }
 
+    @SuppressLint("MissingPermission")
+    private fun startSignedBleAdvertising() {
+        val adapter = bluetoothAdapter ?: return
+        if (!adapter.isEnabled) return
+        if (!BleRangePolicy.supportsSignedBleIdentityAdvertising(context)) {
+            _connectivityStatus.value = getConnectivityStatus()
+            Log.w(TAG, "BLE identity proximity unavailable: extended advertising is unsupported")
+            return
+        }
+        val event = sessionManager.sessionState.value.currentEvent ?: return
+        val keyPair = localBleIdentityKeyPair ?: return
+        val advertiser = adapter.bluetoothLeAdvertiser ?: return
+        val peerId = sessionManager.peerId.value
+        val flags = if (sessionManager.sessionState.value.isHost && event.isDiscoverable) {
+            BleIdentityAdvertisement.FLAG_DISCOVERABLE
+        } else {
+            0
+        }
+        val parameters = AdvertisingSetParameters.Builder()
+            .setLegacyMode(false)
+            .setConnectable(false)
+            .setScannable(false)
+            .setInterval(AdvertisingSetParameters.INTERVAL_HIGH)
+            .setTxPowerLevel(AdvertisingSetParameters.TX_POWER_HIGH)
+            .build()
+
+        fun advertisingData(sequence: Long): AdvertiseData? = runCatching {
+            val payload = BleIdentityAdvertisement.encode(
+                flags = flags,
+                peerId = peerId,
+                eventCode = event.id,
+                joinedAtMillis = sessionManager.sessionState.value.joinedAtMillis ?: 0L,
+                sequence = sequence,
+                privateKey = keyPair.private,
+            )
+            AdvertiseData.Builder()
+                .setIncludeDeviceName(false)
+                .addServiceUuid(ParcelUuid(PINGRING_SERVICE_UUID))
+                .addServiceData(ParcelUuid(PINGRING_SERVICE_UUID), payload)
+                .build()
+        }.onFailure { Log.e(TAG, "Could not build signed BLE identity advertisement", it) }.getOrNull()
+
+        val initialData = advertisingData(nextBleAdvertisementSequence.getAndIncrement()) ?: return
+        val callback = object : AdvertisingSetCallback() {
+            override fun onAdvertisingSetStarted(set: AdvertisingSet?, txPower: Int, status: Int) {
+                synchronized(this@DiscoveryRepository) {
+                    if (signedAdvertisingCallback !== this || status != AdvertisingSetCallback.ADVERTISE_SUCCESS || set == null) {
+                        advertiser.stopAdvertisingSet(this)
+                        Log.e(TAG, "Signed extended BLE advertising failed to start: status=$status")
+                        return
+                    }
+                    signedAdvertisingSet = set
+                    signedAdvertisementRefreshJob?.cancel()
+                    signedAdvertisementRefreshJob = controlScope.launch {
+                        while (isActive && signedAdvertisingSet === set) {
+                            delay(1_000L)
+                            val data = advertisingData(nextBleAdvertisementSequence.getAndIncrement()) ?: break
+                            runCatching { set.setAdvertisingData(data) }
+                                .onFailure { Log.w(TAG, "Could not refresh signed BLE advertisement", it) }
+                        }
+                    }
+                }
+            }
+
+            override fun onAdvertisingSetStopped(set: AdvertisingSet?) {
+                synchronized(this@DiscoveryRepository) {
+                    if (signedAdvertisingCallback === this) {
+                        signedAdvertisementRefreshJob?.cancel()
+                        signedAdvertisementRefreshJob = null
+                        signedAdvertisingSet = null
+                        signedAdvertisingCallback = null
+                        signedBleAdvertiser = null
+                    }
+                }
+            }
+        }
+        signedBleAdvertiser = advertiser
+        signedAdvertisingCallback = callback
+        try {
+            advertiser.startAdvertisingSet(parameters, initialData, null, null, null, callback)
+        } catch (error: Exception) {
+            if (signedAdvertisingCallback === callback) {
+                signedAdvertisingCallback = null
+                signedBleAdvertiser = null
+            }
+            Log.e(TAG, "Exception starting signed extended BLE advertising", error)
+        }
+    }
+
     @Synchronized
     private fun startBleAdvertising() {
         val adapter = bluetoothAdapter ?: return
@@ -1311,6 +1459,7 @@ class DiscoveryRepository(
 
     @Synchronized
     private fun stopBleAdvertising() {
+        stopSignedBleAdvertising()
         val advertiser = bleAdvertiser
         val callback = advertiseCallback
         bleAdvertiser = null
@@ -1323,6 +1472,21 @@ class DiscoveryRepository(
             } catch (e: Exception) {
                 Log.e(TAG, "Exception stopping BLE advertising", e)
             }
+        }
+    }
+
+    @Synchronized
+    private fun stopSignedBleAdvertising() {
+        val advertiser = signedBleAdvertiser
+        val callback = signedAdvertisingCallback
+        signedBleAdvertiser = null
+        signedAdvertisingSet = null
+        signedAdvertisingCallback = null
+        signedAdvertisementRefreshJob?.cancel()
+        signedAdvertisementRefreshJob = null
+        if (advertiser != null && callback != null) {
+            runCatching { advertiser.stopAdvertisingSet(callback) }
+                .onFailure { Log.e(TAG, "Exception stopping signed extended BLE advertising", it) }
         }
     }
 
@@ -1522,7 +1686,7 @@ class DiscoveryRepository(
      * unjoinable: the reader can see that it is there and cannot join it, which
      * beats a join button that silently fails.
      */
-    private fun recordDiscoveredSession(hint: BleAdvertisementPayload.DiscoveryHint) {
+    private fun recordDiscoveredSession(hint: BleIdentityAdvertisement.DiscoveryHint) {
         if (!hint.isDiscoverable) return
         val code = hint.eventCode ?: return
         val session = DiscoveredSession(
@@ -1546,20 +1710,33 @@ class DiscoveryRepository(
         val serviceData = record.getServiceData(ParcelUuid(PINGRING_SERVICE_UUID)) ?: return
         // Too short to be one of ours: another app's service UUID, or a
         // truncated read. Decoding it would put a phantom member on the radar.
-        if (serviceData.size < BleAdvertisementPayload.TOTAL_BYTES) return
+        if (serviceData.size != BleIdentityAdvertisement.TOTAL_BYTES) return
 
         var currentEvent = sessionManager.sessionState.value.currentEvent
         if (currentEvent == null) {
             // Before joining, there is no secret with which to authenticate the
             // advert. Read only the untrusted locator hint for the browse list.
-            BleAdvertisementPayload.decodeDiscoveryHint(serviceData)
+            BleIdentityAdvertisement.decodeDiscoveryHint(serviceData)
                 ?.let(::recordDiscoveredSession)
             return
         }
-        val inviteSecret = currentEvent.inviteSecret ?: return
-        val decoded = BleAdvertisementPayload.decode(serviceData, inviteSecret) ?: return
+        if (!getConnectivityStatus().supportsBleIdentity) return
+        val peerId = BleIdentityAdvertisement.readPeerId(serviceData) ?: return
+        val keyPayload = bleIdentityKeys[peerId] ?: return
+        val publicKey = BleIdentityCrypto.decodePublicKey(keyPayload.publicKey) ?: return
+        val decoded = BleIdentityAdvertisement.decode(serviceData, publicKey) ?: return
         if (decoded.eventCode != currentEvent.id) return
-        val peerId = decoded.peerId
+        if (decoded.peerId != peerId) return
+        var acceptedSequence = false
+        latestBleAdvertisementSequences.compute(peerId) { _, previous ->
+            if (BleIdentityAdvertisement.acceptsSequence(previous, decoded.sequence)) {
+                acceptedSequence = true
+                decoded.sequence
+            } else {
+                previous
+            }
+        }
+        if (!acceptedSequence) return
         val isHostPeer = peerId == currentEvent.hostPeerId
         if (currentEvent.trackHost && !sessionManager.sessionState.value.isHost && !isHostPeer) return
         if (peerId.isEmpty() || peerId == sessionManager.peerId.value) return

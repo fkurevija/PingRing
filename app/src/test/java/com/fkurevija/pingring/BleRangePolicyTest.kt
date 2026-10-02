@@ -1,8 +1,9 @@
 package com.fkurevija.pingring
 
-import com.fkurevija.pingring.data.BleAdvertisementPayload
+import com.fkurevija.pingring.data.BleIdentityAdvertisement
 import com.fkurevija.pingring.data.BleRangePolicy
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -22,31 +23,22 @@ import org.junit.Test
 class BleRangePolicyTest {
 
     @Test
-    fun `the service data fits in a legacy advertisement`() {
-        // Growing the payload past the legacy limit makes the advert silently
-        // untransmittable, which presents as a total range failure with no error
-        // anywhere. The authenticated v4 payload preserves the 28-byte size,
-        // keeping the previous legacy-advertising compatibility.
-        assertTrue(BleRangePolicy.fitsInLegacyAdvertising())
+    fun `signed service data requires extended advertising`() {
         assertEquals(31, BleRangePolicy.MAX_LEGACY_SERVICE_DATA_BYTES)
-        assertEquals(28, BleRangePolicy.SERVICE_DATA_BYTES)
-        assertEquals(
-            BleAdvertisementPayload.TOTAL_BYTES,
-            BleRangePolicy.SERVICE_DATA_BYTES
-        )
+        assertEquals(98, BleRangePolicy.SERVICE_DATA_BYTES)
+        assertEquals(BleIdentityAdvertisement.TOTAL_BYTES, BleRangePolicy.SERVICE_DATA_BYTES)
+        assertTrue(BleRangePolicy.fitsInExtendedAdvertising())
+        assertFalse(BleRangePolicy.fitsInLegacyAdvertising())
+        assertTrue(BleRangePolicy.SERVICE_DATA_BYTES > BleRangePolicy.MAX_LEGACY_SERVICE_DATA_BYTES)
+        assertTrue(BleRangePolicy.MIN_EXTENDED_AD_DATA_BYTES > BleRangePolicy.SERVICE_DATA_BYTES)
     }
 
     @Test
-    fun `the service data has room to grow before it breaks`() {
-        // The 3-byte headroom is reserved: increasing this packet could break
-        // legacy advertising on supported devices.
+    fun `legacy V4 fixture remains within its historical budget`() {
+        assertEquals(28, BleRangePolicy.LEGACY_V4_SERVICE_DATA_BYTES)
         assertEquals(
-            BleRangePolicy.MAX_LEGACY_SERVICE_DATA_BYTES - BleRangePolicy.SERVICE_DATA_BYTES,
+            BleRangePolicy.MAX_LEGACY_SERVICE_DATA_BYTES - BleRangePolicy.LEGACY_V4_SERVICE_DATA_BYTES,
             BleRangePolicy.LEGACY_HEADROOM_BYTES
-        )
-        assertTrue(
-            "the authenticated packet must retain the established size",
-            BleRangePolicy.LEGACY_HEADROOM_BYTES > 0
         )
     }
 

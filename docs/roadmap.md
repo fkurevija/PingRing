@@ -16,13 +16,13 @@ This page separates behavior that is **built but unverified**, constraints that 
 
 ## Known limitations
 
-- **The BLE payload uses 28 of the 31 legacy service-data bytes.** Version 4 keeps the existing packet size, repurposes the event hash and compact identifiers, and uses the recovered room for an 88-bit HMAC while retaining the join timestamp. The remaining **3 bytes** are not enough for another field of consequence; exceeding the current budget risks devices that only support legacy advertising.
+- **BLE member identity requires extended advertising.** V5 carries a 98-byte P-256 signed member advertisement. Devices without extended-advertising hardware do not send or accept RSSI-based member presence; they can still use Nearby and any other supported ranging. Extended advertising is supported by the public Android API at the current minimum SDK, but controller support varies by device.
 - **No mesh extension.** Adding members adds density, not reach. Every link is host<->guest under `P2P_STAR`, and a guest-to-guest link forms only *after* both already reach the host.
 - **The host's tracked-member choice is not broadcast.** A guest resolves the *rule* independently - it defaults to the host - but it cannot learn which member the host itself picked. It would cost another wire-format change, and with **3 bytes** left in the payload the field would have to be far smaller than the join timestamp that just took eight. It only matters with **Track Host** off, where a guest may pick freely anyway.
 - **Relayed UWB offers are not end-to-end.** The STS key travels via the host. Same trust model as relayed chat - a host already brokers everything - but guest-to-guest ranging is not private against the host.
 - **A retained member cannot be confirmed gone.** Holding a UWB session open across a transport drop buys an instant reconnect, but the far end stopping to range is indistinguishable from it having left the ring or from the host having ended it - all three produce the same silence. The app therefore reports a silent session as *unreachable* and says so, rather than claiming the member left. A real fix needs both sides to agree on a farewell message, which needs the transport that has just dropped.
 - **Release signing is wired but dormant.** `assembleRelease` signs properly when given the four `PINGRING_*` properties, and CI picks it up from a base64 keystore secret — but no key exists yet, so the published APK is still debug-signed. Generating one is a decision to keep the same key forever: Android will not let a properly signed build be replaced by a differently signed one, so losing the key means the app can never be updated again under that identity. See [Signing](building.md#signing).
-- **BLE identity is group-authenticated, not individually authenticated.** All admitted members receive the same invite secret used to verify the 28-byte BLE HMAC. A malicious member can forge another peer's proximity identity, although host controls are no longer read from BLE and sender-attributed Nearby payloads are endpoint-bound.
+- **BLE advertisements are replay-limited, not absolutely fresh.** Receivers reject duplicate or regressing signed counters, but a captured higher counter unseen by a receiver may be replayed once. The offline protocol has no shared trusted clock; verify whether this residual risk is acceptable for the intended proximity use.
 - **The LAN debug relay is plaintext.** It is debug-only and excluded from release builds, but traffic, including invite provisioning, is not encrypted by Nearby. Use it only on a trusted development LAN.
 - **The brand identity is not finalized.** The app currently uses violet (`#5C2BD9`), chosen by eye; there is no approved logo or brand specification to confirm the hue, dark-mode treatment, or tertiary colour.
 - **The accessibility audit is incomplete.** The radar has an opt-in spoken summary, but TalkBack behavior, focus order, contrast across workflows, and the rest of the UI have not had a device-assisted audit.
@@ -48,9 +48,9 @@ This page separates behavior that is **built but unverified**, constraints that 
 
 - **Finish an accessibility pass on-device.** With TalkBack enabled, verify that host/join, SAS confirmation, radar tracking, chat/beacons, and settings can be completed and that changing the tracked member and radar state are announced usefully. Check contrast and focus order in both light and dark themes; track and resolve workflow-blocking issues.
 
-### Security decision
+### Security verification
 
-- **Decide whether BLE proximity needs per-member identity.** The shared invite secret authenticates ring membership, not each advertising phone. First document the threat model and assess key distribution, legacy packet compatibility, and the 28-byte payload budget. Then either implement and test an individually verifiable scheme, or explicitly accept the documented spoofing risk for admitted members. Do not start a wire-format change before that decision.
+- **Validate V5 on physical devices before release.** Exercise key registration on join/reconnect, host roster relay, valid and modified signatures, replayed sequences, and unsupported-controller behavior. Confirm an unsupported device shows proximity unavailable and never falls back to V4 RSSI. Record device model, Android version, extended-advertising capability, and outcome; see the [Security Review](security-review.md#ble-replay-and-extended-radio-limits).
 
 ---
 

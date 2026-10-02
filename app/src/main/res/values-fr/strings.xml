@@ -167,6 +167,7 @@
     <string name="active_beacon">Balise active</string>
     <string name="beacon_sender_pattern">%1$s · %2$s</string>
     <string name="bluetooth_off_discovery">Bluetooth est désactivé. Activez-le pour détecter les appareils à proximité.</string>
+    <string name="ble_identity_unavailable">La proximité BLE vérifiée n’est pas disponible sur cet appareil. La proximité basée sur le RSSI est désactivée.</string>
     <string name="recheck">Vérifier à nouveau</string>
     <string name="member_count">Membres (%1$d/%2$d)</string>
     <string name="member_count_full">Membres (%1$d/%2$d - complet)</string>

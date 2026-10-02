@@ -2,7 +2,7 @@
 
 [← Back to README](../README.md) · [Roadmap](roadmap.md) · [Architecture & Offline Operation](architecture.md)
 
-**Reviewed:** 2026-10-01  
+**Reviewed:** 2026-10-02
 **Scope:** BLE advertisement contents and handling; Nearby Connections admission, peer identity, and payload routing; sensitive diagnostic logging; join-request abuse.
 
 ## Assessment
@@ -13,9 +13,9 @@ Nearby Connections encrypts established payload transport, but encryption alone 
 
 ## Implemented Mitigations
 
-### BLE control spoofing no longer changes session state
+### BLE member identity uses per-device signatures
 
-BLE v4 signs the 28-byte advertisement prefix with HMAC-SHA256 truncated to 88 bits, keyed by the 256-bit invite secret. In-session peers verify the tag before using a peer ID or reading proximity. The invite secret is not present in BLE. BLE host, closure, admission, and ranging flags are no longer applied; only the public discoverability hint is read before joining. Session closure and host controls travel over the authenticated Nearby endpoint. See [advertisement encoding and verification](../app/src/main/java/com/fkurevija/pingring/data/DiscoveryRepository.kt).
+BLE v5 uses a P-256 ECDSA signature over the member ID, event code, join time, flags, and monotonic sequence. Each event creates an ephemeral signing keypair; the private key stays on that device. Public keys are registered over the SAS-confirmed Nearby connection. The host accepts a guest key only when its peer ID matches the authenticated endpoint, then distributes the registered key to the other guests. In-session radar updates require that registered key and a valid signature; the V4 group-HMAC packet is not accepted for member presence. Pre-join discovery reads only the unsigned locator hint. Host controls and closure remain on the authenticated Nearby endpoint. See [advertisement encoding and verification](../app/src/main/java/com/fkurevija/pingring/data/DiscoveryRepository.kt) and [key registration authorization](../app/src/main/java/com/fkurevija/pingring/data/NearbyConnectionsManager.kt).
 
 ### Nearby transport requires SAS confirmation
 
@@ -35,9 +35,11 @@ Production logs no longer include chat text, beacon titles, raw payload JSON, or
 
 The six-hex code is still broadcast so a discoverable session can be found; it is a locator, not a credential. A typed-code join has no secret proof and always requires host approval. QR scans carry the 256-bit secret. Unauthenticated pre-join discovery hints can still be forged to create false nearby-list rows, but they cannot create an authenticated member or change event state. The browse list is capped at 16 entries. Protect the QR like an invitation, and compare Nearby's digits before confirming.
 
-### Invited members share the BLE group key
+### BLE replay and extended-radio limits
 
-Every admitted member receives the same invite secret so it can verify other members' BLE advertisements. A malicious admitted member can therefore forge another peer's BLE proximity identity; the shared key proves ring membership, not which member sent an advert. It cannot use BLE to close the event or change host policy, and it cannot forge that peer's authenticated Nearby sender identity. Individual BLE identities would need a different key distribution or signature scheme and likely a larger radio format.
+Receivers reject duplicate or regressing signed sequence numbers for a member. A previously captured, higher-sequence packet that a receiver has never seen can still be replayed once; there is no synchronized trusted clock in the offline protocol to give advertisements a reliable absolute expiry. The normal peer staleness timeout limits how long a single replay remains visible without further packets.
+
+V5 requires extended advertising. Devices whose Bluetooth controller does not support it do not advertise or consume RSSI-based member proximity; the radar reports that limitation instead of falling back to group-authenticated V4. Nearby messaging and other available ranging remain independent. This capability is hardware-dependent even though the app's minimum Android API supports the public extended-advertising API.
 
 ### LAN debug transport is not production-secure
 
@@ -49,7 +51,7 @@ Guest-to-guest UWB offers are relayed through the host. The host can read the ST
 
 ## Verification Limits
 
-This was a static code review plus unit/compile validation. A live two-phone SAS comparison, BLE spoof attempt, packet capture, join flood, and logcat collection test have not been performed on hardware. Verify those scenarios before treating the mitigations as device-tested.
+This was a static code review plus unit/compile validation. A live two-phone SAS comparison, signed-advertisement capture/replay, joined-member impersonation attempt, extended-advertising hardware matrix, join flood, and logcat collection test have not been performed on hardware. Verify those scenarios before treating the mitigations as device-tested.
 
 ---
 

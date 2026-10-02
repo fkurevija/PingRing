@@ -164,6 +164,7 @@
     <string name="active_beacon">Active beacon</string>
     <string name="beacon_sender_pattern">%1$s · %2$s</string>
     <string name="bluetooth_off_discovery">Bluetooth is off. Enable it to discover nearby peers.</string>
+    <string name="ble_identity_unavailable">Verified BLE proximity is unavailable on this device. RSSI-based proximity is disabled.</string>
     <string name="recheck">Recheck</string>
     <string name="member_count">Members (%1$d/%2$d)</string>
     <string name="member_count_full">Members (%1$d/%2$d - Full)</string>

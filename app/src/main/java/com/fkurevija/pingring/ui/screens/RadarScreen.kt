@@ -1243,6 +1243,21 @@ internal fun PeerList(
                 }
             }
         }
+        if (connectivity.isBluetoothEnabled && !connectivity.supportsBleIdentity) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+            ) {
+                Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.BluetoothDisabled, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.ble_identity_unavailable), modifier = Modifier.weight(1f))
+                    IconButton(onClick = { repository?.refreshConnectivityStatus() }) {
+                        Icon(Icons.Default.Visibility, contentDescription = stringResource(R.string.recheck))
+                    }
+                }
+            }
+        }
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,

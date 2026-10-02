@@ -50,6 +50,19 @@ internal fun isPayloadSenderAuthorized(
     authenticatedHostPeerId != null && endpointPeerId == authenticatedHostPeerId
 }
 
+internal fun isBleIdentityKeySenderAuthorized(
+    isLocalHost: Boolean,
+    endpointId: String,
+    endpointPeerId: String?,
+    endpointAuthorized: Boolean,
+    authenticatedHostEndpoint: String?,
+    identityPeerId: String,
+): Boolean = if (isLocalHost) {
+    endpointAuthorized && endpointPeerId == identityPeerId
+} else {
+    endpointId == authenticatedHostEndpoint
+}
+
 /**
  * A device asking to join, waiting on the host's decision.
  *
@@ -216,6 +229,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
     override val eventClosed: SharedFlow<Unit> get() = events.eventClosed
     override val receivedBeacon: SharedFlow<BeaconPayloadDto> get() = events.receivedBeacon
     override val receivedInviteSecret: SharedFlow<InviteSecretPayloadDto> get() = events.receivedInviteSecret
+    override val receivedBleIdentityKey: SharedFlow<BleIdentityKeyPayloadDto> get() = events.receivedBleIdentityKey
     override val receivedEventControl: SharedFlow<EventControlPayloadDto> get() = events.receivedEventControl
 
     /**
@@ -599,6 +613,17 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
         sendPayloadToEndpoint(endpointId, secret)
     }
 
+    override fun sendBleIdentityKey(peerId: String, identityKey: BleIdentityKeyPayloadDto) {
+        val endpointId = connectedEndpoints[peerId] ?: return
+        sendPayloadToEndpoint(endpointId, identityKey)
+    }
+
+    override fun broadcastBleIdentityKey(identityKey: BleIdentityKeyPayloadDto) {
+        connectedEndpoints.values.toSet().forEach { endpointId ->
+            sendPayloadToEndpoint(endpointId, identityKey)
+        }
+    }
+
     override fun sendEventControl(peerId: String, control: EventControlPayloadDto) {
         val endpointId = connectedEndpoints[peerId] ?: return
         if (endpointId !in authorizedEndpoints) return
@@ -907,6 +932,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
     private fun deliver(payload: DecodedPayload, endpointId: String): Boolean = when (payload) {
         is DecodedPayload.JoinProof -> receiveJoinProof(payload.proof, endpointId)
         is DecodedPayload.InviteSecret -> receiveInviteSecret(payload.secret, endpointId)
+        is DecodedPayload.BleIdentityKey -> receiveBleIdentityKey(payload.identityKey, endpointId)
         else -> {
             if (endpointId !in authorizedEndpoints) return false
             val endpointPeerId = endpointToPeerId[endpointId] ?: return false
@@ -953,7 +979,8 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
                     events.onUwbRangingOfferReceived(payload.offer)
                     true
                 } else false
-                is DecodedPayload.InviteSecret, is DecodedPayload.JoinProof, is DecodedPayload.MockRanging -> false
+                is DecodedPayload.InviteSecret, is DecodedPayload.BleIdentityKey,
+                is DecodedPayload.JoinProof, is DecodedPayload.MockRanging -> false
             }
         }
     }
@@ -1015,6 +1042,23 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
         authorizedEndpoints.add(endpointId)
         events.onPeerConnected(secret.hostPeerId)
         events.onInviteSecret(secret)
+        return true
+    }
+
+    private fun receiveBleIdentityKey(identityKey: BleIdentityKeyPayloadDto, endpointId: String): Boolean {
+        if (identityKey.eventCode != localEventId) return false
+        if (!identityKey.peerId.matches(Regex("[0-9a-fA-F]{8}"))) return false
+        if (BleIdentityCrypto.decodePublicKey(identityKey.publicKey) == null) return false
+        if (!isBleIdentityKeySenderAuthorized(
+                isLocalHost = isLocalHost,
+                endpointId = endpointId,
+                endpointPeerId = endpointToPeerId[endpointId],
+                endpointAuthorized = endpointId in authorizedEndpoints,
+                authenticatedHostEndpoint = authenticatedHostEndpoint,
+                identityPeerId = identityKey.peerId,
+            )
+        ) return false
+        events.onBleIdentityKey(identityKey)
         return true
     }
 

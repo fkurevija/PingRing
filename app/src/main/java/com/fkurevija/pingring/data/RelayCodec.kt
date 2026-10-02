@@ -23,6 +23,7 @@ internal sealed interface DecodedPayload {
     data class ChatHistory(val history: ChatHistoryPayloadDto) : DecodedPayload
     data class Beacon(val beacon: BeaconPayloadDto) : DecodedPayload
     data class InviteSecret(val secret: InviteSecretPayloadDto) : DecodedPayload
+    data class BleIdentityKey(val identityKey: BleIdentityKeyPayloadDto) : DecodedPayload
     data class JoinProof(val proof: JoinProofPayloadDto) : DecodedPayload
     data class EventControl(val control: EventControlPayloadDto) : DecodedPayload
     data class UwbAddress(val address: UwbPeerAddressDto) : DecodedPayload
@@ -52,6 +53,7 @@ internal object RelayCodec {
     const val CHAT_HISTORY = "chat-history"
     const val BEACON = "beacon"
     const val INVITE_SECRET = "invite-secret"
+    const val BLE_IDENTITY_KEY = "ble-identity-key"
     const val JOIN_PROOF = "join-proof"
     const val EVENT_CONTROL = "event-control"
     const val UWB_ADDRESS = "uwb-address"
@@ -68,7 +70,8 @@ internal object RelayCodec {
 
     /** Every payload type this build understands inside an envelope. */
     val knownWireTypes: Set<String> = setOf(
-        CHAT, CHAT_HISTORY, BEACON, INVITE_SECRET, JOIN_PROOF, EVENT_CONTROL, UWB_ADDRESS, UWB_PARAMS, UWB_OFFER, MOCK_RANGING
+        CHAT, CHAT_HISTORY, BEACON, INVITE_SECRET, BLE_IDENTITY_KEY, JOIN_PROOF, EVENT_CONTROL,
+        UWB_ADDRESS, UWB_PARAMS, UWB_OFFER, MOCK_RANGING
     )
 
     // One Moshi for the whole process, with the adapters resolved once. The
@@ -82,6 +85,7 @@ internal object RelayCodec {
     private val chatHistoryAdapter: JsonAdapter<ChatHistoryPayloadDto> = moshi.adapter(ChatHistoryPayloadDto::class.java)
     private val beaconAdapter: JsonAdapter<BeaconPayloadDto> = moshi.adapter(BeaconPayloadDto::class.java)
     private val inviteSecretAdapter: JsonAdapter<InviteSecretPayloadDto> = moshi.adapter(InviteSecretPayloadDto::class.java)
+    private val bleIdentityKeyAdapter: JsonAdapter<BleIdentityKeyPayloadDto> = moshi.adapter(BleIdentityKeyPayloadDto::class.java)
     private val joinProofAdapter: JsonAdapter<JoinProofPayloadDto> = moshi.adapter(JoinProofPayloadDto::class.java)
     private val eventControlAdapter: JsonAdapter<EventControlPayloadDto> = moshi.adapter(EventControlPayloadDto::class.java)
     private val uwbAddressAdapter: JsonAdapter<UwbPeerAddressDto> = moshi.adapter(UwbPeerAddressDto::class.java)
@@ -116,6 +120,7 @@ internal object RelayCodec {
         CHAT_HISTORY -> decodeBody(chatHistoryAdapter, json, DecodedPayload::ChatHistory)
         BEACON -> decodeBody(beaconAdapter, json, DecodedPayload::Beacon)
         INVITE_SECRET -> decodeBody(inviteSecretAdapter, json, DecodedPayload::InviteSecret)
+        BLE_IDENTITY_KEY -> decodeBody(bleIdentityKeyAdapter, json, DecodedPayload::BleIdentityKey)
         JOIN_PROOF -> decodeBody(joinProofAdapter, json, DecodedPayload::JoinProof)
         EVENT_CONTROL -> decodeBody(eventControlAdapter, json, DecodedPayload::EventControl)
         UWB_ADDRESS -> decodeBody(uwbAddressAdapter, json, DecodedPayload::UwbAddress)
@@ -157,6 +162,7 @@ internal object RelayCodec {
         is DecodedPayload.ChatHistory -> { sink.onChatHistory(payload.history); true }
         is DecodedPayload.Beacon -> { sink.onBeacon(payload.beacon); true }
         is DecodedPayload.InviteSecret -> { sink.onInviteSecret(payload.secret); true }
+        is DecodedPayload.BleIdentityKey -> { sink.onBleIdentityKey(payload.identityKey); true }
         is DecodedPayload.EventControl -> { sink.onEventControl(payload.control); true }
         is DecodedPayload.UwbAddress -> { sink.onUwbAddress(payload.address); true }
         is DecodedPayload.UwbParameters -> { sink.onUwbParameters(payload.params); true }
@@ -178,6 +184,7 @@ internal object RelayCodec {
         is ChatHistoryPayloadDto -> EncodedPayload(CHAT_HISTORY, chatHistoryAdapter.toJson(params))
         is BeaconPayloadDto -> EncodedPayload(BEACON, beaconAdapter.toJson(params))
         is InviteSecretPayloadDto -> EncodedPayload(INVITE_SECRET, inviteSecretAdapter.toJson(params))
+        is BleIdentityKeyPayloadDto -> EncodedPayload(BLE_IDENTITY_KEY, bleIdentityKeyAdapter.toJson(params))
         is JoinProofPayloadDto -> EncodedPayload(JOIN_PROOF, joinProofAdapter.toJson(params))
         is EventControlPayloadDto -> EncodedPayload(EVENT_CONTROL, eventControlAdapter.toJson(params))
         is UwbPeerAddressDto -> EncodedPayload(UWB_ADDRESS, uwbAddressAdapter.toJson(params))

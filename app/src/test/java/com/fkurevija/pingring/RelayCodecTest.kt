@@ -1,6 +1,7 @@
 package com.fkurevija.pingring
 
 import com.fkurevija.pingring.data.BeaconPayloadDto
+import com.fkurevija.pingring.data.BleIdentityKeyPayloadDto
 import com.fkurevija.pingring.data.ChatHistoryPayloadDto
 import com.fkurevija.pingring.data.ChatPayloadDto
 import com.fkurevija.pingring.data.DecodedPayload
@@ -49,6 +50,10 @@ class RelayCodecTest {
 
         override fun onInviteSecret(secret: InviteSecretPayloadDto) {
             delivered += secret
+        }
+
+        override fun onBleIdentityKey(identityKey: BleIdentityKeyPayloadDto) {
+            delivered += identityKey
         }
 
         override fun onEventControl(control: EventControlPayloadDto) {
@@ -103,6 +108,7 @@ class RelayCodecTest {
     )
     private val report = MockRangingDto(peerId = "peer-b", distance = 2.5f, azimuth = 90f, elevation = 0f, name = "Bob")
     private val inviteSecret = InviteSecretPayloadDto("4C1A9B", "secret", "peer-a")
+    private val bleIdentityKey = BleIdentityKeyPayloadDto("4C1A9B", "a1b2c3d4", "encoded-public-key")
     private val joinProof = JoinProofPayloadDto("4C1A9B", null)
     private val eventControl = EventControlPayloadDto("4C1A9B", "peer-a", true, true, true, true, false)
 
@@ -113,6 +119,7 @@ class RelayCodecTest {
             ChatHistoryPayloadDto(listOf(chat)),
             beacon,
             inviteSecret,
+            bleIdentityKey,
             joinProof,
             eventControl,
             address,
@@ -167,7 +174,7 @@ class RelayCodecTest {
     fun everyWireTypeTheAppUsesIsInTheKnownSet() {
         listOf(
             RelayCodec.CHAT, RelayCodec.CHAT_HISTORY, RelayCodec.BEACON,
-            RelayCodec.INVITE_SECRET, RelayCodec.JOIN_PROOF, RelayCodec.EVENT_CONTROL,
+            RelayCodec.INVITE_SECRET, RelayCodec.BLE_IDENTITY_KEY, RelayCodec.JOIN_PROOF, RelayCodec.EVENT_CONTROL,
             RelayCodec.UWB_ADDRESS, RelayCodec.UWB_PARAMS, RelayCodec.UWB_OFFER, RelayCodec.MOCK_RANGING
         ).forEach { assertTrue("$it is not a known wire type", it in RelayCodec.knownWireTypes) }
     }
@@ -212,8 +219,9 @@ class RelayCodecTest {
         assertTrue(RelayCodec.route(DecodedPayload.Chat(chat), sink))
         assertTrue(RelayCodec.route(DecodedPayload.Beacon(beacon), sink))
         assertTrue(RelayCodec.route(DecodedPayload.InviteSecret(inviteSecret), sink))
+        assertTrue(RelayCodec.route(DecodedPayload.BleIdentityKey(bleIdentityKey), sink))
         assertTrue(RelayCodec.route(DecodedPayload.EventControl(eventControl), sink))
-        assertEquals(listOf<Any>(chat, beacon, inviteSecret, eventControl), sink.delivered)
+        assertEquals(listOf<Any>(chat, beacon, inviteSecret, bleIdentityKey, eventControl), sink.delivered)
 
         // A ranging offer is relayed by a host and consumed by the guest it names,
         // and a scripted range report exists on one transport only: both are the
@@ -221,7 +229,7 @@ class RelayCodecTest {
         assertFalse(RelayCodec.route(DecodedPayload.UwbOffer(offer), sink))
         assertFalse(RelayCodec.route(DecodedPayload.JoinProof(joinProof), sink))
         assertFalse(RelayCodec.route(DecodedPayload.MockRanging(report), sink))
-        assertEquals(4, sink.delivered.size)
+        assertEquals(5, sink.delivered.size)
     }
 
     private fun encodedJson(payload: Any): String = RelayCodec.encode(payload)!!.json
@@ -243,6 +251,7 @@ class RelayCodecTest {
         is DecodedPayload.ChatHistory -> decoded.history
         is DecodedPayload.Beacon -> decoded.beacon
         is DecodedPayload.InviteSecret -> decoded.secret
+        is DecodedPayload.BleIdentityKey -> decoded.identityKey
         is DecodedPayload.JoinProof -> decoded.proof
         is DecodedPayload.EventControl -> decoded.control
         is DecodedPayload.UwbAddress -> decoded.address

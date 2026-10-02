@@ -22,6 +22,7 @@ internal interface PayloadSink {
     fun onChatHistory(history: ChatHistoryPayloadDto)
     fun onBeacon(beacon: BeaconPayloadDto)
     fun onInviteSecret(secret: InviteSecretPayloadDto)
+    fun onBleIdentityKey(identityKey: BleIdentityKeyPayloadDto)
     fun onEventControl(control: EventControlPayloadDto)
     fun onUwbAddress(address: UwbPeerAddressDto)
     fun onUwbParameters(params: UwbControllerParametersDto)
@@ -104,6 +105,12 @@ internal class TransportEvents(private val tag: String) : PayloadSink {
     )
     val receivedInviteSecret: SharedFlow<InviteSecretPayloadDto> = _receivedInviteSecret.asSharedFlow()
 
+    private val _receivedBleIdentityKey = MutableSharedFlow<BleIdentityKeyPayloadDto>(
+        extraBufferCapacity = 8,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+    val receivedBleIdentityKey: SharedFlow<BleIdentityKeyPayloadDto> = _receivedBleIdentityKey.asSharedFlow()
+
     private val _receivedEventControl = MutableSharedFlow<EventControlPayloadDto>(
         extraBufferCapacity = 4,
         onBufferOverflow = BufferOverflow.DROP_OLDEST,
@@ -175,6 +182,10 @@ internal class TransportEvents(private val tag: String) : PayloadSink {
 
     override fun onInviteSecret(secret: InviteSecretPayloadDto) {
         _receivedInviteSecret.tryEmit(secret)
+    }
+
+    override fun onBleIdentityKey(identityKey: BleIdentityKeyPayloadDto) {
+        _receivedBleIdentityKey.tryEmit(identityKey)
     }
 
     override fun onEventControl(control: EventControlPayloadDto) {

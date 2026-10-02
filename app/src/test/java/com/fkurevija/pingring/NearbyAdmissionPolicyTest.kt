@@ -5,6 +5,7 @@ import com.fkurevija.pingring.data.ConnectionAuthenticationRequest
 import com.fkurevija.pingring.data.JOIN_REQUEST_TIMEOUT_MILLIS
 import com.fkurevija.pingring.data.shouldRefuseConnection
 import com.fkurevija.pingring.data.isPayloadSenderAuthorized
+import com.fkurevija.pingring.data.isBleIdentityKeySenderAuthorized
 import com.fkurevija.pingring.data.isWithinSasPromptRateLimit
 import com.fkurevija.pingring.data.expiredAuthenticationRequests
 import org.junit.Assert.assertEquals
@@ -58,6 +59,19 @@ class NearbyAdmissionPolicyTest {
         assertTrue(isPayloadSenderAuthorized(false, "host", "host", "peer-b"))
         assertFalse(isPayloadSenderAuthorized(false, "guest", "host", "peer-b"))
         assertFalse(isPayloadSenderAuthorized(false, "host", null, "peer-b"))
+    }
+
+    @Test
+    fun hostAcceptsBleKeysOnlyWhenTheyMatchAnAuthorizedEndpoint() {
+        assertTrue(isBleIdentityKeySenderAuthorized(true, "endpoint", "a1b2c3d4", true, null, "a1b2c3d4"))
+        assertFalse(isBleIdentityKeySenderAuthorized(true, "endpoint", "a1b2c3d4", true, null, "deadbeef"))
+        assertFalse(isBleIdentityKeySenderAuthorized(true, "endpoint", "a1b2c3d4", false, null, "a1b2c3d4"))
+    }
+
+    @Test
+    fun guestsAcceptBleKeyRostersOnlyFromTheirAuthenticatedHostEndpoint() {
+        assertTrue(isBleIdentityKeySenderAuthorized(false, "host-endpoint", null, false, "host-endpoint", "a1b2c3d4"))
+        assertFalse(isBleIdentityKeySenderAuthorized(false, "guest-endpoint", null, false, "host-endpoint", "a1b2c3d4"))
     }
 
     @Test

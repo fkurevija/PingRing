@@ -241,16 +241,10 @@ class BleAdvertisementPayloadTest {
     @Test
     fun `the payload is exactly the advertised size`() {
         // The size is a budget, not a description: it has to stay under the
-        // 31-byte legacy advertising limit for the advert to be transmittable
-        // at all. See BleRangePolicy. The payload and the policy's copy of the
-        // number are one budget - if they drift apart, the advert is built at a
-        // size nothing is testing against the limit that would reject it.
-        assertEquals(BleRangePolicy.SERVICE_DATA_BYTES, BleAdvertisementPayload.TOTAL_BYTES)
-        assertEquals(BleRangePolicy.SERVICE_DATA_BYTES, encode().size)
-        assertTrue(
-            "the payload must fit legacy advertising",
-            BleRangePolicy.fitsInLegacyAdvertising()
-        )
+        // V4 is retained here only as a codec fixture; production emits V5.
+        assertEquals(BleRangePolicy.LEGACY_V4_SERVICE_DATA_BYTES, BleAdvertisementPayload.TOTAL_BYTES)
+        assertEquals(BleRangePolicy.LEGACY_V4_SERVICE_DATA_BYTES, encode().size)
+        assertTrue(BleRangePolicy.LEGACY_V4_SERVICE_DATA_BYTES <= BleRangePolicy.MAX_LEGACY_SERVICE_DATA_BYTES)
     }
 
     @Test

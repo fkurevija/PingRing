@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.fkurevija.pingring.data.BleAdvertisementPayload
+import com.fkurevija.pingring.data.BleIdentityAdvertisement
 import com.fkurevija.pingring.data.BleRangePolicy
 import com.fkurevija.pingring.data.InviteSecret
 import com.fkurevija.pingring.data.SessionManager
@@ -55,20 +56,17 @@ class DeviceIntegrationInstrumentedTest {
     }
 
     @Test
-    fun theAdvertisementPayloadFitsWhatThePlatformAdvertises() {
-        // The reason the payload is bounded at all: legacy advertising cannot
-        // carry more than 31 bytes of service data, and going over makes the
-        // advert silently untransmittable. Checked against the real constants
-        // here so the two cannot drift apart unnoticed.
+    fun theSignedAdvertisementUsesExtendedAdvertisingDataBudget() {
         assertEquals(
-            "the payload and the documented service-data size must be one number",
+            "the signed payload and policy budget must match",
             BleRangePolicy.SERVICE_DATA_BYTES,
-            BleAdvertisementPayload.TOTAL_BYTES
+            BleIdentityAdvertisement.TOTAL_BYTES
         )
         assertTrue(
-            "the payload must fit legacy advertising",
-            BleRangePolicy.SERVICE_DATA_BYTES <= BleRangePolicy.MAX_LEGACY_SERVICE_DATA_BYTES
+            "the signed payload plus AD structures must fit extended advertising",
+            BleRangePolicy.fitsInExtendedAdvertising()
         )
+        assertTrue(BleRangePolicy.SERVICE_DATA_BYTES > BleRangePolicy.MAX_LEGACY_SERVICE_DATA_BYTES)
     }
 
     @Test
