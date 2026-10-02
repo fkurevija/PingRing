@@ -2,9 +2,10 @@ package com.fkurevija.pingring
 
 import android.os.Bundle
 import android.util.Log
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -23,6 +24,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.os.LocaleListCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -85,7 +87,7 @@ import java.util.UUID
  */
 private const val JOIN_WAIT_TIMEOUT_MILLIS = JOIN_REQUEST_TIMEOUT_MILLIS + 15_000L
 
-class MainActivity : ComponentActivity() {
+class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
@@ -183,7 +185,13 @@ fun MainNavigation(
     val currentThemeMode by rememberUpdatedState(themeMode)
     val savedUsername by appearanceSettings.userName.collectAsState(initial = "")
     val quickBeacon by appearanceSettings.quickBeacon.collectAsState(initial = null)
-    val chatBubbleColor by appearanceSettings.chatBubbleColor.collectAsState(initial = null)
+    val chatColorEventId by sessionManager.sessionState
+        .map { it.currentEvent?.id.orEmpty() }
+        .collectAsState(initial = sessionManager.sessionState.value.currentEvent?.id.orEmpty())
+    val chatBubbleColorFlow = remember(chatColorEventId) {
+        appearanceSettings.chatBubbleColor(chatColorEventId)
+    }
+    val chatBubbleColor by chatBubbleColorFlow.collectAsState(initial = null)
     val radarScreenReaderSummaryEnabled by appearanceSettings.radarScreenReaderSummaryEnabled.collectAsState(initial = false)
     // Devices waiting on the host to approve. Collected here rather than inside
     // the screen because the screen has to compose with no repository at all,
@@ -363,6 +371,10 @@ fun MainNavigation(
 
                 is AppSettingsKey -> {
                     AppSettingsScreen(
+                        selectedLanguageTag = AppCompatDelegate.getApplicationLocales().toLanguageTags(),
+                        onLanguageSelected = { languageTag ->
+                            AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(languageTag))
+                        },
                         onOpenAppearance = { backStack.add(AppearanceSettingsKey) },
                         onOpenNotifications = { backStack.add(NotificationSettingsKey) },
                         onOpenAccessibility = { backStack.add(AccessibilitySettingsKey) },
@@ -376,7 +388,6 @@ fun MainNavigation(
                     AppearanceSettingsScreen(
                         themeMode = currentThemeMode,
                         onThemeModeChange = appearanceSettings::setThemeMode,
-                        appearanceSettings = appearanceSettings,
                         onBack = { backStack.popBack() },
                     )
                 }
@@ -409,6 +420,10 @@ fun MainNavigation(
                         val isHost = sessionState.isHost
                         PingRingSettingsScreen(
                             event = event,
+                            chatBubbleColorArgb = chatBubbleColor,
+                            onChatBubbleColorChange = { color ->
+                                appearanceSettings.setChatBubbleColor(event.id, color)
+                            },
                             uwbHardwareSupported = discoveryRepository.isUwbSupported(),
                             isHost = isHost,
                             onBack = { backStack.popBack() },

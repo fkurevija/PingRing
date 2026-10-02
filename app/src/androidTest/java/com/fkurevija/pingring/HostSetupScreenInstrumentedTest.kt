@@ -3,6 +3,8 @@ package com.fkurevija.pingring
 import android.content.Context
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -74,12 +76,13 @@ class HostSetupScreenInstrumentedTest {
     }
 
     @Test
-    fun theFullSettingsAreReachableFromTheHostScreen() {
+    fun pingRingSettingsReplacesTheRedundantToolbarLink() {
         var opened = 0
         show(onOpenSettings = { opened++ })
 
-        composeRule.onNodeWithText("All Settings").assertIsDisplayed()
-        composeRule.onNodeWithText("All Settings").performClick()
+        composeRule.onNodeWithText("All Settings").assertDoesNotExist()
+        composeRule.onAllNodesWithText("PingRing Settings").assertCountEquals(2)
+        composeRule.onAllNodesWithText("PingRing Settings")[1].performClick()
         composeRule.waitForIdle()
 
         assertEquals(1, opened)
@@ -104,7 +107,7 @@ class HostSetupScreenInstrumentedTest {
 
         // Removing the duplicates only helps if the way in is obvious. The card
         // is the whole point of this screen now, so it has to be findable.
-        composeRule.onNodeWithText("Event Settings").assertIsDisplayed()
+        composeRule.onAllNodesWithText("PingRing Settings").assertCountEquals(2)
     }
 
     @Test

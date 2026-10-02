@@ -2,7 +2,13 @@ package com.fkurevija.pingring.ui.screens
 
 import android.content.pm.PackageManager
 import android.os.Build
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,9 +21,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.GroupAdd
 import androidx.compose.material.icons.filled.Notifications
@@ -27,6 +35,7 @@ import androidx.compose.material.icons.filled.TravelExplore
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -38,14 +47,24 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -53,6 +72,7 @@ import androidx.compose.ui.unit.dp
 import com.fkurevija.pingring.data.ConnectionMethodPolicy
 import com.fkurevija.pingring.data.ConnectionMethodPolicy.Unavailable
 import com.fkurevija.pingring.data.Event
+import com.fkurevija.pingring.data.ChatBubbleColorPreset
 import com.fkurevija.pingring.data.MAX_PARTICIPANTS
 import com.fkurevija.pingring.R
 import com.fkurevija.pingring.ui.permissions.rememberUwbAvailability
@@ -61,6 +81,8 @@ import com.fkurevija.pingring.ui.permissions.rememberUwbAvailability
 @Composable
 fun PingRingSettingsScreen(
     event: Event,
+    chatBubbleColorArgb: Long?,
+    onChatBubbleColorChange: (Long?) -> Unit,
     uwbHardwareSupported: Boolean,
     isHost: Boolean,
     onBack: () -> Unit,
@@ -76,7 +98,21 @@ fun PingRingSettingsScreen(
     var useUwb by remember(event, uwbAvailability.isUsable) { mutableStateOf(event.useUwb && uwbAvailability.isUsable) }
     var useWifiDirect by remember(event) { mutableStateOf(event.useWifiDirect) }
     var chatNotificationsEnabled by remember(event) { mutableStateOf(event.chatNotificationsEnabled) }
+    var selectedChatColor by remember(event.id) { mutableStateOf(chatBubbleColorArgb) }
+    var previousChatColor by remember(event.id) { mutableStateOf<Long?>(null) }
+    var canUndoChatColor by remember(event.id) { mutableStateOf(false) }
+    var showCustomChatColorPicker by remember { mutableStateOf(false) }
     var showEndConfirmation by remember { mutableStateOf(false) }
+    LaunchedEffect(event.id, chatBubbleColorArgb) {
+        selectedChatColor = chatBubbleColorArgb
+    }
+    fun chooseChatColor(color: Long?) {
+        if (color == selectedChatColor) return
+        previousChatColor = selectedChatColor
+        selectedChatColor = color
+        canUndoChatColor = true
+        onChatBubbleColorChange(color)
+    }
 
     Scaffold(
         topBar = {
@@ -321,6 +357,69 @@ fun PingRingSettingsScreen(
                 }
             }
 
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+            ) {
+                Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(stringResource(R.string.chat_bubble_colour), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                stringResource(R.string.chat_bubble_colour_description),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        if (canUndoChatColor) {
+                            TextButton(
+                                onClick = {
+                                    chooseChatColor(previousChatColor)
+                                    canUndoChatColor = false
+                                }
+                            ) {
+                                Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = null)
+                                Spacer(Modifier.width(4.dp))
+                                Text(stringResource(R.string.undo))
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        ChatBubbleColorPreset.entries.forEach { preset ->
+                            val selected = selectedChatColor == preset.colorArgb
+                            val presetDescription = stringResource(
+                                R.string.set_chat_bubble_colour_to,
+                                stringResource(preset.labelRes),
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .background(Color(preset.colorArgb), CircleShape)
+                                    .border(
+                                        width = if (selected) 3.dp else 0.dp,
+                                        color = if (selected) MaterialTheme.colorScheme.onSurface else Color.Transparent,
+                                        shape = CircleShape,
+                                    )
+                                    .semantics { contentDescription = presetDescription }
+                                    .clickable { chooseChatColor(preset.colorArgb) },
+                            )
+                        }
+                        TextButton(onClick = { showCustomChatColorPicker = true }) {
+                            Text(stringResource(R.string.custom))
+                        }
+                    }
+                    TextButton(onClick = { chooseChatColor(null) }, enabled = selectedChatColor != null) {
+                        Text(stringResource(R.string.use_theme_colour))
+                    }
+                }
+            }
+
             // End/Leave live here rather than on the radar, next to the other
             // settings for a live PingRing. It is destructive and awkward to
             // undo, so it reads better grouped with settings than sitting in a
@@ -367,6 +466,13 @@ fun PingRingSettingsScreen(
         }
     }
 
+    if (showCustomChatColorPicker) {
+        ChatBubbleColorPickerDialog(
+            onDismiss = { showCustomChatColorPicker = false },
+            onColorSelected = ::chooseChatColor,
+        )
+    }
+
     if (showEndConfirmation) {
         EndPingRingDialog(
             isHost = isHost,
@@ -378,6 +484,58 @@ fun PingRingSettingsScreen(
         )
     }
 }
+
+@Composable
+private fun ChatBubbleColorPickerDialog(
+    onDismiss: () -> Unit,
+    onColorSelected: (Long) -> Unit,
+) {
+    var hue by remember { mutableFloatStateOf(0f) }
+    val selectedColor = Color.hsv(hue, 0.72f, 0.72f)
+    val wheelColors = listOf(Color.Red, Color.Yellow, Color.Green, Color.Cyan, Color.Blue, Color.Magenta, Color.Red)
+    val hueWheelDescription = stringResource(R.string.chat_colour_hue_wheel)
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {},
+        title = { Text(stringResource(R.string.custom_chat_colour)) },
+        text = {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Canvas(
+                    modifier = Modifier
+                        .size(220.dp)
+                        .semantics { contentDescription = hueWheelDescription }
+                        .pointerInput(Unit) {
+                            detectTapGestures { tap ->
+                                val centre = Offset(size.width / 2f, size.height / 2f)
+                                val fromCentre = tap - centre
+                                if (kotlin.math.sqrt(fromCentre.x * fromCentre.x + fromCentre.y * fromCentre.y) <= minOf(size.width, size.height) / 2f) {
+                                    hue = ((Math.toDegrees(kotlin.math.atan2(fromCentre.y.toDouble(), fromCentre.x.toDouble())) + 90.0 + 360.0) % 360.0).toFloat()
+                                    onColorSelected(Color.hsv(hue, 0.72f, 0.72f).toArgb().toLong() and 0xFFFF_FFFFL)
+                                }
+                            }
+                        },
+                ) {
+                    drawCircle(brush = Brush.sweepGradient(wheelColors))
+                    drawCircle(color = selectedColor, radius = size.minDimension * 0.12f)
+                }
+                Spacer(Modifier.height(12.dp))
+                Text(stringResource(R.string.choose_hue), style = MaterialTheme.typography.bodyMedium)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) }
+        },
+    )
+}
+
+private val ChatBubbleColorPreset.labelRes: Int
+    get() = when (this) {
+        ChatBubbleColorPreset.OCEAN -> R.string.color_preset_ocean
+        ChatBubbleColorPreset.BERRY -> R.string.color_preset_berry
+        ChatBubbleColorPreset.GOLD -> R.string.color_preset_gold
+        ChatBubbleColorPreset.SLATE -> R.string.color_preset_slate
+    }
 
 private val Unavailable.descriptionRes: Int
     get() = when (this) {

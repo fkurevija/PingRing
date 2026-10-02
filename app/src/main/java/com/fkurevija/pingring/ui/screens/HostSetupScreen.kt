@@ -35,7 +35,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -112,9 +111,6 @@ fun HostSetupScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.end_pingring))
                     }
                 },
-                actions = {
-                    TextButton(onClick = onOpenSettings) { Text(stringResource(R.string.all_settings)) }
-                }
             )
         },
         bottomBar = {
@@ -237,7 +233,7 @@ fun HostSetupScreen(
             ) {
                 Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                     Text(
-                        stringResource(R.string.event_settings),
+                        stringResource(R.string.pingring_settings),
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
@@ -256,7 +252,7 @@ fun HostSetupScreen(
                     ) {
                         Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text(stringResource(R.string.event_settings), fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.pingring_settings), fontWeight = FontWeight.SemiBold)
                     }
                 }
             }

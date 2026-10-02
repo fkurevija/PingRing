@@ -33,7 +33,7 @@ How to use PingRing as it exists today — what each screen does and which switc
 1. Tap **Create a PingRing** on the home screen.
 2. Enter a **Username**. It is saved on the device and pre-filled next time. Names must be unique within a session — a collision is refused with an alert.
 3. Share the **QR code** when possible; it contains the 256-bit invitation secret. The 6-character **PingRing Code** (`e.g. AB12CD`) is a public event locator, not a secret.
-4. If you want to change anything about the ring — who may join, tracking, UWB, notifications — tap **Event Settings**, or **All Settings** in the top bar. That screen owns every one of them; this one deliberately carries none, so there is only ever one copy of each switch.
+4. If you want to change who may join, chat colour, tracking, UWB, or notifications, tap **PingRing Settings** in the settings section. The host screen keeps these controls in one place.
 5. Tap **Launch Radar**.
 
 Everything in step 4 has a working default, so you can skip it and launch straight away.
@@ -145,7 +145,7 @@ If none is set, tapping Quick Beacon says so and opens the beacon sheet, rather 
 
 ## PingRing Settings
 
-Reached from the host setup screen's **Event Settings** card or its **All Settings** link, or from **Settings** in the radar's top bar (hosts only). This is the only screen that owns the event switches — the host setup screen deliberately carries none, so there is only one copy of each. Changes apply to the live PingRing — press **Save Changes**, or **Cancel** to discard.
+Reached from the host setup screen's **PingRing Settings** card or from **Settings** in the radar's top bar. This is the only screen that owns the event switches — the host setup screen deliberately carries none, so there is only one copy of each. Event switches apply when you press **Save Changes**; chat colour saves as soon as you select it.
 
 **Connectivity & Participation**
 - **Accept New Members** — allow new members to join. Turning it off rejects further authenticated Nearby requests and hides the QR button until it is back on.
@@ -155,6 +155,7 @@ Reached from the host setup screen's **Event Settings** card or its **All Settin
 - **Ultra-wideband (UWB)** — sub-metre ranging. When it is off, the row says *why*: this device has no UWB radio; ranging needs permission (tap the row to grant it); or ranging needs Android 12 or newer.
 - **High Bandwidth (Wi-Fi)** — always on, nothing to change.
 - **Chat Notifications** — notifications for this event.
+- **Chat Bubble Colour** — choose a preset or custom hue for your messages in this PingRing. Each selection saves immediately. **Undo** restores your previous colour; **Use theme colour** clears the event-specific choice.
 - **Max Capacity** — 8 members (1 host + 7 guests), enforced by the host.
 
 **Danger Zone**
@@ -167,8 +168,8 @@ Reached from the host setup screen's **Event Settings** card or its **All Settin
 
 The gear icon on the home screen, before hosting or joining. These are device-wide preferences, grouped so one control has one clear owner.
 
-- **Language** — PingRing follows your device language. On Android 13 or newer, choose English, Croatian, Spanish, French, Canadian French, German, or Russian for PingRing alone in the system's app-language settings. On earlier versions, change the device language.
-- **Appearance** — *Theme Mode* is *System Default*, *Light Theme* or *Dark Theme*. PingRing uses a fixed violet brand palette in both modes; it deliberately does not follow Material You wallpaper colours. **Chat Bubble Colour** offers Ocean, Berry, Gold, Slate, or **Custom** from a hue wheel. The choice is saved on this phone and included with new chat messages; clearing it returns new messages to the normal theme colour.
+- **Language** — choose System Default or one of the available languages: English, Croatian, Spanish, French, Canadian French, German, or Russian. The choice applies to PingRing alone.
+- **Appearance** — *Theme Mode* is *System Default*, *Light Theme* or *Dark Theme*. PingRing uses a fixed violet brand palette in both modes; it deliberately does not follow Material You wallpaper colours.
 - **Notifications** — **Chat Push Notifications**, **Notification Sound**, and **Notification Vibration** govern device-wide incoming-chat notifications. The PingRing-specific **Chat Notifications** switch remains in [PingRing Settings](#pingring-settings), where it controls only that event.
 - **Accessibility** — optional accessibility features. **Radar screen-reader summary** is off by default; enable it to have TalkBack announce the tracked member, distance or signal state, direction, and active beacon.
 - **Developer Options** — shown only in debug builds. It contains the LAN Debug Transport and relay host. See [Building & Testing](building.md) for how to use it.

@@ -14,13 +14,21 @@ import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -30,6 +38,8 @@ import com.fkurevija.pingring.R
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppSettingsScreen(
+    selectedLanguageTag: String,
+    onLanguageSelected: (String) -> Unit,
     onOpenAppearance: () -> Unit,
     onOpenNotifications: () -> Unit,
     onOpenAccessibility: () -> Unit,
@@ -37,6 +47,18 @@ fun AppSettingsScreen(
     onOpenDeveloperOptions: () -> Unit,
     onBack: () -> Unit,
 ) {
+    val languages = listOf(
+        "" to R.string.language_system_default,
+        "en" to R.string.language_english,
+        "hr" to R.string.language_croatian,
+        "es" to R.string.language_spanish,
+        "fr" to R.string.language_french,
+        "fr-CA" to R.string.language_french_canada,
+        "de" to R.string.language_german,
+        "ru" to R.string.language_russian,
+    )
+    var languageMenuExpanded by remember { mutableStateOf(false) }
+    val selectedLanguage = languages.firstOrNull { it.first == selectedLanguageTag } ?: languages.first()
     Scaffold(
         topBar = {
             TopAppBar(
@@ -52,6 +74,40 @@ fun AppSettingsScreen(
         Column(
             modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp)
         ) {
+            ExposedDropdownMenuBox(
+                expanded = languageMenuExpanded,
+                onExpandedChange = { languageMenuExpanded = it },
+                modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+            ) {
+                OutlinedTextField(
+                    value = stringResource(selectedLanguage.second),
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text(stringResource(R.string.language)) },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = languageMenuExpanded) },
+                    modifier = Modifier.fillMaxWidth().menuAnchor(),
+                )
+                ExposedDropdownMenu(
+                    expanded = languageMenuExpanded,
+                    onDismissRequest = { languageMenuExpanded = false },
+                ) {
+                    languages.forEach { (tag, labelRes) ->
+                        DropdownMenuItem(
+                            text = { Text(stringResource(labelRes)) },
+                            onClick = {
+                                languageMenuExpanded = false
+                                onLanguageSelected(tag)
+                            },
+                        )
+                    }
+                }
+            }
+            Text(
+                stringResource(R.string.language_description),
+                modifier = Modifier.padding(top = 4.dp, start = 4.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             SettingsSubmenuCard(
                 icon = { Icon(Icons.Default.Palette, contentDescription = null) },
                 title = stringResource(R.string.appearance_title),

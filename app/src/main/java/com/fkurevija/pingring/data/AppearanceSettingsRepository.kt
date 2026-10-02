@@ -24,7 +24,6 @@ enum class ThemeMode {
 private val Context.appearanceDataStore by preferencesDataStore(name = "appearance")
 private val themeModeKey = stringPreferencesKey("theme_mode")
 private val userNameKey = stringPreferencesKey("user_name")
-private val chatBubbleColorKey = longPreferencesKey("chat_bubble_color")
 private val radarScreenReaderSummaryEnabledKey = booleanPreferencesKey("radar_screen_reader_summary_enabled")
 private val chatNotificationsEnabledKey = booleanPreferencesKey("chat_notifications_enabled")
 private val notificationSoundEnabledKey = booleanPreferencesKey("notification_sound_enabled")
@@ -54,8 +53,8 @@ class AppearanceSettingsRepository(private val context: Context) {
     }
 
     /** Null means that outgoing messages keep the current theme's bubble colour. */
-    val chatBubbleColor: Flow<Long?> = context.appearanceDataStore.data.map { preferences ->
-        preferences[chatBubbleColorKey]
+    fun chatBubbleColor(eventId: String): Flow<Long?> = context.appearanceDataStore.data.map { preferences ->
+        preferences[longPreferencesKey("chat_bubble_color_$eventId")]
     }
 
     val radarScreenReaderSummaryEnabled: Flow<Boolean> = context.appearanceDataStore.data.map { preferences ->
@@ -97,11 +96,12 @@ class AppearanceSettingsRepository(private val context: Context) {
         }
     }
 
-    fun setChatBubbleColor(colorArgb: Long?) {
+    fun setChatBubbleColor(eventId: String, colorArgb: Long?) {
+        val key = longPreferencesKey("chat_bubble_color_$eventId")
         scope.launch {
             context.appearanceDataStore.edit { preferences ->
-                if (colorArgb == null) preferences.remove(chatBubbleColorKey)
-                else preferences[chatBubbleColorKey] = colorArgb
+                if (colorArgb == null) preferences.remove(key)
+                else preferences[key] = colorArgb
             }
         }
     }
