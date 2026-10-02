@@ -2,6 +2,8 @@ package com.fkurevija.pingring
 
 import com.fkurevija.pingring.data.RssiDistanceEstimator
 import com.fkurevija.pingring.data.RssiSmoother
+import com.fkurevija.pingring.data.BleSignalWarningTracker
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -14,6 +16,29 @@ import org.junit.Test
  * the radar froze on the distance a peer had when it was first seen.
  */
 class RssiDistanceEstimatorTest {
+
+    @Test
+    fun weakSignalWarningRequiresSustainedSmoothedRssi() {
+        val tracker = BleSignalWarningTracker()
+
+        assertFalse(tracker.update("peer", -86f, 0L))
+        assertFalse(tracker.update("peer", -86f, BleSignalWarningTracker.WARNING_DURATION_MILLIS - 1L))
+        assertTrue(tracker.update("peer", -86f, BleSignalWarningTracker.WARNING_DURATION_MILLIS))
+    }
+
+    @Test
+    fun weakSignalWarningHasHysteresisAndPersistsThroughAnImmediateFade() {
+        val tracker = BleSignalWarningTracker()
+
+        assertFalse(tracker.update("peer", -86f, 0L))
+        assertFalse(tracker.update("peer", -82f, 500L))
+        assertFalse(tracker.update("peer", -86f, 1_000L))
+        assertFalse(tracker.update("peer", -86f, 2_499L))
+        assertTrue(tracker.update("peer", -86f, 2_500L))
+        assertTrue(tracker.update("peer", -83f, 2_600L))
+        assertTrue(tracker.update("peer", null, 2_700L))
+        assertFalse(tracker.update("peer", -79f, 2_800L))
+    }
 
     /**
      * Reference receiver sensitivity for LE 1M, the PHY every un-coded

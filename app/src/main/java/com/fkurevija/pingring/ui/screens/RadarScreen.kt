@@ -349,6 +349,42 @@ fun RadarScreen(
                 }
             }
 
+            val weakSignalPeers = peers.filter { it.signalWeak }
+            val trackedWeakPeer = focusedPeer?.takeIf { it.signalWeak }
+            val weakSignalMessage = when {
+                trackedWeakPeer != null -> stringResource(
+                    R.string.radar_weak_tracked_signal,
+                    trackedWeakPeer.name,
+                )
+                weakSignalPeers.isNotEmpty() -> stringResource(
+                    R.string.radar_weak_group_signal,
+                    weakSignalPeers.size,
+                )
+                else -> null
+            }
+            weakSignalMessage?.let { message ->
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                    ),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Row(
+                        Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.BluetoothDisabled, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = message,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+            }
+
             // Devices waiting to be let in. Above the beacon banner: a request is
             // a question being asked of the host right now, and a live beacon is
             // a statement already made. Approving is the accept that opens the

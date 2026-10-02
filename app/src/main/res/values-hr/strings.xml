@@ -169,6 +169,8 @@
     <string name="beacon_sender_pattern">%1$s · %2$s</string>
     <string name="bluetooth_off_discovery">Bluetooth je isključen. Uključite ga za otkrivanje uređaja u blizini.</string>
     <string name="ble_identity_unavailable">Provjera blizine putem BLE-a nije dostupna na ovom uređaju. Blizina na temelju RSSI-ja je isključena.</string>
+    <string name="radar_weak_tracked_signal">BLE signal osobe %1$s je slab. Njezina blizina može uskoro nestati; približite se.</string>
+    <string name="radar_weak_group_signal">BLE signal je slab kod %1$d članova grupe. Njihova blizina može uskoro nestati.</string>
     <string name="recheck">Provjeri ponovno</string>
     <string name="member_count">Članovi (%1$d/%2$d)</string>
     <string name="member_count_full">Članovi (%1$d/%2$d - puno)</string>

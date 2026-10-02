@@ -51,6 +51,7 @@ data class RadarPeerUpdate(
     val worldDirectionY: Float?,
     val worldDirectionZ: Float?,
     val lastSeen: Long,
+    val signalWeak: Boolean = false,
     /**
      * When this peer reported that it joined the event, in epoch millis.
      *
@@ -641,6 +642,7 @@ class DiscoveryRepository(
     // twitches with every advert. One instance per peer: the readings of eight
     // members in a ring must not average into each other.
     private val rssiSmoothers = mutableMapOf<String, RssiSmoother>()
+    private val bleSignalWarningTracker = BleSignalWarningTracker()
 
     /**
      * The member the user has chosen to track, or null for "auto" (nearest).
@@ -1187,6 +1189,7 @@ class DiscoveryRepository(
         bleIdentityKeys.clear()
         latestBleAdvertisementSequences.clear()
         nextBleAdvertisementSequence.set(0L)
+        bleSignalWarningTracker.clear()
         // Every retained address goes too, and this is the only place that does
         // it. Leaving, or the host ending the ring, must leave nothing rangeable
         // behind: a member that left is not still a member, and a session that
@@ -1757,8 +1760,14 @@ class DiscoveryRepository(
         // estimate, which is a rolling average over the last couple of seconds
         // of adverts - the curve is applied to the mean, not to each reading,
         // so one reflected packet cannot move the readout.
-        val rssiEstimate = rssiSmoothers.getOrPut(peerId) { RssiSmoother() }
-            .add(rssi, System.currentTimeMillis())
+        val nowMillis = System.currentTimeMillis()
+        val rssiSmoother = rssiSmoothers.getOrPut(peerId) { RssiSmoother() }
+        val rssiEstimate = rssiSmoother.add(rssi, nowMillis)
+        val signalWeak = bleSignalWarningTracker.update(
+            peerId = peerId,
+            smoothedRssiDbm = rssiSmoother.smoothedRssi(nowMillis),
+            nowMillis = nowMillis,
+        )
         val hasUwbFix = uwbRangedPeers.contains(peerId)
 
         val updated = RadarPeerUpdate(
@@ -1772,7 +1781,8 @@ class DiscoveryRepository(
             worldDirectionX = existing?.worldDirectionX,
             worldDirectionY = existing?.worldDirectionY,
             worldDirectionZ = existing?.worldDirectionZ,
-            lastSeen = System.currentTimeMillis(),
+            lastSeen = nowMillis,
+            signalWeak = signalWeak,
             // Cross-checked only once a UWB fix exists to check against. Before
             // that there is a single source and the answer is UNKNOWN, which the
             // radar shows as an estimate rather than as a confirmed distance.
@@ -1835,6 +1845,7 @@ class DiscoveryRepository(
         // average would seed it with a distance from a session that is over.
         uwbRangedPeers.remove(peerId)
         rssiSmoothers.remove(peerId)
+        bleSignalWarningTracker.remove(peerId)
         lastUwbMeasurementAt.remove(peerId)
         retainedRangingPeerIds.remove(peerId)
         // Forget the label too, so a member who leaves and rejoins is numbered
