@@ -1,6 +1,7 @@
 package com.fkurevija.pingring
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
@@ -11,6 +12,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.platform.app.InstrumentationRegistry
 import com.fkurevija.pingring.data.Event
+import com.fkurevija.pingring.data.ChatBubblePalette
 import com.fkurevija.pingring.ui.screens.PingRingSettingsScreen
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -22,13 +24,19 @@ class PingRingSettingsScreenInstrumentedTest {
 
     private val context = InstrumentationRegistry.getInstrumentation().targetContext
 
-    private fun showSettings(event: Event, isHost: Boolean, onSave: (Event) -> Unit) {
+    private fun showSettings(
+        event: Event,
+        isHost: Boolean,
+        onChatBubbleColorChange: (Long?) -> Unit = {},
+        onSave: (Event) -> Unit,
+    ) {
         composeRule.setContent {
             MaterialTheme {
                 PingRingSettingsScreen(
                     event = event,
+                    localPeerId = "a1b2c3d4",
                     chatBubbleColorArgb = null,
-                    onChatBubbleColorChange = {},
+                    onChatBubbleColorChange = onChatBubbleColorChange,
                     uwbHardwareSupported = false,
                     isHost = isHost,
                     onBack = {},
@@ -77,5 +85,25 @@ class PingRingSettingsScreenInstrumentedTest {
         composeRule.onNodeWithText(context.getString(R.string.save_changes)).performClick()
 
         composeRule.runOnIdle { assertEquals(true, saved?.trackHost) }
+    }
+
+    @Test
+    fun randomizedPresetsDisplayAndSelectTheirActualColors() {
+        val event = Event.create("4C1A9B")
+        val colors = ChatBubblePalette.forMember(event.id, "a1b2c3d4")
+        var selected: Long? = null
+        showSettings(event, isHost = false, onChatBubbleColorChange = { selected = it }, onSave = {})
+
+        colors.forEach { colorArgb ->
+            val label = context.getString(
+                R.string.set_chat_bubble_colour_to,
+                String.format(java.util.Locale.ROOT, "#%06X", colorArgb and 0xFFFFFFL),
+            )
+            composeRule.onNodeWithContentDescription(label)
+                .performScrollTo()
+                .assertIsDisplayed()
+                .performClick()
+            composeRule.runOnIdle { assertEquals(colorArgb, selected) }
+        }
     }
 }

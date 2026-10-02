@@ -135,11 +135,22 @@ enum class BeaconVibrationPattern(val displayName: String, val pattern: LongArra
     }
 }
 
-enum class ChatBubbleColorPreset(val label: String, val colorArgb: Long) {
-    OCEAN("Ocean", 0xFF00695C),
-    BERRY("Berry", 0xFFAD1457),
-    GOLD("Gold", 0xFF8D5A00),
-    SLATE("Slate", 0xFF455A64),
+object ChatBubblePalette {
+    private val colors = listOf(
+        0xFF00695CL, 0xFFAD1457L, 0xFF8D5A00L, 0xFF455A64L,
+        0xFF1565C0L, 0xFF2E7D32L, 0xFF6A1B9AL, 0xFFB71C1CL,
+        0xFF00838FL, 0xFF4527A0L, 0xFF9E4700L, 0xFF37474FL,
+        0xFF006747L, 0xFF880E4FL, 0xFF283593L, 0xFF5D4037L,
+        0xFF33691EL, 0xFF7B1FA2L, 0xFF0277BDL, 0xFFAF351FL,
+        0xFF005B70L, 0xFF795500L, 0xFF7C2549L, 0xFF3E596CL,
+    )
+
+    fun forMember(eventId: String, peerId: String): List<Long> {
+        val seedBytes = java.security.MessageDigest.getInstance("SHA-256")
+            .digest("$eventId:$peerId".toByteArray(Charsets.UTF_8))
+        val seed = java.nio.ByteBuffer.wrap(seedBytes).long
+        return colors.shuffled(kotlin.random.Random(seed)).take(4)
+    }
 }
 
 enum class BeaconPreset(

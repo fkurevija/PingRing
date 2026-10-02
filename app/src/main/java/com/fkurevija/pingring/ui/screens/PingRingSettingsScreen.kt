@@ -73,7 +73,7 @@ import androidx.compose.ui.unit.dp
 import com.fkurevija.pingring.data.ConnectionMethodPolicy
 import com.fkurevija.pingring.data.ConnectionMethodPolicy.Unavailable
 import com.fkurevija.pingring.data.Event
-import com.fkurevija.pingring.data.ChatBubbleColorPreset
+import com.fkurevija.pingring.data.ChatBubblePalette
 import com.fkurevija.pingring.data.MAX_PARTICIPANTS
 import com.fkurevija.pingring.R
 import com.fkurevija.pingring.ui.permissions.rememberUwbAvailability
@@ -82,6 +82,7 @@ import com.fkurevija.pingring.ui.permissions.rememberUwbAvailability
 @Composable
 fun PingRingSettingsScreen(
     event: Event,
+    localPeerId: String,
     chatBubbleColorArgb: Long?,
     onChatBubbleColorChange: (Long?) -> Unit,
     uwbHardwareSupported: Boolean,
@@ -101,6 +102,9 @@ fun PingRingSettingsScreen(
     var useWifiDirect by remember(event) { mutableStateOf(event.useWifiDirect) }
     var chatNotificationsEnabled by remember(event) { mutableStateOf(event.chatNotificationsEnabled) }
     var selectedChatColor by remember(event.id) { mutableStateOf(chatBubbleColorArgb) }
+    val chatColorPresets = remember(event.id, localPeerId) {
+        ChatBubblePalette.forMember(event.id, localPeerId)
+    }
     var previousChatColor by remember(event.id) { mutableStateOf<Long?>(null) }
     var canUndoChatColor by remember(event.id) { mutableStateOf(false) }
     var showCustomChatColorPicker by remember { mutableStateOf(false) }
@@ -416,23 +420,23 @@ fun PingRingSettingsScreen(
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        ChatBubbleColorPreset.entries.forEach { preset ->
-                            val selected = selectedChatColor == preset.colorArgb
+                        chatColorPresets.forEach { colorArgb ->
+                            val selected = selectedChatColor == colorArgb
                             val presetDescription = stringResource(
                                 R.string.set_chat_bubble_colour_to,
-                                stringResource(preset.labelRes),
+                                String.format(java.util.Locale.ROOT, "#%06X", colorArgb and 0xFFFFFFL),
                             )
                             Box(
                                 modifier = Modifier
                                     .size(36.dp)
-                                    .background(Color(preset.colorArgb), CircleShape)
+                                    .background(Color(colorArgb), CircleShape)
                                     .border(
                                         width = if (selected) 3.dp else 0.dp,
                                         color = if (selected) MaterialTheme.colorScheme.onSurface else Color.Transparent,
                                         shape = CircleShape,
                                     )
                                     .semantics { contentDescription = presetDescription }
-                                    .clickable { chooseChatColor(preset.colorArgb) },
+                                    .clickable { chooseChatColor(colorArgb) },
                             )
                         }
                         TextButton(onClick = { showCustomChatColorPicker = true }) {
@@ -553,14 +557,6 @@ private fun ChatBubbleColorPickerDialog(
         },
     )
 }
-
-private val ChatBubbleColorPreset.labelRes: Int
-    get() = when (this) {
-        ChatBubbleColorPreset.OCEAN -> R.string.color_preset_ocean
-        ChatBubbleColorPreset.BERRY -> R.string.color_preset_berry
-        ChatBubbleColorPreset.GOLD -> R.string.color_preset_gold
-        ChatBubbleColorPreset.SLATE -> R.string.color_preset_slate
-    }
 
 private val Unavailable.descriptionRes: Int
     get() = when (this) {

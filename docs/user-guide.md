@@ -168,7 +168,7 @@ Reached from the host setup screen's **PingRing Settings** card or from **Settin
 - **Ultra-wideband (UWB)** — sub-metre ranging. When it is off, the row says *why*: this device has no UWB radio; ranging needs permission (tap the row to grant it); or ranging needs Android 12 or newer.
 - **High Bandwidth (Wi-Fi)** — always on, nothing to change.
 - **Chat Notifications** — notifications for this event.
-- **Chat Bubble Colour** — choose a preset or custom hue for your messages in this PingRing. Each selection saves immediately. **Undo** restores your previous colour; **Use theme colour** clears the event-specific choice.
+- **Chat Bubble Colour** — choose one of four randomized presets or a custom hue for your messages. Hosting or joining a new PingRing gives each member an independent preset palette; reopening settings in the same Ring keeps it unchanged. Each selection saves immediately. **Undo** restores your previous colour; **Use theme colour** clears the event-specific choice.
 - **Max Capacity** — 8 members (1 host + 7 guests), enforced by the host.
 
 **Danger Zone**

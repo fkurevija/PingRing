@@ -430,6 +430,7 @@ fun MainNavigation(
                         val isHost = sessionState.isHost
                         PingRingSettingsScreen(
                             event = event,
+                            localPeerId = sessionManager.peerId.value,
                             chatBubbleColorArgb = chatBubbleColor,
                             onChatBubbleColorChange = { color ->
                                 appearanceSettings.setChatBubbleColor(event.id, color)

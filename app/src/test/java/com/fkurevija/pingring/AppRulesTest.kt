@@ -3,7 +3,7 @@ package com.fkurevija.pingring
 import com.fkurevija.pingring.data.BeaconPreset
 import com.fkurevija.pingring.data.BeaconVibrationPattern
 import com.fkurevija.pingring.data.AccessibilityFeature
-import com.fkurevija.pingring.data.ChatBubbleColorPreset
+import com.fkurevija.pingring.data.ChatBubblePalette
 import com.fkurevija.pingring.data.ChatMessageOwnership
 import com.fkurevija.pingring.data.ChatNotificationPolicy
 import com.fkurevija.pingring.data.CoordinationSyncState
@@ -130,12 +130,25 @@ class AppRulesTest {
 
     @Test
     fun chatBubblePresetsAreFourDistinctVisibleColors() {
-        assertEquals(4, ChatBubbleColorPreset.entries.size)
+        val colors = ChatBubblePalette.forMember("4C1A9B", "a1b2c3d4")
+        assertEquals(4, colors.size)
+        assertEquals(4, colors.distinct().size)
+        assertTrue(colors.all { it ushr 24 == 0xFFL })
+    }
+
+    @Test
+    fun chatBubblePresetsStayStableForTheSameMemberAndRing() {
         assertEquals(
-            ChatBubbleColorPreset.entries.size,
-            ChatBubbleColorPreset.entries.map { it.colorArgb }.distinct().size,
+            ChatBubblePalette.forMember("4C1A9B", "a1b2c3d4"),
+            ChatBubblePalette.forMember("4C1A9B", "a1b2c3d4"),
         )
-        assertTrue(ChatBubbleColorPreset.entries.all { it.label.isNotBlank() && it.colorArgb != 0L })
+    }
+
+    @Test
+    fun chatBubblePresetsVaryByMemberAndRing() {
+        val colors = ChatBubblePalette.forMember("4C1A9B", "a1b2c3d4")
+        assertNotEquals(colors, ChatBubblePalette.forMember("4C1A9B", "deadbeef"))
+        assertNotEquals(colors, ChatBubblePalette.forMember("ABCDEF", "a1b2c3d4"))
     }
 
     @Test
