@@ -5,6 +5,7 @@ import com.fkurevija.pingring.data.ChatHistoryPayloadDto
 import com.fkurevija.pingring.data.ChatPayloadDto
 import com.fkurevija.pingring.data.MockRangingDto
 import com.fkurevija.pingring.data.MemberDeparturePayloadDto
+import com.fkurevija.pingring.data.MeshPresencePayloadDto
 import com.fkurevija.pingring.data.TransportEvents
 import com.fkurevija.pingring.data.UwbControllerParametersDto
 import com.fkurevija.pingring.data.UwbPeerAddressDto
@@ -92,6 +93,17 @@ class TransportEventsTest {
         events.onMemberDeparture(departure)
 
         assertEquals(departure, received.await())
+    }
+
+    @Test
+    fun signedMeshPresenceArrivesOnItsFlow() = runTest {
+        val events = TransportEvents("test")
+        val presence = MeshPresencePayloadDto("4C1A9B", "a1b2c3d4")
+        val received = nextEmission(events.receivedMeshPresence)
+
+        events.onMeshPresence(presence)
+
+        assertEquals(presence, received.await())
     }
 
     @Test

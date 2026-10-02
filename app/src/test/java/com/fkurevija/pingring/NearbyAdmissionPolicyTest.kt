@@ -7,6 +7,7 @@ import com.fkurevija.pingring.data.shouldRefuseConnection
 import com.fkurevija.pingring.data.isPayloadSenderAuthorized
 import com.fkurevija.pingring.data.isBleIdentityKeySenderAuthorized
 import com.fkurevija.pingring.data.isMemberDepartureSenderAuthorized
+import com.fkurevija.pingring.data.isMemberDepartureOriginAuthorized
 import com.fkurevija.pingring.data.isWithinSasPromptRateLimit
 import com.fkurevija.pingring.data.expiredAuthenticationRequests
 import org.junit.Assert.assertEquals
@@ -86,6 +87,13 @@ class NearbyAdmissionPolicyTest {
     fun guestsAcceptRelayedDepartureOnlyFromTheAuthenticatedHost() {
         assertTrue(isMemberDepartureSenderAuthorized(false, "host-endpoint", null, false, "host-endpoint", "a1b2c3d4"))
         assertFalse(isMemberDepartureSenderAuthorized(false, "other-endpoint", null, false, "host-endpoint", "a1b2c3d4"))
+    }
+
+    @Test
+    fun meshDepartureAcceptsTheMemberOriginOrItsHostRelay() {
+        assertTrue(isMemberDepartureOriginAuthorized("a1b2c3d4", "a1b2c3d4", "deadbeef"))
+        assertTrue(isMemberDepartureOriginAuthorized("deadbeef", "a1b2c3d4", "deadbeef"))
+        assertFalse(isMemberDepartureOriginAuthorized("badc0ffe", "a1b2c3d4", "deadbeef"))
     }
 
     @Test

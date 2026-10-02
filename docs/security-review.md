@@ -21,9 +21,11 @@ BLE v5 uses a P-256 ECDSA signature over the member ID, event code, join time, f
 
 Both endpoints display Nearby's shared authentication digits and must explicitly confirm before the encrypted control channel is accepted. Users are instructed to compare digits with the intended person. The host then verifies QR-secret proof or holds a code-only join for approval. SAS prompts expire after two minutes, are capped at eight concurrent requests, and are limited to twelve per minute. See [SAS request handling](../app/src/main/java/com/fkurevija/pingring/data/NearbyConnectionsManager.kt) and [the confirmation dialog](../app/src/main/java/com/fkurevija/pingring/ui/screens/ConnectionAuthenticationDialog.kt).
 
-### Sender identities are bound to accepted endpoints
+### Mesh links and forwarded origins are authenticated
 
-The host accepts chat, beacon, and UWB sender claims only when they match the peer ID bound to that confirmed endpoint. Guests accept relayed sender-attributed traffic and host controls only from the authenticated host endpoint. UWB offers are checked against their source endpoint before the host relays them. See [payload authorization](../app/src/main/java/com/fkurevija/pingring/data/NearbyConnectionsManager.kt).
+New members still require direct host admission. Links between already-admitted members prove current control of the registered per-event key with a fresh, event- and peer-bound nonce; this does not replace the join SAS flow. Forwardable envelopes bind event, type, origin, message ID, target, and payload under the origin's P-256 signature. The receiver checks the registered origin key and the authenticated immediate relay, suppresses duplicate IDs, and enforces a seven-hop bound. The bounded queue holds at most 512 envelopes / 1 MiB in memory and clears when the Ring ends. It is best effort and is lost if the process dies.
+
+Signed five-second mesh heartbeats relay member availability only. They contain no radio measurement; each device's RSSI and UWB range/bearing remain local. UWB offers are readable by every admitted relay on their route, including the host if it lies on that route. See [mesh routing and payload authorization](../app/src/main/java/com/fkurevija/pingring/data/NearbyConnectionsManager.kt).
 
 ### Graceful departures require an authenticated sender
 
@@ -51,7 +53,7 @@ The debug-only emulator/device TCP relay does not provide Nearby's encrypted tra
 
 ### UWB offers remain host-visible
 
-Guest-to-guest UWB offers are relayed through the host. The host can read the STS key; this trust boundary is intentional and remains in [Known limitations](roadmap.md#known-limitations).
+Guest-to-guest UWB offers route over the member mesh. Admitted relays can read the STS key; this trust boundary is intentional and documented under [Known limitations](roadmap.md#known-limitations).
 
 ## Verification Limits
 

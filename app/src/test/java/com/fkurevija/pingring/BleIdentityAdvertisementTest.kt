@@ -12,7 +12,7 @@ class BleIdentityAdvertisementTest {
     fun `signed packet round trips identity and sequence`() {
         val keys = BleIdentityCrypto.generateKeyPair()
         val packet = BleIdentityAdvertisement.encode(
-            flags = BleIdentityAdvertisement.FLAG_DISCOVERABLE,
+            flags = BleIdentityAdvertisement.FLAG_HOST or BleIdentityAdvertisement.FLAG_DISCOVERABLE,
             peerId = "a1b2c3d4",
             eventCode = "e5f6a7",
             joinedAtMillis = 1_750_000_000_000L,
@@ -60,7 +60,7 @@ class BleIdentityAdvertisementTest {
     fun `prejoin hint reads only locator flags and is not authenticated presence`() {
         val keys = BleIdentityCrypto.generateKeyPair()
         val packet = BleIdentityAdvertisement.encode(
-            flags = BleIdentityAdvertisement.FLAG_DISCOVERABLE,
+            flags = BleIdentityAdvertisement.FLAG_HOST or BleIdentityAdvertisement.FLAG_DISCOVERABLE,
             peerId = "a1b2c3d4",
             eventCode = "e5f6a7",
             joinedAtMillis = 1L,
@@ -70,7 +70,9 @@ class BleIdentityAdvertisementTest {
 
         val hint = BleIdentityAdvertisement.decodeDiscoveryHint(packet)
 
+        assertEquals("a1b2c3d4", hint?.peerId)
         assertEquals("e5f6a7", hint?.eventCode)
+        assertTrue(hint?.isHost == true)
         assertTrue(hint?.isDiscoverable == true)
         assertNull(BleIdentityAdvertisement.decode(packet, keys.public))
     }

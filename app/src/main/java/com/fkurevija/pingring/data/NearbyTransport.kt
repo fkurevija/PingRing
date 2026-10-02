@@ -26,6 +26,7 @@ interface NearbyTransport {
     val receivedInviteSecret: SharedFlow<InviteSecretPayloadDto>
     val receivedBleIdentityKey: SharedFlow<BleIdentityKeyPayloadDto>
     val receivedMemberDeparture: SharedFlow<MemberDeparturePayloadDto>
+    val receivedMeshPresence: SharedFlow<MeshPresencePayloadDto>
     val receivedEventControl: SharedFlow<EventControlPayloadDto>
 
     /**
@@ -80,6 +81,7 @@ interface NearbyTransport {
 
     fun startAdvertising(eventId: String, localPeerId: String, useWifiDirect: Boolean, useHotspot: Boolean)
     fun startDiscovery(eventId: String, localPeerId: String)
+    fun connectToPeer(peerId: String)
     fun stopAll()
 
     /** Announces closure out of band for transports that provide that channel; Nearby uses EventControl. */
@@ -92,16 +94,14 @@ interface NearbyTransport {
      * A UWB ranging offer forwarded by the host on behalf of one guest and
      * aimed at another.
      *
-     * Only a guest ever sends one, and only ever to the host, which is the
-     * only peer it has a transport connection to under P2P_STAR.
+    * Only a guest ever sends one. The production mesh routes it to the named
+    * guest; any authenticated relay can forward it.
      */
     val receivedUwbRangingOffer: SharedFlow<UwbRangingOfferDto>
 
     /**
-     * Sends a [UwbRangingOfferDto] up to the host, which forwards it to the
-     * guest named in its targetPeerId. This is how two guests agree on the
-     * channel and STS key a UWB session needs without a direct connection
-     * between them.
+    * Routes a [UwbRangingOfferDto] to the guest named in its targetPeerId.
+    * The host remains trusted to read the STS key when it is on the route.
      */
     fun sendUwbRangingOfferToHost(params: Any)
 

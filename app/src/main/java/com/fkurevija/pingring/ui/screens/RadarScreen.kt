@@ -1219,7 +1219,8 @@ private fun RadarContent(
                 fontWeight = FontWeight.Bold
             )
             Text(
-                if (peer.azimuth != null) stringResource(R.string.direction_locked, peer.azimuth.toInt())
+                if (peer.meshOnlyPresence) stringResource(R.string.mesh_presence_no_range)
+                else if (peer.azimuth != null) stringResource(R.string.direction_locked, peer.azimuth.toInt())
                 else stringResource(R.string.ble_proximity_mode),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant

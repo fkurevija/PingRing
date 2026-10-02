@@ -4,28 +4,30 @@
 
 ## System Architecture
 
-Star/mesh hybrid over Nearby Connections (`P2P_STAR`) with BLE background discovery.
+Bounded peer relay mesh over Nearby Connections (`P2P_CLUSTER`) with BLE discovery and signed member presence.
 
 ```mermaid
 graph TD
     subgraph "Local Ad-Hoc PingRing Mesh"
-        Host["Host Node (Nearby Connections)"]
-        PeerA["Guest Peer A"]
-        PeerB["Guest Peer B"]
-        PeerC["Guest Peer C"]
+        Host["Host"]
+        PeerA["Guest A"]
+        PeerB["Guest B"]
+        PeerC["Guest C"]
 
-        Host <-->|"Nearby Connections (transport selected by Nearby)"| PeerA
+        Host <-->|"Nearby Connections"| PeerA
         Host <-->|"Nearby Connections"| PeerB
-        Host <-->|"Nearby Connections"| PeerC
+        PeerA <-->|"Nearby Connections"| PeerB
+        PeerB <-->|"Nearby Connections"| PeerC
         Host -.-|"Focused UWB ranging when supported"| PeerA
     end
 ```
 
 ### Protocol Flow
-1. **Discovery**: Host advertises over BLE Service UUID `0000fa1b-0000-1000-8000-00805f9b34fb`.
-2. **P2P Handshake**: Guests discover the advertiser and establish an encrypted Nearby Connections session.
-3. **Data Sync**: The Host brokers and re-broadcasts chat and beacons to all connected nodes.
-4. **Spatial Ranging**: a focused UWB session provides distance and bearing when supported; otherwise the app estimates distance from BLE RSSI. Wi-Fi RTT and GNSS are not connected to live ranging in this build.
+1. **Discovery and admission**: Members advertise and discover with `P2P_CLUSTER`. A new member must join the host directly; only the host admits members.
+2. **Mesh link proof**: Already-admitted members authenticate each new link with a fresh nonce signed by their registered per-event key, without another SAS prompt.
+3. **Data routing**: Signed-origin envelopes carry radar presence, chat, beacons, UWB coordination, and host controls. Relays suppress duplicate IDs, forward at most seven hops, and hold failed-route traffic in a bounded in-memory queue until a route returns or the Ring ends.
+4. **Presence versus proximity**: A five-second signed heartbeat can show a member as present through the mesh. It carries no RSSI, range, or bearing; those remain local BLE/UWB measurements.
+5. **Spatial ranging**: A focused UWB session provides distance and bearing when supported; otherwise the app estimates distance from locally received signed BLE RSSI. Wi-Fi RTT and GNSS are not connected to live ranging in this build.
 
 ---
 
@@ -48,7 +50,7 @@ Nearby encrypts established payload transport. PingRing requires both users to c
 1. **No external infrastructure to fail.** There is no server, no account, no remote logging, and no dependency on anyone's uptime. Nothing to be down, because nothing is there. Discovery, transport, chat, ranging and beacons are all local.
 2. **Nothing to configure.** No network to join, no SSID, no password, no login. Phones find each other directly over BLE and Nearby Connections.
 3. **It works before it works.** A phone with no SIM, in aeroplane mode with Wi-Fi and Bluetooth on, runs a full PingRing.
-4. **It degrades rather than dies.** UWB provides distance and bearing when supported; signed BLE RSSI is the fallback only when the controller supports V5 extended advertising. On unsupported controllers, RSSI-based member presence is unavailable rather than accepted from the spoofable V4 packet. Wi-Fi RTT has policy, capability and correlation helpers but no ranging session, while GNSS is policy-only and has no peer-fix sharing path. Neither is connected to live ranging. See [Known limitations](roadmap.md#known-limitations).
+4. **It degrades rather than dies.** UWB provides distance and bearing when supported; signed BLE RSSI is the local proximity fallback only when the controller supports V5 extended advertising. Mesh presence can still show a connected member without claiming range. On unsupported controllers, RSSI-based proximity is unavailable rather than accepted from the spoofable V4 packet. Wi-Fi RTT has policy and capability helpers but no ranging session, while GNSS is policy-only and has no peer-fix sharing path. See [Known limitations](roadmap.md#known-limitations).
 
 ### Ephemeral identity
 

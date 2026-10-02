@@ -16,28 +16,22 @@ data class UwbControllerParametersDto(
 data class UwbPeerAddressDto(val peerId: String, val address: String)
 
 /**
- * One guest's UWB ranging offer, handed to the host to pass on to a second
- * guest.
+ * One guest's UWB ranging offer, routed through the connected member mesh to
+ * the guest it names.
  *
  * UWB needs both ends of a session to agree on the channel, the STS key and the
- * session id before a single ranging exchange can happen. That works fine for
- * host-to-member, because the host is the only one that has to invent them and
- * it can send the result to everyone. It does not work for guest-to-guest: the
- * transport is a P2P_STAR, so two guests have no connection between them and
- * no way to exchange anything directly. A guest that wants to range another
- * guest therefore has to route this offer through the host, which is the only
- * peer it is actually connected to.
+ * session id before a single ranging exchange can happen. A guest can route
+ * this offer over any authorized mesh path; the addressed guest becomes the
+ * controlee using the exact channel and STS key sent here.
  *
- * [targetPeerId] is the guest being offered to, so the host can forward this to
- * exactly one peer instead of broadcasting. [fromPeerId] is the guest that will
+ * [targetPeerId] is the guest being offered to, so mesh peers forward to exactly
+ * one peer instead of broadcasting. [fromPeerId] is the guest that will
  * act as UWB controller, and [controllerAddress] is its own radio address, which
  * the controlee needs in order to address the very first ranging message back.
  *
- * The STS key here is the same trust model as a relayed chat message: it travels
- * over the encrypted connection to the host, which relays it verbatim. It is not
- * end-to-end between the two guests, which is worth being explicit about - a
- * host in a PingRing already brokers and re-broadcasts every message, so it is
- * already fully trusted by the members who joined it.
+ * The STS key is visible to each admitted relay on the route, including the
+ * host if it is on that route. Admitted relays are trusted group members; this
+ * payload is not end-to-end encrypted between the two ranging guests.
  */
 @JsonClass(generateAdapter = true)
 data class UwbRangingOfferDto(

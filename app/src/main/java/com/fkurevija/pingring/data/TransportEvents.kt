@@ -24,6 +24,7 @@ internal interface PayloadSink {
     fun onInviteSecret(secret: InviteSecretPayloadDto)
     fun onBleIdentityKey(identityKey: BleIdentityKeyPayloadDto)
     fun onMemberDeparture(departure: MemberDeparturePayloadDto)
+    fun onMeshPresence(presence: MeshPresencePayloadDto)
     fun onEventControl(control: EventControlPayloadDto)
     fun onUwbAddress(address: UwbPeerAddressDto)
     fun onUwbParameters(params: UwbControllerParametersDto)
@@ -118,6 +119,12 @@ internal class TransportEvents(private val tag: String) : PayloadSink {
     )
     val receivedMemberDeparture: SharedFlow<MemberDeparturePayloadDto> = _receivedMemberDeparture.asSharedFlow()
 
+    private val _receivedMeshPresence = MutableSharedFlow<MeshPresencePayloadDto>(
+        extraBufferCapacity = 8,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+    val receivedMeshPresence: SharedFlow<MeshPresencePayloadDto> = _receivedMeshPresence.asSharedFlow()
+
     private val _receivedEventControl = MutableSharedFlow<EventControlPayloadDto>(
         extraBufferCapacity = 4,
         onBufferOverflow = BufferOverflow.DROP_OLDEST,
@@ -157,13 +164,7 @@ internal class TransportEvents(private val tag: String) : PayloadSink {
         _eventClosed.tryEmit(Unit)
     }
 
-    /**
-     * A ranging offer that arrived for the guest it names.
-     *
-     * Only the LAN debug transport delivers one: on a real device the host is the
-     * single peer that can carry it, and it forwards the offer rather than
-     * consuming it.
-     */
+    /** A ranging offer that arrived at the guest it names. */
     fun onUwbRangingOfferReceived(offer: UwbRangingOfferDto) {
         _receivedUwbRangingOffer.tryEmit(offer)
     }
@@ -197,6 +198,10 @@ internal class TransportEvents(private val tag: String) : PayloadSink {
 
     override fun onMemberDeparture(departure: MemberDeparturePayloadDto) {
         _receivedMemberDeparture.tryEmit(departure)
+    }
+
+    override fun onMeshPresence(presence: MeshPresencePayloadDto) {
+        _receivedMeshPresence.tryEmit(presence)
     }
 
     override fun onEventControl(control: EventControlPayloadDto) {

@@ -164,6 +164,7 @@
     <string name="proximity_signal">Señal %1$s</string>
     <string name="direction_locked">Dirección fijada · %1$d°</string>
     <string name="ble_proximity_mode">Modo de proximidad BLE</string>
+    <string name="mesh_presence_no_range">Presente por malla · distancia no disponible</string>
     <string name="active_beacon">Baliza activa</string>
     <string name="beacon_sender_pattern">%1$s · %2$s</string>
     <string name="bluetooth_off_discovery">Bluetooth está desactivado. Actívalo para descubrir dispositivos cercanos.</string>

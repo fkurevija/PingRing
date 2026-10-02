@@ -52,6 +52,8 @@ data class RadarPeerUpdate(
     val worldDirectionZ: Float?,
     val lastSeen: Long,
     val signalWeak: Boolean = false,
+    val meshOnlyPresence: Boolean = false,
+    val meshPresenceLastSeenAtMillis: Long? = null,
     val lastUwbMeasurementAtMillis: Long? = null,
     val directionIsLastKnown: Boolean = false,
     /**
@@ -686,8 +688,9 @@ class DiscoveryRepository(
     private val _focusedPeerId = MutableStateFlow<String?>(null)
     val focusedPeerId: StateFlow<String?> = _focusedPeerId.asStateFlow()
 
-    /** Peers with a live transport connection, which is who can be ranged. */
+    /** Admitted members recently seen over a direct link or signed mesh presence. */
     private val connectedPeerIds = mutableSetOf<String>()
+    private val departedPeerIds = mutableSetOf<String>()
 
     fun setFocusedPeer(peerId: String?) {
         _focusedPeerId.value = peerId
@@ -841,6 +844,12 @@ class DiscoveryRepository(
             (nearbyConnectionsManager as? NearbyConnectionsManager)?.inviteSecretProvider = {
                 sessionManager.sessionState.value.currentEvent?.inviteSecret
             }
+            (nearbyConnectionsManager as? NearbyConnectionsManager)?.meshIdentityKeyProvider = { peerId ->
+                bleIdentityKeys[peerId]
+            }
+            (nearbyConnectionsManager as? NearbyConnectionsManager)?.meshPrivateKeyProvider = {
+                localBleIdentityKeyPair?.private
+            }
             if (isHost) {
                 nearbyConnectionsManager.startAdvertising(
                     event.id, 
@@ -859,15 +868,25 @@ class DiscoveryRepository(
                 delay(PEER_CLEANUP_INTERVAL_MILLIS)
                 val now = System.currentTimeMillis()
                 refreshPeerWorldDirections()
-                _peerUpdates.value.values
+                val expiredPeerIds = _peerUpdates.value.values
                     .filter { peer ->
-                        now - peer.lastSeen >= PEER_EXPIRY_TIMEOUT_MILLIS &&
+                        now - maxOf(peer.lastSeen, peer.meshPresenceLastSeenAtMillis ?: 0L) >= PEER_EXPIRY_TIMEOUT_MILLIS &&
                             peer.peerId !in retainedRangingPeerIds
                     }
-                    .forEach { peer -> rememberLastKnownPeerDirection(peer.peerId) }
+                    .map { it.peerId }
+                expiredPeerIds.forEach(::rememberLastKnownPeerDirection)
+                connectedPeerIds.removeAll(expiredPeerIds.toSet())
+                expiredPeerIds.forEach(peerUwbAddresses::remove)
+                val state = sessionManager.sessionState.value
+                if (!state.isHost && state.currentEvent?.hostPeerId in expiredPeerIds &&
+                    _hostConnectionLostAtMillis.value == null
+                ) {
+                    _hostConnectionLostAtMillis.value = now
+                }
                 _peerUpdates.update { current ->
                     current.filter { (peerId, peer) ->
-                        now - peer.lastSeen < PEER_EXPIRY_TIMEOUT_MILLIS || peerId in retainedRangingPeerIds
+                        now - maxOf(peer.lastSeen, peer.meshPresenceLastSeenAtMillis ?: 0L) < PEER_EXPIRY_TIMEOUT_MILLIS ||
+                            peerId in retainedRangingPeerIds
                     }
                 }
                 _lastKnownPeerDirections.update { locations ->
@@ -913,6 +932,7 @@ class DiscoveryRepository(
                 if (previous?.publicKey != identityKey.publicKey) {
                     latestBleAdvertisementSequences.remove(identityKey.peerId)
                 }
+                (nearbyConnectionsManager as? NearbyConnectionsManager)?.connectToPeer(identityKey.peerId)
                 if (sessionManager.sessionState.value.isHost) {
                     nearbyConnectionsManager.broadcastBleIdentityKey(identityKey)
                 }
@@ -925,10 +945,19 @@ class DiscoveryRepository(
                 if (departure.eventCode != currentEvent.id || departure.peerId == sessionManager.peerId.value) {
                     return@collect
                 }
+                departedPeerIds.add(departure.peerId)
                 connectedPeerIds.remove(departure.peerId)
                 peerUwbAddresses.remove(departure.peerId)
                 removePeer(departure.peerId, preserveLastKnownDirection = false)
                 onFocusChanged()
+            }
+        }
+
+        repositoryScope?.launch {
+            nearbyConnectionsManager.receivedMeshPresence.collect { presence ->
+                if (presence.eventCode == sessionManager.sessionState.value.currentEvent?.id) {
+                    updateMeshPresence(presence.peerId)
+                }
             }
         }
 
@@ -976,11 +1005,6 @@ class DiscoveryRepository(
                     colorArgb = dto.colorArgb,
                 )
                 sessionManager.receiveLocalChatMessage(chatMessage)
-
-                // If we are the Host, broker & re-broadcast the message outwards to all other connected peers
-                if (sessionManager.sessionState.value.isHost) {
-                    nearbyConnectionsManager.broadcastChatMessage(dto)
-                }
 
                 if (dto.senderPeerId != sessionManager.peerId.value) {
                     val appWideEnabled = appearanceSettings.chatNotificationsEnabled.first()
@@ -1072,8 +1096,14 @@ class DiscoveryRepository(
             nearbyConnectionsManager.peerDisconnected.collect { peerId ->
                 val state = sessionManager.sessionState.value
                 val event = state.currentEvent
-                if (!state.isHost && event?.hostPeerId == peerId) {
+                val meshPresenceFresh = _peerUpdates.value[peerId]?.meshPresenceLastSeenAtMillis
+                    ?.let { System.currentTimeMillis() - it < PEER_EXPIRY_TIMEOUT_MILLIS } == true
+                if (!state.isHost && event?.hostPeerId == peerId && !meshPresenceFresh) {
                     _hostConnectionLostAtMillis.value = System.currentTimeMillis()
+                }
+                if (meshPresenceFresh) {
+                    connectedPeerIds.add(peerId)
+                    return@collect
                 }
                 val retained = UwbRetentionPolicy.retainOnDisconnect(
                     peerId = peerId,
@@ -1204,10 +1234,6 @@ class DiscoveryRepository(
                     endBeacon(dto.senderPeerId)
                 }
 
-                // If host, broker & re-broadcast outward to all other connected peers
-                if (sessionManager.sessionState.value.isHost) {
-                    nearbyConnectionsManager.broadcastBeacon(dto)
-                }
             }
         }
 
@@ -1253,6 +1279,7 @@ class DiscoveryRepository(
         activeFocusRangingJob = null
         activeFocusRangingTarget = null
         connectedPeerIds.clear()
+        departedPeerIds.clear()
         peerUwbAddresses.clear()
         localBleIdentityKeyPair = null
         localBleIdentityKey = null
@@ -1389,11 +1416,9 @@ class DiscoveryRepository(
         val keyPair = localBleIdentityKeyPair ?: return
         val advertiser = adapter.bluetoothLeAdvertiser ?: return
         val peerId = sessionManager.peerId.value
-        val flags = if (sessionManager.sessionState.value.isHost && event.isDiscoverable) {
-            BleIdentityAdvertisement.FLAG_DISCOVERABLE
-        } else {
-            0
-        }
+        val isHost = sessionManager.sessionState.value.isHost
+        val flags = (if (isHost) BleIdentityAdvertisement.FLAG_HOST else 0) or
+            (if (isHost && event.isDiscoverable) BleIdentityAdvertisement.FLAG_DISCOVERABLE else 0)
         val parameters = AdvertisingSetParameters.Builder()
             .setLegacyMode(false)
             .setConnectable(false)
@@ -1795,6 +1820,14 @@ class DiscoveryRepository(
                 ?.let(::recordDiscoveredSession)
             return
         }
+        val hint = BleIdentityAdvertisement.decodeDiscoveryHint(serviceData)
+        if (!sessionManager.sessionState.value.isHost && currentEvent.hostPeerId == null &&
+            hint?.isHost == true && hint.eventCode == currentEvent.id
+        ) {
+            currentEvent = currentEvent.copy(hostPeerId = hint.peerId)
+            sessionManager.updateEvent(currentEvent)
+            (nearbyConnectionsManager as? NearbyConnectionsManager)?.connectToPeer(hint.peerId)
+        }
         if (!getConnectivityStatus().supportsBleIdentity) return
         val peerId = BleIdentityAdvertisement.readPeerId(serviceData) ?: return
         val keyPayload = bleIdentityKeys[peerId] ?: return
@@ -1855,6 +1888,7 @@ class DiscoveryRepository(
             worldDirectionZ = existing?.worldDirectionZ,
             lastSeen = nowMillis,
             signalWeak = signalWeak,
+            meshPresenceLastSeenAtMillis = existing?.meshPresenceLastSeenAtMillis,
             // Cross-checked only once a UWB fix exists to check against. Before
             // that there is a single source and the answer is UNKNOWN, which the
             // radar shows as an estimate rather than as a confirmed distance.
@@ -1935,6 +1969,9 @@ class DiscoveryRepository(
         if (peerId.isBlank() || peerId == sessionManager.peerId.value) return
         _lastKnownPeerDirections.update { current -> current.filterNot { it.peerId == peerId } }
         val existing = _peerUpdates.value[peerId]
+        val nowMillis = System.currentTimeMillis()
+        val hasFreshMeasurement = existing != null && !existing.meshOnlyPresence &&
+            nowMillis - existing.lastSeen < PEER_EXPIRY_TIMEOUT_MILLIS
         // Never fall back to the peer id: it is an internal routing key, not
         // something a person can read or act on.
         val peerName = existing?.name ?: peerDisplayNames.labelFor(peerId) {
@@ -1943,15 +1980,17 @@ class DiscoveryRepository(
         val updated = RadarPeerUpdate(
             peerId = peerId,
             name = peerName,
-            rssi = existing?.rssi ?: -60,
-            proximity = existing?.proximity ?: "Hot",
-            distance = existing?.distance,
-            azimuth = existing?.azimuth,
-            elevation = existing?.elevation,
-            worldDirectionX = existing?.worldDirectionX,
-            worldDirectionY = existing?.worldDirectionY,
-            worldDirectionZ = existing?.worldDirectionZ,
-            lastSeen = System.currentTimeMillis(),
+            rssi = existing?.takeIf { hasFreshMeasurement }?.rssi,
+            proximity = existing?.takeIf { hasFreshMeasurement }?.proximity ?: "Unknown",
+            distance = existing?.takeIf { hasFreshMeasurement || peerId in retainedRangingPeerIds }?.distance,
+            azimuth = existing?.takeIf { hasFreshMeasurement || peerId in retainedRangingPeerIds }?.azimuth,
+            elevation = existing?.takeIf { hasFreshMeasurement || peerId in retainedRangingPeerIds }?.elevation,
+            worldDirectionX = existing?.takeIf { hasFreshMeasurement || peerId in retainedRangingPeerIds }?.worldDirectionX,
+            worldDirectionY = existing?.takeIf { hasFreshMeasurement || peerId in retainedRangingPeerIds }?.worldDirectionY,
+            worldDirectionZ = existing?.takeIf { hasFreshMeasurement || peerId in retainedRangingPeerIds }?.worldDirectionZ,
+            lastSeen = existing?.takeIf { hasFreshMeasurement }?.lastSeen ?: nowMillis,
+            meshOnlyPresence = existing?.meshOnlyPresence ?: false,
+            meshPresenceLastSeenAtMillis = existing?.meshPresenceLastSeenAtMillis,
             // Carried over, not reset: a transport connection says nothing about
             // when the peer joined, and clearing it here would drop a member to
             // the bottom of the arrival order every time its connection blipped.
@@ -1959,6 +1998,72 @@ class DiscoveryRepository(
         )
         _peerUpdates.update { current -> current + (peerId to updated) }
         _lastKnownPeerDirections.update { current -> current.filterNot { it.peerId == peerId } }
+        syncFriend(updated)
+    }
+
+    private fun updateMeshPresence(peerId: String) {
+        if (peerId.isBlank() || peerId == sessionManager.peerId.value || peerId in departedPeerIds) return
+        connectedPeerIds.add(peerId)
+        val state = sessionManager.sessionState.value
+        if (!state.isHost && state.currentEvent?.hostPeerId == peerId) {
+            _hostConnectionLostAtMillis.value = null
+        }
+        val nowMillis = System.currentTimeMillis()
+        val existing = _peerUpdates.value[peerId]
+        val hasFreshLocalMeasurement = existing != null && !existing.meshOnlyPresence &&
+            nowMillis - existing.lastSeen < PEER_EXPIRY_TIMEOUT_MILLIS &&
+            (existing.rssi != null || existing.lastUwbMeasurementAtMillis != null)
+        val retainedUwb = peerId in retainedRangingPeerIds
+        if (existing != null && !hasFreshLocalMeasurement && !retainedUwb) {
+            rememberLastKnownPeerDirection(peerId)
+        }
+        val peerName = existing?.name ?: peerDisplayNames.labelFor(peerId) {
+            context.getString(R.string.member_name, it)
+        }
+        val updated = if (existing == null) {
+            RadarPeerUpdate(
+                peerId = peerId,
+                name = peerName,
+                rssi = null,
+                proximity = "Unknown",
+                distance = null,
+                azimuth = null,
+                elevation = null,
+                worldDirectionX = null,
+                worldDirectionY = null,
+                worldDirectionZ = null,
+                lastSeen = nowMillis,
+                meshOnlyPresence = true,
+                meshPresenceLastSeenAtMillis = nowMillis,
+            )
+        } else if (hasFreshLocalMeasurement) {
+            existing.copy(meshPresenceLastSeenAtMillis = nowMillis)
+        } else if (retainedUwb) {
+            existing.copy(
+                rssi = null,
+                proximity = "Unknown",
+                signalWeak = false,
+                meshOnlyPresence = true,
+                meshPresenceLastSeenAtMillis = nowMillis,
+            )
+        } else {
+            existing.copy(
+                rssi = null,
+                proximity = "Unknown",
+                distance = null,
+                azimuth = null,
+                elevation = null,
+                worldDirectionX = null,
+                worldDirectionY = null,
+                worldDirectionZ = null,
+                lastSeen = nowMillis,
+                signalWeak = false,
+                meshOnlyPresence = true,
+                meshPresenceLastSeenAtMillis = nowMillis,
+                lastUwbMeasurementAtMillis = null,
+            )
+        }
+        _peerUpdates.update { current -> current + (peerId to updated) }
         syncFriend(updated)
     }
 
@@ -1971,8 +2076,8 @@ class DiscoveryRepository(
             RadarPeerUpdate(
                 peerId = peerId,
                 name = name,
-                rssi = -60,
-                proximity = "Hot",
+                rssi = null,
+                proximity = "Unknown",
                 distance = null,
                 azimuth = null,
                 elevation = null,
@@ -2143,16 +2248,11 @@ class DiscoveryRepository(
                         )
                     ).collect { result -> updateUwbPosition(targetId, result) }
                 } else {
-                    // A guest ranging another guest. Neither side is the host,
-                    // so the parameters one of them invents have to reach the
-                    // other over a link that does not exist: P2P_STAR leaves
-                    // guests connected only to the host. This device therefore
-                    // offers itself as controller and sends the offer up to the
-                    // host, which forwards it to the peer it names. The peer
-                    // that receives it becomes the controlee (see
-                    // [acceptIncomingRangingOffer]) using the exact channel and
-                    // STS key sent here, which is what makes the two ends
-                    // agree.
+                    // A guest ranging another guest offers itself as controller
+                    // and routes the offer to the peer it names. Mesh relays can
+                    // read the STS key; the named peer becomes the controlee
+                    // (see [acceptIncomingRangingOffer]) using the exact
+                    // parameters sent here, which makes the two ends agree.
                     val controller = manager.controllerSessionScope()
                     val sessionKey = ByteArray(8).also(SecureRandom()::nextBytes)
                     val eventId = sessionManager.sessionState.value.currentEvent?.id

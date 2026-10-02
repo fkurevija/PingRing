@@ -161,6 +161,7 @@
     <string name="proximity_signal">%1$s signal</string>
     <string name="direction_locked">Direction locked · %1$d°</string>
     <string name="ble_proximity_mode">BLE proximity mode</string>
+    <string name="mesh_presence_no_range">Present via mesh · range unavailable</string>
     <string name="active_beacon">Active beacon</string>
     <string name="beacon_sender_pattern">%1$s · %2$s</string>
     <string name="bluetooth_off_discovery">Bluetooth is off. Enable it to discover nearby peers.</string>

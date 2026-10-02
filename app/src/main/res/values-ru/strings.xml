@@ -163,6 +163,7 @@
     <string name="proximity_signal">Сигнал: %1$s</string>
     <string name="direction_locked">Направление определено · %1$d°</string>
     <string name="ble_proximity_mode">Режим близости BLE</string>
+    <string name="mesh_presence_no_range">В сети Mesh · расстояние недоступно</string>
     <string name="active_beacon">Активный сигнал</string>
     <string name="beacon_sender_pattern">%1$s · %2$s</string>
     <string name="bluetooth_off_discovery">Bluetooth выключен. Включите его, чтобы находить устройства поблизости.</string>

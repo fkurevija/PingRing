@@ -165,6 +165,7 @@
     <string name="proximity_signal">%1$s signal</string>
     <string name="direction_locked">Smjer određen · %1$d°</string>
     <string name="ble_proximity_mode">BLE način blizine</string>
+    <string name="mesh_presence_no_range">Prisutan putem mreže · udaljenost nije dostupna</string>
     <string name="active_beacon">Aktivni signal</string>
     <string name="beacon_sender_pattern">%1$s · %2$s</string>
     <string name="bluetooth_off_discovery">Bluetooth je isključen. Uključite ga za otkrivanje uređaja u blizini.</string>

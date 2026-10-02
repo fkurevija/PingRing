@@ -22,7 +22,11 @@ data class RelayEnvelope(
     val senderPeerId: String? = null,
     val targetPeerId: String? = null, // null = broadcast
     val payload: String? = null, // JSON-encoded DTO, only present when type == "data"
-    val role: String? = null // "host" or "member", only present when type == "join"
+    val role: String? = null, // "host" or "member", only present when type == "join"
+    val messageId: String? = null, // Unique identifier for the message
+    val originPeerId: String? = null, // ID of the peer that originated the message
+    val hopCount: Int = 0, // Number of hops the message has taken
+    val originSignature: String? = null,
 ) {
     companion object {
         const val JOIN = "join"

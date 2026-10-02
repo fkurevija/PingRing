@@ -3,6 +3,8 @@ package com.fkurevija.pingring
 import com.fkurevija.pingring.data.BeaconPayloadDto
 import com.fkurevija.pingring.data.BleIdentityKeyPayloadDto
 import com.fkurevija.pingring.data.MemberDeparturePayloadDto
+import com.fkurevija.pingring.data.MeshPresencePayloadDto
+import com.fkurevija.pingring.data.MeshLinkAuthenticationPayloadDto
 import com.fkurevija.pingring.data.ChatHistoryPayloadDto
 import com.fkurevija.pingring.data.ChatPayloadDto
 import com.fkurevija.pingring.data.DecodedPayload
@@ -61,6 +63,10 @@ class RelayCodecTest {
             delivered += departure
         }
 
+        override fun onMeshPresence(presence: MeshPresencePayloadDto) {
+            delivered += presence
+        }
+
         override fun onEventControl(control: EventControlPayloadDto) {
             delivered += control
         }
@@ -115,6 +121,10 @@ class RelayCodecTest {
     private val inviteSecret = InviteSecretPayloadDto("4C1A9B", "secret", "peer-a")
     private val bleIdentityKey = BleIdentityKeyPayloadDto("4C1A9B", "a1b2c3d4", "encoded-public-key")
     private val memberDeparture = MemberDeparturePayloadDto("4C1A9B", "a1b2c3d4")
+    private val meshPresence = MeshPresencePayloadDto("4C1A9B", "a1b2c3d4")
+    private val meshAuthentication = MeshLinkAuthenticationPayloadDto(
+        "4C1A9B", "a1b2c3d4", "deadbeef", "challenge",
+    )
     private val joinProof = JoinProofPayloadDto("4C1A9B", null)
     private val eventControl = EventControlPayloadDto("4C1A9B", "peer-a", true, true, true, true, false)
 
@@ -127,6 +137,8 @@ class RelayCodecTest {
             inviteSecret,
             bleIdentityKey,
             memberDeparture,
+            meshPresence,
+            meshAuthentication,
             joinProof,
             eventControl,
             address,
@@ -153,12 +165,18 @@ class RelayCodecTest {
             eventId = "4C1A9B",
             senderPeerId = "peer-b",
             targetPeerId = null,
-            payload = RelayCodec.encodeEnvelope(RelayEnvelope(type = inner.wireType, payload = inner.json))
+            payload = RelayCodec.encodeEnvelope(RelayEnvelope(type = inner.wireType, payload = inner.json)),
+            messageId = "event-4C1A9B-message-m1",
+            originPeerId = "peer-b",
+            hopCount = 2,
         )
 
         val forwarded = RelayCodec.decodeEnvelope(RelayCodec.encodeEnvelope(outer)).getOrThrow()
         assertEquals(RelayEnvelope.DATA, forwarded.type)
         assertEquals("4C1A9B", forwarded.eventId)
+        assertEquals("event-4C1A9B-message-m1", forwarded.messageId)
+        assertEquals("peer-b", forwarded.originPeerId)
+        assertEquals(2, forwarded.hopCount)
 
         val appEnvelope = RelayCodec.decodeEnvelope(forwarded.payload!!).getOrThrow()
         assertEquals(chat, payloadOf(decoded(appEnvelope.type, appEnvelope.payload!!)))
@@ -182,7 +200,8 @@ class RelayCodecTest {
         listOf(
             RelayCodec.CHAT, RelayCodec.CHAT_HISTORY, RelayCodec.BEACON,
             RelayCodec.INVITE_SECRET, RelayCodec.BLE_IDENTITY_KEY, RelayCodec.MEMBER_DEPARTURE,
-            RelayCodec.JOIN_PROOF, RelayCodec.EVENT_CONTROL,
+            RelayCodec.MESH_PRESENCE,
+            RelayCodec.MESH_PEER_AUTHENTICATION, RelayCodec.JOIN_PROOF, RelayCodec.EVENT_CONTROL,
             RelayCodec.UWB_ADDRESS, RelayCodec.UWB_PARAMS, RelayCodec.UWB_OFFER, RelayCodec.MOCK_RANGING
         ).forEach { assertTrue("$it is not a known wire type", it in RelayCodec.knownWireTypes) }
     }
@@ -229,8 +248,12 @@ class RelayCodecTest {
         assertTrue(RelayCodec.route(DecodedPayload.InviteSecret(inviteSecret), sink))
         assertTrue(RelayCodec.route(DecodedPayload.BleIdentityKey(bleIdentityKey), sink))
         assertTrue(RelayCodec.route(DecodedPayload.MemberDeparture(memberDeparture), sink))
+        assertTrue(RelayCodec.route(DecodedPayload.MeshPresence(meshPresence), sink))
         assertTrue(RelayCodec.route(DecodedPayload.EventControl(eventControl), sink))
-        assertEquals(listOf<Any>(chat, beacon, inviteSecret, bleIdentityKey, memberDeparture, eventControl), sink.delivered)
+        assertEquals(
+            listOf<Any>(chat, beacon, inviteSecret, bleIdentityKey, memberDeparture, meshPresence, eventControl),
+            sink.delivered,
+        )
 
         // A ranging offer is relayed by a host and consumed by the guest it names,
         // and a scripted range report exists on one transport only: both are the
@@ -238,7 +261,8 @@ class RelayCodecTest {
         assertFalse(RelayCodec.route(DecodedPayload.UwbOffer(offer), sink))
         assertFalse(RelayCodec.route(DecodedPayload.JoinProof(joinProof), sink))
         assertFalse(RelayCodec.route(DecodedPayload.MockRanging(report), sink))
-        assertEquals(6, sink.delivered.size)
+        assertFalse(RelayCodec.route(DecodedPayload.MeshPeerAuthentication(meshAuthentication), sink))
+        assertEquals(7, sink.delivered.size)
     }
 
     private fun encodedJson(payload: Any): String = RelayCodec.encode(payload)!!.json
@@ -262,6 +286,8 @@ class RelayCodecTest {
         is DecodedPayload.InviteSecret -> decoded.secret
         is DecodedPayload.BleIdentityKey -> decoded.identityKey
         is DecodedPayload.MemberDeparture -> decoded.departure
+        is DecodedPayload.MeshPresence -> decoded.presence
+        is DecodedPayload.MeshPeerAuthentication -> decoded.authentication
         is DecodedPayload.JoinProof -> decoded.proof
         is DecodedPayload.EventControl -> decoded.control
         is DecodedPayload.UwbAddress -> decoded.address

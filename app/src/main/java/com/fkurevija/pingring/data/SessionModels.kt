@@ -27,6 +27,21 @@ data class MemberDeparturePayloadDto(
 )
 
 @Serializable
+data class MeshPresencePayloadDto(
+    val eventCode: String,
+    val peerId: String,
+)
+
+@Serializable
+data class MeshLinkAuthenticationPayloadDto(
+    val eventCode: String,
+    val challengerPeerId: String,
+    val responderPeerId: String,
+    val challenge: String,
+    val signature: String? = null,
+)
+
+@Serializable
 data class JoinProofPayloadDto(
     val eventCode: String,
     val inviteSecret: String?,

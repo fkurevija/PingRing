@@ -8,6 +8,7 @@ internal object BleIdentityAdvertisement {
     const val VERSION = 5
     const val MAX_SIGNATURE_BYTES = 72
     const val TOTAL_BYTES = 98
+    const val FLAG_HOST = 1
     const val FLAG_DISCOVERABLE = 1 shl 7
 
     private const val PEER_ID_BYTES = 4
@@ -24,7 +25,7 @@ internal object BleIdentityAdvertisement {
         val isDiscoverable: Boolean get() = flags and FLAG_DISCOVERABLE != 0
     }
 
-    data class DiscoveryHint(val eventCode: String?, val isDiscoverable: Boolean)
+    data class DiscoveryHint(val peerId: String, val eventCode: String?, val isHost: Boolean, val isDiscoverable: Boolean)
 
     fun acceptsSequence(previousSequence: Long?, candidateSequence: Long): Boolean =
         candidateSequence >= 0 && (previousSequence == null || candidateSequence > previousSequence)
@@ -91,7 +92,12 @@ internal object BleIdentityAdvertisement {
         val flags = serviceData[1].toInt() and 0xFF
         val eventCode = bytesToHex(serviceData.copyOfRange(2 + PEER_ID_BYTES, 2 + PEER_ID_BYTES + EVENT_CODE_BYTES))
             .lowercase()
-        return DiscoveryHint(eventCode, flags and FLAG_DISCOVERABLE != 0)
+        return DiscoveryHint(
+            peerId = readPeerId(serviceData) ?: return null,
+            eventCode = eventCode,
+            isHost = flags and FLAG_HOST != 0,
+            isDiscoverable = flags and FLAG_DISCOVERABLE != 0,
+        )
     }
 
     private fun hexBytes(value: String): ByteArray = ByteArray(value.length / 2) { index ->

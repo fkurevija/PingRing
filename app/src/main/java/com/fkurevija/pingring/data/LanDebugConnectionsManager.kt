@@ -71,6 +71,7 @@ class LanDebugConnectionsManager(
     override val receivedInviteSecret: SharedFlow<InviteSecretPayloadDto> get() = events.receivedInviteSecret
     override val receivedBleIdentityKey: SharedFlow<BleIdentityKeyPayloadDto> get() = events.receivedBleIdentityKey
     override val receivedMemberDeparture: SharedFlow<MemberDeparturePayloadDto> get() = events.receivedMemberDeparture
+    override val receivedMeshPresence: SharedFlow<MeshPresencePayloadDto> get() = events.receivedMeshPresence
     override val receivedEventControl: SharedFlow<EventControlPayloadDto> get() = events.receivedEventControl
     override val receivedMockRanging: SharedFlow<MockRangingDto> get() = events.receivedMockRanging
 
@@ -146,6 +147,8 @@ class LanDebugConnectionsManager(
     override fun startDiscovery(eventId: String, localPeerId: String) {
         connect(eventId, localPeerId, RelayEnvelope.ROLE_MEMBER)
     }
+
+    override fun connectToPeer(peerId: String) = Unit
 
     /**
     * Tells the relay this host is ending the PingRing. The relay tells the
