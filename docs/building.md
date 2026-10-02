@@ -21,6 +21,16 @@ On Windows (PowerShell): `.\gradlew.bat testDebugUnitTest assembleDebug`
 
 The APK lands at `app/build/outputs/apk/debug/app-debug.apk`.
 
+## Accessibility Device Audit
+
+Compose semantics tests cover named Ring switches, on/off and disabled states, selected colour presets, and 48 x 48 dp target bounds. JVM tests check that spoken GPS summaries preserve estimate and uncertainty. Compiling these tests is not a substitute for executing them or testing TalkBack.
+
+1. Install Google's Accessibility Scanner on a physical testing device and scan Home, join/host setup, the radar/chat, Ring settings, App Settings, and dialogs. Review missing labels, contrast, and touch-target findings. Interactive targets should be at least 48 x 48 dp, even when the visible icon or colour chip is smaller.
+2. Enable TalkBack in Android Settings > Accessibility. Navigate by swipes and activate by double-tap without relying on the screen: host/join, compare SAS digits, choose a tracked member, send chat/a beacon, change settings, and leave/end with confirmation.
+3. Check logical focus order and focus restoration after menus/dialogs close. Icon-only buttons must announce their action; decorative icons must be skipped. Switches must announce their name, state, and disabled status; colour presets must announce selection, not rely on the border alone.
+4. Enable **App Settings > Accessibility > Radar screen-reader summary**. Verify distance/direction unavailable states, beacons, and last-known direction. GPS must announce an estimate and uncertainty, not precise proximity; RTT must not imply direction.
+5. Repeat in light/dark themes, with increased font/display size, and on a narrow viewport. Check text contrast, clipping, overlapping targets, and keyboard/Switch Access focus. Record the device, Android/TalkBack versions, locale, findings, and retest results before closing the roadmap's accessibility audit.
+
 ## Releases
 
 Every successful build on `master` rolls a single `latest` release forward, replacing the previous APK — it is a pointer to the newest build, not a history, and the rolling tag is moved to the commit it contains. Run artifacts keep each build for 90 days. Once a tagged release exists it takes GitHub's "Latest" badge; `latest` deliberately does not claim it.

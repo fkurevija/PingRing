@@ -176,6 +176,30 @@ class AppRulesTest {
     }
 
     @Test
+    fun spokenGpsSummaryIncludesTheSameEstimateAndUncertaintyAsTheRadar() {
+        val summary = RadarAccessibilityPolicy.describe(
+            peerName = "Ana",
+            distanceMeters = 42f,
+            azimuthDegrees = null,
+            proximity = null,
+            beaconTitle = null,
+            distanceIsEstimate = true,
+            distanceAccuracyMeters = 20f,
+        )
+        assertTrue(summary.contains("GPS distance estimate. About 42 meters, uncertainty 20 meters."))
+        assertTrue(summary.contains("Direction unavailable."))
+    }
+
+    @Test
+    fun gpsSummaryWithoutUncertaintyDoesNotClaimAnExactDistance() {
+        val summary = RadarAccessibilityPolicy.describe(
+            "Ana", 42f, null, null, null, distanceIsEstimate = true,
+        )
+        assertTrue(summary.contains("Distance unavailable."))
+        assertFalse(summary.contains("42"))
+    }
+
+    @Test
     fun aMessageIsOursOnlyWhenThePeerIdsMatch() {
         assertTrue(ChatMessageOwnership.isOwnMessage("peer-a", "peer-a"))
     }

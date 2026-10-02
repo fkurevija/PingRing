@@ -1197,6 +1197,8 @@ private fun RadarContent(
                 azimuthDegrees = peer?.azimuth,
                 proximityLabel = peer?.let { proximityLabel },
                 beaconTitle = beacon?.title,
+                distanceIsEstimate = peer?.distanceSource == com.fkurevija.pingring.data.RangingSourcePolicy.RangingSource.GNSS,
+                distanceAccuracyMeters = peer?.distanceAccuracyMeters,
             ),
             accessibilityEnabled = radarScreenReaderSummaryEnabled,
             // Sized from the available width rather than fixed. The caller used

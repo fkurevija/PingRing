@@ -18,8 +18,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -65,6 +68,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -200,7 +204,10 @@ fun PingRingSettingsScreen(
                             Text(stringResource(R.string.accept_new_members), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                             Text(stringResource(R.string.allow_nearby_discover_join), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        Switch(checked = acceptsNewMembers, onCheckedChange = { acceptsNewMembers = it })
+                        Switch(checked = acceptsNewMembers, onCheckedChange = { acceptsNewMembers = it },
+                            modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp).semantics {
+                                contentDescription = context.getString(R.string.accept_new_members)
+                            })
                     }
 
                     HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
@@ -219,7 +226,10 @@ fun PingRingSettingsScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        Switch(checked = isDiscoverable, onCheckedChange = { isDiscoverable = it })
+                        Switch(checked = isDiscoverable, onCheckedChange = { isDiscoverable = it },
+                            modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp).semantics {
+                                contentDescription = context.getString(R.string.discoverable)
+                            })
                     }
 
                     HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
@@ -238,7 +248,10 @@ fun PingRingSettingsScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        Switch(checked = requiresApproval, onCheckedChange = { requiresApproval = it })
+                        Switch(checked = requiresApproval, onCheckedChange = { requiresApproval = it },
+                            modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp).semantics {
+                                contentDescription = context.getString(R.string.approve_each_join)
+                            })
                     }
 
                     HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
@@ -257,7 +270,7 @@ fun PingRingSettingsScreen(
                             checked = trackHost,
                             enabled = isHost,
                             onCheckedChange = { trackHost = it },
-                            modifier = Modifier.semantics {
+                            modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp).semantics {
                                 contentDescription = context.getString(R.string.track_host_only)
                             }
                         )
@@ -276,7 +289,7 @@ fun PingRingSettingsScreen(
                             checked = useGnss,
                             enabled = isHost,
                             onCheckedChange = { useGnss = it },
-                            modifier = Modifier.semantics { contentDescription = context.getString(R.string.gnss_sharing) },
+                            modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp).semantics { contentDescription = context.getString(R.string.gnss_sharing) },
                         )
                     }
                     HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
@@ -329,7 +342,10 @@ fun PingRingSettingsScreen(
                         Switch(
                             checked = selection.usesUwb,
                             enabled = capabilities.canRange,
-                            onCheckedChange = { useUwb = it }
+                            onCheckedChange = { useUwb = it },
+                            modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp).semantics {
+                                contentDescription = context.getString(R.string.uwb)
+                            },
                         )
                     }
 
@@ -385,7 +401,10 @@ fun PingRingSettingsScreen(
                             Text(stringResource(R.string.chat_notifications), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                             Text(stringResource(R.string.event_chat_notifications_description), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        Switch(checked = chatNotificationsEnabled, onCheckedChange = { chatNotificationsEnabled = it })
+                        Switch(checked = chatNotificationsEnabled, onCheckedChange = { chatNotificationsEnabled = it },
+                            modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp).semantics {
+                                contentDescription = context.getString(R.string.chat_notifications)
+                            })
                     }
 
                     HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
@@ -434,7 +453,7 @@ fun PingRingSettingsScreen(
                     }
                     Spacer(Modifier.height(12.dp))
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().selectableGroup(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -446,6 +465,16 @@ fun PingRingSettingsScreen(
                             )
                             Box(
                                 modifier = Modifier
+                                    .size(48.dp)
+                                    .semantics { contentDescription = presetDescription }
+                                    .selectable(
+                                        selected = selected,
+                                        role = Role.RadioButton,
+                                        onClick = { chooseChatColor(colorArgb) },
+                                    ),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Box(Modifier
                                     .size(36.dp)
                                     .background(Color(colorArgb), CircleShape)
                                     .border(
@@ -453,13 +482,12 @@ fun PingRingSettingsScreen(
                                         color = if (selected) MaterialTheme.colorScheme.onSurface else Color.Transparent,
                                         shape = CircleShape,
                                     )
-                                    .semantics { contentDescription = presetDescription }
-                                    .clickable { chooseChatColor(colorArgb) },
-                            )
+                                )
+                            }
                         }
-                        TextButton(onClick = { showCustomChatColorPicker = true }) {
-                            Text(stringResource(R.string.custom))
-                        }
+                    }
+                    TextButton(onClick = { showCustomChatColorPicker = true }) {
+                        Text(stringResource(R.string.custom))
                     }
                     TextButton(onClick = { chooseChatColor(null) }, enabled = selectedChatColor != null) {
                         Text(stringResource(R.string.use_theme_colour))

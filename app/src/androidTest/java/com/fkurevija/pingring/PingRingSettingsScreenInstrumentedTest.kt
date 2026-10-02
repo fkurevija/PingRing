@@ -2,6 +2,10 @@ package com.fkurevija.pingring
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertWidthIsAtLeast
+import androidx.compose.ui.test.assertHeightIsAtLeast
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOff
@@ -103,7 +107,10 @@ class PingRingSettingsScreenInstrumentedTest {
             composeRule.onNodeWithContentDescription(label)
                 .performScrollTo()
                 .assertIsDisplayed()
+                .assertWidthIsAtLeast(48.dp)
+                .assertHeightIsAtLeast(48.dp)
                 .performClick()
+                .assertIsSelected()
             composeRule.runOnIdle { assertEquals(colorArgb, selected) }
         }
     }
@@ -139,5 +146,31 @@ class PingRingSettingsScreenInstrumentedTest {
             .performScrollTo().assertIsOn().assertIsNotEnabled()
         composeRule.onNodeWithText(context.getString(R.string.save_changes)).performClick()
         composeRule.runOnIdle { assertEquals(true, saved?.useGnss) }
+    }
+
+    @Test
+    fun ringSwitchesExposeNamesStateAndMinimumTouchTargets() {
+        showSettings(Event.create("4C1A9B"), isHost = true, onSave = {})
+        listOf(
+            R.string.accept_new_members,
+            R.string.discoverable,
+            R.string.approve_each_join,
+            R.string.track_host_only,
+            R.string.gnss_sharing,
+            R.string.chat_notifications,
+        ).forEach { label ->
+            composeRule.onNodeWithContentDescription(context.getString(label))
+                .performScrollTo()
+                .assertIsDisplayed()
+                .assertHasClickAction()
+                .assertWidthIsAtLeast(48.dp)
+                .assertHeightIsAtLeast(48.dp)
+        }
+        composeRule.onNodeWithContentDescription(context.getString(R.string.uwb))
+            .performScrollTo()
+            .assertIsOff()
+            .assertIsNotEnabled()
+            .assertWidthIsAtLeast(48.dp)
+            .assertHeightIsAtLeast(48.dp)
     }
 }
