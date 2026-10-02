@@ -33,6 +33,7 @@ For step-by-step instructions on using any of this, see the [User Guide](user-gu
 - **Opt-in screen-reader radar summary**: when enabled in **App Settings → Accessibility**, the radar Canvas exposes the tracked member, distance or signal state, direction when known, and any active beacon as one spoken description. Accessibility features are off by default.
 - **UWB sessions survive a transport drop**: if a member walks out of BLE range while still being tracked, the ranging session is held open for 45 s so walking back is instant instead of renegotiating. Ending or leaving the ring discards every retained address.
 - **Theming**: a fixed violet brand palette applied throughout, honouring the system's light/dark setting, an adaptive violet-and-white radar icon, and a monochrome `ic_launcher_monochrome.xml` for Android 13+ launchers. **Material You dynamic colour is deliberately not used** — see [Known limitations](roadmap.md#known-limitations).
+- **Localized interface** in English, Croatian, Spanish, French, Canadian French, German, and Russian. Android 13 and newer can select PingRing's language independently in the system app-language settings; earlier Android versions follow the device language.
 - **Device-aware permissions**: unsupported hardware (`FEATURE_BLUETOOTH`, `FEATURE_WIFI`, `FEATURE_LOCATION`, camera, UWB, vibrator) skips its permission prompt, and its UI is disabled with an explanatory label instead of an ungrantable dialog.
 
 ---

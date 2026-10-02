@@ -51,6 +51,7 @@ Every document links back here at the top and bottom.
 ### 👤 Identity & Join
 - **Custom usernames**, saved locally and unique within a session.
 - **Join via QR** or a **6-character PingRing Code** (`e.g. AB12CD`), with a validated handshake.
+- **Localized interface** in English, Croatian, Spanish, French, Canadian French, German, and Russian. Android 13+ offers an app-specific language setting; older versions follow the device language.
 
 ### 🚨 Beacons & Chat
 - **Intent presets** with 5 colour palettes and 5 vibration rhythms, plus a one-tap **Quick Beacon**.

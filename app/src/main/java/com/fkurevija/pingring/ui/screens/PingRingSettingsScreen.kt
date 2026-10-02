@@ -47,12 +47,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.fkurevija.pingring.data.ConnectionMethodPolicy
 import com.fkurevija.pingring.data.ConnectionMethodPolicy.Unavailable
 import com.fkurevija.pingring.data.Event
 import com.fkurevija.pingring.data.MAX_PARTICIPANTS
+import com.fkurevija.pingring.R
 import com.fkurevija.pingring.ui.permissions.rememberUwbAvailability
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -66,6 +68,7 @@ fun PingRingSettingsScreen(
     onEndEvent: () -> Unit,
     onLeaveEvent: () -> Unit,
 ) {
+    val context = LocalContext.current
     var acceptsNewMembers by remember(event) { mutableStateOf(event.acceptsNewMembers) }
     var isDiscoverable by remember(event) { mutableStateOf(event.isDiscoverable) }
     var requiresApproval by remember(event) { mutableStateOf(event.requiresApproval) }
@@ -78,10 +81,10 @@ fun PingRingSettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("PingRing Settings", fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.pingring_settings), fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 }
             )
@@ -98,7 +101,7 @@ fun PingRingSettingsScreen(
                     modifier = Modifier.weight(1f).height(50.dp),
                     shape = RoundedCornerShape(14.dp)
                 ) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.cancel))
                 }
                 Button(
                     onClick = {
@@ -106,7 +109,7 @@ fun PingRingSettingsScreen(
                             acceptsNewMembers = acceptsNewMembers,
                             isDiscoverable = isDiscoverable,
                             requiresApproval = requiresApproval,
-                            description = if (acceptsNewMembers) "PingRing Event" else "Closed",
+                            description = context.getString(if (acceptsNewMembers) R.string.pingring_event else R.string.closed),
                             useUwb = useUwb,
                             useWifiDirect = useWifiDirect,
                             chatNotificationsEnabled = chatNotificationsEnabled
@@ -115,7 +118,7 @@ fun PingRingSettingsScreen(
                     modifier = Modifier.weight(1f).height(50.dp),
                     shape = RoundedCornerShape(14.dp)
                 ) {
-                    Text("Save Changes")
+                    Text(stringResource(R.string.save_changes))
                 }
             }
         }
@@ -135,7 +138,7 @@ fun PingRingSettingsScreen(
             ) {
                 Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                     Text(
-                        "Connectivity & Participation",
+                        stringResource(R.string.connectivity_participation),
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
@@ -149,8 +152,8 @@ fun PingRingSettingsScreen(
                         Icon(Icons.Default.GroupAdd, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
-                            Text("Accept New Members", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                            Text("Allow nearby users to discover and join", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(stringResource(R.string.accept_new_members), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                            Text(stringResource(R.string.allow_nearby_discover_join), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Switch(checked = acceptsNewMembers, onCheckedChange = { acceptsNewMembers = it })
                     }
@@ -164,9 +167,9 @@ fun PingRingSettingsScreen(
                         Icon(Icons.Default.TravelExplore, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
-                            Text("Discoverable", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                            Text(stringResource(R.string.discoverable), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                             Text(
-                                "List this PingRing for nearby phones to find. Anyone can still join with the code.",
+                                stringResource(R.string.discoverable_description),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -183,9 +186,9 @@ fun PingRingSettingsScreen(
                         Icon(Icons.Default.Rule, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
-                            Text("Approve Each Join", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                            Text(stringResource(R.string.approve_each_join), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                             Text(
-                                "Hold new members until you allow them. Anyone can still join with the code.",
+                                stringResource(R.string.approve_each_join_description),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -232,10 +235,10 @@ fun PingRingSettingsScreen(
                         Icon(Icons.Default.Sensors, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
-                            Text("Ultra-wideband (UWB)", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                            Text(stringResource(R.string.uwb), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                             Text(
-                                uwbRefusal?.let { ConnectionMethodPolicy.describe(it) }
-                                    ?: "Sub-metre ranging on supported hardware.",
+                                uwbRefusal?.let { stringResource(it.descriptionRes) }
+                                    ?: stringResource(R.string.sub_metre_uwb),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -249,7 +252,6 @@ fun PingRingSettingsScreen(
 
                     HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 
-                    val context = LocalContext.current
                     val wifiDirectSupported = remember(context) {
                         context.packageManager.hasSystemFeature(PackageManager.FEATURE_WIFI_DIRECT) ||
                                 context.packageManager.hasSystemFeature(PackageManager.FEATURE_WIFI)
@@ -269,12 +271,12 @@ fun PingRingSettingsScreen(
                         Icon(Icons.Default.Wifi, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
-                            Text("High Bandwidth (Wi-Fi)", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                            Text(stringResource(R.string.high_bandwidth_wifi), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                             Text(
                                 if (wifiDirectSupported) {
-                                    "Always on. Nearby Connections carries chat and beacons over Wi-Fi Direct automatically; there is nothing to turn off."
+                                    stringResource(R.string.wifi_transport_always_on)
                                 } else {
-                                    "Not supported on this device"
+                                    stringResource(R.string.not_supported_on_device)
                                 },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -282,7 +284,7 @@ fun PingRingSettingsScreen(
                         }
                         Icon(
                             Icons.Default.Check,
-                            contentDescription = "Always on",
+                            contentDescription = stringResource(R.string.always_on),
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(20.dp)
                         )
@@ -297,8 +299,8 @@ fun PingRingSettingsScreen(
                         Icon(Icons.Default.Notifications, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
-                            Text("Chat Notifications", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                            Text("Notify on incoming chat messages in this PingRing", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(stringResource(R.string.chat_notifications), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                            Text(stringResource(R.string.event_chat_notifications_description), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Switch(checked = chatNotificationsEnabled, onCheckedChange = { chatNotificationsEnabled = it })
                     }
@@ -312,8 +314,8 @@ fun PingRingSettingsScreen(
                         Icon(Icons.Default.GroupAdd, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
-                            Text("Max Capacity", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                            Text("Limited to ${MAX_PARTICIPANTS} members (1 Host + 7 Guests) for radio performance.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(stringResource(R.string.max_capacity), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                            Text(stringResource(R.string.max_capacity_description, MAX_PARTICIPANTS), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
@@ -334,7 +336,7 @@ fun PingRingSettingsScreen(
             ) {
                 Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                     Text(
-                        "Danger Zone",
+                        stringResource(R.string.danger_zone),
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.error
@@ -342,9 +344,9 @@ fun PingRingSettingsScreen(
                     Spacer(Modifier.height(8.dp))
                     Text(
                         if (isHost) {
-                            "Ending the PingRing removes every member and returns them all to the home page."
+                            stringResource(R.string.end_pingring_description)
                         } else {
-                            "Leaving stops you sharing your position. The host and the other members are not affected."
+                            stringResource(R.string.leave_pingring_description)
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -358,7 +360,7 @@ fun PingRingSettingsScreen(
                             contentColor = MaterialTheme.colorScheme.error
                         )
                     ) {
-                        Text(if (isHost) "End PingRing" else "Leave PingRing")
+                        Text(stringResource(if (isHost) R.string.end_pingring else R.string.leave_pingring))
                     }
                 }
             }
@@ -376,3 +378,10 @@ fun PingRingSettingsScreen(
         )
     }
 }
+
+private val Unavailable.descriptionRes: Int
+    get() = when (this) {
+        Unavailable.NO_HARDWARE -> R.string.uwb_no_hardware
+        Unavailable.NO_PERMISSION -> R.string.uwb_needs_permission
+        Unavailable.UNSUPPORTED_OS_VERSION -> R.string.uwb_os_too_old
+    }

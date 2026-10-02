@@ -9,9 +9,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.google.accompanist.permissions.*
+import com.fkurevija.pingring.R
 
 /**
  * Whether [permission] is actually a recognized, requestable permission on
@@ -101,19 +103,19 @@ fun PermissionRationale(permissionState: MultiplePermissionsState) {
         verticalArrangement = Arrangement.Center
     ) {
         Text(
-            text = "Permissions Required",
+            text = stringResource(R.string.permissions_required),
             style = MaterialTheme.typography.headlineSmall,
             textAlign = TextAlign.Center
         )
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            text = "PingRing needs Bluetooth and Location permissions to discover and connect with your friends nearby. Devices with Ultra-wideband hardware will be asked for an extra UWB permission when you enable precision ranging.",
+            text = stringResource(R.string.permissions_rationale),
             style = MaterialTheme.typography.bodyMedium,
             textAlign = TextAlign.Center
         )
         Spacer(modifier = Modifier.height(24.dp))
         Button(onClick = { permissionState.launchMultiplePermissionRequest() }) {
-            Text(if (permissionState.shouldShowRationale) "Allow in Settings" else "Grant Permissions")
+            Text(stringResource(if (permissionState.shouldShowRationale) R.string.allow_in_settings else R.string.grant_permissions))
         }
     }
 }

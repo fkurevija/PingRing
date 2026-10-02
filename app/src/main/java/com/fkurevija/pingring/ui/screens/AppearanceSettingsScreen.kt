@@ -48,8 +48,10 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.fkurevija.pingring.R
 import com.fkurevija.pingring.data.AppearanceSettingsRepository
 import com.fkurevija.pingring.data.ChatBubbleColorPreset
 import com.fkurevija.pingring.data.ThemeMode
@@ -72,10 +74,10 @@ fun AppearanceSettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Appearance", fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.appearance_title), fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 }
             )
@@ -89,10 +91,10 @@ fun AppearanceSettingsScreen(
                 onExpandedChange = { themeMenuExpanded = it },
             ) {
                 OutlinedTextField(
-                    value = selectedTheme.label,
+                    value = stringResource(selectedTheme.labelRes),
                     onValueChange = {},
                     readOnly = true,
-                    label = { Text("Theme Mode") },
+                    label = { Text(stringResource(R.string.theme_mode)) },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = themeMenuExpanded) },
                     modifier = Modifier.fillMaxWidth().menuAnchor(),
                 )
@@ -102,7 +104,7 @@ fun AppearanceSettingsScreen(
                 ) {
                     ThemeMode.entries.forEach { mode ->
                         DropdownMenuItem(
-                            text = { Text(mode.label) },
+                            text = { Text(stringResource(mode.labelRes)) },
                             onClick = {
                                 selectedTheme = mode
                                 onThemeModeChange(mode)
@@ -113,9 +115,9 @@ fun AppearanceSettingsScreen(
                 }
             }
             Spacer(Modifier.height(28.dp))
-            Text("Chat Bubble Colour", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.chat_bubble_colour), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             Text(
-                "Shown on new messages you send",
+                stringResource(R.string.chat_bubble_colour_description),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -127,11 +129,15 @@ fun AppearanceSettingsScreen(
             ) {
                 ChatBubbleColorPreset.entries.forEach { preset ->
                     val selected = chatBubbleColor == preset.colorArgb
+                    val presetDescription = stringResource(
+                        R.string.set_chat_bubble_colour_to,
+                        stringResource(preset.labelRes),
+                    )
                     Box(
                         modifier = Modifier
                             .size(36.dp)
                             .background(Color(preset.colorArgb), CircleShape)
-                            .semantics { contentDescription = "Set chat bubble colour to ${preset.label}" }
+                            .semantics { contentDescription = presetDescription }
                             .clickable { appearanceSettings.setChatBubbleColor(preset.colorArgb) }
                             .then(
                                 if (selected) Modifier.background(
@@ -141,12 +147,12 @@ fun AppearanceSettingsScreen(
                     )
                 }
                 TextButton(onClick = { showCustomChatColorPicker = true }) {
-                    Text("Custom")
+                    Text(stringResource(R.string.custom))
                 }
             }
             if (chatBubbleColor != null) {
                 TextButton(onClick = { appearanceSettings.setChatBubbleColor(null) }) {
-                    Text("Use theme colour")
+                    Text(stringResource(R.string.use_theme_colour))
                 }
             }
         }
@@ -171,16 +177,17 @@ private fun ChatBubbleColorPickerDialog(
     var hue by remember { mutableFloatStateOf(0f) }
     val selectedColor = Color.hsv(hue, 0.72f, 0.72f)
     val wheelColors = listOf(Color.Red, Color.Yellow, Color.Green, Color.Cyan, Color.Blue, Color.Magenta, Color.Red)
+    val hueWheelDescription = stringResource(R.string.chat_colour_hue_wheel)
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Custom Chat Colour") },
+        title = { Text(stringResource(R.string.custom_chat_colour)) },
         text = {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Canvas(
                     modifier = Modifier
                         .size(220.dp)
-                        .semantics { contentDescription = "Chat colour hue wheel" }
+                        .semantics { contentDescription = hueWheelDescription }
                         .pointerInput(Unit) {
                             detectTapGestures { tap ->
                                 val centre = Offset(size.width / 2f, size.height / 2f)
@@ -195,21 +202,29 @@ private fun ChatBubbleColorPickerDialog(
                     drawCircle(color = selectedColor, radius = size.minDimension * 0.12f)
                 }
                 Spacer(Modifier.height(12.dp))
-                Text("Choose a hue", style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.choose_hue), style = MaterialTheme.typography.bodyMedium)
             }
         },
         confirmButton = {
             Button(onClick = { onConfirm(selectedColor.toArgb().toLong() and 0xFFFF_FFFFL) }) {
-                Text("Use colour")
+                Text(stringResource(R.string.use_colour))
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
     )
 }
 
-private val ThemeMode.label: String
+private val ThemeMode.labelRes: Int
     get() = when (this) {
-        ThemeMode.SYSTEM -> "System Default"
-        ThemeMode.LIGHT -> "Light Theme"
-        ThemeMode.DARK -> "Dark Theme"
+        ThemeMode.SYSTEM -> R.string.theme_system_default
+        ThemeMode.LIGHT -> R.string.theme_light
+        ThemeMode.DARK -> R.string.theme_dark
+    }
+
+private val ChatBubbleColorPreset.labelRes: Int
+    get() = when (this) {
+        ChatBubbleColorPreset.OCEAN -> R.string.color_preset_ocean
+        ChatBubbleColorPreset.BERRY -> R.string.color_preset_berry
+        ChatBubbleColorPreset.GOLD -> R.string.color_preset_gold
+        ChatBubbleColorPreset.SLATE -> R.string.color_preset_slate
     }

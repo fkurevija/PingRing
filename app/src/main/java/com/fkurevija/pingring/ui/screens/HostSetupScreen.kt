@@ -49,11 +49,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import com.fkurevija.pingring.data.DiscoveryRepository
+import com.fkurevija.pingring.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -77,7 +79,8 @@ fun HostSetupScreen(
      */
     onOpenSettings: () -> Unit
 ) {
-    var username by remember(savedUsername) { mutableStateOf(savedUsername.ifBlank { "Host" }) }
+    val defaultHostName = stringResource(R.string.host_default_name)
+    var username by remember(savedUsername, defaultHostName) { mutableStateOf(savedUsername.ifBlank { defaultHostName }) }
     var showEndConfirmation by remember { mutableStateOf(false) }
 
     // The PingRing is already live on this screen - the host is advertising as
@@ -100,16 +103,16 @@ fun HostSetupScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Host a PingRing", fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.host_pingring), fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     // Same confirmation as the system back, so the arrow and the
                     // gesture can never disagree about what back means.
                     IconButton(onClick = { showEndConfirmation = true }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "End PingRing")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.end_pingring))
                     }
                 },
                 actions = {
-                    TextButton(onClick = onOpenSettings) { Text("All Settings") }
+                    TextButton(onClick = onOpenSettings) { Text(stringResource(R.string.all_settings)) }
                 }
             )
         },
@@ -127,7 +130,7 @@ fun HostSetupScreen(
                     modifier = Modifier.fillMaxWidth().height(52.dp),
                     shape = RoundedCornerShape(16.dp)
                 ) {
-                    Text("Launch Radar", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.launch_radar), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 }
             }
         }
@@ -153,7 +156,7 @@ fun HostSetupScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        "Scan to Join",
+                        stringResource(R.string.scan_to_join),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
@@ -171,13 +174,13 @@ fun HostSetupScreen(
                     ) {
                         Image(
                             bitmap = qrCodeBitmap,
-                            contentDescription = "QR code for PingRing $eventCode",
+                            contentDescription = stringResource(R.string.qr_code_for_pingring, eventCode),
                             modifier = Modifier.fillMaxSize()
                         )
                     }
                     Spacer(Modifier.height(14.dp))
                     Text(
-                        "PingRing Code",
+                        stringResource(R.string.pingring_code),
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -204,12 +207,12 @@ fun HostSetupScreen(
             OutlinedTextField(
                 value = username,
                 onValueChange = { username = it },
-                label = { Text("Username") },
-                placeholder = { Text("e.g. Alex") },
+                label = { Text(stringResource(R.string.username)) },
+                placeholder = { Text(stringResource(R.string.username_example)) },
                 isError = username.isBlank(),
                 supportingText = {
                     if (username.isBlank()) {
-                        Text("Username cannot be empty", color = MaterialTheme.colorScheme.error)
+                        Text(stringResource(R.string.username_required), color = MaterialTheme.colorScheme.error)
                     }
                 },
                 shape = RoundedCornerShape(14.dp),
@@ -230,14 +233,14 @@ fun HostSetupScreen(
             ) {
                 Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                     Text(
-                        "Event settings",
+                        stringResource(R.string.event_settings),
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "Membership, tracking, UWB and notifications are all set in one place.",
+                        stringResource(R.string.event_settings_description),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -249,7 +252,7 @@ fun HostSetupScreen(
                     ) {
                         Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text("Event Settings", fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.event_settings), fontWeight = FontWeight.SemiBold)
                     }
                 }
             }

@@ -36,7 +36,6 @@ This page separates behavior that is **built but unverified**, constraints that 
 
 ## Planned work
 
-- **Multi-language support.** User-visible strings are currently hard-coded; supported locales and translation ownership still need to be selected.
 - **Formal security review.** Assess the BLE advertisement and Nearby Connections threat model, including practical eavesdropping and abuse scenarios.
 
 ---

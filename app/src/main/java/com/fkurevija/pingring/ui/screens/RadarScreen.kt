@@ -100,6 +100,9 @@ import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.FilterChip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -131,6 +134,7 @@ import com.fkurevija.pingring.data.RadarAccessibilityPolicy
 import com.fkurevija.pingring.data.RadarDirectionPolicy
 import com.fkurevija.pingring.data.RadarPeerUpdate
 import com.fkurevija.pingring.data.SessionState
+import com.fkurevija.pingring.R
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -281,7 +285,9 @@ fun RadarScreen(
         if (distance < 2f) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
     }
 
-    val senderName = sessionState.userName.ifBlank { if (isHost) "Host" else "Peer" }
+    val senderName = sessionState.userName.ifBlank {
+        context.getString(if (isHost) R.string.host_default_name else R.string.peer_default_name)
+    }
     val focusedBeacon = focusedPeer?.let { activeBeacons[it.peerId] } ?: localBeacon
 
     Scaffold(
@@ -289,9 +295,9 @@ fun RadarScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text("PingRing", fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.app_name), fontWeight = FontWeight.Bold)
                         Text(
-                            "Code: $eventId · ${peers.size + 1}/$MAX_PARTICIPANTS Members",
+                            stringResource(R.string.radar_event_summary, eventId, peers.size + 1, MAX_PARTICIPANTS),
                             style = MaterialTheme.typography.labelMedium,
                         )
                     }
@@ -300,7 +306,7 @@ fun RadarScreen(
                     IconButton(onClick = { showEndConfirmation = true }) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = if (isHost) "End PingRing" else "Leave PingRing"
+                            contentDescription = stringResource(if (isHost) R.string.end_pingring else R.string.leave_pingring)
                         )
                     }
                 },
@@ -310,12 +316,12 @@ fun RadarScreen(
                         IconButton(onClick = { showQrCode = true }) {
                             Icon(
                                 Icons.Default.QrCode2,
-                                contentDescription = "Show QR code to join this PingRing"
+                                contentDescription = stringResource(R.string.show_join_qr)
                             )
                         }
                     }
                     if (isHost) {
-                        TextButton(onClick = onEventSettings) { Text("Settings") }
+                        TextButton(onClick = onEventSettings) { Text(stringResource(R.string.settings)) }
                     }
                 }
             )
@@ -357,11 +363,7 @@ fun RadarScreen(
                 ) {
                     Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
                         Text(
-                            if (requestsToShow.size == 1) {
-                                "1 device wants to join"
-                            } else {
-                                "${requestsToShow.size} devices want to join"
-                            },
+                            pluralStringResource(R.plurals.join_request_count, requestsToShow.size, requestsToShow.size),
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold
                         )
@@ -384,11 +386,11 @@ fun RadarScreen(
                                     fontWeight = FontWeight.SemiBold
                                 )
                                 TextButton(onClick = { onDenyJoinRequest(request.endpointId) }) {
-                                    Text("Deny")
+                                    Text(stringResource(R.string.deny))
                                 }
                                 Spacer(Modifier.width(4.dp))
                                 Button(onClick = { onApproveJoinRequest(request.endpointId) }) {
-                                    Text("Allow")
+                                    Text(stringResource(R.string.allow))
                                 }
                             }
                         }
@@ -420,12 +422,12 @@ fun RadarScreen(
                             Spacer(Modifier.width(8.dp))
                             Column {
                                 Text(
-                                    "Your Beacon is Active: ${beacon.title}",
+                                    stringResource(R.string.your_beacon_is_active, beacon.title),
                                     fontWeight = FontWeight.Bold,
                                     color = beacon.color
                                 )
                                 Text(
-                                    "Calling nearby peers to your location",
+                                    stringResource(R.string.calling_nearby_peers),
                                     style = MaterialTheme.typography.bodySmall
                                 )
                             }
@@ -441,7 +443,7 @@ fun RadarScreen(
                             border = BorderStroke(1.dp, beacon.color),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = beacon.color)
                         ) {
-                            Text("Stop")
+                            Text(stringResource(R.string.stop))
                         }
                     }
                 }
@@ -555,7 +557,7 @@ fun RadarScreen(
                         ) {
                             Column(Modifier.fillMaxSize().padding(12.dp)) {
                                 Text(
-                                    "Chat",
+                                    stringResource(R.string.chat),
                                     style = MaterialTheme.typography.labelLarge,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.primary
@@ -584,7 +586,7 @@ fun RadarScreen(
                                                 contentAlignment = Alignment.Center
                                             ) {
                                                 Text(
-                                                    "No messages yet. Say hello!",
+                                                    stringResource(R.string.no_messages_yet),
                                                     style = MaterialTheme.typography.bodySmall,
                                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                                 )
@@ -660,7 +662,7 @@ fun RadarScreen(
                                     OutlinedTextField(
                                         value = chatText,
                                         onValueChange = { chatText = it },
-                                        placeholder = { Text("Type a message…", style = MaterialTheme.typography.bodyMedium) },
+                                        placeholder = { Text(stringResource(R.string.type_message), style = MaterialTheme.typography.bodyMedium) },
                                         modifier = Modifier.weight(1f),
                                         shape = RoundedCornerShape(24.dp),
                                         singleLine = true,
@@ -688,7 +690,7 @@ fun RadarScreen(
                                     ) {
                                         Icon(
                                             Icons.AutoMirrored.Filled.Send,
-                                            contentDescription = "Send",
+                                            contentDescription = stringResource(R.string.send),
                                             modifier = Modifier.size(20.dp)
                                         )
                                     }
@@ -743,8 +745,7 @@ fun RadarScreen(
                                         } else {
                                             Toast.makeText(
                                                 context,
-                                                "No Quick Beacon set yet. Open New Beacon and " +
-                                                    "tap Set as Quick Beacon to choose one.",
+                                                context.getString(R.string.no_quick_beacon),
                                                 Toast.LENGTH_LONG
                                             ).show()
                                             showBeaconSheet = true
@@ -754,7 +755,7 @@ fun RadarScreen(
                                 ) {
                                     Icon(Icons.Default.FlashOn, contentDescription = null, modifier = Modifier.size(16.dp))
                                     Spacer(Modifier.width(6.dp))
-                                    Text("Quick Beacon")
+                                    Text(stringResource(R.string.quick_beacon))
                                 }
                                 // The label and the icon are coloured for the
                                 // beacon they sit on rather than left at the
@@ -778,7 +779,7 @@ fun RadarScreen(
                                 ) {
                                     Icon(Icons.Default.Campaign, contentDescription = null, modifier = Modifier.size(18.dp))
                                     Spacer(Modifier.width(6.dp))
-                                    Text(if (localBeacon != null) "My Beacon" else "New Beacon")
+                                    Text(stringResource(if (localBeacon != null) R.string.my_beacon else R.string.new_beacon))
                                 }
                             }
                         }
@@ -837,7 +838,7 @@ fun RadarScreen(
                 if (showQrCode) {
                     AlertDialog(
                         onDismissRequest = { showQrCode = false },
-                        title = { Text("Scan to Join") },
+                        title = { Text(stringResource(R.string.scan_to_join)) },
                         text = {
                             Column(
                                 modifier = Modifier.fillMaxWidth(),
@@ -853,7 +854,7 @@ fun RadarScreen(
                                 ) {
                                     Image(
                                         bitmap = generateQrCode(eventId).asImageBitmap(),
-                                        contentDescription = "QR code for PingRing $eventId",
+                                        contentDescription = stringResource(R.string.qr_code_for_pingring, eventId),
                                         modifier = Modifier.fillMaxSize()
                                     )
                                 }
@@ -867,7 +868,7 @@ fun RadarScreen(
                             }
                         },
                         confirmButton = {
-                            TextButton(onClick = { showQrCode = false }) { Text("Close") }
+                            TextButton(onClick = { showQrCode = false }) { Text(stringResource(R.string.close)) }
                         }
                     )
                 }
@@ -902,7 +903,7 @@ private fun ActiveBeaconEntry(beacon: BeaconInfo) {
     ) {
         Icon(
             Icons.Default.Campaign,
-            contentDescription = "Active beacon",
+            contentDescription = stringResource(R.string.active_beacon),
             tint = beaconColor,
             modifier = Modifier.size(24.dp)
         )
@@ -915,7 +916,11 @@ private fun ActiveBeaconEntry(beacon: BeaconInfo) {
                 color = beaconColor
             )
             Text(
-                "${beacon.senderName} · ${BeaconVibrationPattern.fromName(beacon.vibrationPattern).displayName}",
+                stringResource(
+                    R.string.beacon_sender_pattern,
+                    beacon.senderName,
+                    stringResource(BeaconVibrationPattern.fromName(beacon.vibrationPattern).labelRes),
+                ),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -931,6 +936,12 @@ private fun RadarContent(
     radarScreenReaderSummaryEnabled: Boolean,
     modifier: Modifier
 ) {
+    val resources = LocalContext.current.resources
+    val proximityLabel = when (peer?.proximity) {
+        "Hot" -> stringResource(R.string.proximity_hot)
+        "Cold" -> stringResource(R.string.proximity_cold)
+        else -> stringResource(R.string.proximity_unknown)
+    }
     val hotness = ((peer?.rssi ?: -100) + 100).coerceIn(0, 100) / 100f
     // Signal strength still tints the ring, from cold blue to warm green. It no
     // longer drives any lit segment: the ring only lights up for a bearing.
@@ -985,11 +996,12 @@ private fun RadarContent(
             arrowDegrees = peer?.azimuth,
             distanceMeters = peer?.distance,
             beacon = beacon,
-            accessibilityDescription = RadarAccessibilityPolicy.describe(
+            accessibilityDescription = RadarAccessibilityPolicy.describeLocalized(
+                resources = resources,
                 peerName = peer?.name,
                 distanceMeters = peer?.distance,
                 azimuthDegrees = peer?.azimuth,
-                proximity = peer?.proximity,
+                proximityLabel = peer?.let { proximityLabel },
                 beaconTitle = beacon?.title,
             ),
             accessibilityEnabled = radarScreenReaderSummaryEnabled,
@@ -1007,13 +1019,15 @@ private fun RadarContent(
         Spacer(Modifier.height(verticalBuffer))
         if (peer != null) {
             Text(
-                peer.distance?.let { "%.1f m away".format(it) } ?: "${peer.proximity} signal",
+                peer.distance?.let { stringResource(R.string.distance_away, it) }
+                    ?: stringResource(R.string.proximity_signal, proximityLabel),
                 style = MaterialTheme.typography.headlineSmall,
                 color = ringColor,
                 fontWeight = FontWeight.Bold
             )
             Text(
-                if (peer.azimuth != null) "Direction locked · ${peer.azimuth.toInt()}°" else "BLE proximity mode",
+                if (peer.azimuth != null) stringResource(R.string.direction_locked, peer.azimuth.toInt())
+                else stringResource(R.string.ble_proximity_mode),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -1220,9 +1234,9 @@ internal fun PeerList(
                 Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.BluetoothDisabled, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
-                    Text("Bluetooth is off. Enable it to discover nearby peers.")
+                    Text(stringResource(R.string.bluetooth_off_discovery))
                     IconButton(onClick = { repository?.refreshConnectivityStatus() }) {
-                        Icon(Icons.Default.Visibility, contentDescription = "Recheck")
+                        Icon(Icons.Default.Visibility, contentDescription = stringResource(R.string.recheck))
                     }
                 }
             }
@@ -1234,7 +1248,8 @@ internal fun PeerList(
         ) {
             val isFull = (peers.size + 1) >= MAX_PARTICIPANTS
             Text(
-                if (isFull) "Members (${peers.size + 1}/${MAX_PARTICIPANTS} - Full)" else "Members (${peers.size + 1}/${MAX_PARTICIPANTS})",
+                if (isFull) stringResource(R.string.member_count_full, peers.size + 1, MAX_PARTICIPANTS)
+                else stringResource(R.string.member_count, peers.size + 1, MAX_PARTICIPANTS),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
@@ -1257,7 +1272,7 @@ internal fun PeerList(
         }
         if (peers.isEmpty()) {
             Text(
-                "Your ephemeral ID is private to this event. When someone appears, their signal and direction will show here.",
+                stringResource(R.string.empty_peer_list),
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.fillMaxWidth().padding(24.dp)
@@ -1294,7 +1309,7 @@ internal fun PeerList(
                                     if (isFocused) {
                                         Spacer(Modifier.width(6.dp))
                                         Text(
-                                            "TRACKING",
+                                            stringResource(R.string.tracking_badge),
                                             style = MaterialTheme.typography.labelSmall,
                                             color = MaterialTheme.colorScheme.primary,
                                             fontWeight = FontWeight.Bold
@@ -1310,9 +1325,14 @@ internal fun PeerList(
                                         )
                                     }
                                 }
-                                Text("${peer.proximity} · ${peer.rssi ?: 0} dBm", style = MaterialTheme.typography.bodySmall)
+                                val proximityLabel = when (peer.proximity) {
+                                    "Hot" -> stringResource(R.string.proximity_hot)
+                                    "Cold" -> stringResource(R.string.proximity_cold)
+                                    else -> stringResource(R.string.proximity_unknown)
+                                }
+                                Text(stringResource(R.string.peer_signal_strength, proximityLabel, peer.rssi ?: 0), style = MaterialTheme.typography.bodySmall)
                             }
-                            Text(peer.distance?.let { "%.1f m".format(it) } ?: "—", fontWeight = FontWeight.Bold)
+                            Text(peer.distance?.let { stringResource(R.string.distance_meters, it) } ?: stringResource(R.string.no_distance), fontWeight = FontWeight.Bold)
                             Spacer(Modifier.width(8.dp))
                             // Tapping the row makes this the one member the
                             // radar draws and the UWB session ranges. Tapping
@@ -1330,7 +1350,10 @@ internal fun PeerList(
                             ) {
                                 Icon(
                                     if (isFocused) Icons.Default.MyLocation else Icons.Default.GpsFixed,
-                                    contentDescription = if (isFocused) "Stop tracking ${peer.name}" else "Track ${peer.name}",
+                                    contentDescription = stringResource(
+                                        if (isFocused) R.string.stop_tracking_member else R.string.track_member,
+                                        peer.name,
+                                    ),
                                     tint = if (isFocused) {
                                         MaterialTheme.colorScheme.primary
                                     } else {
@@ -1375,7 +1398,7 @@ internal fun TrackedMemberPicker(
         // No explicit choice: whatever FocusPolicy resolved is being tracked,
         // which is not necessarily in this list - under a host-owned policy the
         // guest tracks the host, and the host is not its own peer.
-        else -> "Automatic"
+        else -> stringResource(R.string.automatic)
     }
 
     ExposedDropdownMenuBox(
@@ -1387,7 +1410,7 @@ internal fun TrackedMemberPicker(
             onValueChange = {},
             readOnly = true,
             enabled = canSelect,
-            label = { Text("Tracking") },
+            label = { Text(stringResource(R.string.tracking)) },
             leadingIcon = { Icon(Icons.Default.MyLocation, contentDescription = null) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier
@@ -1403,7 +1426,7 @@ internal fun TrackedMemberPicker(
             // control is how the choice is inspected, so it has to be where it
             // can also be undone.
             DropdownMenuItem(
-                text = { Text("Automatic") },
+                text = { Text(stringResource(R.string.automatic)) },
                 onClick = {
                     onSelect(null)
                     expanded = false
@@ -1435,10 +1458,12 @@ fun BeaconCustomizationDialog(
     onTestVibrate: (LongArray) -> Unit
 ) {
     var isVibrationMenuExpanded by remember { mutableStateOf(false) }
+    val context = LocalContext.current
     var selectedPreset by remember { mutableStateOf(BeaconPreset.entries.first()) }
+    val initialPresetTitle = stringResource(selectedPreset.defaultTitleRes)
     // Prefills from what is live, else from the set Quick Beacon, else the
     // first preset: whichever the user is most likely to want on screen first.
-    var title by remember { mutableStateOf(localBeacon?.title ?: quickBeacon?.title ?: selectedPreset.defaultTitle) }
+    var title by remember { mutableStateOf(localBeacon?.title ?: quickBeacon?.title ?: initialPresetTitle) }
     var selectedColor by remember { mutableLongStateOf(localBeacon?.colorArgb ?: quickBeacon?.colorArgb ?: selectedPreset.defaultColorArgb) }
     var selectedPattern by remember {
         mutableStateOf(
@@ -1452,7 +1477,7 @@ fun BeaconCustomizationDialog(
     // already the Quick Beacon?" is one comparison rather than three - and the
     // title is normalised here, so what gets set is exactly what Activate sends.
     val currentSelection = QuickBeacon(
-        title = title.ifBlank { DEFAULT_BEACON_TITLE },
+        title = title.ifBlank { context.getString(R.string.active_beacon_title) },
         colorArgb = selectedColor,
         pattern = selectedPattern
     )
@@ -1477,7 +1502,7 @@ fun BeaconCustomizationDialog(
                     modifier = Modifier.size(24.dp)
                 )
                 Spacer(Modifier.width(8.dp))
-                Text(if (localBeacon != null) "Update Active Beacon" else "Create Beacon")
+                Text(stringResource(if (localBeacon != null) R.string.update_active_beacon else R.string.create_beacon))
             }
         },
         text = {
@@ -1487,7 +1512,7 @@ fun BeaconCustomizationDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text("Select Preset", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.select_preset), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1499,12 +1524,12 @@ fun BeaconCustomizationDialog(
                             selected = selectedPreset == preset,
                             onClick = {
                                 selectedPreset = preset
-                                title = preset.defaultTitle
+                                title = context.getString(preset.defaultTitleRes)
                                 selectedColor = preset.defaultColorArgb
                                 selectedPattern = preset.defaultPattern
                                 isVibrationMenuExpanded = false // Close menu on selection
                             },
-                            label = { Text("${preset.iconEmoji} ${preset.label}") }
+                            label = { Text(stringResource(preset.labelRes, preset.iconEmoji)) }
                         )
                     }
                 }
@@ -1512,7 +1537,7 @@ fun BeaconCustomizationDialog(
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
-                    label = { Text("Beacon Message / Intent") },
+                    label = { Text(stringResource(R.string.beacon_message_intent)) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(
@@ -1520,7 +1545,7 @@ fun BeaconCustomizationDialog(
                     )
                 )
 
-                Text("Beacon Color", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.beacon_color), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceAround,
@@ -1552,13 +1577,13 @@ fun BeaconCustomizationDialog(
                     }
                 }
 
-                Text("Vibration Rhythm & Intensity", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.vibration_rhythm_intensity), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
                 ExposedDropdownMenuBox(
                     expanded = isVibrationMenuExpanded,
                     onExpandedChange = { isVibrationMenuExpanded = !isVibrationMenuExpanded }
                 ) {
                     OutlinedTextField(
-                        value = selectedPattern.displayName,
+                        value = stringResource(selectedPattern.labelRes),
                         onValueChange = {},
                         readOnly = true,
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isVibrationMenuExpanded) },
@@ -1572,7 +1597,7 @@ fun BeaconCustomizationDialog(
                     ) {
                         BeaconVibrationPattern.entries.forEach { pattern ->
                             DropdownMenuItem(
-                                text = { Text(pattern.displayName) },
+                                text = { Text(stringResource(pattern.labelRes)) },
                                 onClick = {
                                     selectedPattern = pattern
                                     isVibrationMenuExpanded = false
@@ -1588,7 +1613,7 @@ fun BeaconCustomizationDialog(
                 ) {
                     Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text("Test Vibration")
+                    Text(stringResource(R.string.test_vibration))
                 }
 
                 // The configuration the Quick Beacon button sends. One slot,
@@ -1608,7 +1633,7 @@ fun BeaconCustomizationDialog(
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(Modifier.width(6.dp))
-                    Text(if (isQuickBeaconSet) "Remove Quick Beacon" else "Set as Quick Beacon")
+                    Text(stringResource(if (isQuickBeaconSet) R.string.remove_quick_beacon else R.string.set_quick_beacon))
                 }
             }
         },
@@ -1620,7 +1645,7 @@ fun BeaconCustomizationDialog(
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = Color(selectedColor))
             ) {
-                Text(if (localBeacon != null) "Update Beacon" else "Activate Beacon", color = Color.White)
+                Text(stringResource(if (localBeacon != null) R.string.update_beacon else R.string.activate_beacon), color = Color.White)
             }
         },
         dismissButton = {
@@ -1633,16 +1658,43 @@ fun BeaconCustomizationDialog(
                         },
                         colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                     ) {
-                        Text("Stop Beacon")
+                        Text(stringResource(R.string.stop_beacon))
                     }
                 }
                 TextButton(onClick = onDismiss) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.cancel))
                 }
             }
         }
     )
 }
+
+private val BeaconVibrationPattern.labelRes: Int
+    get() = when (this) {
+        BeaconVibrationPattern.SOS_URGENT -> R.string.vibration_sos_urgent
+        BeaconVibrationPattern.RAPID_ALERT -> R.string.vibration_rapid_alert
+        BeaconVibrationPattern.STEADY_PULSE -> R.string.vibration_steady_pulse
+        BeaconVibrationPattern.GENTLE_PULSE -> R.string.vibration_gentle_pulse
+        BeaconVibrationPattern.SILENT -> R.string.vibration_none
+    }
+
+private val BeaconPreset.labelRes: Int
+    get() = when (this) {
+        BeaconPreset.FOUND -> R.string.preset_found
+        BeaconPreset.REGROUP -> R.string.preset_regroup
+        BeaconPreset.CAUTION -> R.string.preset_caution
+        BeaconPreset.SOS -> R.string.preset_emergency
+        BeaconPreset.CUSTOM -> R.string.preset_custom
+    }
+
+private val BeaconPreset.defaultTitleRes: Int
+    get() = when (this) {
+        BeaconPreset.FOUND -> R.string.preset_found_title
+        BeaconPreset.REGROUP -> R.string.preset_regroup_title
+        BeaconPreset.CAUTION -> R.string.preset_caution_title
+        BeaconPreset.SOS -> R.string.preset_emergency_title
+        BeaconPreset.CUSTOM -> R.string.preset_custom_title
+    }
 
 private fun Color.Companion.lerp(start: Color, end: Color, fraction: Float): Color {
     return Color(

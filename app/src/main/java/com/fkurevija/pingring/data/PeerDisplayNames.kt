@@ -28,10 +28,12 @@ class PeerDisplayNames {
      * number unless it was explicitly forgotten first.
      */
     fun labelFor(peerId: String): String {
-        assigned[peerId]?.let { return "Member $it" }
-        val number = next++
-        assigned[peerId] = number
-        return "Member $number"
+        return labelFor(peerId) { "Member $it" }
+    }
+
+    fun labelFor(peerId: String, format: (Int) -> String): String {
+        val number = assigned[peerId] ?: next++.also { assigned[peerId] = it }
+        return format(number)
     }
 
     /** Forgets [peerId] so it is renumbered if it is ever seen again. */

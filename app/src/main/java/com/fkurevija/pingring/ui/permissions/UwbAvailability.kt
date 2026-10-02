@@ -5,9 +5,11 @@ import android.widget.Toast
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
+import com.fkurevija.pingring.R
 
 /**
  * Whether Ultra-wideband ranging can actually be used right now: the device
@@ -59,6 +61,7 @@ class UwbAvailability(
 @Composable
 fun rememberUwbAvailability(hardwareSupported: Boolean): UwbAvailability {
     val context = LocalContext.current
+    val unsupportedMessage = stringResource(R.string.uwb_not_supported)
     val permissionState = if (hardwareSupported && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
         rememberPermissionState("android.permission.UWB_RANGING")
     } else {
@@ -74,7 +77,7 @@ fun rememberUwbAvailability(hardwareSupported: Boolean): UwbAvailability {
                 if (!hardwareSupported) {
                     Toast.makeText(
                         context,
-                        "This device doesn't support Ultra-wideband (UWB) ranging.",
+                        unsupportedMessage,
                         Toast.LENGTH_SHORT
                     ).show()
                 } else {

@@ -166,6 +166,7 @@ Reached from the host setup screen's **Event Settings** card or its **All Settin
 
 The gear icon on the home screen, before hosting or joining. These are device-wide preferences, grouped so one control has one clear owner.
 
+- **Language** — PingRing follows your device language. On Android 13 or newer, choose English, Croatian, Spanish, French, Canadian French, German, or Russian for PingRing alone in the system's app-language settings. On earlier versions, change the device language.
 - **Appearance** — *Theme Mode* is *System Default*, *Light Theme* or *Dark Theme*. PingRing uses a fixed violet brand palette in both modes; it deliberately does not follow Material You wallpaper colours. **Chat Bubble Colour** offers Ocean, Berry, Gold, Slate, or **Custom** from a hue wheel. The choice is saved on this phone and included with new chat messages; clearing it returns new messages to the normal theme colour.
 - **Notifications** — **Chat Push Notifications**, **Notification Sound**, and **Notification Vibration** govern device-wide incoming-chat notifications. The PingRing-specific **Chat Notifications** switch remains in [PingRing Settings](#pingring-settings), where it controls only that event.
 - **Accessibility** — optional accessibility features. **Radar screen-reader summary** is off by default; enable it to have TalkBack announce the tracked member, distance or signal state, direction, and active beacon.

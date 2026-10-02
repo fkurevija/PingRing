@@ -49,7 +49,7 @@ class PingRingService : Service() {
             return START_NOT_STICKY
         }
 
-        val eventId = intent?.getStringExtra(EXTRA_EVENT_ID) ?: "Active"
+        val eventId = intent?.getStringExtra(EXTRA_EVENT_ID) ?: getString(R.string.active)
         createNotificationChannel()
 
         val notificationIntent = Intent(this, MainActivity::class.java).apply {
@@ -65,8 +65,8 @@ class PingRingService : Service() {
         )
 
         val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("PingRing Active")
-            .setContentText("Connected to PingRing $eventId - Tap to open radar")
+            .setContentTitle(getString(R.string.service_notification_title))
+            .setContentText(getString(R.string.service_notification_body, eventId))
             .setSmallIcon(R.mipmap.ic_launcher)
             .setOngoing(true)
             .setContentIntent(pendingIntent)
@@ -87,10 +87,10 @@ class PingRingService : Service() {
     private fun createNotificationChannel() {
         val channel = NotificationChannel(
             CHANNEL_ID,
-            "PingRing Mesh Service",
+            getString(R.string.service_notification_channel),
             NotificationManager.IMPORTANCE_LOW
         ).apply {
-            description = "Keeps PingRing mesh and radar active in the background"
+            description = getString(R.string.service_notification_channel_description)
         }
         val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         manager.createNotificationChannel(channel)

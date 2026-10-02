@@ -125,7 +125,7 @@ class ChatNotifier(
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val eventName = currentEventName() ?: "PingRing"
+        val eventName = currentEventName() ?: context.getString(R.string.app_name)
 
         val notification = NotificationCompat.Builder(context, CHAT_CHANNEL_ID)
             .setContentTitle("$eventName • ${chatMessage.senderName}")
@@ -181,10 +181,10 @@ class ChatNotifier(
 
         val channel = NotificationChannel(
             CHAT_CHANNEL_ID,
-            "PingRing Chat Notifications",
+            context.getString(R.string.chat_notification_channel),
             NotificationManager.IMPORTANCE_HIGH
         ).apply {
-            description = "Notifications for incoming chat messages in PingRing"
+            description = context.getString(R.string.chat_notification_channel_description)
             enableVibration(vibrationEnabled)
             if (desiredVibration != null) {
                 vibrationPattern = desiredVibration

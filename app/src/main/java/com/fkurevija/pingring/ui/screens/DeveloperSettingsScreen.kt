@@ -27,8 +27,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.fkurevija.pingring.R
 import com.fkurevija.pingring.data.AppearanceSettingsRepository
 
 @Suppress("FunctionName")
@@ -45,10 +47,10 @@ fun DeveloperSettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Developer Options", fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.developer_options), fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 }
             )
@@ -61,9 +63,9 @@ fun DeveloperSettingsScreen(
                 Icon(Icons.Default.Wifi, contentDescription = null)
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
-                    Text("Use LAN Debug Transport", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.use_lan_debug_transport), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                     Text(
-                        "Route messages through a local relay instead of Nearby Connections",
+                        stringResource(R.string.lan_debug_transport_description),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -77,8 +79,8 @@ fun DeveloperSettingsScreen(
                         hostFieldValue = it
                         appearanceSettings.setLanDebugHost(it)
                     },
-                    label = { Text("Relay host") },
-                    supportingText = { Text("10.0.2.2 for Emulator, or 127.0.0.1 after adb reverse") },
+                    label = { Text(stringResource(R.string.relay_host)) },
+                    supportingText = { Text(stringResource(R.string.relay_host_help)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
                 )

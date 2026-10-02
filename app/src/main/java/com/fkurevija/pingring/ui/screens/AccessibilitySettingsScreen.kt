@@ -22,8 +22,10 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.fkurevija.pingring.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -35,10 +37,10 @@ fun AccessibilitySettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Accessibility", fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.accessibility_title), fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 }
             )
@@ -51,7 +53,7 @@ fun AccessibilitySettingsScreen(
                 .padding(16.dp)
         ) {
             Text(
-                "Optional accessibility features are off until you enable them.",
+                stringResource(R.string.accessibility_intro),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -70,9 +72,9 @@ fun AccessibilitySettingsScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(Modifier.weight(1f)) {
-                        Text("Radar screen-reader summary", fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.radar_screen_reader_summary), fontWeight = FontWeight.SemiBold)
                         Text(
-                            "Speak the tracked member, distance, direction, and active beacon",
+                            stringResource(R.string.radar_screen_reader_summary_description),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

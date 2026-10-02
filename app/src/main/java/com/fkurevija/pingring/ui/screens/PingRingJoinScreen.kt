@@ -26,6 +26,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -36,6 +37,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.fkurevija.pingring.data.DiscoveredSession
 import com.fkurevija.pingring.data.MAX_PARTICIPANTS
+import com.fkurevija.pingring.R
 import com.fkurevija.pingring.ui.theme.PingRingTheme
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
@@ -60,6 +62,7 @@ fun PingRingJoinScreen(
     var inputError by remember { mutableStateOf<String?>(null) }
     var usernameError by remember { mutableStateOf<String?>(null) }
     var showScanner by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     // Nothing is live yet on this screen, so back simply means "never mind" -
     // but say so explicitly instead of leaning on the navigation default, which
@@ -70,20 +73,20 @@ fun PingRingJoinScreen(
     fun attemptJoin(codeToUse: String) {
         val trimmedUsername = username.trim()
         if (trimmedUsername.isBlank()) {
-            usernameError = "Please enter a username."
+            usernameError = context.getString(R.string.join_username_required)
             return
         }
         if (existingMembers.any { it.equals(trimmedUsername, ignoreCase = true) }) {
-            usernameError = "Username '$trimmedUsername' is already taken in this PingRing."
+            usernameError = context.getString(R.string.join_username_taken, trimmedUsername)
             return
         }
         if (existingMembers.size + 1 >= MAX_PARTICIPANTS) {
-            inputError = "This PingRing is full (maximum ${MAX_PARTICIPANTS} participants allowed)."
+            inputError = context.getString(R.string.join_pingring_full, MAX_PARTICIPANTS)
             return
         }
         val parsedEventCode = PingRingCodeParser.parse(codeToUse)
         if (parsedEventCode == null) {
-            inputError = "Enter a valid 6-character PingRing code."
+            inputError = context.getString(R.string.join_code_invalid)
             return
         }
         onJoinEvent(parsedEventCode, trimmedUsername)
@@ -105,10 +108,10 @@ fun PingRingJoinScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Join a PingRing", fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.join_pingring), fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 }
             )
@@ -149,12 +152,12 @@ fun PingRingJoinScreen(
 
                     Spacer(Modifier.height(16.dp))
                     Text(
-                        "Enter PingRing Code",
+                        stringResource(R.string.enter_pingring_code),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        "Ask the host for their 6-character PingRing code",
+                        stringResource(R.string.ask_host_for_code),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -168,8 +171,8 @@ fun PingRingJoinScreen(
                             username = it
                             usernameError = null
                         },
-                        label = { Text("Username") },
-                        placeholder = { Text("e.g. Alex") },
+                        label = { Text(stringResource(R.string.username)) },
+                        placeholder = { Text(stringResource(R.string.username_example)) },
                         isError = usernameError != null,
                         supportingText = {
                             usernameError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
@@ -191,8 +194,8 @@ fun PingRingJoinScreen(
                             eventCode = it.uppercase()
                             inputError = null
                         },
-                        label = { Text("PingRing Code") },
-                        placeholder = { Text("e.g. AB12CD") },
+                        label = { Text(stringResource(R.string.pingring_code)) },
+                        placeholder = { Text(stringResource(R.string.pingring_code_example)) },
                         isError = inputError != null,
                         supportingText = {
                             inputError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
@@ -225,9 +228,9 @@ fun PingRingJoinScreen(
                                 strokeWidth = 2.dp
                             )
                             Spacer(Modifier.width(8.dp))
-                            Text("Connecting...", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                            Text(stringResource(R.string.connecting), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         } else {
-                            Text("Connect", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                            Text(stringResource(R.string.connect), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         }
                     }
 
@@ -238,7 +241,7 @@ fun PingRingJoinScreen(
                     ) {
                         HorizontalDivider(modifier = Modifier.weight(1f))
                         Text(
-                            "  OR  ",
+                            stringResource(R.string.or),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -253,7 +256,7 @@ fun PingRingJoinScreen(
                     // them confirm what they tapped adds a step to no end.
                     if (discoveredSessions.isNotEmpty()) {
                         Text(
-                            "Nearby PingRings",
+                            stringResource(R.string.nearby_pingrings),
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.fillMaxWidth()
@@ -277,9 +280,9 @@ fun PingRingJoinScreen(
                                     )
                                     Text(
                                         if (session.joinable) {
-                                            "Tap to join"
+                                            stringResource(R.string.tap_to_join)
                                         } else {
-                                            "Full or not accepting members"
+                                            stringResource(R.string.full_or_not_accepting)
                                         },
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -287,13 +290,12 @@ fun PingRingJoinScreen(
                                 }
                                 Icon(
                                     Icons.Default.ChevronRight,
-                                    contentDescription = "Join ${session.name}"
+                                    contentDescription = stringResource(R.string.join_session, session.name)
                                 )
                             }
                         }
                         Spacer(Modifier.height(20.dp))
                     }
-                    val context = LocalContext.current
                     val hasCamera = remember(context) {
                         context.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY)
                     }
@@ -309,7 +311,7 @@ fun PingRingJoinScreen(
                         Icon(Icons.Default.QrCodeScanner, contentDescription = null, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            if (hasCamera) "Scan Host QR Code" else "Camera not available on this device",
+                            stringResource(if (hasCamera) R.string.scan_host_qr else R.string.camera_not_available),
                             fontWeight = FontWeight.SemiBold
                         )
                     }
@@ -325,8 +327,9 @@ private fun QrScannerScreen(
     onCancel: () -> Unit,
     onJoinEvent: (String) -> Unit
 ) {
+    val context = LocalContext.current
     val permissionState = rememberPermissionState(Manifest.permission.CAMERA)
-    var scanMessage by remember { mutableStateOf("Align the PingRing QR code within the frame.") }
+    var scanMessage by remember { mutableStateOf(context.getString(R.string.align_pingring_qr)) }
     var scanSessionId by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(Unit) {
@@ -338,10 +341,10 @@ private fun QrScannerScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Scan PingRing QR") },
+                title = { Text(stringResource(R.string.scan_pingring_qr)) },
                 navigationIcon = {
                     IconButton(onClick = onCancel) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 }
             )
@@ -368,7 +371,7 @@ private fun QrScannerScreen(
                         onJoinEvent(parsedEventCode)
                         true
                     } else {
-                        scanMessage = "Invalid or empty code. Try another QR code."
+                        scanMessage = context.getString(R.string.qr_code_invalid)
                         false
                     }
                 },
@@ -391,24 +394,24 @@ private fun QrScannerScreen(
                 onClick = onCancel,
                 modifier = Modifier.weight(1f)
             ) {
-                Text("Cancel")
+                Text(stringResource(R.string.cancel))
             }
             if (permissionState.status.isGranted) {
                 Button(
                     onClick = {
                         scanSessionId++
-                        scanMessage = "Scanning… align a QR code in view."
+                        scanMessage = context.getString(R.string.scanning_align_qr)
                     },
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text("Rescan")
+                    Text(stringResource(R.string.rescan))
                 }
             } else {
                 Button(
                     onClick = { permissionState.launchPermissionRequest() },
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text("Grant Camera")
+                    Text(stringResource(R.string.grant_camera))
                   }
                 }
             }
@@ -430,12 +433,12 @@ private fun PermissionDeniedCard(
             verticalArrangement = Arrangement.Center
         ) {
             Text(
-                "Camera permission is needed to scan QR codes. You can still join by typing the PingRing code.",
+                stringResource(R.string.camera_permission_rationale),
                 style = MaterialTheme.typography.bodyMedium
             )
             Spacer(modifier = Modifier.height(12.dp))
             Button(onClick = onRetry) {
-                Text("Allow Camera")
+                Text(stringResource(R.string.allow_camera))
             }
         }
     }
@@ -457,6 +460,8 @@ private fun QrCameraPreview(
     onCameraError: (String) -> Unit
 ) {
     val context = LocalContext.current
+    val scanFailedMessage = stringResource(R.string.camera_scan_failed)
+    val cameraUnavailableMessage = stringResource(R.string.camera_unavailable)
     val lifecycleOwner = LocalLifecycleOwner.current
     val previewView = remember {
         PreviewView(context).apply {
@@ -479,7 +484,7 @@ private fun QrCameraPreview(
                 }
             },
             onFailure = {
-                onCameraError("Camera scan failed. Try again.")
+                onCameraError(scanFailedMessage)
             }
         )
 
@@ -503,7 +508,7 @@ private fun QrCameraPreview(
                     imageAnalysis
                 )
             } catch (_: Exception) {
-                onCameraError("Camera unavailable on this device.")
+                onCameraError(cameraUnavailableMessage)
             }
         }
 

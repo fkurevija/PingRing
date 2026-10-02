@@ -5,6 +5,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
+import com.fkurevija.pingring.R
 
 /**
  * The confirmation shown before a live PingRing is ended or left, whichever
@@ -27,21 +29,21 @@ fun EndPingRingDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (isHost) "End this PingRing?" else "Leave this PingRing?") },
+        title = { Text(stringResource(if (isHost) R.string.end_pingring_question else R.string.leave_pingring_question)) },
         text = {
             Text(
                 if (isHost) {
-                    "This removes every member from the PingRing and returns them to the home page."
+                    stringResource(R.string.end_pingring_description)
                 } else {
-                    "You will stop sharing your position with this PingRing. The host and the other members are not affected."
+                    stringResource(R.string.leave_pingring_description)
                 }
             )
         },
         confirmButton = {
-            Button(onClick = onConfirm) { Text(if (isHost) "End PingRing" else "Leave") }
+            Button(onClick = onConfirm) { Text(stringResource(if (isHost) R.string.end_pingring else R.string.leave)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
         }
     )
 }

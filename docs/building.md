@@ -4,6 +4,8 @@
 
 **Prerequisites**: Android Studio (Ladybug+), JDK 17, Android SDK 37, and a physical device on **Android 10 (API 29)+**. UWB needs supported hardware (e.g. Pixel 6 Pro+, Galaxy S21 Ultra+).
 
+The interface resources cover English, Croatian, Spanish, French, Canadian French, German, and Russian. The locale smoke tests are in `LocalizationResourcesInstrumentedTest`; they run with `uiTest` on a booted device.
+
 ```bash
 git clone https://github.com/fkurevija/PingRing.git
 cd PingRing

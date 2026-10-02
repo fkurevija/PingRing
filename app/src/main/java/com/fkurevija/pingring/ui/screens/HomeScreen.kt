@@ -38,12 +38,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.fkurevija.pingring.R
 
 @Composable
 fun HomeScreen(
@@ -134,7 +136,7 @@ fun HomeScreen(
                 )
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "Stay connected nearby.",
+                    stringResource(R.string.home_tagline),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center
@@ -179,13 +181,13 @@ fun HomeScreen(
                         Spacer(Modifier.width(16.dp))
                         Column {
                             Text(
-                                "Create a PingRing",
+                                stringResource(R.string.create_pingring),
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer
                             )
                             Text(
-                                "Host a private local mesh for nearby friends",
+                                stringResource(R.string.create_pingring_description),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                             )
@@ -226,13 +228,13 @@ fun HomeScreen(
                         Spacer(Modifier.width(16.dp))
                         Column {
                             Text(
-                                "Join a PingRing",
+                                stringResource(R.string.join_pingring),
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Text(
-                                "Scan QR code or enter an event code",
+                                stringResource(R.string.join_pingring_description),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                             )
@@ -254,7 +256,7 @@ fun HomeScreen(
                         modifier = Modifier.size(20.dp)
                     )
                     Spacer(Modifier.width(8.dp))
-                    Text("Settings", fontWeight = FontWeight.Medium)
+                    Text(stringResource(R.string.settings), fontWeight = FontWeight.Medium)
                 }
             }
         }

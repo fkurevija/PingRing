@@ -32,9 +32,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.fkurevija.pingring.data.AppearanceSettingsRepository
+import com.fkurevija.pingring.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -59,10 +61,10 @@ fun NotificationSettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Notifications", fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.notifications_title), fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 }
             )
@@ -76,24 +78,24 @@ fun NotificationSettingsScreen(
         ) {
             NotificationSettingRow(
                 icon = { Icon(Icons.Default.Notifications, contentDescription = null) },
-                title = "Chat Push Notifications",
-                description = "Allow this phone to show incoming chat notifications",
+                title = stringResource(R.string.chat_push_notifications),
+                description = stringResource(R.string.chat_push_notifications_description),
                 checked = chatNotificationsEnabled,
                 onCheckedChange = appearanceSettings::setChatNotificationsEnabled,
             )
             HorizontalDivider()
             NotificationSettingRow(
                 icon = { Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = null) },
-                title = "Notification Sound",
-                description = "Play a tone for incoming chat messages",
+                title = stringResource(R.string.notification_sound),
+                description = stringResource(R.string.notification_sound_description),
                 checked = notificationSoundEnabled,
                 onCheckedChange = appearanceSettings::setNotificationSoundEnabled,
             )
             HorizontalDivider()
             NotificationSettingRow(
                 icon = { Icon(Icons.Default.Vibration, contentDescription = null) },
-                title = "Notification Vibration",
-                description = if (hasVibrator) "Vibrate for incoming chat messages" else "Not supported on this device",
+                title = stringResource(R.string.notification_vibration),
+                description = stringResource(if (hasVibrator) R.string.notification_vibration_description else R.string.not_supported_on_device),
                 checked = notificationVibrationEnabled && hasVibrator,
                 enabled = hasVibrator,
                 onCheckedChange = appearanceSettings::setNotificationVibrationEnabled,

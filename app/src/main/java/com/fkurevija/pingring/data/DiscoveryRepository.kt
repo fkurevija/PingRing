@@ -1524,7 +1524,9 @@ class DiscoveryRepository(
         val existing = _peerUpdates.value[peerId]
         // Never fall back to the peer id: it is an internal routing key, not
         // something a person can read or act on.
-        val peerName = existing?.name ?: peerDisplayNames.labelFor(peerId)
+        val peerName = existing?.name ?: peerDisplayNames.labelFor(peerId) {
+            context.getString(R.string.member_name, it)
+        }
 
         // A UWB measurement is real ranging, so it always wins over an RSSI
         // guess. Only peers that have never been ranged fall back to the
@@ -1625,7 +1627,9 @@ class DiscoveryRepository(
         val existing = _peerUpdates.value[peerId]
         // Never fall back to the peer id: it is an internal routing key, not
         // something a person can read or act on.
-        val peerName = existing?.name ?: peerDisplayNames.labelFor(peerId)
+        val peerName = existing?.name ?: peerDisplayNames.labelFor(peerId) {
+            context.getString(R.string.member_name, it)
+        }
         val updated = RadarPeerUpdate(
             peerId = peerId,
             name = peerName,
@@ -2162,7 +2166,9 @@ class DiscoveryRepository(
 
         val updated = RadarPeerUpdate(
             peerId = peerId,
-            name = dto.name?.takeIf { it.isNotBlank() } ?: existing?.name ?: peerDisplayNames.labelFor(peerId),
+            name = dto.name?.takeIf { it.isNotBlank() } ?: existing?.name ?: peerDisplayNames.labelFor(peerId) {
+                context.getString(R.string.member_name, it)
+            },
             rssi = rssi,
             proximity = when {
                 rssi == null -> "Unknown"

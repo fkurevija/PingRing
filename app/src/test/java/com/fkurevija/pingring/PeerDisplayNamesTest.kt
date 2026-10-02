@@ -33,6 +33,14 @@ class PeerDisplayNamesTest {
     }
 
     @Test
+    fun `labels can be formatted for the current locale`() {
+        val names = PeerDisplayNames()
+        assertEquals("Mitglied 1", names.labelFor("a1b2c3d4") { "Mitglied $it" })
+        assertEquals("Membre 1", names.labelFor("a1b2c3d4") { "Membre $it" })
+        assertEquals("Mitglied 2", names.labelFor("z9y8x7w6") { "Mitglied $it" })
+    }
+
+    @Test
     fun `the same peer keeps the same label`() {
         // Otherwise a member would appear to be renamed every time a BLE
         // advertisement arrived, which reads as a bug to anyone watching.

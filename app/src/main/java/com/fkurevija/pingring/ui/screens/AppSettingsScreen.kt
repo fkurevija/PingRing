@@ -22,8 +22,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.fkurevija.pingring.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -38,10 +40,10 @@ fun AppSettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Settings", fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.settings), fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 }
             )
@@ -52,27 +54,27 @@ fun AppSettingsScreen(
         ) {
             SettingsSubmenuCard(
                 icon = { Icon(Icons.Default.Palette, contentDescription = null) },
-                title = "Appearance",
-                description = "Theme and chat bubble colour",
+                title = stringResource(R.string.appearance_title),
+                description = stringResource(R.string.appearance_description),
                 onClick = onOpenAppearance,
             )
             SettingsSubmenuCard(
                 icon = { Icon(Icons.Default.Notifications, contentDescription = null) },
-                title = "Notifications",
-                description = "Chat notification delivery, sound, and vibration",
+                title = stringResource(R.string.notifications_title),
+                description = stringResource(R.string.notifications_description),
                 onClick = onOpenNotifications,
             )
             SettingsSubmenuCard(
                 icon = { Text("A", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) },
-                title = "Accessibility",
-                description = "Optional screen-reader features",
+                title = stringResource(R.string.accessibility_title),
+                description = stringResource(R.string.accessibility_card_description),
                 onClick = onOpenAccessibility,
             )
             if (showDeveloperOptions) {
                 SettingsSubmenuCard(
                     icon = { Text("</>", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) },
-                    title = "Developer Options",
-                    description = "LAN debug transport",
+                    title = stringResource(R.string.developer_options),
+                    description = stringResource(R.string.lan_debug_transport),
                     onClick = onOpenDeveloperOptions,
                 )
             }

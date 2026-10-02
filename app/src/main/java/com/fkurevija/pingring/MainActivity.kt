@@ -340,7 +340,7 @@ fun MainNavigation(
                                             sessionManager.leaveEvent()
                                             Toast.makeText(
                                                 context,
-                                                "Failed to join PingRing: the host did not accept, or is unavailable.",
+                                                context.getString(R.string.join_failed),
                                                 Toast.LENGTH_LONG
                                             ).show()
                                             isConnecting = false
