@@ -34,6 +34,7 @@ Location permission is required because the radios doing the ranging are proximi
 | **[📖 User Guide](docs/user-guide.md)** | **Start here to use the app** — hosting, joining, the radar, beacons, chat, every setting, and what the messages on screen mean. |
 | [✨ Features](docs/features.md) | What PingRing does and why each piece works the way it does. |
 | [🏗 Architecture & Offline Operation](docs/architecture.md) | System architecture, protocol flow, what offline means here, and background operation. |
+| [🔒 Security Review](docs/security-review.md) | BLE/Nearby threat model, findings, and recommended hardening. |
 | [🚀 Building & Testing](docs/building.md) | Prerequisites, gradle commands, releases and signing, the LAN debug transport, and scripted-distance testing. |
 | [📋 Roadmap & Known Limitations](docs/roadmap.md) | Unverified items, known limitations, deliberate non-goals, and planned work. |
 

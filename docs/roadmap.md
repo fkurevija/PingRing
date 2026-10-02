@@ -1,6 +1,6 @@
 ﻿# 📋 Roadmap & Known Limitations
 
-[← Back to README](../README.md) · [User Guide](user-guide.md) · [Features](features.md) · [Architecture & Offline Operation](architecture.md) · [Building & Testing](building.md)
+[← Back to README](../README.md) · [User Guide](user-guide.md) · [Features](features.md) · [Architecture & Offline Operation](architecture.md) · [Security Review](security-review.md) · [Building & Testing](building.md)
 
 This page separates behavior that is **built but unverified**, constraints that are **known**, and work that is **still planned**. Nothing here is known to be broken.
 
@@ -25,9 +25,9 @@ This page separates behavior that is **built but unverified**, constraints that 
 - **The brand identity is not finalized.** The app currently uses violet (`#5C2BD9`), chosen by eye; there is no approved logo or brand specification to confirm the hue, dark-mode treatment, or tertiary colour.
 - **The accessibility audit is incomplete.** The radar has an opt-in spoken summary, but TalkBack behavior, focus order, contrast across workflows, and the rest of the UI have not had a device-assisted audit.
 - **In-app help has no product direction yet.** The user guide exists, but whether help should live in an offline knowledge base or alongside each workflow remains undecided pending product input.
-- **No formal security review has been completed.** The BLE advertisement and Nearby Connections threat model have not been independently assessed.
 - **Wi-Fi Direct transport is controlled by Nearby Connections.** The public `Connections.requestConnection` API has no transport selector; the available transport constants are internal. A host hotspot is not a viable workaround: tethering requires a privileged permission, while the public local-only hotspot API does not expose the network details PingRing would need to share. The app therefore cannot select Wi-Fi Direct or create a joinable host hotspot through public APIs.
 - **Wi-Fi RTT and GNSS are not active ranging sources.** `RangingSourcePolicy` contains selection rules, RTT has a capability probe and correlation helper, and these pure components are unit tested. There is no RTT ranging session or USD peer-discovery path, and GNSS has neither a session nor a way to share a fix between phones. The app currently ranges with UWB and falls back to BLE RSSI. Building RTT further depends on confirming USD attribution and coexistence with Nearby on real devices; GNSS needs a separate peer-fix protocol.
+- **Security findings are documented but not yet mitigated.** BLE advertisements expose the event code and accept unauthenticated host flags; Nearby payload transport is encrypted but its authentication token is not checked; payload sender IDs are not bound to endpoints; and production logs include chat text and UWB key material. See the [Security Review](security-review.md) for evidence, impact, and recommended hardening.
 
 ## Out of scope
 
@@ -36,7 +36,7 @@ This page separates behavior that is **built but unverified**, constraints that 
 
 ## Planned work
 
-- **Formal security review.** Assess the BLE advertisement and Nearby Connections threat model, including practical eavesdropping and abuse scenarios.
+- **Harden BLE and Nearby peer authentication.** Implement the mitigations in the [Security Review](security-review.md), preserving a high-entropy invite secret outside BLE advertisements and authenticating peer identity before applying control flags or relaying sender-attributed payloads.
 
 ---
 

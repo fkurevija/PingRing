@@ -35,6 +35,12 @@ User-facing interface, accessibility, and notification-channel text lives in And
 
 ---
 
+## Transport security
+
+Nearby encrypts established payload transport, but PingRing currently accepts connections without authenticating the token Nearby supplies during connection initiation. BLE service data is an unauthenticated public broadcast and currently includes the event code and host control flags. Do not treat the code, event hash, peer ID, or endpoint name as proof of identity. The reviewed attack paths and hardening plan are in the [Security Review](security-review.md).
+
+---
+
 ## Offline operation
 
 **Offline is the product, not a limitation.** The reason this app exists is the moment a venue's data network stops working — a sold-out stage where the bars go quiet, a rally field with no bars at all. Everything below is in service of that moment.
