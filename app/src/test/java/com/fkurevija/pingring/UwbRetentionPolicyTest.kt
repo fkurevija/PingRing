@@ -113,6 +113,23 @@ class UwbRetentionPolicyTest {
     }
 
     @Test
+    fun `last known direction expires after its display window`() {
+        val recordedAt = 10_000L
+        assertTrue(
+            UwbRetentionPolicy.isLastKnownDirectionWithinWindow(
+                recordedAt,
+                recordedAt + UwbRetentionPolicy.LAST_KNOWN_DIRECTION_TTL_MILLIS - 1,
+            )
+        )
+        assertFalse(
+            UwbRetentionPolicy.isLastKnownDirectionWithinWindow(
+                recordedAt,
+                recordedAt + UwbRetentionPolicy.LAST_KNOWN_DIRECTION_TTL_MILLIS,
+            )
+        )
+    }
+
+    @Test
     fun `a live UWB session is reported as active`() {
         assertEquals(
             RetainedState.UWB_ACTIVE,

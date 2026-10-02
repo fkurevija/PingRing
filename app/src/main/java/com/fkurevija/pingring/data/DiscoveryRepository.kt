@@ -855,7 +855,9 @@ class DiscoveryRepository(
                     }
                 }
                 _lastKnownPeerDirections.update { locations ->
-                    locations.filter { now - it.recordedAtMillis < LAST_KNOWN_DIRECTION_TTL_MILLIS }
+                    locations.filter {
+                        UwbRetentionPolicy.isLastKnownDirectionWithinWindow(it.recordedAtMillis, now)
+                    }
                 }
             }
         }
@@ -964,6 +966,10 @@ class DiscoveryRepository(
         // Register newly connected peers and deliver the host's current chat history.
         repositoryScope?.launch {
             nearbyConnectionsManager.connectionEstablished.collect { peerId ->
+                val state = sessionManager.sessionState.value
+                if (!state.isHost && state.currentEvent?.hostPeerId == peerId) {
+                    _hostConnectionLostAtMillis.value = null
+                }
                 addConnectedPeer(peerId)
                 // A peer with a live connection is the only kind that can be
                 // UWB-ranged, so this is what makes it eligible as a focus.
@@ -1586,7 +1592,6 @@ class DiscoveryRepository(
     private companion object {
         const val PEER_CLEANUP_INTERVAL_MILLIS = 5_000L
         const val PEER_EXPIRY_TIMEOUT_MILLIS = 15_000L
-        const val LAST_KNOWN_DIRECTION_TTL_MILLIS = 120_000L
         const val UWB_DIRECTION_STALE_MILLIS = 2_000L
 
         /**

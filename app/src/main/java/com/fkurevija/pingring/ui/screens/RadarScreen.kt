@@ -128,6 +128,7 @@ import com.fkurevija.pingring.data.ChatMessage
 import com.fkurevija.pingring.data.ChatMessageOwnership
 import com.fkurevija.pingring.data.ChatTimelineItem
 import com.fkurevija.pingring.data.ChatTimelinePolicy
+import com.fkurevija.pingring.data.ConnectionRecoveryPromptPolicy
 import com.fkurevija.pingring.data.ConnectivityStatus
 import com.fkurevija.pingring.data.DEFAULT_BEACON_TITLE
 import com.fkurevija.pingring.data.DiscoveryRepository
@@ -277,13 +278,24 @@ fun RadarScreen(
         ) return@LaunchedEffect
         val hostLostAtMillis = hostConnectionLostAtMillis ?: return@LaunchedEffect
 
-        val dueAtMillis = maxOf(
-            hostLostAtMillis + connectionRecoveryPromptDelayMillis,
-            connectionLostSnoozedUntilMillis,
-        )
+        val dueAtMillis = ConnectionRecoveryPromptPolicy.dueAtMillis(
+            hostConnectionLostAtMillis = hostLostAtMillis,
+            configuredDelayMillis = connectionRecoveryPromptDelayMillis,
+            snoozedUntilMillis = connectionLostSnoozedUntilMillis,
+        ) ?: return@LaunchedEffect
         delay((dueAtMillis - System.currentTimeMillis()).coerceAtLeast(0L))
         if (discoveryRepository?.hostConnectionLostAtMillis?.value == hostLostAtMillis &&
-            isTopDestination && activityResumed && !connectionPromptSilenced
+            ConnectionRecoveryPromptPolicy.shouldPrompt(
+                hostConnectionLostAtMillis = hostLostAtMillis,
+                configuredDelayMillis = connectionRecoveryPromptDelayMillis,
+                snoozedUntilMillis = connectionLostSnoozedUntilMillis,
+                nowMillis = System.currentTimeMillis(),
+                isGuest = !isHost,
+                isRadarTopDestination = isTopDestination,
+                activityResumed = activityResumed,
+                settingEnabled = connectionRecoveryPromptEnabled,
+                silencedForRing = connectionPromptSilenced,
+            )
         ) {
             showConnectionLostDialog = true
         }
@@ -291,7 +303,7 @@ fun RadarScreen(
 
     fun snoozeConnectionLostPrompt() {
         showConnectionLostDialog = false
-        connectionLostSnoozedUntilMillis = System.currentTimeMillis() + 120_000L
+        connectionLostSnoozedUntilMillis = System.currentTimeMillis() + ConnectionRecoveryPromptPolicy.SNOOZE_MILLIS
     }
     // Deliberately no onDispose-triggered stopDiscovery() here: HostSetupScreen
     // and RadarScreen share the same DiscoveryRepository instance for the

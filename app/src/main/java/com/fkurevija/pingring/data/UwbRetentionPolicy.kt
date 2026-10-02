@@ -29,9 +29,16 @@ object UwbRetentionPolicy {
      */
     const val RETENTION_MILLIS = 45_000L
     const val DIRECTION_FRESHNESS_MILLIS = 2_000L
+    const val LAST_KNOWN_DIRECTION_TTL_MILLIS = 120_000L
 
     fun isDirectionLastKnown(lastMeasurementAtMillis: Long, nowMillis: Long): Boolean =
         nowMillis - lastMeasurementAtMillis >= DIRECTION_FRESHNESS_MILLIS
+
+    fun isLastKnownDirectionWithinWindow(
+        recordedAtMillis: Long,
+        nowMillis: Long,
+        windowMillis: Long = LAST_KNOWN_DIRECTION_TTL_MILLIS,
+    ): Boolean = nowMillis - recordedAtMillis < windowMillis
 
     /**
      * Decides whether to keep ranging [peerId] after its transport dropped.

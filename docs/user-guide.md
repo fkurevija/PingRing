@@ -72,8 +72,9 @@ The radar draws **one person at a time** — the member you are *tracking* — w
 - The **needle** points at the tracked member, corrected for compass heading.
 - The **lit arc** on the ring widens as they approach — a sliver when far, the whole ring within arm's reach (about 1.5 m). Each doubling of distance gets an equal share of the arc.
 - The **distance readout** under the ring is sub-metre on UWB hardware. Without a bearing (no UWB), the ring stays plain and only the signal-strength tint changes — PingRing does not invent a direction.
-- A peer that has not been heard from for **15 seconds** is swept off the radar.
-- If the tracked member walks out of range while still tracked, ranging is held open for **45 seconds**, so walking back is instant.
+- A peer that has not been heard from for **15 seconds** is swept off the radar unless its focused UWB session is being retained during a transport gap.
+- If the tracked member walks out of transport range, UWB ranging is held open for up to **45 seconds** (or **20 seconds** when radio load is high), so walking back can reconnect instantly.
+- After **2 seconds** without a UWB fix, the radar can show a faded **last known direction** for up to **2 minutes**. It includes the age of the measurement; the person may have moved. BLE RSSI alone never supplies a direction.
 
 ### Tracking
 
@@ -84,6 +85,16 @@ Use the **Tracking** dropdown, or the button on a member's row. Both set the sam
 - Tap the tracked row again to go back to automatic.
 - If the host turned on **Track Host Only**, your Tracking picker is visible but disabled — the host's decision, not a bug.
 - Tracking changes what the radar draws and what UWB ranges. **You still receive every message**, no matter who you are tracking.
+
+### Connection recovery
+
+If you are a guest and lose the authenticated connection to the host, PingRing waits for the interval configured in **App Settings → Connection Recovery** before asking whether you want to leave. It is enabled by default and set to **2 minutes**; the delay can be set from **1 to 10 minutes**.
+
+- **Leave PingRing** stops your session and returns you Home.
+- **Remind me in 2 min** snoozes the prompt; a reconnect cancels it.
+- **Silence for this PingRing** suppresses further prompts until you leave or the Ring ends.
+
+The prompt appears only while the radar is in the foreground. PingRing cannot tell whether a disconnected host is out of range or ended the Ring while you were disconnected, so the message reports that the connection is unavailable rather than claiming the Ring ended.
 
 ### Member list
 
@@ -172,6 +183,7 @@ The gear icon on the home screen, before hosting or joining. These are device-wi
 - **Appearance** — *Theme Mode* is *System Default*, *Light Theme* or *Dark Theme*. PingRing uses a fixed violet brand palette in both modes; it deliberately does not follow Material You wallpaper colours.
 - **Notifications** — **Chat Push Notifications**, **Notification Sound**, and **Notification Vibration** govern device-wide incoming-chat notifications. The PingRing-specific **Chat Notifications** switch remains in [PingRing Settings](#pingring-settings), where it controls only that event.
 - **Accessibility** — optional accessibility features. **Radar screen-reader summary** is off by default; enable it to have TalkBack announce the tracked member, distance or signal state, direction, and active beacon.
+- **Connection Recovery** — enable or disable the guest leave prompt and set how long host contact must be lost before it appears (1–10 minutes; default 2 minutes).
 - **Developer Options** — shown only in debug builds. It contains the LAN Debug Transport and relay host. See [Building & Testing](building.md) for how to use it.
 
 ---
@@ -201,9 +213,11 @@ Android still stops the work after a **force-stop**, a **process kill**, a **reb
 | "Direction locked · 42°" | A UWB fix, with a bearing. The needle points that way. |
 | "BLE proximity mode" | No bearing for this peer — distance is inferred from signal strength, so only the ring tint changes. PingRing does not invent a direction. |
 | "N devices want to join" card | **Approve Each Join** is on. Allow or Deny each one; unanswered requests time out after two minutes. |
-| Distance shown as "—" in the member list | No fix for that peer yet, or it has gone stale (15 s). |
+| Distance shown as "—" in the member list | No fix for that peer yet, or it has gone stale. Peers normally expire after 15 s without an advert; the focused peer can remain during its retained UWB window. |
 | A member's dot turning green | They are close (hot). Blue means not close. |
-| Distance holds while somebody has walked off | A dropped transport is held open for 45 s. The app cannot tell "out of range" from "left", so it treats the member as unreachable rather than claiming they left. |
+| Distance holds while somebody has walked off | A tracked UWB session is retained for up to 45 s, or 20 s under high radio load. The app cannot tell "out of range" from "left", so it treats the member as unreachable rather than claiming they left. |
+| A last-known direction appears | It is a frozen UWB bearing from the last fix, shown with its age for at most 2 minutes. The person may have moved; RSSI alone cannot provide direction. |
+| "PingRing connection unavailable" appears | As a guest, you have been disconnected from the host longer than your Connection Recovery delay. Leave, snooze for 2 minutes, or silence prompts for this Ring. It does not prove the host ended the Ring. |
 
 ---
 
