@@ -36,9 +36,21 @@ This page separates behavior that is **built but unverified**, constraints that 
 - **UWB ranging-initiated discovery** — waking a peer already out of BLE range, so UWB rather than BLE sets the reach ceiling. **Not possible on Android.** `androidx.core.uwb` exposes no discovery API at all: `UwbManager` has only the three session scopes plus availability, and `UwbControllerSessionScope` only accepts a `UwbAddress` you already hold. The spec's discovery exchange happens *inside* an established session and the platform does not expose it, so there is no way to learn a peer's 2-byte address before hearing from them. Reaching beyond BLE needs a different radio, not a different UWB API.
 - **Extending range with a coded PHY.** Coded PHY is the only BLE setting that genuinely multiplies range, and the public SDK does not expose it — `ScanSettings` has only `PHY_LE_ALL_SUPPORTED` and `AdvertiseSettings.Builder` has no `setPreferredPhy` (verified against the API 37 `android.jar`). Getting it needs hidden APIs, a deliberate non-goal here. The commonly quoted "~4×" is a free-space figure: 4× range is 12 dB of extra link budget, and at the `PATH_LOSS_EXPONENT = 2.2` used here the same 12 dB is 3.5×. Silicon Labs quotes 4–6 dB of real-world sensitivity gain instead, which is 1.5–1.8× at that exponent. Either way it would not help PingRing: the gain applies to established connections via `HCI_LE_SetPhy`, and PingRing advertises non-connectable and never forms a link. UWB does not widen the reach either — it never transports data, so a peer past the BLE radius is invisible to it too.
 
-## Planned work
+## Prioritized next steps
 
-- **Evaluate per-member BLE identity authentication.** The current shared invite secret authenticates membership, not each advertising phone. Explore an individually verifiable scheme that fits the legacy BLE budget, or explicitly retain BLE proximity as spoofable by admitted members.
+### Release readiness
+
+- **Establish release signing before publishing an upgradeable release.** The owner generates and securely backs up the long-lived keystore; verify the backup can be restored, CI produces a signed artifact, and that artifact installs and upgrades an earlier build signed with the same key. Never commit the keystore or passwords. See [Signing](building.md#signing).
+- **Complete a physical-device validation pass.** Record device model, Android version, UWB support, scenario, and outcome. Cover QR and code joins, SAS confirmation, approval/denial/timeout, disconnect and reconnect, BLE line-of-sight and doorway reach, UWB focus and guest-to-guest ranging where supported, and background service behavior. Run an 8-member event when eight compatible devices can be assembled; otherwise leave that case marked unverified. Keep measured results separate from expected radio limits.
+- **Measure radio behavior and battery impact on hardware.** Repeat sessions with the same device, duration, membership, and foreground/background conditions. Record battery use, discovery success and dropouts, and ranging availability across scan passes and retained UWB sessions. Consider the thresholds validated only when measurements and tradeoffs are documented; do not infer battery performance from unit tests.
+
+### Product quality
+
+- **Finish an accessibility pass on-device.** With TalkBack enabled, verify that host/join, SAS confirmation, radar tracking, chat/beacons, and settings can be completed and that changing the tracked member and radar state are announced usefully. Check contrast and focus order in both light and dark themes; track and resolve workflow-blocking issues.
+
+### Security decision
+
+- **Decide whether BLE proximity needs per-member identity.** The shared invite secret authenticates ring membership, not each advertising phone. First document the threat model and assess key distribution, legacy packet compatibility, and the 28-byte payload budget. Then either implement and test an individually verifiable scheme, or explicitly accept the documented spoofing risk for admitted members. Do not start a wire-format change before that decision.
 
 ---
 
