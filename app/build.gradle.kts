@@ -104,10 +104,6 @@ android {
             // class that merely *reads* a system service.
             isReturnDefaultValues = true
         }
-        // Compose animations are driven by a frame clock the test rule does not
-        // advance, so an infinite transition never settles and a test that waits
-        // for idle times out. The home screen has exactly such a pulse.
-        animationsDisabled = true
     }
 }
 
