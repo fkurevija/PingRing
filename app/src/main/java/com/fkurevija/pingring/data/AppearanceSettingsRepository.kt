@@ -19,6 +19,11 @@ const val DEFAULT_CONNECTION_RECOVERY_PROMPT_DELAY_MILLIS = 120_000L
 const val MIN_CONNECTION_RECOVERY_PROMPT_DELAY_MILLIS = 60_000L
 const val MAX_CONNECTION_RECOVERY_PROMPT_DELAY_MILLIS = 600_000L
 
+internal fun normalizeConnectionRecoveryPromptDelayMillis(delayMillis: Long): Long = delayMillis.coerceIn(
+    MIN_CONNECTION_RECOVERY_PROMPT_DELAY_MILLIS,
+    MAX_CONNECTION_RECOVERY_PROMPT_DELAY_MILLIS,
+)
+
 enum class ThemeMode {
     SYSTEM,
     LIGHT,
@@ -77,8 +82,9 @@ class AppearanceSettingsRepository(private val context: Context) {
     }
 
     val connectionRecoveryPromptDelayMillis: Flow<Long> = context.appearanceDataStore.data.map { preferences ->
-        (preferences[connectionRecoveryPromptDelayKey] ?: DEFAULT_CONNECTION_RECOVERY_PROMPT_DELAY_MILLIS)
-            .coerceIn(MIN_CONNECTION_RECOVERY_PROMPT_DELAY_MILLIS, MAX_CONNECTION_RECOVERY_PROMPT_DELAY_MILLIS)
+        normalizeConnectionRecoveryPromptDelayMillis(
+            preferences[connectionRecoveryPromptDelayKey] ?: DEFAULT_CONNECTION_RECOVERY_PROMPT_DELAY_MILLIS
+        )
     }
 
     /**
@@ -148,10 +154,8 @@ class AppearanceSettingsRepository(private val context: Context) {
     fun setConnectionRecoveryPromptDelayMillis(delayMillis: Long) {
         scope.launch {
             context.appearanceDataStore.edit { preferences ->
-                preferences[connectionRecoveryPromptDelayKey] = delayMillis.coerceIn(
-                    MIN_CONNECTION_RECOVERY_PROMPT_DELAY_MILLIS,
-                    MAX_CONNECTION_RECOVERY_PROMPT_DELAY_MILLIS,
-                )
+                preferences[connectionRecoveryPromptDelayKey] =
+                    normalizeConnectionRecoveryPromptDelayMillis(delayMillis)
             }
         }
     }

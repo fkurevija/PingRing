@@ -48,7 +48,7 @@ Nearby encrypts established payload transport. PingRing requires both users to c
 1. **No external infrastructure to fail.** There is no server, no account, no remote logging, and no dependency on anyone's uptime. Nothing to be down, because nothing is there. Discovery, transport, chat, ranging and beacons are all local.
 2. **Nothing to configure.** No network to join, no SSID, no password, no login. Phones find each other directly over BLE and Nearby Connections.
 3. **It works before it works.** A phone with no SIM, in aeroplane mode with Wi-Fi and Bluetooth on, runs a full PingRing.
-4. **It degrades rather than dies.** UWB provides distance and bearing when supported; BLE signal strength is the fallback estimate. Wi-Fi RTT has policy, capability and correlation helpers but no ranging session, while GNSS is policy-only and has no peer-fix sharing path. Neither is connected to live ranging. See [Known limitations](roadmap.md#known-limitations).
+4. **It degrades rather than dies.** UWB provides distance and bearing when supported; signed BLE RSSI is the fallback only when the controller supports V5 extended advertising. On unsupported controllers, RSSI-based member presence is unavailable rather than accepted from the spoofable V4 packet. Wi-Fi RTT has policy, capability and correlation helpers but no ranging session, while GNSS is policy-only and has no peer-fix sharing path. Neither is connected to live ranging. See [Known limitations](roadmap.md#known-limitations).
 
 ### Ephemeral identity
 

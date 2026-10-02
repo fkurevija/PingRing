@@ -23,7 +23,7 @@ How to use PingRing as it exists today — what each screen does and which switc
 
 - **Android 10 (API 29) or newer**, and Bluetooth on. PingRing works without a network — no SIM, no Wi-Fi, no account.
 - **Permissions.** The app asks only for what your phone actually has. Unsupported hardware (no Bluetooth, no Wi-Fi, no camera, no UWB, no vibrator) never gets a permission dialog; the switch is disabled with a label explaining why instead.
-- **UWB is optional.** On a phone without UWB, distances are inferred from BLE signal strength — coarser and noisier, but the radar still works.
+- **UWB is optional.** On a phone without UWB, distances use signed BLE RSSI if the Bluetooth controller supports extended advertising. If it does not, BLE proximity is shown as unavailable rather than using spoofable legacy RSSI.
 - **Capacity is 8 people** (1 host + 7 guests). The host enforces this; a 9th attempt is refused.
 
 ---
@@ -71,10 +71,11 @@ The radar draws **one person at a time** — the member you are *tracking* — w
 **Reading the display**
 - The **needle** points at the tracked member, corrected for compass heading.
 - The **lit arc** on the ring widens as they approach — a sliver when far, the whole ring within arm's reach (about 1.5 m). Each doubling of distance gets an equal share of the arc.
-- The **distance readout** under the ring is sub-metre on UWB hardware. Without a bearing (no UWB), the ring stays plain and only the signal-strength tint changes — PingRing does not invent a direction.
+- The **distance readout** under the ring is sub-metre on UWB hardware. Without a fresh UWB bearing, the ring stays plain and only the signed BLE signal-strength tint may change — PingRing does not infer direction from RSSI.
 - A peer that has not been heard from for **15 seconds** is swept off the radar unless its focused UWB session is being retained during a transport gap.
 - If the tracked member walks out of transport range, UWB ranging is held open for up to **45 seconds** (or **20 seconds** when radio load is high), so walking back can reconnect instantly.
 - After **2 seconds** without a UWB fix, the radar can show a faded **last known direction** for up to **2 minutes**. It includes the age of the measurement; the person may have moved. BLE RSSI alone never supplies a direction.
+- A **Weak BLE signal** notice appears if the smoothed tracked-peer signal remains at or below **-85 dBm** for 1.5 seconds; a group summary appears when other members meet the same threshold. It clears above **-80 dBm**. This warns about BLE proximity, not Nearby connection health.
 
 ### Tracking
 
@@ -212,6 +213,8 @@ Android still stops the work after a **force-stop**, a **process kill**, a **reb
 | A nearby PingRing appears in the list | BLE discovery is only a hint. Confirm the Nearby digits; the host may still reject the request if the ring is closed or full. |
 | "Direction locked · 42°" | A UWB fix, with a bearing. The needle points that way. |
 | "BLE proximity mode" | No bearing for this peer — distance is inferred from signal strength, so only the ring tint changes. PingRing does not invent a direction. |
+| "Verified BLE proximity is unavailable" | This controller cannot send the extended V5 signed advertisement, so RSSI-based member presence is disabled on this device. |
+| "Weak BLE signal" notice | The smoothed signal is near the expected receive limit. Proximity may disappear; move closer if possible. |
 | "N devices want to join" card | **Approve Each Join** is on. Allow or Deny each one; unanswered requests time out after two minutes. |
 | Distance shown as "—" in the member list | No fix for that peer yet, or it has gone stale. Peers normally expire after 15 s without an advert; the focused peer can remain during its retained UWB window. |
 | A member's dot turning green | They are close (hot). Blue means not close. |

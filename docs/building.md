@@ -6,7 +6,7 @@
 
 The interface resources cover English, Croatian, Spanish, French, Canadian French, German, and Russian. The locale smoke tests are in `LocalizationResourcesInstrumentedTest`; they run with `uiTest` on a booted device.
 
-The security-focused JVM coverage includes `BleAdvertisementPayloadTest`, `NearbyAdmissionPolicyTest`, `JoinApprovalPolicyTest`, `PingRingCodeParserTest`, and `RelayCodecTest`. `ConnectionAuthenticationDialogTest` checks the SAS confirmation UI as part of the instrumented suite. Run `uiTest` on a booted device to execute it.
+The security-focused JVM coverage includes `BleIdentityCryptoTest` and `BleIdentityAdvertisementTest` for signed V5 BLE identity, `NearbyAdmissionPolicyTest` for endpoint/key binding, `BleAdvertisementPayloadTest` for the V4 codec fixture, plus `JoinApprovalPolicyTest`, `PingRingCodeParserTest`, and `RelayCodecTest`. `ConnectionRecoveryPromptPolicyTest` and `UwbRetentionPolicyTest` cover outage deadlines, delay bounds, snooze eligibility, and last-known direction timing/expiry. `RadarScreenInstrumentedTest` covers recovery leave/snooze/silence and the stale-direction label; `ConnectionAuthenticationDialogTest` checks SAS confirmation UI. Run `uiTest` on a booted device to execute the Compose and device tests; real extended-advertising and sensor behavior still requires compatible physical phones.
 
 ```bash
 git clone https://github.com/fkurevija/PingRing.git

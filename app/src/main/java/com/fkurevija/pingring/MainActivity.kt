@@ -197,6 +197,8 @@ fun MainNavigation(
     val connectionRecoveryPromptDelayMillis by appearanceSettings.connectionRecoveryPromptDelayMillis.collectAsState(
         initial = 120_000L
     )
+    val hostConnectionLostAtMillis by discoveryRepository.hostConnectionLostAtMillis.collectAsState(initial = null)
+    val lastKnownPeerDirections by discoveryRepository.lastKnownPeerDirections.collectAsState(initial = emptyList())
     // Devices waiting on the host to approve. Collected here rather than inside
     // the screen because the screen has to compose with no repository at all,
     // which is the only way its layout is testable.
@@ -480,6 +482,8 @@ fun MainNavigation(
                         radarScreenReaderSummaryEnabled = radarScreenReaderSummaryEnabled,
                         connectionRecoveryPromptEnabled = connectionRecoveryPromptEnabled,
                         connectionRecoveryPromptDelayMillis = connectionRecoveryPromptDelayMillis,
+                        hostConnectionLostAtMillis = hostConnectionLostAtMillis,
+                        lastKnownPeerDirections = lastKnownPeerDirections,
                         isTopDestination = topKey == key,
                         onQuickBeaconChange = appearanceSettings::setQuickBeacon,
                         pendingJoinRequests = pendingJoinRequests,

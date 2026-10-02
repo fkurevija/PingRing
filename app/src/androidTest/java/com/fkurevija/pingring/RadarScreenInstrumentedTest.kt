@@ -9,6 +9,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import com.fkurevija.pingring.data.BeaconVibrationPattern
+import com.fkurevija.pingring.data.LastKnownPeerDirection
 import com.fkurevija.pingring.data.PendingJoinRequest
 import com.fkurevija.pingring.data.QuickBeacon
 import com.fkurevija.pingring.data.SessionState
@@ -54,6 +55,11 @@ class RadarScreenInstrumentedTest {
         quickBeacon: QuickBeacon? = null,
         chatBubbleColorArgb: Long? = null,
         radarScreenReaderSummaryEnabled: Boolean = false,
+        connectionRecoveryPromptEnabled: Boolean = true,
+        connectionRecoveryPromptDelayMillis: Long = 120_000L,
+        hostConnectionLostAtMillis: Long? = null,
+        lastKnownPeerDirections: List<LastKnownPeerDirection> = emptyList(),
+        isTopDestination: Boolean = true,
         onQuickBeaconChange: (QuickBeacon?) -> Unit = {},
         pendingJoinRequests: List<PendingJoinRequest> = emptyList(),
         onApproveJoinRequest: (String) -> Unit = {},
@@ -73,6 +79,11 @@ class RadarScreenInstrumentedTest {
                 quickBeacon = quickBeacon,
                 chatBubbleColorArgb = chatBubbleColorArgb,
                 radarScreenReaderSummaryEnabled = radarScreenReaderSummaryEnabled,
+                connectionRecoveryPromptEnabled = connectionRecoveryPromptEnabled,
+                connectionRecoveryPromptDelayMillis = connectionRecoveryPromptDelayMillis,
+                hostConnectionLostAtMillis = hostConnectionLostAtMillis,
+                lastKnownPeerDirections = lastKnownPeerDirections,
+                isTopDestination = isTopDestination,
                 onQuickBeaconChange = onQuickBeaconChange,
                 pendingJoinRequests = pendingJoinRequests,
                 onApproveJoinRequest = onApproveJoinRequest,
@@ -269,6 +280,66 @@ class RadarScreenInstrumentedTest {
 
         assertEquals(0, left)
         composeRule.onNodeWithText("PingRing").assertIsDisplayed()
+    }
+
+    @Test
+    fun aLostHostShowsTheRecoveryPromptAndLeavingCallsBack() {
+        var left = 0
+        showRadar(
+            hostConnectionLostAtMillis = System.currentTimeMillis() - 121_000L,
+            onLeaveEvent = { left++ },
+        )
+
+        composeRule.settle()
+        composeRule.onNodeWithText("PingRing connection unavailable").assertIsDisplayed()
+        composeRule.onNodeWithText("Leave PingRing").performClick()
+        composeRule.settle()
+
+        assertEquals(1, left)
+    }
+
+    @Test
+    fun recoveryPromptCanBeSnoozed() {
+        showRadar(hostConnectionLostAtMillis = System.currentTimeMillis() - 121_000L)
+
+        composeRule.settle()
+        composeRule.onNodeWithText("PingRing connection unavailable").assertIsDisplayed()
+        composeRule.onNodeWithText("Remind me in 2 min").performClick()
+        composeRule.settle()
+
+        composeRule.onNodeWithText("PingRing connection unavailable").assertDoesNotExist()
+    }
+
+    @Test
+    fun recoveryPromptCanBeSilencedForTheCurrentRing() {
+        showRadar(hostConnectionLostAtMillis = System.currentTimeMillis() - 121_000L)
+
+        composeRule.settle()
+        composeRule.onNodeWithText("PingRing connection unavailable").assertIsDisplayed()
+        composeRule.onNodeWithText("Silence for this PingRing").performClick()
+        composeRule.settle()
+
+        composeRule.onNodeWithText("PingRing connection unavailable").assertDoesNotExist()
+    }
+
+    @Test
+    fun lastKnownUwbDirectionIsMarkedWithItsAge() {
+        showRadar(
+            lastKnownPeerDirections = listOf(
+                LastKnownPeerDirection(
+                    peerId = "peer-a",
+                    name = "Ana",
+                    worldDirectionX = 0f,
+                    worldDirectionY = 1f,
+                    distance = 4f,
+                    lastDetectedAtMillis = System.currentTimeMillis() - 15_000L,
+                    recordedAtMillis = System.currentTimeMillis(),
+                )
+            )
+        )
+
+        composeRule.onNodeWithText("Last known direction to Ana:", substring = true).assertIsDisplayed()
+        composeRule.onNodeWithText("they may have moved", substring = true).assertIsDisplayed()
     }
 
     @Test

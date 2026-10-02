@@ -133,13 +133,13 @@ import com.fkurevija.pingring.data.ConnectivityStatus
 import com.fkurevija.pingring.data.DEFAULT_BEACON_TITLE
 import com.fkurevija.pingring.data.DiscoveryRepository
 import com.fkurevija.pingring.data.FocusPolicy
+import com.fkurevija.pingring.data.LastKnownPeerDirection
 import com.fkurevija.pingring.data.MAX_PARTICIPANTS
 import com.fkurevija.pingring.data.PendingJoinRequest
 import com.fkurevija.pingring.data.QuickBeacon
 import com.fkurevija.pingring.data.RadarAccessibilityPolicy
 import com.fkurevija.pingring.data.RadarDirectionPolicy
 import com.fkurevija.pingring.data.RadarPeerUpdate
-import com.fkurevija.pingring.data.LastKnownPeerDirection
 import com.fkurevija.pingring.data.SessionState
 import com.fkurevija.pingring.R
 import kotlinx.coroutines.delay
@@ -188,6 +188,8 @@ fun RadarScreen(
     onQuickBeaconChange: (QuickBeacon?) -> Unit,
     connectionRecoveryPromptEnabled: Boolean = true,
     connectionRecoveryPromptDelayMillis: Long = 120_000L,
+    hostConnectionLostAtMillis: Long? = null,
+    lastKnownPeerDirections: List<LastKnownPeerDirection> = emptyList(),
     isTopDestination: Boolean = true,
     /**
      * Devices waiting on the host to approve, and the host's answers to them.
@@ -227,8 +229,6 @@ fun RadarScreen(
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
-    val hostConnectionLostAtMillis by discoveryRepository?.hostConnectionLostAtMillis?.collectAsState(initial = null)
-        ?: remember { mutableStateOf(null) }
 
     // The radar is the screen a live PingRing runs on, so the system back
     // (button or gesture) must not quietly drop the user out of the app: that
@@ -276,7 +276,7 @@ fun RadarScreen(
         if (isHost || !isTopDestination || !activityResumed || !connectionRecoveryPromptEnabled ||
             connectionPromptSilenced
         ) return@LaunchedEffect
-        val hostLostAtMillis = hostConnectionLostAtMillis ?: return@LaunchedEffect
+        val hostLostAtMillis = hostConnectionLostAtMillis
 
         val dueAtMillis = ConnectionRecoveryPromptPolicy.dueAtMillis(
             hostConnectionLostAtMillis = hostLostAtMillis,
@@ -314,8 +314,6 @@ fun RadarScreen(
 
     val peers by discoveryRepository?.peerUpdates?.collectAsState(initial = emptyList())
         ?: remember { mutableStateOf(emptyList<RadarPeerUpdate>()) }
-    val lastKnownPeerDirections by discoveryRepository?.lastKnownPeerDirections?.collectAsState(initial = emptyList())
-        ?: remember { mutableStateOf(emptyList<LastKnownPeerDirection>()) }
     val connectivity by discoveryRepository?.connectivityStatus?.collectAsState()
         ?: remember { mutableStateOf(ConnectivityStatus(isBluetoothEnabled = true, isWifiEnabled = true)) }
     val activeBeacons by discoveryRepository?.activeBeacons?.collectAsState()

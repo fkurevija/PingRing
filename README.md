@@ -19,9 +19,9 @@
 
 ## 📖 Overview
 
-**Offline is the product** — this app exists for the moment a venue's data network stops working. There is no server, no account, and nothing to configure; phones find each other directly over BLE and Nearby Connections, and ranging falls back rather than dying.
+**Offline is the product** — this app exists for the moment a venue's data network stops working. There is no server, no account, and nothing to configure; phones find each other directly over BLE and Nearby Connections. Ranging degrades where hardware supports it; RSSI proximity requires an extended-advertising-capable controller.
 
-Using **Nearby Connections** with BLE discovery, it forms an ad-hoc host-and-guests group directly between nearby phones. Where supported, UWB ranges the focused member; BLE signal strength is the fallback. Participants locate each other on a real-world radar, raise haptic beacons, and chat in real time — with no cellular data and no external server.
+Using **Nearby Connections** with BLE discovery, it forms an ad-hoc host-and-guests group directly between nearby phones. Where supported, UWB ranges the focused member; individually signed extended BLE advertisements provide authenticated member identity and RSSI proximity on capable controllers. Participants locate each other on a real-world radar, raise haptic beacons, and chat in real time — with no cellular data and no external server.
 
 Location permission is required because the radios doing the ranging are proximity sensors Android gates behind it, not because anything is uploaded. There is nowhere to upload it to.
 
@@ -47,12 +47,13 @@ Every document links back here at the top and bottom.
 ### 📡 Mesh & Connectivity
 - **One-tap hosting**, no server registration, with **admission control** — close the ring mid-event, list it on nearby phones (**Discoverable**), or approve each join by hand.
 - **Bounded capacity**: max **8 participants** (1 Host + 7 Guests), enforced by the Host.
-- **UWB ranging with BLE RSSI fallback**: UWB supplies distance and bearing for the focused member when supported; otherwise BLE signal strength estimates proximity. Wi-Fi RTT and GNSS policy foundations are not connected to live ranging yet; see [Known limitations](docs/roadmap.md#known-limitations).
+- **UWB ranging with signed BLE RSSI fallback**: UWB supplies distance and bearing for the focused member when supported; otherwise signature-verified BLE estimates proximity on controllers that support extended advertising. Unsupported controllers fail closed instead of accepting spoofable group-authenticated RSSI. Wi-Fi RTT and GNSS policy foundations are not connected to live ranging yet; see [Known limitations](docs/roadmap.md#known-limitations).
 
 ### 👤 Identity & Join
 - **Custom usernames**, saved locally and unique within a session.
 - **Join via QR** or a **6-character PingRing Code** (`e.g. AB12CD`), with a validated handshake.
 - **Verified nearby joins**: QR invitations carry a separate 256-bit secret; all Nearby links require both users to compare and confirm shared digits, and code-only joins require host approval.
+- **Per-member BLE identity**: V5 advertisements use ephemeral per-event signing keys registered over the SAS-confirmed Nearby connection; the radar rejects unregistered or invalid signatures.
 - **Localized interface** in English, Croatian, Spanish, French, Canadian French, German, and Russian. Android 13+ offers an app-specific language setting; older versions follow the device language.
 
 ### 🚨 Beacons & Chat
@@ -62,6 +63,7 @@ Every document links back here at the top and bottom.
 ### 🧭 Radar
 - **Sensor-fusion tracking** with a directional needle, proximity haptics under 2 m, and a user-controlled tracking choice.
 - **UWB readings cross-checked against BLE.** In a crowd, UWB's dominant error is not noise but *obstruction* — a body between two phones makes the distance read long, often by metres. BLE degrades under that same body, so it is an independent measurement of the same geometry, and the radar reports **Cross-checked**, **Someone may be in the way**, or **Distance estimate only** when there is only one source.
+- **Connection recovery and last-known direction**: guests can configure a delayed prompt after losing host contact; a genuine UWB bearing can remain visible as a timestamped, frozen last-known direction.
 - **Device-aware permissions** — unsupported hardware is explained, never asked for.
 
 Full detail, and the reasoning behind each of these: **[Features](docs/features.md)**.
