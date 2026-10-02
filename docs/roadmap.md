@@ -2,9 +2,11 @@
 
 [← Back to README](../README.md) · [User Guide](user-guide.md) · [Features](features.md) · [Architecture & Offline Operation](architecture.md) · [Security Review](security-review.md) · [Building & Testing](building.md)
 
-This page separates behavior that is **built but unverified**, constraints that are **known**, and work that is **still planned**. Nothing here is known to be broken.
+This page separates behavior awaiting **verification**, constraints imposed by **platform or trust boundaries**, and work that can be addressed through **engineering or product decisions**. Items here are not known to be broken.
 
-## Unverified — needs real hardware
+## Unverified
+
+### Hardware and radio validation
 
 - **Guest→guest UWB ranging.** Relayed through the host, never tested between two UWB phones. Check: does the handshake complete across a relay hop, what happens when two guests focus each other at once, can one controller scope range two peers. Logcat: `Relaying a UWB ranging offer`, `Accepting a UWB ranging offer`.
 - **UWB at 8 members.** The focus filter limits each device to one ranging session, but the full 8-member case has not been measured on hardware.
@@ -13,44 +15,37 @@ This page separates behavior that is **built but unverified**, constraints that 
 - **LAN relay teardown.** `Ctrl+C` and host-drop handling read as complete, but have only been exercised by `test_lan_debug_relay.py` — never a real dropped connection or killed host.
 - **Discovery and join approval.** Both are built and unit tested, and the approval rules are tested as a pure function, but the part that cannot be tested that way is the one that matters: holding a live Nearby Connections request open across a human decision, and whether it survives a host who takes a minute to answer. The host-side timeout now refuses anything unanswered for two minutes (`sweepExpiredJoinRequests`), so a host who walks away mid-decision cannot leave a request pinned forever — but that the refusal reaches a real device in time is still unmeasured. **Verify** by hosting on one phone with **Discoverable** and **Approve Each Join** on, and joining from the other: denial, a disconnect while the request is held, a full session, a closed session, and code joining with discovery off.
 - **Radio-power policy.** `RadioPowerPolicy` is covered by unit tests and is applied by discovery, but its scan-pass, scan-mode and UWB-retention thresholds have not been measured for battery or discovery reliability on real devices.
+- **V5 extended-advertising hardware matrix.** Verify service-data capacity and signed member-key registration/roster relay on representative controllers, including unsupported devices. Confirm unsupported devices never fall back to V4 RSSI presence.
+- **Connection recovery on hardware.** Verify host disconnect detection, the configured delay, reconnect cancellation, foreground-only prompting, snooze, silence-for-this-Ring, and host-ended-while-disconnected wording on devices.
+- **Last-known UWB direction on hardware.** Walk and turn with a UWB-ranged peer, then disconnect it. Verify the frozen world bearing does not rotate with the phone, the age updates, a fresh fix clears it, and the marker expires after two minutes. BLE-only peers must not acquire an inferred bearing.
+- **Accessibility audit.** The radar has an opt-in spoken summary, but TalkBack behavior, focus order, contrast, and the recovery dialog have not had a device-assisted audit.
+- **Security hardening on hardware.** A live SAS comparison, signed-advertisement capture/replay, joined-member impersonation attempt, join flood, and logcat review have not been performed. See the [Security Review](security-review.md#verification-limits).
+
+### Release signing readiness
+
+- **Provision and verify the owner-controlled release key before publishing an upgradeable release.** Restore an encrypted offline backup and compare its certificate fingerprint, configure all four CI secrets, verify CI's signed artifact, and install a higher-version APK over an earlier APK signed with the same key while checking app data survives. Never commit the keystore or passwords. See [Signing](building.md#signing).
 
 ## Known limitations
 
 - **BLE member identity requires extended advertising.** V5 carries a 98-byte P-256 signed member advertisement. Devices without extended-advertising hardware do not send or accept RSSI-based member presence; they can still use Nearby and any other supported ranging. Extended advertising is supported by the public Android API at the current minimum SDK, but controller support varies by device.
-- **No mesh extension.** Adding members adds density, not reach. Every link is host<->guest under `P2P_STAR`, and a guest-to-guest link forms only *after* both already reach the host.
-- **The host's selected radar target is private to the host.** **Track Host Only** is broadcast as policy; when it is off, each guest chooses a target independently. The host's local focus does not constrain other members or their message delivery, so it is not sent in V5.
-- **Relayed UWB offers are not end-to-end.** The STS key travels via the host. Same trust model as relayed chat - a host already brokers everything - but guest-to-guest ranging is not private against the host.
-- **A retained member cannot be confirmed gone.** Holding a UWB session open across a transport drop buys an instant reconnect, but the far end stopping to range is indistinguishable from it having left the ring or from the host having ended it - all three produce the same silence. The app therefore reports a silent session as *unreachable* and says so, rather than claiming the member left. A real fix needs both sides to agree on a farewell message, which needs the transport that has just dropped.
-- **Release signing is wired but dormant.** `assembleRelease` signs properly when given the four `PINGRING_*` properties, and CI picks it up from a base64 keystore secret — but no key exists yet, so the published APK is still debug-signed. Generating one is a decision to keep the same key forever: Android will not let a properly signed build be replaced by a differently signed one, so losing the key means the app can never be updated again under that identity. See [Signing](building.md#signing).
-- **BLE advertisements are replay-limited, not absolutely fresh.** Receivers reject duplicate or regressing signed counters, but a captured higher counter unseen by a receiver may be replayed once. The offline protocol has no shared trusted clock; verify whether this residual risk is acceptable for the intended proximity use.
-- **The LAN debug relay is plaintext.** It is debug-only and excluded from release builds, but traffic, including invite provisioning, is not encrypted by Nearby. Use it only on a trusted development LAN.
-- **The brand identity is not finalized.** The app currently uses violet (`#5C2BD9`), chosen by eye; there is no approved logo or brand specification to confirm the hue, dark-mode treatment, or tertiary colour.
-- **The accessibility audit is incomplete.** The radar has an opt-in spoken summary, but TalkBack behavior, focus order, contrast across workflows, and the rest of the UI have not had a device-assisted audit.
-- **In-app help has no product direction yet.** The user guide exists, but whether help should live in an offline knowledge base or alongside each workflow remains undecided pending product input.
-- **Wi-Fi Direct transport is controlled by Nearby Connections.** The public `Connections.requestConnection` API has no transport selector; the available transport constants are internal. A host hotspot is not a viable workaround: tethering requires a privileged permission, while the public local-only hotspot API does not expose the network details PingRing would need to share. The app therefore cannot select Wi-Fi Direct or create a joinable host hotspot through public APIs.
-- **Wi-Fi RTT and GNSS are not active ranging sources.** `RangingSourcePolicy` contains selection rules, RTT has a capability probe and correlation helper, and these pure components are unit tested. There is no RTT ranging session or USD peer-discovery path, and GNSS has neither a session nor a way to share a fix between phones. The app currently ranges with UWB and falls back to BLE RSSI. Building RTT further depends on confirming USD attribution and coexistence with Nearby on real devices; GNSS needs a separate peer-fix protocol.
-- **Security hardening is implemented but not yet hardware-verified.** BLE control flags and closure are no longer trusted; Nearby links require SAS confirmation; QR invitations carry a 256-bit secret not placed in BLE; code-only joins require host approval; sender identities are endpoint-bound; queues are bounded; and production payload logs are redacted. See the [Security Review](security-review.md) for residual risks and device-verification gaps.
+- **The LAN debug relay is plaintext.** It is debug-only and excluded from release builds, but traffic, including invite provisioning, is not encrypted by Nearby. Use it only on a trusted development LAN; see the planned hardening item below if that boundary changes.
 
 ## Out of scope
 
 - **UWB ranging-initiated discovery** — waking a peer already out of BLE range, so UWB rather than BLE sets the reach ceiling. **Not possible on Android.** `androidx.core.uwb` exposes no discovery API at all: `UwbManager` has only the three session scopes plus availability, and `UwbControllerSessionScope` only accepts a `UwbAddress` you already hold. The spec's discovery exchange happens *inside* an established session and the platform does not expose it, so there is no way to learn a peer's 2-byte address before hearing from them. Reaching beyond BLE needs a different radio, not a different UWB API.
 - **Extending range with a coded PHY.** Coded PHY is the only BLE setting that genuinely multiplies range, and the public SDK does not expose it — `ScanSettings` has only `PHY_LE_ALL_SUPPORTED` and `AdvertiseSettings.Builder` has no `setPreferredPhy` (verified against the API 37 `android.jar`). Getting it needs hidden APIs, a deliberate non-goal here. The commonly quoted "~4×" is a free-space figure: 4× range is 12 dB of extra link budget, and at the `PATH_LOSS_EXPONENT = 2.2` used here the same 12 dB is 3.5×. Silicon Labs quotes 4–6 dB of real-world sensitivity gain instead, which is 1.5–1.8× at that exponent. Either way it would not help PingRing: the gain applies to established connections via `HCI_LE_SetPhy`, and PingRing advertises non-connectable and never forms a link. UWB does not widen the reach either — it never transports data, so a peer past the BLE radius is invisible to it too.
 
-## Prioritized next steps
+- **Selecting a Nearby Connections transport or creating a joinable host hotspot.** The public `Connections.requestConnection` API has no transport selector, and a third-party app cannot use tethering or retrieve the connection details needed from a local-only hotspot. Nearby chooses the transport.
 
-### Release readiness
+## Planned engineering and product work
 
-- **Establish release signing before publishing an upgradeable release.** The owner generates and securely backs up the long-lived keystore; verify the backup can be restored, CI produces a signed artifact, and that artifact installs and upgrades an earlier build signed with the same key. Never commit the keystore or passwords. See [Signing](building.md#signing).
-- **Complete a physical-device validation pass.** Record device model, Android version, UWB and extended-advertising support, scenario, and outcome. Cover QR and code joins, SAS confirmation, approval/denial/timeout, BLE line-of-sight and doorway reach, UWB focus and guest-to-guest ranging where supported, background service behavior, host loss/reconnect, recovery-prompt delay/snooze/silence, and frozen last-known direction while turning the phone. Run an 8-member event when eight compatible devices can be assembled; otherwise leave that case marked unverified. Keep measured results separate from expected radio limits.
-- **Measure radio behavior and battery impact on hardware.** Repeat sessions with the same device, duration, membership, and foreground/background conditions. Record battery use, discovery success and dropouts, and ranging availability across scan passes and retained UWB sessions. Consider the thresholds validated only when measurements and tradeoffs are documented; do not infer battery performance from unit tests.
-
-### Product quality
-
-- **Finish an accessibility pass on-device.** With TalkBack enabled, verify that host/join, SAS confirmation, radar tracking, chat/beacons, and settings can be completed and that changing the tracked member and radar state are announced usefully. Check contrast and focus order in both light and dark themes; track and resolve workflow-blocking issues.
-
-### Security verification
-
-- **Validate V5 on physical devices before release.** Exercise key registration on join/reconnect, host roster relay, valid and modified signatures, replayed sequences, and unsupported-controller behavior. Confirm an unsupported device shows proximity unavailable and never falls back to V4 RSSI. Record device model, Android version, extended-advertising capability, and outcome; see the [Security Review](security-review.md#ble-replay-and-extended-radio-limits).
+- **Add mesh extension only with a concrete range requirement.** The current star topology does not relay presence between guests; a relay architecture would change discovery, routing, liveness, and battery costs.
+- **Broadcast the host's selected radar target when needed.** Today each guest chooses independently unless **Track Host Only** is enabled. Add a host-focus control message only if guests need to mirror the host's local choice.
+- **Protect guest-to-guest UWB offers end-to-end.** Offers currently pass through the host, which can read the STS key. Define pairwise key establishment and rotation before changing this trust boundary.
+- **Improve liveness and replay freshness.** Consider a signed leave/closure protocol and freshness mechanism that works without a shared trusted clock; document replay/partition tradeoffs before implementing a new wire revision.
+- **Implement additional ranging sources.** Wi-Fi RTT needs live ranging/discovery, USD attribution and Nearby coexistence validation; GNSS needs a privacy-reviewed peer-fix sharing protocol. Neither is currently active.
+- **Decide product direction for the brand and in-app help.** The palette is provisional, and help placement/content has no offline product decision yet.
+- **Encrypt the LAN debug relay only if its trust boundary expands.** It remains plaintext and debug-only; do not use it outside a trusted development LAN.
 
 ---
 
