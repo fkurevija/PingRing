@@ -4,9 +4,15 @@
     <string name="cancel">Odustani</string>
     <string name="settings">Postavke</string>
     <string name="accessibility_title">Pristupačnost</string>
-    <string name="accessibility_intro">Neobavezne značajke pristupačnosti isključene su dok ih ne uključite.</string>
+    <string name="accessibility_intro">Odaberite animacije, povratne informacije o blizini i opcije čitača zaslona. Signali i obavijesti su neovisni.</string>
     <string name="radar_screen_reader_summary">Sažetak radara za čitač zaslona</string>
     <string name="radar_screen_reader_summary_description">Izgovori praćenu osobu, udaljenost, smjer i aktivni signal</string>
+    <string name="reduce_motion">Smanji animacije</string>
+    <string name="reduce_motion_description">Zaustavi stalne animacije početnog zaslona i signala. Isključene Android animacije uvijek se poštuju.</string>
+    <string name="proximity_haptics">Vibracija za blizinu</string>
+    <string name="proximity_haptics_description">Vibriraj kada je praćena osoba blizu. Vibracije signala i obavijesti su neovisne.</string>
+    <string name="spoken_radar_updates">Govorne promjene radara</string>
+    <string name="spoken_radar_updates_description">Uz aktivan čitač zaslona izgovori stabilne promjene osobe, blizine i signala najviše jednom svakih 10 sekundi dok je radar otvoren.</string>
     <string name="accessibility_card_description">Neobavezne značajke za čitač zaslona</string>
     <string name="appearance_title">Izgled</string>
     <string name="appearance_description">Tema</string>

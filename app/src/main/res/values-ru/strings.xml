@@ -4,9 +4,15 @@
     <string name="cancel">Отмена</string>
     <string name="settings">Настройки</string>
     <string name="accessibility_title">Специальные возможности</string>
-    <string name="accessibility_intro">Дополнительные функции доступности выключены, пока вы их не включите.</string>
+    <string name="accessibility_intro">Настройте анимацию, отклик на близость и чтение экрана. Сигналы и уведомления независимы.</string>
     <string name="radar_screen_reader_summary">Описание радара для программы чтения с экрана</string>
     <string name="radar_screen_reader_summary_description">Озвучивать участника, за которым ведётся слежение, расстояние, направление и активный сигнал</string>
+    <string name="reduce_motion">Уменьшить анимацию</string>
+    <string name="reduce_motion_description">Остановить непрерывную анимацию главного экрана и сигналов. Отключение анимации в Android всегда учитывается.</string>
+    <string name="proximity_haptics">Вибрация при приближении</string>
+    <string name="proximity_haptics_description">Вибрировать, когда отслеживаемый участник рядом. Вибрации сигналов и уведомлений независимы.</string>
+    <string name="spoken_radar_updates">Озвучивание изменений радара</string>
+    <string name="spoken_radar_updates_description">При активном чтении экрана озвучивать устойчивые изменения участника, близости и сигнала не чаще раза в 10 секунд, пока радар открыт.</string>
     <string name="accessibility_card_description">Дополнительные функции для программы чтения с экрана</string>
     <string name="appearance_title">Внешний вид</string>
     <string name="appearance_description">Тема</string>

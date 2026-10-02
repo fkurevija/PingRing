@@ -34,6 +34,9 @@ private val Context.appearanceDataStore by preferencesDataStore(name = "appearan
 private val themeModeKey = stringPreferencesKey("theme_mode")
 private val userNameKey = stringPreferencesKey("user_name")
 private val radarScreenReaderSummaryEnabledKey = booleanPreferencesKey("radar_screen_reader_summary_enabled")
+private val reduceMotionEnabledKey = booleanPreferencesKey("reduce_motion_enabled")
+private val proximityHapticsEnabledKey = booleanPreferencesKey("proximity_haptics_enabled")
+private val spokenRadarUpdatesEnabledKey = booleanPreferencesKey("spoken_radar_updates_enabled")
 private val chatNotificationsEnabledKey = booleanPreferencesKey("chat_notifications_enabled")
 private val connectionRecoveryPromptEnabledKey = booleanPreferencesKey("connection_recovery_prompt_enabled")
 private val connectionRecoveryPromptDelayKey = longPreferencesKey("connection_recovery_prompt_delay_millis")
@@ -75,6 +78,18 @@ class AppearanceSettingsRepository(private val context: Context) {
 
     val chatNotificationsEnabled: Flow<Boolean> = context.appearanceDataStore.data.map { preferences ->
         preferences[chatNotificationsEnabledKey] ?: true
+    }
+
+    val reduceMotionEnabled: Flow<Boolean> = context.appearanceDataStore.data.map { preferences ->
+        preferences[reduceMotionEnabledKey] ?: AccessibilityFeature.REDUCE_MOTION.defaultEnabled
+    }
+
+    val proximityHapticsEnabled: Flow<Boolean> = context.appearanceDataStore.data.map { preferences ->
+        preferences[proximityHapticsEnabledKey] ?: AccessibilityFeature.PROXIMITY_HAPTICS.defaultEnabled
+    }
+
+    val spokenRadarUpdatesEnabled: Flow<Boolean> = context.appearanceDataStore.data.map { preferences ->
+        preferences[spokenRadarUpdatesEnabledKey] ?: AccessibilityFeature.SPOKEN_RADAR_UPDATES.defaultEnabled
     }
 
     val connectionRecoveryPromptEnabled: Flow<Boolean> = context.appearanceDataStore.data.map { preferences ->
@@ -133,6 +148,18 @@ class AppearanceSettingsRepository(private val context: Context) {
                 preferences[radarScreenReaderSummaryEnabledKey] = enabled
             }
         }
+    }
+
+    fun setReduceMotionEnabled(enabled: Boolean) {
+        scope.launch { context.appearanceDataStore.edit { it[reduceMotionEnabledKey] = enabled } }
+    }
+
+    fun setProximityHapticsEnabled(enabled: Boolean) {
+        scope.launch { context.appearanceDataStore.edit { it[proximityHapticsEnabledKey] = enabled } }
+    }
+
+    fun setSpokenRadarUpdatesEnabled(enabled: Boolean) {
+        scope.launch { context.appearanceDataStore.edit { it[spokenRadarUpdatesEnabledKey] = enabled } }
     }
 
     fun setChatNotificationsEnabled(enabled: Boolean) {

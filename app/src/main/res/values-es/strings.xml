@@ -4,9 +4,15 @@
     <string name="cancel">Cancelar</string>
     <string name="settings">Ajustes</string>
     <string name="accessibility_title">Accesibilidad</string>
-    <string name="accessibility_intro">Las funciones de accesibilidad opcionales están desactivadas hasta que las actives.</string>
+    <string name="accessibility_intro">Elige movimiento, respuesta de proximidad y opciones del lector de pantalla. Las alertas de baliza y notificación son independientes.</string>
     <string name="radar_screen_reader_summary">Resumen del radar para lectores de pantalla</string>
     <string name="radar_screen_reader_summary_description">Leer en voz alta el miembro seguido, la distancia, la dirección y la baliza activa</string>
+    <string name="reduce_motion">Reducir movimiento</string>
+    <string name="reduce_motion_description">Detener las animaciones continuas de inicio y balizas. Siempre se respeta la desactivación de animaciones de Android.</string>
+    <string name="proximity_haptics">Vibración de proximidad</string>
+    <string name="proximity_haptics_description">Vibrar cuando el miembro seguido está cerca. La vibración de balizas y notificaciones es independiente.</string>
+    <string name="spoken_radar_updates">Actualizaciones habladas del radar</string>
+    <string name="spoken_radar_updates_description">Con un lector de pantalla activo, anunciar cambios estables de miembro, proximidad y baliza como máximo cada 10 segundos mientras el radar está abierto.</string>
     <string name="accessibility_card_description">Funciones opcionales para lectores de pantalla</string>
     <string name="appearance_title">Apariencia</string>
     <string name="appearance_description">Tema</string>

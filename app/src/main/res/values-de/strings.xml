@@ -4,9 +4,15 @@
     <string name="cancel">Abbrechen</string>
     <string name="settings">Einstellungen</string>
     <string name="accessibility_title">Bedienungshilfen</string>
-    <string name="accessibility_intro">Optionale Bedienungshilfen sind zunächst deaktiviert.</string>
+    <string name="accessibility_intro">Bewegung, Näherungsfeedback und Sprachausgabe einstellen. Signal- und Benachrichtigungsalarme sind unabhängig.</string>
     <string name="radar_screen_reader_summary">Radar-Zusammenfassung für Screenreader</string>
     <string name="radar_screen_reader_summary_description">Verfolgtes Mitglied, Entfernung, Richtung und aktive Markierung vorlesen</string>
+    <string name="reduce_motion">Bewegung reduzieren</string>
+    <string name="reduce_motion_description">Daueranimationen auf Startseite und Radar stoppen. Deaktivierte Android-Animationen werden immer berücksichtigt.</string>
+    <string name="proximity_haptics">Näherungsvibration</string>
+    <string name="proximity_haptics_description">Vibrieren, wenn das verfolgte Mitglied nahe ist. Signal- und Benachrichtigungsvibration sind unabhängig.</string>
+    <string name="spoken_radar_updates">Gesprochene Radar-Updates</string>
+    <string name="spoken_radar_updates_description">Bei aktivem Screenreader stabile Mitglieder-, Näherungs- und Signaländerungen höchstens alle 10 Sekunden bei geöffnetem Radar ansagen.</string>
     <string name="accessibility_card_description">Optionale Funktionen für Screenreader</string>
     <string name="appearance_title">Darstellung</string>
     <string name="appearance_description">Design</string>

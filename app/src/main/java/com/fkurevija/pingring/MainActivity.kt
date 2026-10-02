@@ -193,6 +193,9 @@ fun MainNavigation(
     }
     val chatBubbleColor by chatBubbleColorFlow.collectAsState(initial = null)
     val radarScreenReaderSummaryEnabled by appearanceSettings.radarScreenReaderSummaryEnabled.collectAsState(initial = false)
+    val reduceMotionEnabled by appearanceSettings.reduceMotionEnabled.collectAsState(initial = false)
+    val proximityHapticsEnabled by appearanceSettings.proximityHapticsEnabled.collectAsState(initial = true)
+    val spokenRadarUpdatesEnabled by appearanceSettings.spokenRadarUpdatesEnabled.collectAsState(initial = false)
     val connectionRecoveryPromptEnabled by appearanceSettings.connectionRecoveryPromptEnabled.collectAsState(initial = true)
     val connectionRecoveryPromptDelayMillis by appearanceSettings.connectionRecoveryPromptDelayMillis.collectAsState(
         initial = 120_000L
@@ -243,6 +246,7 @@ fun MainNavigation(
                     }
 
                     HomeScreen(
+                        reduceMotionEnabled = reduceMotionEnabled,
                         onHost = {
                             if (sessionManager.sessionState.value.currentEvent == null) {
                                 val eventCode = generateEventCode()
@@ -420,6 +424,12 @@ fun MainNavigation(
                     AccessibilitySettingsScreen(
                         radarScreenReaderSummaryEnabled = radarScreenReaderSummaryEnabled,
                         onRadarScreenReaderSummaryChange = appearanceSettings::setRadarScreenReaderSummaryEnabled,
+                        reduceMotionEnabled = reduceMotionEnabled,
+                        onReduceMotionChange = appearanceSettings::setReduceMotionEnabled,
+                        proximityHapticsEnabled = proximityHapticsEnabled,
+                        onProximityHapticsChange = appearanceSettings::setProximityHapticsEnabled,
+                        spokenRadarUpdatesEnabled = spokenRadarUpdatesEnabled,
+                        onSpokenRadarUpdatesChange = appearanceSettings::setSpokenRadarUpdatesEnabled,
                         onBack = { backStack.popBack() },
                     )
                 }
@@ -483,6 +493,9 @@ fun MainNavigation(
                         quickBeacon = quickBeacon,
                         chatBubbleColorArgb = chatBubbleColor,
                         radarScreenReaderSummaryEnabled = radarScreenReaderSummaryEnabled,
+                        reduceMotionEnabled = reduceMotionEnabled,
+                        proximityHapticsEnabled = proximityHapticsEnabled,
+                        spokenRadarUpdatesEnabled = spokenRadarUpdatesEnabled,
                         connectionRecoveryPromptEnabled = connectionRecoveryPromptEnabled,
                         connectionRecoveryPromptDelayMillis = connectionRecoveryPromptDelayMillis,
                         hostConnectionLostAtMillis = hostConnectionLostAtMillis,

@@ -110,7 +110,11 @@ Your phone vibrates when the **tracked** member comes within **2 m**.
 
 ### Screen readers
 
-In **App Settings → Accessibility**, turn on **Radar screen-reader summary** to let TalkBack describe the tracked member's distance or signal state, direction when available, and active beacon. It updates with the radar, so TalkBack can describe the same live state shown by the ring. Accessibility features are off by default.
+In **App Settings → Accessibility**, turn on **Radar screen-reader summary** to let TalkBack describe the tracked member's distance or signal state, direction when available, and active beacon. It updates with the radar, so TalkBack can describe the same live state shown by the ring. This summary is off by default.
+
+- **Reduce motion** stops continuous Home and beacon pulses while keeping static indicators. Android's disabled-animation setting is always respected, even when this app switch is off.
+- **Proximity haptics** controls near-member feedback and remains on by default. Disabling it does not silence beacon or notification vibration; GPS estimates never produce near-member haptics.
+- **Spoken radar updates** is off by default. With TalkBack or another touch-exploration screen reader active, stable tracked-member, proximity-band and beacon changes are announced politely, at most once every ten seconds. Brief changes are debounced; updates stop when Radar is backgrounded, another destination is open, or a Radar dialog is showing. This is independent of the focusable radar summary.
 
 ### Showing the code again
 
@@ -186,7 +190,7 @@ The gear icon on the home screen, before hosting or joining. These are device-wi
 - **Language** — choose System Default or one of the available languages: English, Croatian, Spanish, French, Canadian French, German, or Russian. The choice applies to PingRing alone.
 - **Appearance** — *Theme Mode* is *System Default*, *Light Theme* or *Dark Theme*. PingRing uses a fixed violet brand palette in both modes; it deliberately does not follow Material You wallpaper colours.
 - **Notifications** — **Chat Push Notifications**, **Notification Sound**, and **Notification Vibration** govern device-wide incoming-chat notifications. The PingRing-specific **Chat Notifications** switch remains in [PingRing Settings](#pingring-settings), where it controls only that event.
-- **Accessibility** — optional accessibility features. **Radar screen-reader summary** is off by default; enable it to have TalkBack announce the tracked member, distance or signal state, direction, and active beacon.
+- **Accessibility** — Reduce Motion, independent Proximity Haptics, the opt-in radar screen-reader summary, and throttled Spoken Radar Updates. Android font/display scaling is used rather than an app-specific text-size control.
 - **Connection Recovery** — enable or disable the guest leave prompt and set how long host contact must be lost before it appears (1–10 minutes; default 2 minutes).
 - **Developer Options** — shown only in debug builds. It contains the LAN Debug Transport and relay host. See [Building & Testing](building.md) for how to use it.
 

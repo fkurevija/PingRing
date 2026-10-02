@@ -1,4 +1,5 @@
 package com.fkurevija.pingring.ui.screens
+import com.fkurevija.pingring.ui.accessibility.rememberAccessibilityEnvironment
 
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -51,29 +52,12 @@ import com.fkurevija.pingring.R
 fun HomeScreen(
     onHost: () -> Unit,
     onJoin: () -> Unit,
-    onSettings: () -> Unit
+    onSettings: () -> Unit,
+    reduceMotionEnabled: Boolean = false,
 ) {
     val primaryColor = MaterialTheme.colorScheme.primary
-    val infiniteTransition = rememberInfiniteTransition(label = "homePulse")
-    val pulseScale by infiniteTransition.animateFloat(
-        initialValue = 0.85f,
-        targetValue = 1.25f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2400, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "pulseScale"
-    )
-    val pulseAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.4f,
-        targetValue = 0.0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2400, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "pulseAlpha"
-    )
-
+    val reducedMotion = rememberAccessibilityEnvironment(reduceMotionEnabled).reduceMotion
+    val (pulseScale, pulseAlpha) = rememberHomePulse(reducedMotion)
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background
@@ -261,4 +245,23 @@ fun HomeScreen(
             }
         }
     }
+}
+
+@Composable
+internal fun rememberHomePulse(reduceMotion: Boolean): Pair<Float, Float> {
+    if (reduceMotion) return 0.9f to 0.25f
+    val transition = rememberInfiniteTransition(label = "homePulse")
+    val scale by transition.animateFloat(
+        initialValue = 0.85f,
+        targetValue = 1.25f,
+        animationSpec = infiniteRepeatable(tween(2400, easing = LinearEasing), RepeatMode.Restart),
+        label = "pulseScale",
+    )
+    val alpha by transition.animateFloat(
+        initialValue = 0.4f,
+        targetValue = 0.0f,
+        animationSpec = infiniteRepeatable(tween(2400, easing = LinearEasing), RepeatMode.Restart),
+        label = "pulseAlpha",
+    )
+    return scale to alpha
 }

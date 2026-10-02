@@ -4,9 +4,15 @@
     <string name="cancel">Cancel</string>
     <string name="settings">Settings</string>
     <string name="accessibility_title">Accessibility</string>
-    <string name="accessibility_intro">Optional accessibility features are off until you enable them.</string>
+    <string name="accessibility_intro">Choose motion, proximity feedback and screen-reader options. Beacon and notification alerts are separate.</string>
     <string name="radar_screen_reader_summary">Radar screen-reader summary</string>
     <string name="radar_screen_reader_summary_description">Speak the tracked member, distance, direction, and active beacon</string>
+    <string name="reduce_motion">Reduce motion</string>
+    <string name="reduce_motion_description">Stop continuous home and beacon animation. Android’s disabled-animation setting is always respected.</string>
+    <string name="proximity_haptics">Proximity haptics</string>
+    <string name="proximity_haptics_description">Vibrate when the tracked member is nearby. Beacon and notification vibration are separate.</string>
+    <string name="spoken_radar_updates">Spoken radar updates</string>
+    <string name="spoken_radar_updates_description">With a screen reader active, announce stable member, proximity and beacon changes at most once every 10 seconds while the radar is open.</string>
     <string name="accessibility_card_description">Optional screen-reader features</string>
     <string name="appearance_title">Appearance</string>
     <string name="appearance_description">Theme</string>

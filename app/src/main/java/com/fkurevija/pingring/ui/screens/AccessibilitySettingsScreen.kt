@@ -7,6 +7,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Card
@@ -35,6 +38,12 @@ fun AccessibilitySettingsScreen(
     radarScreenReaderSummaryEnabled: Boolean,
     onRadarScreenReaderSummaryChange: (Boolean) -> Unit,
     onBack: () -> Unit,
+    reduceMotionEnabled: Boolean = false,
+    onReduceMotionChange: (Boolean) -> Unit = {},
+    proximityHapticsEnabled: Boolean = true,
+    onProximityHapticsChange: (Boolean) -> Unit = {},
+    spokenRadarUpdatesEnabled: Boolean = false,
+    onSpokenRadarUpdatesChange: (Boolean) -> Unit = {},
 ) {
     Scaffold(
         topBar = {
@@ -53,6 +62,7 @@ fun AccessibilitySettingsScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .padding(16.dp)
+                .verticalScroll(rememberScrollState())
         ) {
             Text(
                 stringResource(R.string.accessibility_intro),
@@ -67,29 +77,45 @@ fun AccessibilitySettingsScreen(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
                 )
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text(stringResource(R.string.radar_screen_reader_summary), fontWeight = FontWeight.SemiBold)
-                        Text(
-                            stringResource(R.string.radar_screen_reader_summary_description),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    Spacer(Modifier.width(12.dp))
-                    val summaryLabel = stringResource(R.string.radar_screen_reader_summary)
-                    Switch(
-                        checked = radarScreenReaderSummaryEnabled,
-                        onCheckedChange = onRadarScreenReaderSummaryChange,
-                        modifier = Modifier.semantics { contentDescription = summaryLabel },
+                Column {
+                    AccessibilitySettingRow(
+                        stringResource(R.string.reduce_motion),
+                        stringResource(R.string.reduce_motion_description),
+                        reduceMotionEnabled, onReduceMotionChange,
+                    )
+                    AccessibilitySettingRow(
+                        stringResource(R.string.proximity_haptics),
+                        stringResource(R.string.proximity_haptics_description),
+                        proximityHapticsEnabled, onProximityHapticsChange,
+                    )
+                    AccessibilitySettingRow(
+                        stringResource(R.string.radar_screen_reader_summary),
+                        stringResource(R.string.radar_screen_reader_summary_description),
+                        radarScreenReaderSummaryEnabled, onRadarScreenReaderSummaryChange,
+                    )
+                    AccessibilitySettingRow(
+                        stringResource(R.string.spoken_radar_updates),
+                        stringResource(R.string.spoken_radar_updates_description),
+                        spokenRadarUpdatesEnabled, onSpokenRadarUpdatesChange,
                     )
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun AccessibilitySettingRow(title: String, description: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(title, fontWeight = FontWeight.SemiBold)
+            Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Spacer(Modifier.width(12.dp))
+        Switch(
+            checked = checked,
+            onCheckedChange = onChange,
+            modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp).semantics { contentDescription = title },
+        )
     }
 }

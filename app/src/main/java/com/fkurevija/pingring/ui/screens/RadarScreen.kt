@@ -1,4 +1,10 @@
 package com.fkurevija.pingring.ui.screens
+import com.fkurevija.pingring.data.RadarFeedbackPolicy
+import com.fkurevija.pingring.data.RadarAnnouncementPolicy
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.LiveRegionMode
+import com.fkurevija.pingring.ui.accessibility.rememberAccessibilityEnvironment
 
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
@@ -191,6 +197,9 @@ fun RadarScreen(
     hostConnectionLostAtMillis: Long? = null,
     lastKnownPeerDirections: List<LastKnownPeerDirection> = emptyList(),
     isTopDestination: Boolean = true,
+    reduceMotionEnabled: Boolean = false,
+    proximityHapticsEnabled: Boolean = true,
+    spokenRadarUpdatesEnabled: Boolean = false,
     /**
      * Devices waiting on the host to approve, and the host's answers to them.
      *
@@ -334,6 +343,7 @@ fun RadarScreen(
     // handler rather than from a LaunchedEffect, so it needs a context captured
     // here rather than one read at the call site.
     val context = LocalContext.current
+    val accessibilityEnvironment = rememberAccessibilityEnvironment(reduceMotionEnabled)
 
     // The focused member, chosen by the user or defaulted by FocusPolicy. The
     // radar draws only this person, which is what makes a full 8-member
@@ -372,16 +382,58 @@ fun RadarScreen(
 
     // Proximity feedback follows the tracked member, not whoever happens to be
     // closest, so it is a haptic about the person the user is actually watching.
-    LaunchedEffect(focusedPeer?.peerId, focusedPeer?.distance) {
-        val distance = focusedPeer?.distance ?: return@LaunchedEffect
-        if (focusedPeer.distanceSource == com.fkurevija.pingring.data.RangingSourcePolicy.RangingSource.GNSS) return@LaunchedEffect
-        if (distance < 2f) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+    LaunchedEffect(focusedPeer?.peerId, focusedPeer?.distance, focusedPeer?.distanceSource, proximityHapticsEnabled) {
+        if (RadarFeedbackPolicy.proximityHaptic(proximityHapticsEnabled, focusedPeer?.distance, focusedPeer?.distanceSource)) {
+            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+        }
     }
 
     val senderName = sessionState.userName.ifBlank {
         context.getString(if (isHost) R.string.host_default_name else R.string.peer_default_name)
     }
     val focusedBeacon = focusedPeer?.let { activeBeacons[it.peerId] } ?: localBeacon
+    val announcementPolicy = remember(eventId) { RadarAnnouncementPolicy() }
+    var spokenUpdateText by remember(eventId) { mutableStateOf<String?>(null) }
+    val announcementState = RadarAnnouncementPolicy.State(
+        focusedPeer?.peerId,
+        RadarFeedbackPolicy.proximityState(focusedPeer?.distance, focusedPeer?.distanceSource, focusedPeer?.proximity),
+        focusedBeacon?.title,
+    )
+    val spokenSummary by rememberUpdatedState(
+        RadarAccessibilityPolicy.describeLocalized(
+            resources = context.resources,
+            peerName = focusedPeer?.name,
+            distanceMeters = focusedPeer?.distance,
+            azimuthDegrees = focusedPeer?.azimuth,
+            proximityLabel = focusedPeer?.proximity?.let { proximity ->
+                context.getString(when (proximity) {
+                    "Hot" -> R.string.proximity_hot
+                    "Cold" -> R.string.proximity_cold
+                    else -> R.string.proximity_unknown
+                })
+            },
+            beaconTitle = focusedBeacon?.title,
+            distanceIsEstimate = focusedPeer?.distanceSource == com.fkurevija.pingring.data.RangingSourcePolicy.RangingSource.GNSS,
+            distanceAccuracyMeters = focusedPeer?.distanceAccuracyMeters,
+        ) + if (focusedPeer == null && focusedBeacon != null) {
+            context.getString(R.string.radar_active_beacon, focusedBeacon.title)
+        } else ""
+    )
+    val announcementsActive = spokenRadarUpdatesEnabled && accessibilityEnvironment.screenReaderActive &&
+        activityResumed && isTopDestination && !showEndConfirmation && !showBeaconSheet &&
+        !showQrCode && !showConnectionLostDialog
+    LaunchedEffect(announcementsActive, announcementState) {
+        if (!announcementsActive) {
+            spokenUpdateText = null
+            return@LaunchedEffect
+        }
+        delay(1_500L)
+        val waitMillis = announcementPolicy.delayBeforeAnnouncement(announcementState, android.os.SystemClock.elapsedRealtime())
+            ?: return@LaunchedEffect
+        delay(waitMillis)
+        spokenUpdateText = spokenSummary
+        announcementPolicy.markAnnounced(announcementState, android.os.SystemClock.elapsedRealtime())
+    }
 
     Scaffold(
         topBar = {
@@ -619,6 +671,8 @@ fun RadarScreen(
                             peers.isNotEmpty(),
                             focusedBeacon,
                             radarScreenReaderSummaryEnabled,
+                            accessibilityEnvironment.reduceMotion,
+                            spokenUpdateText,
                             Modifier.width(paneWidth)
                         )
                         PeerList(
@@ -874,6 +928,8 @@ fun RadarScreen(
                                 peers.isNotEmpty(),
                                 focusedBeacon,
                                 radarScreenReaderSummaryEnabled,
+                                accessibilityEnvironment.reduceMotion,
+                                spokenUpdateText,
                                 // Height is left to the content: a fixed height
                                 // clipped the ring, since the ring plus the name
                                 // above it and the readout below need more room
@@ -1128,6 +1184,8 @@ private fun RadarContent(
     hasPeers: Boolean,
     beacon: BeaconInfo?,
     radarScreenReaderSummaryEnabled: Boolean,
+    reduceMotion: Boolean,
+    spokenUpdateText: String?,
     modifier: Modifier
 ) {
     val resources = LocalContext.current.resources
@@ -1201,6 +1259,8 @@ private fun RadarContent(
                 distanceAccuracyMeters = peer?.distanceAccuracyMeters,
             ),
             accessibilityEnabled = radarScreenReaderSummaryEnabled,
+            reduceMotion = reduceMotion,
+            spokenUpdateText = spokenUpdateText,
             // Sized from the available width rather than fixed. The caller used
             // to pin this column to 260.dp while the ring inside it was also
             // 260.dp, so the name above and the distance readout below had
@@ -1240,15 +1300,8 @@ private fun RadarContent(
 }
 
 @Composable
-private fun ProximityRing(
-    color: Color,
-    arrowDegrees: Float?,
-    distanceMeters: Float?,
-    beacon: BeaconInfo?,
-    accessibilityDescription: String,
-    accessibilityEnabled: Boolean,
-    modifier: Modifier
-) {
+internal fun rememberBeaconPulse(reduceMotion: Boolean, active: Boolean): Pair<Float, Float> {
+    if (reduceMotion || !active) return 0.9f to 0.35f
     val infiniteTransition = rememberInfiniteTransition(label = "beaconPulse")
     val beaconPulseRadius by infiniteTransition.animateFloat(
         initialValue = 0.8f,
@@ -1268,8 +1321,29 @@ private fun ProximityRing(
         ),
         label = "beaconPulseAlpha"
     )
+    return beaconPulseRadius to beaconPulseAlpha
+}
 
+@Composable
+private fun ProximityRing(
+    color: Color,
+    arrowDegrees: Float?,
+    distanceMeters: Float?,
+    beacon: BeaconInfo?,
+    accessibilityDescription: String,
+    accessibilityEnabled: Boolean,
+    reduceMotion: Boolean,
+    spokenUpdateText: String?,
+    modifier: Modifier
+) {
+    val (beaconPulseRadius, beaconPulseAlpha) = rememberBeaconPulse(reduceMotion, beacon != null)
     Box(modifier, contentAlignment = Alignment.Center) {
+        spokenUpdateText?.let { announcement ->
+            Box(Modifier.size(1.dp).semantics {
+                contentDescription = announcement
+                liveRegion = LiveRegionMode.Polite
+            })
+        }
         Canvas(
             Modifier
                 .fillMaxSize()

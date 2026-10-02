@@ -3,6 +3,9 @@ package com.fkurevija.pingring
 import com.fkurevija.pingring.data.BeaconPreset
 import com.fkurevija.pingring.data.BeaconVibrationPattern
 import com.fkurevija.pingring.data.AccessibilityFeature
+import com.fkurevija.pingring.data.RadarFeedbackPolicy
+import com.fkurevija.pingring.data.RadarAnnouncementPolicy
+import com.fkurevija.pingring.data.RangingSourcePolicy
 import com.fkurevija.pingring.data.ChatBubblePalette
 import com.fkurevija.pingring.data.ChatMessageOwnership
 import com.fkurevija.pingring.data.ChatNotificationPolicy
@@ -172,7 +175,40 @@ class AppRulesTest {
     @Test
     fun accessibilityFeaturesAreDisabledUntilTheUserEnablesThem() {
         assertTrue(AccessibilityFeature.entries.isNotEmpty())
-        assertTrue(AccessibilityFeature.entries.none { it.defaultEnabled })
+        assertTrue(AccessibilityFeature.PROXIMITY_HAPTICS.defaultEnabled)
+        assertTrue(AccessibilityFeature.entries.filterNot { it == AccessibilityFeature.PROXIMITY_HAPTICS }.none { it.defaultEnabled })
+    }
+
+    @Test
+    fun reducedMotionHonorsEitherTheAppOrSystemPreference() {
+        assertFalse(RadarFeedbackPolicy.reduceMotion(false, true))
+        assertTrue(RadarFeedbackPolicy.reduceMotion(true, true))
+        assertTrue(RadarFeedbackPolicy.reduceMotion(false, false))
+    }
+
+    @Test
+    fun proximityHapticsAreIndependentAndNeverUseGpsEstimates() {
+        assertTrue(RadarFeedbackPolicy.proximityHaptic(true, 1f, RangingSourcePolicy.RangingSource.UWB))
+        assertFalse(RadarFeedbackPolicy.proximityHaptic(false, 1f, RangingSourcePolicy.RangingSource.UWB))
+        assertFalse(RadarFeedbackPolicy.proximityHaptic(true, 1f, RangingSourcePolicy.RangingSource.GNSS))
+        assertFalse(RadarFeedbackPolicy.proximityHaptic(true, Float.NaN, null))
+        assertFalse(RadarFeedbackPolicy.proximityHaptic(true, -1f, null))
+    }
+
+    @Test
+    fun radarAnnouncementsOnlySpeakChangedStatesAtABoundedRate() {
+        val policy = RadarAnnouncementPolicy()
+        val first = RadarAnnouncementPolicy.State("peer", "farther", null)
+        val near = first.copy(proximityState = "near")
+        assertEquals(0L, policy.delayBeforeAnnouncement(first, 0))
+        policy.markAnnounced(first, 0)
+        assertEquals(null, policy.delayBeforeAnnouncement(first, 1_000))
+        assertEquals(9_000L, policy.delayBeforeAnnouncement(near, 1_000))
+        assertEquals(0L, policy.delayBeforeAnnouncement(near, 10_000))
+        policy.markAnnounced(near, 10_000)
+        assertEquals(null, policy.delayBeforeAnnouncement(near, 11_000))
+        policy.reset()
+        assertEquals(0L, policy.delayBeforeAnnouncement(first, 11_000))
     }
 
     @Test
@@ -188,6 +224,27 @@ class AppRulesTest {
         )
         assertTrue(summary.contains("GPS distance estimate. About 42 meters, uncertainty 20 meters."))
         assertTrue(summary.contains("Direction unavailable."))
+    }
+
+    @Test
+    fun pendingSpeechKeepsTheLatestStateWithoutExtendingTheThrottle() {
+        val policy = RadarAnnouncementPolicy()
+        val original = RadarAnnouncementPolicy.State("first", "farther", null)
+        policy.markAnnounced(original, 0L)
+        val intermediate = original.copy(proximityState = "near")
+        val latest = RadarAnnouncementPolicy.State("second", "farther", "Regroup")
+        assertEquals(9_000L, policy.delayBeforeAnnouncement(intermediate, 1_000L))
+        assertEquals(8_000L, policy.delayBeforeAnnouncement(latest, 2_000L))
+        assertEquals(0L, policy.delayBeforeAnnouncement(latest, 10_000L))
+        policy.markAnnounced(latest, 10_000L)
+        assertEquals(null, policy.delayBeforeAnnouncement(latest, 11_000L))
+    }
+
+    @Test
+    fun emptyRadarDoesNotGenerateAnInitialSpokenUpdate() {
+        assertEquals(null, RadarAnnouncementPolicy().delayBeforeAnnouncement(
+            RadarAnnouncementPolicy.State(null, "unknown", null), 0L,
+        ))
     }
 
     @Test
