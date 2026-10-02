@@ -190,6 +190,8 @@
     <string name="track_member">Track %1$s</string>
     <string name="automatic">Automatic</string>
     <string name="tracking">Tracking</string>
+    <string name="track_host_only">Track Host Only</string>
+    <string name="track_host_only_description">Guests track only the host. The host can track any member.</string>
     <string name="vibration_sos_urgent">SOS / Urgent</string>
     <string name="vibration_rapid_alert">Rapid Alert</string>
     <string name="vibration_steady_pulse">Steady Pulse</string>

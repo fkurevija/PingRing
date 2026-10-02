@@ -193,6 +193,8 @@
     <string name="track_member">%1$s verfolgen</string>
     <string name="automatic">Automatisch</string>
     <string name="tracking">Verfolgung</string>
+    <string name="track_host_only">Nur Host verfolgen</string>
+    <string name="track_host_only_description">Gäste verfolgen nur den Host. Der Host kann jedes Mitglied verfolgen.</string>
     <string name="vibration_sos_urgent">SOS / Dringend</string>
     <string name="vibration_rapid_alert">Schneller Alarm</string>
     <string name="vibration_steady_pulse">Gleichmäßiger Puls</string>

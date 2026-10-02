@@ -194,6 +194,8 @@
     <string name="track_member">Prati osobu %1$s</string>
     <string name="automatic">Automatski</string>
     <string name="tracking">Praćenje</string>
+    <string name="track_host_only">Prati samo domaćina</string>
+    <string name="track_host_only_description">Gosti prate samo domaćina. Domaćin može pratiti bilo kojeg člana.</string>
     <string name="vibration_sos_urgent">SOS / Hitno</string>
     <string name="vibration_rapid_alert">Brzo upozorenje</string>
     <string name="vibration_steady_pulse">Ravnomjerni puls</string>

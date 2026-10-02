@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.GroupAdd
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Rule
 import androidx.compose.material.icons.filled.Sensors
+import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.TravelExplore
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.Button
@@ -94,6 +95,7 @@ fun PingRingSettingsScreen(
     var acceptsNewMembers by remember(event) { mutableStateOf(event.acceptsNewMembers) }
     var isDiscoverable by remember(event) { mutableStateOf(event.isDiscoverable) }
     var requiresApproval by remember(event) { mutableStateOf(event.requiresApproval) }
+    var trackHost by remember(event) { mutableStateOf(event.trackHost) }
     val uwbAvailability = rememberUwbAvailability(uwbHardwareSupported)
     var useUwb by remember(event, uwbAvailability.isUsable) { mutableStateOf(event.useUwb && uwbAvailability.isUsable) }
     var useWifiDirect by remember(event) { mutableStateOf(event.useWifiDirect) }
@@ -145,6 +147,7 @@ fun PingRingSettingsScreen(
                             acceptsNewMembers = acceptsNewMembers,
                             isDiscoverable = isDiscoverable,
                             requiresApproval = requiresApproval,
+                            trackHost = if (isHost) trackHost else event.trackHost,
                             description = context.getString(if (acceptsNewMembers) R.string.pingring_event else R.string.closed),
                             useUwb = useUwb,
                             useWifiDirect = useWifiDirect,
@@ -230,6 +233,28 @@ fun PingRingSettingsScreen(
                             )
                         }
                         Switch(checked = requiresApproval, onCheckedChange = { requiresApproval = it })
+                    }
+
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.MyLocation, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(stringResource(R.string.track_host_only), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                            Text(stringResource(R.string.track_host_only_description), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Switch(
+                            checked = trackHost,
+                            enabled = isHost,
+                            onCheckedChange = { trackHost = it },
+                            modifier = Modifier.semantics {
+                                contentDescription = context.getString(R.string.track_host_only)
+                            }
+                        )
                     }
 
                     HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))

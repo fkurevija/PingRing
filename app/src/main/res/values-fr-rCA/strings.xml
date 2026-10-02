@@ -193,6 +193,8 @@
     <string name="track_member">Suivre %1$s</string>
     <string name="automatic">Automatique</string>
     <string name="tracking">Suivi</string>
+    <string name="track_host_only">Suivre uniquement l’hôte</string>
+    <string name="track_host_only_description">Les invités suivent uniquement l’hôte. L’hôte peut suivre tout membre.</string>
     <string name="vibration_sos_urgent">SOS / Urgent</string>
     <string name="vibration_rapid_alert">Alerte rapide</string>
     <string name="vibration_steady_pulse">Pulsation régulière</string>

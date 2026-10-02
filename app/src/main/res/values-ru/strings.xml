@@ -192,6 +192,8 @@
     <string name="track_member">Следить за участником %1$s</string>
     <string name="automatic">Автоматически</string>
     <string name="tracking">Слежение</string>
+    <string name="track_host_only">Следить только за организатором</string>
+    <string name="track_host_only_description">Гости следят только за организатором. Организатор может следить за любым участником.</string>
     <string name="vibration_sos_urgent">SOS / Срочный сигнал</string>
     <string name="vibration_rapid_alert">Быстрый сигнал</string>
     <string name="vibration_steady_pulse">Равномерная пульсация</string>
