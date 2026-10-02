@@ -171,6 +171,16 @@
     <string name="radar_weak_tracked_signal">Das BLE-Signal zu %1$s ist schwach. Die Nähe kann bald verschwinden; gehe näher heran.</string>
     <string name="radar_weak_group_signal">Das BLE-Signal ist bei %1$d Gruppenmitgliedern schwach. Ihre Nähe kann bald verschwinden.</string>
     <string name="recheck">Erneut prüfen</string>
+    <string name="connection_recovery_title">Verbindungswiederherstellung</string>
+    <string name="connection_recovery_description">Lege fest, wann PingRing nach dem Verlust des Hostkontakts fragt, ob du den Ring verlassen möchtest.</string>
+    <string name="connection_recovery_enabled">Vor dem Verlassen fragen</string>
+    <string name="connection_recovery_enabled_description">Nach dem Verlust der Hostverbindung einen Hinweis anzeigen.</string>
+    <string name="connection_recovery_delay">Nach %1$d Min. ohne Hostkontakt fragen</string>
+    <string name="connection_lost_title">PingRing-Verbindung nicht verfügbar</string>
+    <string name="connection_lost_message">Seit %1$d Min. besteht keine authentifizierte Hostverbindung. Der Host ist möglicherweise außer Reichweite oder dieser PingRing wurde beendet.</string>
+    <string name="connection_lost_snooze">In 2 Min. erneut erinnern</string>
+    <string name="connection_lost_silence">Für diesen PingRing stummschalten</string>
+    <string name="radar_last_known_direction">Letzte bekannte Richtung zu %1$s: %2$d°. Vor %3$d Sek. zuletzt erkannt; die Person kann sich bewegt haben.</string>
     <string name="member_count">Mitglieder (%1$d/%2$d)</string>
     <string name="member_count_full">Mitglieder (%1$d/%2$d - voll)</string>
     <string name="empty_peer_list">Deine temporäre ID ist nur für dieses Event sichtbar. Sobald jemand erscheint, werden hier Signal und Richtung angezeigt.</string>

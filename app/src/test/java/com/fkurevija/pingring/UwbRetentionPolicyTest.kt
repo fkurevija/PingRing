@@ -96,6 +96,23 @@ class UwbRetentionPolicyTest {
     }
 
     @Test
+    fun `UWB direction becomes last known after measurement silence`() {
+        val measuredAt = 10_000L
+        assertFalse(
+            UwbRetentionPolicy.isDirectionLastKnown(
+                measuredAt,
+                measuredAt + UwbRetentionPolicy.DIRECTION_FRESHNESS_MILLIS - 1,
+            )
+        )
+        assertTrue(
+            UwbRetentionPolicy.isDirectionLastKnown(
+                measuredAt,
+                measuredAt + UwbRetentionPolicy.DIRECTION_FRESHNESS_MILLIS,
+            )
+        )
+    }
+
+    @Test
     fun `a live UWB session is reported as active`() {
         assertEquals(
             RetainedState.UWB_ACTIVE,

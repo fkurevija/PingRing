@@ -52,6 +52,8 @@ data class RadarPeerUpdate(
     val worldDirectionZ: Float?,
     val lastSeen: Long,
     val signalWeak: Boolean = false,
+    val lastUwbMeasurementAtMillis: Long? = null,
+    val directionIsLastKnown: Boolean = false,
     /**
      * When this peer reported that it joined the event, in epoch millis.
      *
@@ -72,6 +74,16 @@ data class RadarPeerUpdate(
      * that agrees" are different states and the radar shows them differently.
      */
     val rangingConfidence: RangingConfidence? = null
+)
+
+data class LastKnownPeerDirection(
+    val peerId: String,
+    val name: String,
+    val worldDirectionX: Float,
+    val worldDirectionY: Float,
+    val distance: Float?,
+    val lastDetectedAtMillis: Long,
+    val recordedAtMillis: Long,
 )
 
 data class ConnectivityStatus(
@@ -466,10 +478,14 @@ class DiscoveryRepository(
     // Expose connectivity status
     private val _connectivityStatus = MutableStateFlow(getConnectivityStatus())
     val connectivityStatus: StateFlow<ConnectivityStatus> = _connectivityStatus.asStateFlow()
+    private val _hostConnectionLostAtMillis = MutableStateFlow<Long?>(null)
+    val hostConnectionLostAtMillis: StateFlow<Long?> = _hostConnectionLostAtMillis.asStateFlow()
 
     // Expose peer updates
     private val _peerUpdates = MutableStateFlow<Map<String, RadarPeerUpdate>>(emptyMap())
     val peerUpdates: Flow<List<RadarPeerUpdate>> = _peerUpdates.map { it.values.toList() }
+    private val _lastKnownPeerDirections = MutableStateFlow<List<LastKnownPeerDirection>>(emptyList())
+    val lastKnownPeerDirections: StateFlow<List<LastKnownPeerDirection>> = _lastKnownPeerDirections.asStateFlow()
 
     // Device orientation (heading, and the world direction of each peer). Kept in
     // its own class because it is the one part of discovery that keeps running
@@ -780,7 +796,9 @@ class DiscoveryRepository(
         activeDiscoveryUseUwb = event?.useUwb
         activeDiscoveryUseWifiDirect = event?.useWifiDirect
         activeDiscoveryUseHotspot = event?.useHotspot
+        _hostConnectionLostAtMillis.value = null
         if (event != null) {
+            _lastKnownPeerDirections.value = emptyList()
             val keyPair = BleIdentityCrypto.generateKeyPair()
             localBleIdentityKeyPair = keyPair
             localBleIdentityKey = BleIdentityKeyPayloadDto(
@@ -824,8 +842,20 @@ class DiscoveryRepository(
             while (isActive) {
                 delay(PEER_CLEANUP_INTERVAL_MILLIS)
                 val now = System.currentTimeMillis()
+                refreshPeerWorldDirections()
+                _peerUpdates.value.values
+                    .filter { peer ->
+                        now - peer.lastSeen >= PEER_EXPIRY_TIMEOUT_MILLIS &&
+                            peer.peerId !in retainedRangingPeerIds
+                    }
+                    .forEach { peer -> rememberLastKnownPeerDirection(peer.peerId) }
                 _peerUpdates.update { current ->
-                    current.filterValues { now - it.lastSeen < PEER_EXPIRY_TIMEOUT_MILLIS }
+                    current.filter { (peerId, peer) ->
+                        now - peer.lastSeen < PEER_EXPIRY_TIMEOUT_MILLIS || peerId in retainedRangingPeerIds
+                    }
+                }
+                _lastKnownPeerDirections.update { locations ->
+                    locations.filter { now - it.recordedAtMillis < LAST_KNOWN_DIRECTION_TTL_MILLIS }
                 }
             }
         }
@@ -841,6 +871,7 @@ class DiscoveryRepository(
                 sessionManager.updateEvent(
                     current.copy(inviteSecret = payload.inviteSecret, hostPeerId = payload.hostPeerId)
                 )
+                _hostConnectionLostAtMillis.value = null
                 addConnectedPeer(payload.hostPeerId)
                 activeDiscoveryInviteSecret = payload.inviteSecret
                 localBleIdentityKey?.let { identityKey ->
@@ -1006,6 +1037,9 @@ class DiscoveryRepository(
             nearbyConnectionsManager.peerDisconnected.collect { peerId ->
                 val state = sessionManager.sessionState.value
                 val event = state.currentEvent
+                if (!state.isHost && event?.hostPeerId == peerId) {
+                    _hostConnectionLostAtMillis.value = System.currentTimeMillis()
+                }
                 val retained = UwbRetentionPolicy.retainOnDisconnect(
                     peerId = peerId,
                     rangedTargetId = activeFocusRangingTarget,
@@ -1154,6 +1188,7 @@ class DiscoveryRepository(
     }
 
     fun stopDiscovery() {
+        _hostConnectionLostAtMillis.value = null
         activeDiscoveryEventId = null
         activeDiscoveryPeerId = null
         activeDiscoveryInviteSecret = null
@@ -1190,6 +1225,7 @@ class DiscoveryRepository(
         latestBleAdvertisementSequences.clear()
         nextBleAdvertisementSequence.set(0L)
         bleSignalWarningTracker.clear()
+        _lastKnownPeerDirections.value = emptyList()
         // Every retained address goes too, and this is the only place that does
         // it. Leaving, or the host ending the ring, must leave nothing rangeable
         // behind: a member that left is not still a member, and a session that
@@ -1550,6 +1586,8 @@ class DiscoveryRepository(
     private companion object {
         const val PEER_CLEANUP_INTERVAL_MILLIS = 5_000L
         const val PEER_EXPIRY_TIMEOUT_MILLIS = 15_000L
+        const val LAST_KNOWN_DIRECTION_TTL_MILLIS = 120_000L
+        const val UWB_DIRECTION_STALE_MILLIS = 2_000L
 
         /**
          * Debounce before moving the UWB session to a newly focused member.
@@ -1836,6 +1874,7 @@ class DiscoveryRepository(
      * pin, any beacon it was broadcasting, and its place in the member list.
      */
     private fun removePeer(peerId: String) {
+        rememberLastKnownPeerDirection(peerId)
         _peerUpdates.update { current -> current - peerId }
         // A peer that walks away mid-beacon has its beacon ended rather than
         // dropped: it happened, and the transcript should still show where.
@@ -1859,6 +1898,7 @@ class DiscoveryRepository(
 
     private fun addConnectedPeer(peerId: String) {
         if (peerId.isBlank() || peerId == sessionManager.peerId.value) return
+        _lastKnownPeerDirections.update { current -> current.filterNot { it.peerId == peerId } }
         val existing = _peerUpdates.value[peerId]
         // Never fall back to the peer id: it is an internal routing key, not
         // something a person can read or act on.
@@ -1883,6 +1923,7 @@ class DiscoveryRepository(
             joinedAtMillis = existing?.joinedAtMillis
         )
         _peerUpdates.update { current -> current + (peerId to updated) }
+        _lastKnownPeerDirections.update { current -> current.filterNot { it.peerId == peerId } }
         syncFriend(updated)
     }
 
@@ -1925,16 +1966,55 @@ class DiscoveryRepository(
      * worth redrawing; only the peers are this class's to update.
      */
     private fun refreshPeerWorldDirections() {
+        val nowMillis = System.currentTimeMillis()
+        _peerUpdates.value.values
+            .filter { peer ->
+                val measuredAt = peer.lastUwbMeasurementAtMillis
+                measuredAt != null && !peer.directionIsLastKnown &&
+                    UwbRetentionPolicy.isDirectionLastKnown(measuredAt, nowMillis)
+            }
+            .forEach { peer -> rememberLastKnownPeerDirection(peer.peerId) }
+
         _peerUpdates.update { current ->
             current.mapValues { (_, peer) ->
-                val (worldX, worldY, worldZ) =
-                    orientationTracker.toWorldDirection(peer.azimuth, peer.elevation)
-                peer.copy(
-                    worldDirectionX = worldX,
-                    worldDirectionY = worldY,
-                    worldDirectionZ = worldZ
-                )
+                val measuredAt = peer.lastUwbMeasurementAtMillis
+                when {
+                    peer.directionIsLastKnown -> peer
+                    measuredAt != null && UwbRetentionPolicy.isDirectionLastKnown(measuredAt, nowMillis) ->
+                        peer.copy(directionIsLastKnown = true)
+                    peer.azimuth != null -> {
+                        val (worldX, worldY, worldZ) =
+                            orientationTracker.toWorldDirection(peer.azimuth, peer.elevation)
+                        peer.copy(
+                            worldDirectionX = worldX,
+                            worldDirectionY = worldY,
+                            worldDirectionZ = worldZ,
+                        )
+                    }
+                    else -> peer
+                }
             }
+        }
+    }
+
+    private fun rememberLastKnownPeerDirection(peerId: String) {
+        val peer = _peerUpdates.value[peerId] ?: return
+        val worldX = peer.worldDirectionX ?: return
+        val worldY = peer.worldDirectionY ?: return
+        val detectedAt = peer.lastUwbMeasurementAtMillis ?: return
+        val recordedAt = System.currentTimeMillis()
+        val location = LastKnownPeerDirection(
+            peerId = peerId,
+            name = peer.name,
+            worldDirectionX = worldX,
+            worldDirectionY = worldY,
+            distance = peer.distance,
+            lastDetectedAtMillis = detectedAt,
+            recordedAtMillis = recordedAt,
+        )
+        _lastKnownPeerDirections.update { current ->
+            (current.filterNot { it.peerId == peerId } + location)
+                .sortedByDescending { it.recordedAtMillis }
         }
     }
 
@@ -2327,7 +2407,9 @@ class DiscoveryRepository(
         // what lets RangingSourcePolicy cross-check the two. It costs nothing
         // extra - the adverts are already arriving for discovery - and it is the
         // whole of the obstruction check.
-        lastUwbMeasurementAt[peerId] = System.currentTimeMillis()
+        val measuredAtMillis = System.currentTimeMillis()
+        lastUwbMeasurementAt[peerId] = measuredAtMillis
+        _lastKnownPeerDirections.update { current -> current.filterNot { it.peerId == peerId } }
         _peerUpdates.update { peers ->
             val current = peers[peerId] ?: return@update peers
             peers + (
@@ -2335,7 +2417,9 @@ class DiscoveryRepository(
                     distance = position.distance?.value,
                     azimuth = position.azimuth?.value,
                     elevation = position.elevation?.value,
-                    lastSeen = System.currentTimeMillis()
+                    lastSeen = measuredAtMillis,
+                    lastUwbMeasurementAtMillis = measuredAtMillis,
+                    directionIsLastKnown = false,
                 )
             )
         }

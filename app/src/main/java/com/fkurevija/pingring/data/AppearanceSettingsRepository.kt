@@ -15,6 +15,10 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
+const val DEFAULT_CONNECTION_RECOVERY_PROMPT_DELAY_MILLIS = 120_000L
+const val MIN_CONNECTION_RECOVERY_PROMPT_DELAY_MILLIS = 60_000L
+const val MAX_CONNECTION_RECOVERY_PROMPT_DELAY_MILLIS = 600_000L
+
 enum class ThemeMode {
     SYSTEM,
     LIGHT,
@@ -26,6 +30,8 @@ private val themeModeKey = stringPreferencesKey("theme_mode")
 private val userNameKey = stringPreferencesKey("user_name")
 private val radarScreenReaderSummaryEnabledKey = booleanPreferencesKey("radar_screen_reader_summary_enabled")
 private val chatNotificationsEnabledKey = booleanPreferencesKey("chat_notifications_enabled")
+private val connectionRecoveryPromptEnabledKey = booleanPreferencesKey("connection_recovery_prompt_enabled")
+private val connectionRecoveryPromptDelayKey = longPreferencesKey("connection_recovery_prompt_delay_millis")
 private val notificationSoundEnabledKey = booleanPreferencesKey("notification_sound_enabled")
 private val notificationVibrationEnabledKey = booleanPreferencesKey("notification_vibration_enabled")
 private val lanDebugEnabledKey = booleanPreferencesKey("lan_debug_enabled")
@@ -64,6 +70,15 @@ class AppearanceSettingsRepository(private val context: Context) {
 
     val chatNotificationsEnabled: Flow<Boolean> = context.appearanceDataStore.data.map { preferences ->
         preferences[chatNotificationsEnabledKey] ?: true
+    }
+
+    val connectionRecoveryPromptEnabled: Flow<Boolean> = context.appearanceDataStore.data.map { preferences ->
+        preferences[connectionRecoveryPromptEnabledKey] ?: true
+    }
+
+    val connectionRecoveryPromptDelayMillis: Flow<Long> = context.appearanceDataStore.data.map { preferences ->
+        (preferences[connectionRecoveryPromptDelayKey] ?: DEFAULT_CONNECTION_RECOVERY_PROMPT_DELAY_MILLIS)
+            .coerceIn(MIN_CONNECTION_RECOVERY_PROMPT_DELAY_MILLIS, MAX_CONNECTION_RECOVERY_PROMPT_DELAY_MILLIS)
     }
 
     /**
@@ -118,6 +133,25 @@ class AppearanceSettingsRepository(private val context: Context) {
         scope.launch {
             context.appearanceDataStore.edit { preferences ->
                 preferences[chatNotificationsEnabledKey] = enabled
+            }
+        }
+    }
+
+    fun setConnectionRecoveryPromptEnabled(enabled: Boolean) {
+        scope.launch {
+            context.appearanceDataStore.edit { preferences ->
+                preferences[connectionRecoveryPromptEnabledKey] = enabled
+            }
+        }
+    }
+
+    fun setConnectionRecoveryPromptDelayMillis(delayMillis: Long) {
+        scope.launch {
+            context.appearanceDataStore.edit { preferences ->
+                preferences[connectionRecoveryPromptDelayKey] = delayMillis.coerceIn(
+                    MIN_CONNECTION_RECOVERY_PROMPT_DELAY_MILLIS,
+                    MAX_CONNECTION_RECOVERY_PROMPT_DELAY_MILLIS,
+                )
             }
         }
     }

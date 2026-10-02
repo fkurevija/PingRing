@@ -171,6 +171,16 @@
     <string name="radar_weak_tracked_signal">La señal BLE de %1$s es débil. Su proximidad podría desaparecer pronto; acércate.</string>
     <string name="radar_weak_group_signal">La señal BLE es débil para %1$d miembros del grupo. Su proximidad podría desaparecer pronto.</string>
     <string name="recheck">Volver a comprobar</string>
+    <string name="connection_recovery_title">Recuperación de conexión</string>
+    <string name="connection_recovery_description">Elige cuándo PingRing debe preguntar si quieres salir tras perder el contacto con el anfitrión.</string>
+    <string name="connection_recovery_enabled">Preguntar si quieres salir</string>
+    <string name="connection_recovery_enabled_description">Mostrar un aviso cuando se pierda la conexión con el anfitrión.</string>
+    <string name="connection_recovery_delay">Preguntar tras %1$d min sin contacto con el anfitrión</string>
+    <string name="connection_lost_title">Conexión de PingRing no disponible</string>
+    <string name="connection_lost_message">No hay conexión autenticada con el anfitrión desde hace %1$d min. Puede estar fuera de alcance o este PingRing puede haber terminado.</string>
+    <string name="connection_lost_snooze">Recordármelo en 2 min</string>
+    <string name="connection_lost_silence">Silenciar durante este PingRing</string>
+    <string name="radar_last_known_direction">Última dirección conocida de %1$s: %2$d°. Detectado hace %3$d s; puede haberse movido.</string>
     <string name="member_count">Miembros (%1$d/%2$d)</string>
     <string name="member_count_full">Miembros (%1$d/%2$d - completo)</string>
     <string name="empty_peer_list">Tu ID temporal es privado para este evento. Cuando aparezca alguien, aquí se mostrarán su señal y dirección.</string>

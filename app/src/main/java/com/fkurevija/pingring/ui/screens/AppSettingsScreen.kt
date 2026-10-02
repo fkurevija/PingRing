@@ -2,11 +2,14 @@ package com.fkurevija.pingring.ui.screens
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Notifications
@@ -22,17 +25,23 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlin.math.roundToInt
 import com.fkurevija.pingring.R
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -43,6 +52,10 @@ fun AppSettingsScreen(
     onOpenAppearance: () -> Unit,
     onOpenNotifications: () -> Unit,
     onOpenAccessibility: () -> Unit,
+    connectionRecoveryPromptEnabled: Boolean = true,
+    connectionRecoveryPromptDelayMillis: Long = 120_000L,
+    onConnectionRecoveryPromptEnabledChange: (Boolean) -> Unit = {},
+    onConnectionRecoveryPromptDelayChange: (Long) -> Unit = {},
     showDeveloperOptions: Boolean,
     onOpenDeveloperOptions: () -> Unit,
     onBack: () -> Unit,
@@ -58,6 +71,9 @@ fun AppSettingsScreen(
         "ru" to R.string.language_russian,
     )
     var languageMenuExpanded by remember { mutableStateOf(false) }
+    val delayMinutes = (connectionRecoveryPromptDelayMillis / 60_000L).toInt().coerceIn(1, 10)
+    var delayDraft by remember { mutableFloatStateOf(delayMinutes.toFloat()) }
+    LaunchedEffect(delayMinutes) { delayDraft = delayMinutes.toFloat() }
     val selectedLanguage = languages.firstOrNull { it.first == selectedLanguageTag } ?: languages.first()
     Scaffold(
         topBar = {
@@ -72,7 +88,11 @@ fun AppSettingsScreen(
         }
     ) { padding ->
         Column(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp)
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(horizontal = 16.dp)
+                .verticalScroll(rememberScrollState())
         ) {
             ExposedDropdownMenuBox(
                 expanded = languageMenuExpanded,
@@ -126,6 +146,50 @@ fun AppSettingsScreen(
                 description = stringResource(R.string.accessibility_card_description),
                 onClick = onOpenAccessibility,
             )
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                ),
+            ) {
+                Column(Modifier.fillMaxWidth().padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                stringResource(R.string.connection_recovery_title),
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Text(
+                                stringResource(R.string.connection_recovery_description),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Switch(
+                            checked = connectionRecoveryPromptEnabled,
+                            onCheckedChange = onConnectionRecoveryPromptEnabledChange,
+                        )
+                    }
+                    if (connectionRecoveryPromptEnabled) {
+                        Text(
+                            stringResource(R.string.connection_recovery_delay, delayDraft.roundToInt()),
+                            modifier = Modifier.padding(top = 12.dp),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Slider(
+                            value = delayDraft,
+                            onValueChange = { delayDraft = it },
+                            onValueChangeFinished = {
+                                onConnectionRecoveryPromptDelayChange(delayDraft.roundToInt() * 60_000L)
+                            },
+                            valueRange = 1f..10f,
+                            steps = 8,
+                        )
+                    }
+                }
+            }
             if (showDeveloperOptions) {
                 SettingsSubmenuCard(
                     icon = { Text("</>", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) },

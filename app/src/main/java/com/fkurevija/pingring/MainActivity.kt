@@ -193,6 +193,10 @@ fun MainNavigation(
     }
     val chatBubbleColor by chatBubbleColorFlow.collectAsState(initial = null)
     val radarScreenReaderSummaryEnabled by appearanceSettings.radarScreenReaderSummaryEnabled.collectAsState(initial = false)
+    val connectionRecoveryPromptEnabled by appearanceSettings.connectionRecoveryPromptEnabled.collectAsState(initial = true)
+    val connectionRecoveryPromptDelayMillis by appearanceSettings.connectionRecoveryPromptDelayMillis.collectAsState(
+        initial = 120_000L
+    )
     // Devices waiting on the host to approve. Collected here rather than inside
     // the screen because the screen has to compose with no repository at all,
     // which is the only way its layout is testable.
@@ -378,6 +382,10 @@ fun MainNavigation(
                         onOpenAppearance = { backStack.add(AppearanceSettingsKey) },
                         onOpenNotifications = { backStack.add(NotificationSettingsKey) },
                         onOpenAccessibility = { backStack.add(AccessibilitySettingsKey) },
+                        connectionRecoveryPromptEnabled = connectionRecoveryPromptEnabled,
+                        connectionRecoveryPromptDelayMillis = connectionRecoveryPromptDelayMillis,
+                        onConnectionRecoveryPromptEnabledChange = appearanceSettings::setConnectionRecoveryPromptEnabled,
+                        onConnectionRecoveryPromptDelayChange = appearanceSettings::setConnectionRecoveryPromptDelayMillis,
                         showDeveloperOptions = BuildConfig.DEBUG,
                         onOpenDeveloperOptions = { backStack.add(DeveloperSettingsKey) },
                         onBack = { backStack.popBack() }
@@ -470,6 +478,9 @@ fun MainNavigation(
                         quickBeacon = quickBeacon,
                         chatBubbleColorArgb = chatBubbleColor,
                         radarScreenReaderSummaryEnabled = radarScreenReaderSummaryEnabled,
+                        connectionRecoveryPromptEnabled = connectionRecoveryPromptEnabled,
+                        connectionRecoveryPromptDelayMillis = connectionRecoveryPromptDelayMillis,
+                        isTopDestination = topKey == key,
                         onQuickBeaconChange = appearanceSettings::setQuickBeacon,
                         pendingJoinRequests = pendingJoinRequests,
                         onApproveJoinRequest = { discoveryRepository.approveJoinRequest(it) },

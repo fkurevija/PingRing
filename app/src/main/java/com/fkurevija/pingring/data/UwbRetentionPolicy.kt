@@ -28,6 +28,10 @@ object UwbRetentionPolicy {
      * claim: this is a window for walking back into range, not membership.
      */
     const val RETENTION_MILLIS = 45_000L
+    const val DIRECTION_FRESHNESS_MILLIS = 2_000L
+
+    fun isDirectionLastKnown(lastMeasurementAtMillis: Long, nowMillis: Long): Boolean =
+        nowMillis - lastMeasurementAtMillis >= DIRECTION_FRESHNESS_MILLIS
 
     /**
      * Decides whether to keep ranging [peerId] after its transport dropped.

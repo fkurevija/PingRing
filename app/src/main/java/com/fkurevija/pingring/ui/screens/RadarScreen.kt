@@ -61,12 +61,14 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
@@ -116,6 +118,9 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.fkurevija.pingring.data.BeaconInfo
 import com.fkurevija.pingring.data.BeaconPreset
 import com.fkurevija.pingring.data.BeaconVibrationPattern
@@ -133,9 +138,12 @@ import com.fkurevija.pingring.data.QuickBeacon
 import com.fkurevija.pingring.data.RadarAccessibilityPolicy
 import com.fkurevija.pingring.data.RadarDirectionPolicy
 import com.fkurevija.pingring.data.RadarPeerUpdate
+import com.fkurevija.pingring.data.LastKnownPeerDirection
 import com.fkurevija.pingring.data.SessionState
 import com.fkurevija.pingring.R
+import kotlinx.coroutines.delay
 import kotlin.math.cos
+import kotlin.math.atan2
 import kotlin.math.sin
 
 /**
@@ -177,6 +185,9 @@ fun RadarScreen(
     chatBubbleColorArgb: Long?,
     radarScreenReaderSummaryEnabled: Boolean,
     onQuickBeaconChange: (QuickBeacon?) -> Unit,
+    connectionRecoveryPromptEnabled: Boolean = true,
+    connectionRecoveryPromptDelayMillis: Long = 120_000L,
+    isTopDestination: Boolean = true,
     /**
      * Devices waiting on the host to approve, and the host's answers to them.
      *
@@ -195,8 +206,28 @@ fun RadarScreen(
     var showEndConfirmation by remember { mutableStateOf(false) }
     var showBeaconSheet by remember { mutableStateOf(false) }
     var showQrCode by remember { mutableStateOf(false) }
+    var showConnectionLostDialog by remember(eventId) { mutableStateOf(false) }
+    var connectionLostSnoozedUntilMillis by rememberSaveable(eventId) { mutableLongStateOf(0L) }
+    var connectionPromptSilenced by rememberSaveable(eventId) { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val focusManager = LocalFocusManager.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var activityResumed by remember(lifecycleOwner) {
+        mutableStateOf(lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))
+    }
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, lifecycleEvent ->
+            when (lifecycleEvent) {
+                Lifecycle.Event.ON_RESUME -> activityResumed = true
+                Lifecycle.Event.ON_PAUSE -> activityResumed = false
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    val hostConnectionLostAtMillis by discoveryRepository?.hostConnectionLostAtMillis?.collectAsState(initial = null)
+        ?: remember { mutableStateOf(null) }
 
     // The radar is the screen a live PingRing runs on, so the system back
     // (button or gesture) must not quietly drop the user out of the app: that
@@ -224,6 +255,44 @@ fun RadarScreen(
     LaunchedEffect(discoveryRepository) {
         discoveryRepository?.startDiscovery()
     }
+
+    LaunchedEffect(
+        eventId,
+        isHost,
+        isTopDestination,
+        activityResumed,
+        hostConnectionLostAtMillis,
+        connectionRecoveryPromptEnabled,
+        connectionRecoveryPromptDelayMillis,
+        connectionLostSnoozedUntilMillis,
+        connectionPromptSilenced,
+    ) {
+        showConnectionLostDialog = false
+        if (hostConnectionLostAtMillis == null) {
+            connectionLostSnoozedUntilMillis = 0L
+            return@LaunchedEffect
+        }
+        if (isHost || !isTopDestination || !activityResumed || !connectionRecoveryPromptEnabled ||
+            connectionPromptSilenced
+        ) return@LaunchedEffect
+        val hostLostAtMillis = hostConnectionLostAtMillis ?: return@LaunchedEffect
+
+        val dueAtMillis = maxOf(
+            hostLostAtMillis + connectionRecoveryPromptDelayMillis,
+            connectionLostSnoozedUntilMillis,
+        )
+        delay((dueAtMillis - System.currentTimeMillis()).coerceAtLeast(0L))
+        if (discoveryRepository?.hostConnectionLostAtMillis?.value == hostLostAtMillis &&
+            isTopDestination && activityResumed && !connectionPromptSilenced
+        ) {
+            showConnectionLostDialog = true
+        }
+    }
+
+    fun snoozeConnectionLostPrompt() {
+        showConnectionLostDialog = false
+        connectionLostSnoozedUntilMillis = System.currentTimeMillis() + 120_000L
+    }
     // Deliberately no onDispose-triggered stopDiscovery() here: HostSetupScreen
     // and RadarScreen share the same DiscoveryRepository instance for the
     // lifetime of an event (e.g. navigating to the event settings screen and
@@ -233,6 +302,8 @@ fun RadarScreen(
 
     val peers by discoveryRepository?.peerUpdates?.collectAsState(initial = emptyList())
         ?: remember { mutableStateOf(emptyList<RadarPeerUpdate>()) }
+    val lastKnownPeerDirections by discoveryRepository?.lastKnownPeerDirections?.collectAsState(initial = emptyList())
+        ?: remember { mutableStateOf(emptyList<LastKnownPeerDirection>()) }
     val connectivity by discoveryRepository?.connectivityStatus?.collectAsState()
         ?: remember { mutableStateOf(ConnectivityStatus(isBluetoothEnabled = true, isWifiEnabled = true)) }
     val activeBeacons by discoveryRepository?.activeBeacons?.collectAsState()
@@ -270,6 +341,17 @@ fun RadarScreen(
             hostPeerId = sessionState.currentEvent?.hostPeerId
         )
         peers.firstOrNull { it.peerId == resolvedId }
+    }
+    val lastKnownDirection = lastKnownPeerDirections.firstOrNull { it.peerId == focusedPeer?.peerId }
+        ?: lastKnownPeerDirections.firstOrNull()
+    var lastKnownClockMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(lastKnownDirection?.peerId) {
+        if (lastKnownDirection != null) {
+            while (true) {
+                delay(5_000L)
+                lastKnownClockMillis = System.currentTimeMillis()
+            }
+        }
     }
 
     // A guest under "track host" has no say in this: the host set the policy
@@ -379,6 +461,37 @@ fun RadarScreen(
                         Text(
                             text = message,
                             color = MaterialTheme.colorScheme.onTertiaryContainer,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+            }
+            lastKnownDirection?.let { location ->
+                val bearingDegrees = (
+                    Math.toDegrees(atan2(location.worldDirectionX.toDouble(), location.worldDirectionY.toDouble()))
+                        .toInt() % 360 + 360
+                    ) % 360
+                val secondsAgo = ((lastKnownClockMillis - location.lastDetectedAtMillis).coerceAtLeast(0L) / 1_000L)
+                    .toInt()
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    shape = RoundedCornerShape(8.dp),
+                ) {
+                    Row(
+                        Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(Icons.Default.MyLocation, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            stringResource(
+                                R.string.radar_last_known_direction,
+                                location.name,
+                                bearingDegrees,
+                                secondsAgo,
+                            ),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.weight(1f),
                         )
                     }
@@ -850,6 +963,38 @@ fun RadarScreen(
                             if (isHost) onEndEvent() else onLeaveEvent()
                         },
                         onDismiss = { showEndConfirmation = false }
+                    )
+                }
+
+                if (showConnectionLostDialog) {
+                    AlertDialog(
+                        onDismissRequest = ::snoozeConnectionLostPrompt,
+                        title = { Text(stringResource(R.string.connection_lost_title)) },
+                        text = {
+                            val delayMinutes = ((connectionRecoveryPromptDelayMillis + 59_999L) / 60_000L).toInt()
+                            Text(stringResource(R.string.connection_lost_message, delayMinutes))
+                        },
+                        confirmButton = {
+                            TextButton(
+                                onClick = {
+                                    showConnectionLostDialog = false
+                                    onLeaveEvent()
+                                }
+                            ) { Text(stringResource(R.string.leave_pingring)) }
+                        },
+                        dismissButton = {
+                            Column(horizontalAlignment = Alignment.End) {
+                                TextButton(onClick = ::snoozeConnectionLostPrompt) {
+                                    Text(stringResource(R.string.connection_lost_snooze))
+                                }
+                                TextButton(
+                                    onClick = {
+                                        connectionPromptSilenced = true
+                                        showConnectionLostDialog = false
+                                    }
+                                ) { Text(stringResource(R.string.connection_lost_silence)) }
+                            }
+                        },
                     )
                 }
 
