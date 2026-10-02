@@ -23,6 +23,7 @@ internal interface PayloadSink {
     fun onBeacon(beacon: BeaconPayloadDto)
     fun onInviteSecret(secret: InviteSecretPayloadDto)
     fun onBleIdentityKey(identityKey: BleIdentityKeyPayloadDto)
+    fun onMemberDeparture(departure: MemberDeparturePayloadDto)
     fun onEventControl(control: EventControlPayloadDto)
     fun onUwbAddress(address: UwbPeerAddressDto)
     fun onUwbParameters(params: UwbControllerParametersDto)
@@ -111,6 +112,12 @@ internal class TransportEvents(private val tag: String) : PayloadSink {
     )
     val receivedBleIdentityKey: SharedFlow<BleIdentityKeyPayloadDto> = _receivedBleIdentityKey.asSharedFlow()
 
+    private val _receivedMemberDeparture = MutableSharedFlow<MemberDeparturePayloadDto>(
+        extraBufferCapacity = 8,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+    val receivedMemberDeparture: SharedFlow<MemberDeparturePayloadDto> = _receivedMemberDeparture.asSharedFlow()
+
     private val _receivedEventControl = MutableSharedFlow<EventControlPayloadDto>(
         extraBufferCapacity = 4,
         onBufferOverflow = BufferOverflow.DROP_OLDEST,
@@ -186,6 +193,10 @@ internal class TransportEvents(private val tag: String) : PayloadSink {
 
     override fun onBleIdentityKey(identityKey: BleIdentityKeyPayloadDto) {
         _receivedBleIdentityKey.tryEmit(identityKey)
+    }
+
+    override fun onMemberDeparture(departure: MemberDeparturePayloadDto) {
+        _receivedMemberDeparture.tryEmit(departure)
     }
 
     override fun onEventControl(control: EventControlPayloadDto) {

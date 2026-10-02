@@ -21,6 +21,12 @@ data class BleIdentityKeyPayloadDto(
 )
 
 @Serializable
+data class MemberDeparturePayloadDto(
+    val eventCode: String,
+    val peerId: String,
+)
+
+@Serializable
 data class JoinProofPayloadDto(
     val eventCode: String,
     val inviteSecret: String?,

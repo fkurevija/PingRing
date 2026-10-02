@@ -579,6 +579,22 @@ class DiscoveryRepository(
     /** Turns a held join request away. */
     fun denyJoinRequest(endpointId: String) = nearbyConnectionsManager.denyJoinRequest(endpointId)
 
+    /** Sends a confirmed guest departure before its authenticated host link closes. */
+    fun announceMemberDeparture(onComplete: () -> Unit = {}) {
+        val state = sessionManager.sessionState.value
+        val event = state.currentEvent
+        if (state.isHost || event == null) {
+            onComplete()
+            return
+        }
+        nearbyConnectionsManager.announceMemberDeparture(
+            departure = MemberDeparturePayloadDto(eventCode = event.id, peerId = sessionManager.peerId.value),
+            onComplete = {
+                android.os.Handler(android.os.Looper.getMainLooper()).post(onComplete)
+            },
+        )
+    }
+
     val pendingAuthentications get() = nearbyConnectionsManager.pendingAuthentications
 
     fun confirmConnectionAuthentication(endpointId: String) =
@@ -900,6 +916,19 @@ class DiscoveryRepository(
                 if (sessionManager.sessionState.value.isHost) {
                     nearbyConnectionsManager.broadcastBleIdentityKey(identityKey)
                 }
+            }
+        }
+
+        repositoryScope?.launch {
+            nearbyConnectionsManager.receivedMemberDeparture.collect { departure ->
+                val currentEvent = sessionManager.sessionState.value.currentEvent ?: return@collect
+                if (departure.eventCode != currentEvent.id || departure.peerId == sessionManager.peerId.value) {
+                    return@collect
+                }
+                connectedPeerIds.remove(departure.peerId)
+                peerUwbAddresses.remove(departure.peerId)
+                removePeer(departure.peerId, preserveLastKnownDirection = false)
+                onFocusChanged()
             }
         }
 
@@ -1878,8 +1907,9 @@ class DiscoveryRepository(
      * Forgets everything about a peer that is no longer connected: its radar
      * pin, any beacon it was broadcasting, and its place in the member list.
      */
-    private fun removePeer(peerId: String) {
-        rememberLastKnownPeerDirection(peerId)
+    private fun removePeer(peerId: String, preserveLastKnownDirection: Boolean = true) {
+        if (preserveLastKnownDirection) rememberLastKnownPeerDirection(peerId)
+        else _lastKnownPeerDirections.update { current -> current.filterNot { it.peerId == peerId } }
         _peerUpdates.update { current -> current - peerId }
         // A peer that walks away mid-beacon has its beacon ended rather than
         // dropped: it happened, and the transcript should still show where.

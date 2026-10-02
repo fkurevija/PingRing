@@ -25,6 +25,10 @@ Both endpoints display Nearby's shared authentication digits and must explicitly
 
 The host accepts chat, beacon, and UWB sender claims only when they match the peer ID bound to that confirmed endpoint. Guests accept relayed sender-attributed traffic and host controls only from the authenticated host endpoint. UWB offers are checked against their source endpoint before the host relays them. See [payload authorization](../app/src/main/java/com/fkurevija/pingring/data/NearbyConnectionsManager.kt).
 
+### Graceful departures require an authenticated sender
+
+A guest's leave notice is sent over its accepted host endpoint. The host checks the claimed member ID against that endpoint before relaying the notice; guests accept the relay only from their authenticated host. A notice confirms departure only when delivered. A disconnect, crash, or host outage without the notice remains an unreachable/unknown state.
+
 ### Logs and join queues are bounded
 
 Production logs no longer include chat text, beacon titles, raw payload JSON, or UWB STS keys. SAS prompts and pending join approvals are capped at eight; SAS attempts are limited to twelve per minute, and capacity is rechecked when a peer is authorized. See [Nearby request limits and logging](../app/src/main/java/com/fkurevija/pingring/data/NearbyConnectionsManager.kt).

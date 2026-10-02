@@ -17,6 +17,7 @@ This page separates behavior awaiting **verification**, constraints imposed by *
 - **Radio-power policy.** `RadioPowerPolicy` is covered by unit tests and is applied by discovery, but its scan-pass, scan-mode and UWB-retention thresholds have not been measured for battery or discovery reliability on real devices.
 - **V5 extended-advertising hardware matrix.** Verify service-data capacity and signed member-key registration/roster relay on representative controllers, including unsupported devices. Confirm unsupported devices never fall back to V4 RSSI presence.
 - **Connection recovery on hardware.** Verify host disconnect detection, the configured delay, reconnect cancellation, foreground-only prompting, snooze, silence-for-this-Ring, and host-ended-while-disconnected wording on devices.
+- **Graceful-leave delivery on hardware.** Verify a guest's authenticated departure notice reaches the host and other guests before the connection closes. A crash or lost link still cannot deliver it; those peers must remain *unreachable*, not confirmed gone.
 - **Last-known UWB direction on hardware.** Walk and turn with a UWB-ranged peer, then disconnect it. Verify the frozen world bearing does not rotate with the phone, the age updates, a fresh fix clears it, and the marker expires after two minutes. BLE-only peers must not acquire an inferred bearing.
 - **Accessibility audit.** The radar has an opt-in spoken summary, but TalkBack behavior, focus order, contrast, and the recovery dialog have not had a device-assisted audit.
 - **Security hardening on hardware.** A live SAS comparison, signed-advertisement capture/replay, joined-member impersonation attempt, join flood, and logcat review have not been performed. See the [Security Review](security-review.md#verification-limits).
@@ -29,7 +30,9 @@ This page separates behavior awaiting **verification**, constraints imposed by *
 
 - **BLE member identity requires extended advertising.** V5 carries a 98-byte P-256 signed member advertisement. Devices without extended-advertising hardware do not send or accept RSSI-based member presence; they can still use Nearby and any other supported ranging. Extended advertising is supported by the public Android API at the current minimum SDK, but controller support varies by device.
 - **Nearby controls its transport.** The public Connections API has no transport selector, and a third-party app cannot create a joinable host hotspot using the public tethering/local-only-hotspot APIs. Nearby chooses the transport; selecting or replacing it would require a separate transport architecture.
-- **The LAN debug relay is plaintext.** It is debug-only and excluded from release builds, but traffic, including invite provisioning, is not encrypted by Nearby. Use it only on a trusted development LAN; see the planned hardening item below if that boundary changes.
+- **The LAN debug relay is plaintext.** It is debug-only and excluded from release builds, but traffic, including invite provisioning, is not encrypted. This is accepted for a trusted development LAN; do not use it on an untrusted network.
+- **The host can read guest-to-guest UWB offers.** The host relays the STS key. This is an accepted trust boundary: the host is trusted to admit members and broker group traffic.
+- **Host tracking choices remain independent.** The host's local tracked target is intentionally not broadcast. Guests choose independently unless **Track Host Only** is enabled.
 
 ## Out of scope
 
@@ -41,13 +44,10 @@ These are verified limits of the public Android APIs or deliberate non-goals, no
 
 ## Planned engineering and product work
 
-- **Add mesh extension only with a concrete range requirement.** The current star topology does not relay presence between guests; a relay architecture would change discovery, routing, liveness, and battery costs.
-- **Broadcast the host's selected radar target when needed.** Today each guest chooses independently unless **Track Host Only** is enabled. Add a host-focus control message only if guests need to mirror the host's local choice.
-- **Protect guest-to-guest UWB offers end-to-end.** Offers currently pass through the host, which can read the STS key. Define pairwise key establishment and rotation before changing this trust boundary.
-- **Improve liveness and replay freshness.** Consider a signed leave/closure protocol and freshness mechanism that works without a shared trusted clock; document replay/partition tradeoffs before implementing a new wire revision.
-- **Implement additional ranging sources.** Wi-Fi RTT needs live ranging/discovery, USD attribution and Nearby coexistence validation; GNSS needs a privacy-reviewed peer-fix sharing protocol. Neither is currently active.
+- **Implement a bounded peer relay mesh.** Support all 8 members over any connected path up to 7 hops, with best-effort forwarding and route recovery when links reform. The host remains the admission authority and admitted relays are trusted to read/forward group traffic. Define duplicate suppression, hop limits, and partition behavior before replacing `P2P_STAR`.
+- **Require live key control for V5 BLE presence.** A captured signed advertisement must not by itself refresh a peer; add a fresh challenge/response using the member's registered signing key. This proves current key control, not physical distance. A separate UWB fix is still required to claim measured range.
+- **Implement additional ranging sources.** Investigate phone-to-phone Wi-Fi RTT without venue infrastructure. GNSS may be enabled by the host per Ring; initial privacy/power target is 100 m coordinate quantization at 10-second updates. Neither source is currently active, and both require device validation.
 - **Decide product direction for the brand and in-app help.** The palette is provisional, and help placement/content has no offline product decision yet.
-- **Encrypt the LAN debug relay only if its trust boundary expands.** It remains plaintext and debug-only; do not use it outside a trusted development LAN.
 
 ---
 

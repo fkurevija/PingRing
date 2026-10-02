@@ -63,6 +63,19 @@ internal fun isBleIdentityKeySenderAuthorized(
     endpointId == authenticatedHostEndpoint
 }
 
+internal fun isMemberDepartureSenderAuthorized(
+    isLocalHost: Boolean,
+    endpointId: String,
+    endpointPeerId: String?,
+    endpointAuthorized: Boolean,
+    authenticatedHostEndpoint: String?,
+    departurePeerId: String,
+): Boolean = if (isLocalHost) {
+    endpointAuthorized && endpointPeerId == departurePeerId
+} else {
+    endpointId == authenticatedHostEndpoint
+}
+
 /**
  * A device asking to join, waiting on the host's decision.
  *
@@ -230,6 +243,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
     override val receivedBeacon: SharedFlow<BeaconPayloadDto> get() = events.receivedBeacon
     override val receivedInviteSecret: SharedFlow<InviteSecretPayloadDto> get() = events.receivedInviteSecret
     override val receivedBleIdentityKey: SharedFlow<BleIdentityKeyPayloadDto> get() = events.receivedBleIdentityKey
+    override val receivedMemberDeparture: SharedFlow<MemberDeparturePayloadDto> get() = events.receivedMemberDeparture
     override val receivedEventControl: SharedFlow<EventControlPayloadDto> get() = events.receivedEventControl
 
     /**
@@ -624,6 +638,24 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
         }
     }
 
+    override fun announceMemberDeparture(departure: MemberDeparturePayloadDto, onComplete: () -> Unit) {
+        if (isLocalHost || departure.eventCode != localEventId || departure.peerId != localPeerId) {
+            onComplete()
+            return
+        }
+        val hostEndpoint = authenticatedHostEndpoint
+        if (hostEndpoint == null) {
+            onComplete()
+            return
+        }
+        sendPayloadToEndpoint(hostEndpoint, departure, onComplete)
+    }
+
+    override fun broadcastMemberDeparture(departure: MemberDeparturePayloadDto) {
+        if (!isLocalHost || departure.eventCode != localEventId) return
+        authorizedEndpoints.forEach { endpointId -> sendPayloadToEndpoint(endpointId, departure) }
+    }
+
     override fun sendEventControl(peerId: String, control: EventControlPayloadDto) {
         val endpointId = connectedEndpoints[peerId] ?: return
         if (endpointId !in authorizedEndpoints) return
@@ -933,6 +965,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
         is DecodedPayload.JoinProof -> receiveJoinProof(payload.proof, endpointId)
         is DecodedPayload.InviteSecret -> receiveInviteSecret(payload.secret, endpointId)
         is DecodedPayload.BleIdentityKey -> receiveBleIdentityKey(payload.identityKey, endpointId)
+        is DecodedPayload.MemberDeparture -> receiveMemberDeparture(payload.departure, endpointId)
         else -> {
             if (endpointId !in authorizedEndpoints) return false
             val endpointPeerId = endpointToPeerId[endpointId] ?: return false
@@ -980,6 +1013,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
                     true
                 } else false
                 is DecodedPayload.InviteSecret, is DecodedPayload.BleIdentityKey,
+                is DecodedPayload.MemberDeparture,
                 is DecodedPayload.JoinProof, is DecodedPayload.MockRanging -> false
             }
         }
@@ -1059,6 +1093,23 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
             )
         ) return false
         events.onBleIdentityKey(identityKey)
+        return true
+    }
+
+    private fun receiveMemberDeparture(departure: MemberDeparturePayloadDto, endpointId: String): Boolean {
+        if (departure.eventCode != localEventId) return false
+        if (!departure.peerId.matches(Regex("[0-9a-fA-F]{8}"))) return false
+        if (!isMemberDepartureSenderAuthorized(
+                isLocalHost = isLocalHost,
+                endpointId = endpointId,
+                endpointPeerId = endpointToPeerId[endpointId],
+                endpointAuthorized = endpointId in authorizedEndpoints,
+                authenticatedHostEndpoint = authenticatedHostEndpoint,
+                departurePeerId = departure.peerId,
+            )
+        ) return false
+        if (isLocalHost) broadcastMemberDeparture(departure)
+        events.onMemberDeparture(departure)
         return true
     }
 

@@ -6,6 +6,7 @@ import com.fkurevija.pingring.data.JOIN_REQUEST_TIMEOUT_MILLIS
 import com.fkurevija.pingring.data.shouldRefuseConnection
 import com.fkurevija.pingring.data.isPayloadSenderAuthorized
 import com.fkurevija.pingring.data.isBleIdentityKeySenderAuthorized
+import com.fkurevija.pingring.data.isMemberDepartureSenderAuthorized
 import com.fkurevija.pingring.data.isWithinSasPromptRateLimit
 import com.fkurevija.pingring.data.expiredAuthenticationRequests
 import org.junit.Assert.assertEquals
@@ -72,6 +73,25 @@ class NearbyAdmissionPolicyTest {
     fun guestsAcceptBleKeyRostersOnlyFromTheirAuthenticatedHostEndpoint() {
         assertTrue(isBleIdentityKeySenderAuthorized(false, "host-endpoint", null, false, "host-endpoint", "a1b2c3d4"))
         assertFalse(isBleIdentityKeySenderAuthorized(false, "guest-endpoint", null, false, "host-endpoint", "a1b2c3d4"))
+    }
+
+    @Test
+    fun hostAcceptsGracefulDepartureOnlyFromTheMatchingAuthorizedMember() {
+        assertTrue(isMemberDepartureSenderAuthorized(true, "endpoint", "a1b2c3d4", true, null, "a1b2c3d4"))
+        assertFalse(isMemberDepartureSenderAuthorized(true, "endpoint", "a1b2c3d4", true, null, "deadbeef"))
+        assertFalse(isMemberDepartureSenderAuthorized(true, "endpoint", "a1b2c3d4", false, null, "a1b2c3d4"))
+    }
+
+    @Test
+    fun guestsAcceptRelayedDepartureOnlyFromTheAuthenticatedHost() {
+        assertTrue(isMemberDepartureSenderAuthorized(false, "host-endpoint", null, false, "host-endpoint", "a1b2c3d4"))
+        assertFalse(isMemberDepartureSenderAuthorized(false, "other-endpoint", null, false, "host-endpoint", "a1b2c3d4"))
+    }
+
+    @Test
+    fun gracefulDepartureIsNotInferredFromAnUnmatchedEndpoint() {
+        assertFalse(isMemberDepartureSenderAuthorized(true, "endpoint-a", "a1b2c3d4", true, null, "b1b2c3d4"))
+        assertFalse(isMemberDepartureSenderAuthorized(false, "guest-endpoint", null, false, "host-endpoint", "a1b2c3d4"))
     }
 
     @Test

@@ -4,6 +4,7 @@ import com.fkurevija.pingring.data.BeaconPayloadDto
 import com.fkurevija.pingring.data.ChatHistoryPayloadDto
 import com.fkurevija.pingring.data.ChatPayloadDto
 import com.fkurevija.pingring.data.MockRangingDto
+import com.fkurevija.pingring.data.MemberDeparturePayloadDto
 import com.fkurevija.pingring.data.TransportEvents
 import com.fkurevija.pingring.data.UwbControllerParametersDto
 import com.fkurevija.pingring.data.UwbPeerAddressDto
@@ -80,6 +81,17 @@ class TransportEventsTest {
         events.onBeacon(beacon)
 
         assertEquals(beacon, received.await())
+    }
+
+    @Test
+    fun aConfirmedMemberDepartureArrivesOnItsFlow() = runTest {
+        val events = TransportEvents("test")
+        val departure = MemberDeparturePayloadDto("4C1A9B", "a1b2c3d4")
+        val received = nextEmission(events.receivedMemberDeparture)
+
+        events.onMemberDeparture(departure)
+
+        assertEquals(departure, received.await())
     }
 
     @Test

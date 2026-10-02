@@ -454,9 +454,11 @@ fun MainNavigation(
                                 backStack.resetTo(HomeKey)
                             },
                             onLeaveEvent = {
-                                discoveryRepository.stopDiscovery()
-                                sessionManager.leaveEvent()
-                                backStack.resetTo(HomeKey)
+                                discoveryRepository.announceMemberDeparture {
+                                    discoveryRepository.stopDiscovery()
+                                    sessionManager.leaveEvent()
+                                    backStack.resetTo(HomeKey)
+                                }
                             }
                         )
                     }
@@ -491,9 +493,11 @@ fun MainNavigation(
                         onDenyJoinRequest = { discoveryRepository.denyJoinRequest(it) },
                         onEventSettings = { backStack.add(PingRingSettingsKey(key.eventId)) },
                         onLeaveEvent = {
-                            discoveryRepository.stopDiscovery()
-                            sessionManager.leaveEvent()
-                            backStack.resetTo(HomeKey)
+                            discoveryRepository.announceMemberDeparture {
+                                discoveryRepository.stopDiscovery()
+                                sessionManager.leaveEvent()
+                                backStack.resetTo(HomeKey)
+                            }
                         },
                         onEndEvent = {
                             discoveryRepository.announceEventClosure(event)

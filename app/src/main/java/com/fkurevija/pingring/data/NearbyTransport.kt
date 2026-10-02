@@ -25,6 +25,7 @@ interface NearbyTransport {
     val receivedBeacon: SharedFlow<BeaconPayloadDto>
     val receivedInviteSecret: SharedFlow<InviteSecretPayloadDto>
     val receivedBleIdentityKey: SharedFlow<BleIdentityKeyPayloadDto>
+    val receivedMemberDeparture: SharedFlow<MemberDeparturePayloadDto>
     val receivedEventControl: SharedFlow<EventControlPayloadDto>
 
     /**
@@ -113,6 +114,8 @@ interface NearbyTransport {
     fun sendInviteSecret(peerId: String, secret: InviteSecretPayloadDto)
     fun sendBleIdentityKey(peerId: String, identityKey: BleIdentityKeyPayloadDto)
     fun broadcastBleIdentityKey(identityKey: BleIdentityKeyPayloadDto)
+    fun announceMemberDeparture(departure: MemberDeparturePayloadDto, onComplete: () -> Unit = {})
+    fun broadcastMemberDeparture(departure: MemberDeparturePayloadDto)
     fun sendJoinProofToHost(proof: JoinProofPayloadDto)
     fun sendEventControl(peerId: String, control: EventControlPayloadDto)
 }

@@ -70,6 +70,7 @@ class LanDebugConnectionsManager(
     override val receivedBeacon: SharedFlow<BeaconPayloadDto> get() = events.receivedBeacon
     override val receivedInviteSecret: SharedFlow<InviteSecretPayloadDto> get() = events.receivedInviteSecret
     override val receivedBleIdentityKey: SharedFlow<BleIdentityKeyPayloadDto> get() = events.receivedBleIdentityKey
+    override val receivedMemberDeparture: SharedFlow<MemberDeparturePayloadDto> get() = events.receivedMemberDeparture
     override val receivedEventControl: SharedFlow<EventControlPayloadDto> get() = events.receivedEventControl
     override val receivedMockRanging: SharedFlow<MockRangingDto> get() = events.receivedMockRanging
 
@@ -344,12 +345,17 @@ class LanDebugConnectionsManager(
         else -> RelayCodec.route(payload, events)
     }
 
-    private fun sendEnvelope(envelope: RelayEnvelope) {
+    private fun sendEnvelope(envelope: RelayEnvelope, onComplete: (() -> Unit)? = null) {
         // Socket writes must never happen on the caller's thread (often the
         // UI thread from a Compose click handler), so hop onto the IO scope.
         scope.launch {
             val activeWriter = writer
             if (activeWriter == null) {
+                if (onComplete != null) {
+                    Log.w(TAG, "Not connected to relay; cannot send ${envelope.type} before shutdown")
+                    onComplete()
+                    return@launch
+                }
                 // Not connected right now (e.g. mid-reconnect) — queue it so
                 // it's flushed as soon as a connection comes back up instead
                 // of silently disappearing.
@@ -360,6 +366,7 @@ class LanDebugConnectionsManager(
             if (!writeEnvelopeNow(activeWriter, envelope)) {
                 synchronized(writeLock) { pendingEnvelopes.addLast(envelope) }
             }
+            onComplete?.invoke()
         }
     }
 
@@ -392,10 +399,10 @@ class LanDebugConnectionsManager(
         toFlush.forEach { sendEnvelope(it) }
     }
 
-    private fun sendPayload(targetPeerId: String?, params: Any) {
+    private fun sendPayload(targetPeerId: String?, params: Any, onComplete: (() -> Unit)? = null) {
         // One mapping from DTO to wire type for the whole app, so a payload type
         // added on one side of the app cannot go missing on the other.
-        val encoded = RelayCodec.encode(params) ?: return
+        val encoded = RelayCodec.encode(params) ?: run { onComplete?.invoke(); return }
         val innerEnvelope = RelayEnvelope(type = encoded.wireType, payload = encoded.json)
         val innerJson = RelayCodec.encodeEnvelope(innerEnvelope)
         sendEnvelope(
@@ -405,7 +412,8 @@ class LanDebugConnectionsManager(
                 senderPeerId = localPeerId,
                 targetPeerId = targetPeerId,
                 payload = innerJson
-            )
+            ),
+            onComplete,
         )
     }
 
@@ -461,6 +469,14 @@ class LanDebugConnectionsManager(
 
     override fun broadcastBleIdentityKey(identityKey: BleIdentityKeyPayloadDto) {
         sendPayload(null, identityKey)
+    }
+
+    override fun announceMemberDeparture(departure: MemberDeparturePayloadDto, onComplete: () -> Unit) {
+        sendPayload(null, departure, onComplete)
+    }
+
+    override fun broadcastMemberDeparture(departure: MemberDeparturePayloadDto) {
+        sendPayload(null, departure)
     }
 
     override fun sendEventControl(peerId: String, control: EventControlPayloadDto) {
