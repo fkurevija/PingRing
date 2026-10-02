@@ -27,18 +27,22 @@ Every successful build on `master` rolls a single `latest` release forward, repl
 
 ## Signing
 
-The published APK is a debug build. A signed release build is wired up but inactive until a key exists, because a key is a secret nobody can generate on your behalf:
+The rolling `latest` APK remains debug-signed. A `v*` versioned release is blocked unless the owner provisions the long-lived release key and all four CI secrets; when configured, CI builds a separate signed APK, verifies it with `apksigner`, and attaches it to the versioned release. Key creation and recovery are owner-controlled; losing the key prevents signed upgrades. Generate it outside the repository so it is never in the working tree:
 
 ```bash
-keytool -genkeypair -v -keystore pingring-release.jks -alias pingring \
+keytool -genkeypair -v -keystore /secure/path/pingring-release.jks -alias pingring \
   -keyalg RSA -keysize 4096 -validity 10000
 
 ./gradlew assembleRelease \
-  -PPINGRING_KEYSTORE=pingring-release.jks \
+  -PPINGRING_KEYSTORE=/secure/path/pingring-release.jks \
   -PPINGRING_KEYSTORE_PASSWORD=… -PPINGRING_KEY_ALIAS=pingring -PPINGRING_KEY_PASSWORD=…
 ```
 
-In CI, set `PINGRING_KEYSTORE_BASE64` (the keystore, base64-encoded) plus the three password secrets and the signed build appears as an extra artifact. All four properties are required together — a partial set is ignored rather than half-applied, and the build stays unsigned rather than silently using the debug key, which matters because a debug-signed APK cannot be upgraded by a properly signed one. Keystores are gitignored.
+Before relying on the key, make two encrypted backups on separate offline media. Restore one backup to a temporary secure path and run `keytool -list -v -keystore <restored-path> -alias pingring`; verify that the certificate fingerprint matches the original. Do not put the keystore, passwords, or a temporary restored copy in the repository.
+
+In CI, set all four secrets: `PINGRING_KEYSTORE_BASE64` (the keystore, base64-encoded), `PINGRING_KEYSTORE_PASSWORD`, `PINGRING_KEY_ALIAS`, and `PINGRING_KEY_PASSWORD`. With none configured, signing is skipped; a partial set fails the workflow. CI runs `apksigner verify --verbose --print-certs` on the resulting release APK before uploading it as `pingring-release-apk`. Keystores are gitignored.
+
+After the first signed APK exists and a later release has a higher `versionCode`, verify an upgrade on a test device before publishing: install the earlier signed APK, add non-sensitive test data, then install the new APK with `adb install -r <new-release.apk>`. Confirm that the update succeeds without an uninstall/signature error and that app data remains. Compare both APKs' certificate fingerprints with `apksigner verify --print-certs`; they must match. A debug-signed APK cannot serve as the baseline for this check because it has a different signing identity.
 
 To keep a build permanently, tag it. A `v*` tag publishes an **immutable** release that is never replaced:
 
