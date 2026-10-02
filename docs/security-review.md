@@ -15,6 +15,8 @@ Nearby Connections encrypts established payload transport, but encryption alone 
 
 ### BLE member identity uses per-device signatures
 
+V5 presence additionally requires live control of the registered key. The receiver reuses the mesh's 32-byte random nonce exchange over that member's Nearby link. The ECDSA response binds the Ring, both peer IDs, and the fresh challenge; responses expire after fifteen seconds and cannot be reused. Successful verification permits BLE updates for ten seconds, measured with Android's monotonic clock. Advertisements do not extend this window; disconnect, a different registered key, or Ring teardown invalidates it. Without proof, the scan path does not advance the accepted advertisement sequence or refresh RSSI/radar presence. See [live-proof policy](../app/src/main/java/com/fkurevija/pingring/data/LiveKeyControlTracker.kt).
+
 BLE v5 uses a P-256 ECDSA signature over the member ID, event code, join time, flags, and monotonic sequence. Each event creates an ephemeral signing keypair; the private key stays on that device. Public keys are registered over the SAS-confirmed Nearby connection. The host accepts a guest key only when its peer ID matches the authenticated endpoint, then distributes the registered key to the other guests. In-session radar updates require that registered key and a valid signature; the V4 group-HMAC packet is not accepted for member presence. Pre-join discovery reads only the unsigned locator hint. Host controls and closure remain on the authenticated Nearby endpoint. See [advertisement encoding and verification](../app/src/main/java/com/fkurevija/pingring/data/DiscoveryRepository.kt) and [key registration authorization](../app/src/main/java/com/fkurevija/pingring/data/NearbyConnectionsManager.kt).
 
 ### Nearby transport requires SAS confirmation
@@ -43,7 +45,7 @@ The six-hex code is still broadcast so a discoverable session can be found; it i
 
 ### BLE replay and extended-radio limits
 
-Receivers reject duplicate or regressing signed sequence numbers for a member. A previously captured, higher-sequence packet that a receiver has never seen can still be replayed once; there is no synchronized trusted clock in the offline protocol to give advertisements a reliable absolute expiry. The normal peer staleness timeout limits how long a single replay remains visible without further packets.
+Receivers reject duplicate or regressing signed sequence numbers and require a live-key proof within the preceding ten seconds. Captured advertisements alone cannot create or renew that proof. A previously unseen higher-sequence packet can still be replayed during a valid proof window, and a relay-assisted nonce response can prove key control without proving proximity. RSSI remains an estimate of the received signal, not secure measured range; a fresh UWB fix is required for measured range. Existing radar measurements expire through the normal peer-staleness policy rather than disappearing immediately when the proof window closes.
 
 V5 requires extended advertising. Devices whose Bluetooth controller does not support it do not advertise or consume RSSI-based member proximity; the radar reports that limitation instead of falling back to group-authenticated V4. Nearby messaging and other available ranging remain independent. This capability is hardware-dependent even though the app's minimum Android API supports the public extended-advertising API.
 

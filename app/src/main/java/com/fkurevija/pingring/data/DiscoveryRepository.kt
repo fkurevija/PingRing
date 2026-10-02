@@ -1835,6 +1835,8 @@ class DiscoveryRepository(
         val decoded = BleIdentityAdvertisement.decode(serviceData, publicKey) ?: return
         if (decoded.eventCode != currentEvent.id) return
         if (decoded.peerId != peerId) return
+        if (peerId == sessionManager.peerId.value) return
+        if ((nearbyConnectionsManager as? NearbyConnectionsManager)?.hasLiveKeyControl(peerId) != true) return
         var acceptedSequence = false
         latestBleAdvertisementSequences.compute(peerId) { _, previous ->
             if (BleIdentityAdvertisement.acceptsSequence(previous, decoded.sequence)) {

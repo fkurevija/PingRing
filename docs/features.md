@@ -5,6 +5,7 @@
 For step-by-step instructions on using any of this, see the [User Guide](user-guide.md).
 
 ## 📡 Mesh & Connectivity
+- **Live-key-gated BLE presence**: signed V5 advertisements update proximity only after a fresh registered-key nonce response over the member's Nearby link. Proof lasts ten seconds and renews on demand; captured advertisements cannot renew it. This proves key control, not physical distance, and does not replace UWB ranging.
 - **One-tap hosting**, no server registration. UWB can be enabled or disabled; Nearby Connections selects its transport, with no app-level Wi-Fi Direct selector.
 - **Connection recovery prompt** for guests after the authenticated host link is unavailable for the configured interval (enabled by default at 2 minutes; configurable from 1–10 minutes in App Settings). Choose **Leave PingRing**, snooze for 2 minutes, or silence prompts for the current Ring. The prompt appears only while the radar is foregrounded and does not claim whether the host is out of range or ended the Ring while disconnected.
 - **Admission control**: the Host can stop accepting members at creation or mid-event; authenticated Nearby requests are rejected and the Radar's QR button hides until re-enabled. **Discoverable** lists a public event locator on nearby phones' join screens. **Approve Each Join** holds QR-secret joins for the host; typed-code joins always require approval. Nearby's shared digits must be compared on both phones before the connection is accepted. Unanswered requests expire after two minutes.

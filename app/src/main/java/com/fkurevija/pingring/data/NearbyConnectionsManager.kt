@@ -3,6 +3,7 @@ package com.fkurevija.pingring.data
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import java.security.SecureRandom
 import java.util.Base64
@@ -129,7 +130,7 @@ const val JOIN_REQUEST_TIMEOUT_MILLIS = 120_000L
 private const val MAX_PENDING_AUTHENTICATIONS = 8
 private const val MAX_PENDING_JOIN_REQUESTS = 8
 private const val CLOSURE_SEND_GRACE_MILLIS = 2_000L
-private const val MESH_AUTHENTICATION_TIMEOUT_MILLIS = 15_000L
+private const val MESH_AUTHENTICATION_TIMEOUT_MILLIS = LiveKeyControlTracker.CHALLENGE_TIMEOUT_MILLIS
 private const val MESH_PRESENCE_INTERVAL_MILLIS = 5_000L
 
 /**
@@ -268,6 +269,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
     private val authorizedEndpoints = mutableSetOf<String>()
     private val meshHandshakeEndpoints = mutableSetOf<String>()
     private val pendingMeshChallenges = mutableMapOf<String, ByteArray>()
+    private val liveKeyControl = LiveKeyControlTracker()
     private val meshAuthenticationTimeouts = mutableMapOf<String, Runnable>()
     private val meshDuplicateCache = MeshDuplicateCache()
     private val meshPendingMessages = MeshPendingMessageQueue()
@@ -532,6 +534,23 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
         meshPresenceRunnable = null
     }
 
+    fun hasLiveKeyControl(peerId: String): Boolean {
+        val identity = meshIdentityKeyProvider?.invoke(peerId) ?: return false
+        if (liveKeyControl.isFresh(peerId, identity.publicKey, SystemClock.elapsedRealtime())) return true
+        handler.post {
+            val currentIdentity = meshIdentityKeyProvider?.invoke(peerId) ?: return@post
+            if (liveKeyControl.isFresh(peerId, currentIdentity.publicKey, SystemClock.elapsedRealtime())) return@post
+            val endpointId = connectedEndpoints[peerId]
+            if (endpointId != null && endpointId in authorizedEndpoints) {
+                meshHandshakeEndpoints.add(endpointId)
+                beginMeshAuthentication(endpointId, peerId)
+            } else {
+                connectToPeer(peerId)
+            }
+        }
+        return false
+    }
+
     override fun connectToPeer(peerId: String) {
         if (peerId == localPeerId) return
         val registeredIdentity = meshIdentityKeyProvider?.invoke(peerId)
@@ -603,6 +622,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
         meshPendingMessages.clear()
         meshHandshakeEndpoints.clear()
         pendingMeshChallenges.clear()
+        liveKeyControl.clear()
         meshAuthenticationTimeouts.values.forEach(handler::removeCallbacks)
         meshAuthenticationTimeouts.clear()
         authenticatedHostEndpoint = null
@@ -1011,6 +1031,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
                 }
                 Log.i(TAG, "Connection SUCCESS to $endpointId (Peer ID: $peerId). Active connected endpoints: $connectedEndpoints")
             } else {
+                liveKeyControl.invalidate(endpointId, endpointToPeerId[endpointId])
                 endpointToPeerId.remove(endpointId)
                 meshHandshakeEndpoints.remove(endpointId)
                 pendingMeshChallenges.remove(endpointId)
@@ -1041,6 +1062,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
             // it; the sweep has nothing left to refuse and must not wake for it.
             scheduleJoinRequestSweep()
             val peerId = endpointToPeerId.remove(endpointId)
+            liveKeyControl.invalidate(endpointId, peerId)
             if (peerId != null) {
                 connectedEndpoints.remove(peerId)
             }
@@ -1369,12 +1391,17 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
 
     private fun beginMeshAuthentication(endpointId: String, peerId: String) {
         val eventCode = localEventId ?: return
-        val privateKey = meshPrivateKeyProvider?.invoke() ?: run {
+        val identity = meshIdentityKeyProvider?.invoke(peerId) ?: return
+        if (identity.eventCode != eventCode) return
+        val nowMillis = SystemClock.elapsedRealtime()
+        if (liveKeyControl.hasPending(endpointId, nowMillis)) return
+        if (meshPrivateKeyProvider?.invoke() == null) {
             connectionsClient.disconnectFromEndpoint(endpointId)
             return
         }
         val challenge = ByteArray(MeshPeerAuthentication.CHALLENGE_BYTES).also(SecureRandom()::nextBytes)
         pendingMeshChallenges[endpointId] = challenge
+        liveKeyControl.begin(endpointId, peerId, identity.publicKey, challenge, nowMillis)
         sendPayloadToEndpoint(
             endpointId,
             MeshLinkAuthenticationPayloadDto(
@@ -1437,6 +1464,14 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
             challenge,
         )
         if (!BleIdentityCrypto.verify(publicKey, signedBytes, signature)) return false
+        if (!liveKeyControl.complete(
+                endpointId,
+                endpointPeerId,
+                registeredIdentity.publicKey,
+                challenge,
+                SystemClock.elapsedRealtime(),
+            )
+        ) return false
 
         pendingMeshChallenges.remove(endpointId)
         meshAuthenticationTimeouts.remove(endpointId)?.let(handler::removeCallbacks)
