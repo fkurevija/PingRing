@@ -6,6 +6,8 @@ This page separates behavior awaiting **verification**, constraints imposed by *
 
 ## Unverified
 
+Use the [Roadmap Verification Guide](verification-guide.md) for setup, numbered cases, expected outcomes, equipment requirements, and evidence templates. Untested or blocked subcases remain unverified.
+
 ### Hardware and radio validation
 
 - **Guest→guest UWB ranging.** Routed to the named guest over the mesh, never tested between two UWB phones. Check: does the handshake complete across multiple relay hops, what happens when two guests focus each other at once, can one controller scope range two peers.

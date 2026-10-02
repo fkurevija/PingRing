@@ -21,6 +21,8 @@ On Windows (PowerShell): `.\gradlew.bat testDebugUnitTest assembleDebug`
 
 The APK lands at `app/build/outputs/apk/debug/app-debug.apk`.
 
+For physical-radio, recovery, security, accessibility, and release-key checks, follow the [Roadmap Verification Guide](verification-guide.md). It separates runnable manual checks from scenarios requiring extra hardware or a protocol harness.
+
 ## Accessibility Device Audit
 
 Compose semantics tests cover named Ring switches, on/off and disabled states, selected colour presets, and 48 x 48 dp target bounds. JVM tests check that spoken GPS summaries preserve estimate and uncertainty. Compiling these tests is not a substitute for executing them or testing TalkBack.
