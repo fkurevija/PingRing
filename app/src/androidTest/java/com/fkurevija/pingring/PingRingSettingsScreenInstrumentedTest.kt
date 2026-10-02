@@ -2,6 +2,7 @@ package com.fkurevija.pingring
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
@@ -105,5 +106,38 @@ class PingRingSettingsScreenInstrumentedTest {
                 .performClick()
             composeRule.runOnIdle { assertEquals(colorArgb, selected) }
         }
+    }
+
+    @Test
+    fun unsupportedUwbRowRemainsActionableWithoutEnablingRanging() {
+        var saved: Event? = null
+        showSettings(Event.create("4C1A9B"), isHost = true) { saved = it }
+        composeRule.onNodeWithText(context.getString(R.string.uwb_no_hardware))
+            .performScrollTo()
+            .assertIsDisplayed()
+            .assertHasClickAction()
+            .performClick()
+        composeRule.onNodeWithText(context.getString(R.string.save_changes)).performClick()
+        composeRule.runOnIdle { assertEquals(false, saved?.useUwb) }
+    }
+
+    @Test
+    fun hostMustOptInToGnssSharingAndCanSaveTheChoice() {
+        var saved: Event? = null
+        showSettings(Event.create("4C1A9B"), isHost = true) { saved = it }
+        composeRule.onNodeWithContentDescription(context.getString(R.string.gnss_sharing))
+            .performScrollTo().assertIsOff().performClick().assertIsOn()
+        composeRule.onNodeWithText(context.getString(R.string.save_changes)).performClick()
+        composeRule.runOnIdle { assertEquals(true, saved?.useGnss) }
+    }
+
+    @Test
+    fun guestCannotChangeTheHostsGnssSharingPolicy() {
+        var saved: Event? = null
+        showSettings(Event.create("4C1A9B").copy(useGnss = true), isHost = false) { saved = it }
+        composeRule.onNodeWithContentDescription(context.getString(R.string.gnss_sharing))
+            .performScrollTo().assertIsOn().assertIsNotEnabled()
+        composeRule.onNodeWithText(context.getString(R.string.save_changes)).performClick()
+        composeRule.runOnIdle { assertEquals(true, saved?.useGnss) }
     }
 }

@@ -73,6 +73,8 @@ The radar draws **one person at a time** — the member you are *tracking* — w
 - The **lit arc** on the ring widens as they approach — a sliver when far, the whole ring within arm's reach (about 1.5 m). Each doubling of distance gets an equal share of the arc.
 - The **distance readout** under the ring is sub-metre on UWB hardware. Without a fresh UWB bearing, the ring stays plain and only the signed BLE signal-strength tint may change — PingRing does not infer direction from RSSI.
 - A member seen only through a mesh relay is labeled **Present via mesh · range unavailable**. The app does not reuse another phone's RSSI or UWB measurement as your own.
+- Compatible phones can show **Wi-Fi RTT · distance only** without an access point. Both phones need available Wi-Fi Aware/RTT support; no directional needle is inferred.
+- When the host enables **Share GPS location**, members share coordinates rounded to about 10 m every ten seconds. The radar labels GPS distance as an estimate with uncertainty; it does not trigger close-range haptics. Stale or inaccurate fixes are discarded. Coordinate sharing defaults off and exposes coordinates to admitted members and relays.
 - A peer that has not been heard from for **15 seconds** is swept off the radar unless its focused UWB session is being retained during a transport gap.
 - If the tracked member walks out of transport range, UWB ranging is held open for up to **45 seconds** (or **20 seconds** when radio load is high), so walking back can reconnect instantly.
 - After **2 seconds** without a UWB fix, the radar can show a faded **last known direction** for up to **2 minutes**. It includes the age of the measurement; the person may have moved. BLE RSSI alone never supplies a direction.

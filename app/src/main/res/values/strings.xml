@@ -190,6 +190,11 @@
     <string name="track_member">Track %1$s</string>
     <string name="automatic">Automatic</string>
     <string name="tracking">Tracking</string>
+    <string name="gnss_sharing">Share GPS location</string>
+    <string name="gnss_sharing_description">Share coordinates with Ring members, rounded to about 10 m every 10 seconds. Outdoor distance estimates only.</string>
+    <string name="gnss_distance_estimate">GPS distance estimate</string>
+    <string name="wifi_rtt_distance_mode">Wi-Fi RTT · distance only</string>
+    <string name="distance_with_uncertainty">About %1$.0f m ± %2$.0f m</string>
     <string name="track_host_only">Track Host Only</string>
     <string name="track_host_only_description">Guests track only the host. The host can track any member.</string>
     <string name="vibration_sos_urgent">SOS / Urgent</string>

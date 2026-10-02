@@ -25,6 +25,7 @@ internal interface PayloadSink {
     fun onBleIdentityKey(identityKey: BleIdentityKeyPayloadDto)
     fun onMemberDeparture(departure: MemberDeparturePayloadDto)
     fun onMeshPresence(presence: MeshPresencePayloadDto)
+    fun onPeerRanging(ranging: PeerRangingPayloadDto)
     fun onEventControl(control: EventControlPayloadDto)
     fun onUwbAddress(address: UwbPeerAddressDto)
     fun onUwbParameters(params: UwbControllerParametersDto)
@@ -124,6 +125,11 @@ internal class TransportEvents(private val tag: String) : PayloadSink {
         onBufferOverflow = BufferOverflow.DROP_OLDEST,
     )
     val receivedMeshPresence: SharedFlow<MeshPresencePayloadDto> = _receivedMeshPresence.asSharedFlow()
+    private val _receivedPeerRanging = MutableSharedFlow<PeerRangingPayloadDto>(
+        extraBufferCapacity = 16,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+    val receivedPeerRanging: SharedFlow<PeerRangingPayloadDto> = _receivedPeerRanging.asSharedFlow()
 
     private val _receivedEventControl = MutableSharedFlow<EventControlPayloadDto>(
         extraBufferCapacity = 4,
@@ -202,6 +208,10 @@ internal class TransportEvents(private val tag: String) : PayloadSink {
 
     override fun onMeshPresence(presence: MeshPresencePayloadDto) {
         _receivedMeshPresence.tryEmit(presence)
+    }
+
+    override fun onPeerRanging(ranging: PeerRangingPayloadDto) {
+        _receivedPeerRanging.tryEmit(ranging)
     }
 
     override fun onEventControl(control: EventControlPayloadDto) {

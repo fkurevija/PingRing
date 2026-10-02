@@ -193,6 +193,11 @@
     <string name="track_member">Seguir a %1$s</string>
     <string name="automatic">Automático</string>
     <string name="tracking">Seguimiento</string>
+    <string name="gnss_sharing">Compartir ubicación GPS</string>
+    <string name="gnss_sharing_description">Comparte coordenadas con los miembros del Ring, redondeadas a unos 10 m cada 10 segundos. Solo estimaciones de distancia al aire libre.</string>
+    <string name="gnss_distance_estimate">Distancia estimada por GPS</string>
+    <string name="wifi_rtt_distance_mode">Wi-Fi RTT · solo distancia</string>
+    <string name="distance_with_uncertainty">Unos %1$.0f m ± %2$.0f m</string>
     <string name="track_host_only">Seguir solo al anfitrión</string>
     <string name="track_host_only_description">Los invitados siguen solo al anfitrión. El anfitrión puede seguir a cualquier miembro.</string>
     <string name="vibration_sos_urgent">SOS / Urgente</string>

@@ -55,6 +55,9 @@ data class RadarPeerUpdate(
     val meshOnlyPresence: Boolean = false,
     val meshPresenceLastSeenAtMillis: Long? = null,
     val lastUwbMeasurementAtMillis: Long? = null,
+    val distanceSource: RangingSourcePolicy.RangingSource? = null,
+    val distanceAccuracyMeters: Float? = null,
+    val lastAdditionalRangingAtMillis: Long? = null,
     val directionIsLastKnown: Boolean = false,
     /**
      * When this peer reported that it joined the event, in epoch millis.
@@ -657,6 +660,22 @@ class DiscoveryRepository(
     private var localBleIdentityKey: BleIdentityKeyPayloadDto? = null
     private val bleIdentityKeys = java.util.concurrent.ConcurrentHashMap<String, BleIdentityKeyPayloadDto>()
     private val latestBleAdvertisementSequences = java.util.concurrent.ConcurrentHashMap<String, Long>()
+    private val additionalRangingSequences = java.util.concurrent.ConcurrentHashMap<String, Long>()
+    private val peerGnssFixes = java.util.concurrent.ConcurrentHashMap<String, Pair<GnssFixDto, Long>>()
+    private val localRangingSequence = java.util.concurrent.atomic.AtomicLong(0L)
+    private val gnssRanging = GnssRangingManager(context) { fix ->
+        publishPeerRanging(gnssFix = fix)
+        updateGnssDistances()
+    }
+    private val wifiRttRanging = WifiAwareRangingManager(
+        context,
+        focusedPeer = { resolveFocusedPeer() },
+        hasFreshUwb = { peerId -> hasFreshUwbMeasurement(peerId) },
+        onAddress = { mac -> publishPeerRanging(wifiAwareMac = mac) },
+        onDistance = { peerId, distance, deviation ->
+            updateAdditionalDistance(peerId, distance, deviation, RangingSourcePolicy.RangingSource.WIFI_RTT)
+        },
+    )
     private val nextBleAdvertisementSequence = java.util.concurrent.atomic.AtomicLong()
 
     // UWB objects
@@ -862,11 +881,47 @@ class DiscoveryRepository(
             }
         }
 
+        if (event != null && nearbyConnectionsManager is NearbyConnectionsManager) {
+            wifiRttRanging.start(event.id)
+        }
+        repositoryScope?.launch {
+            sessionManager.sessionState.map { it.currentEvent?.useGnss == true }.distinctUntilChanged().collect { enabled ->
+                gnssRanging.setEnabled(enabled)
+                if (!enabled) {
+                    peerGnssFixes.clear()
+                    clearAdditionalDistances(RangingSourcePolicy.RangingSource.GNSS)
+                }
+            }
+        }
+        repositoryScope?.launch {
+            nearbyConnectionsManager.receivedPeerRanging.collect { payload ->
+                val current = sessionManager.sessionState.value.currentEvent ?: return@collect
+                if (payload.eventCode != current.id || payload.peerId == localPeerId() ||
+                    payload.peerId in departedPeerIds || payload.sequence < 0
+                ) return@collect
+                var accepted = false
+                additionalRangingSequences.compute(payload.peerId) { _, previous ->
+                    if (previous == null || payload.sequence > previous) {
+                        accepted = true
+                        payload.sequence
+                    } else previous
+                }
+                if (!accepted) return@collect
+                payload.wifiAwareMac?.let { wifiRttRanging.registerPeer(payload.peerId, it) }
+                val fix = payload.gnssFix
+                if (current.useGnss && fix != null && GnssPolicy.isUsable(fix)) {
+                    peerGnssFixes[payload.peerId] = fix to android.os.SystemClock.elapsedRealtime()
+                    updateGnssDistances()
+                }
+            }
+        }
+
         // 2. Start Periodic Peer Cleanup
         repositoryScope?.launch {
             while (isActive) {
                 delay(PEER_CLEANUP_INTERVAL_MILLIS)
                 val now = System.currentTimeMillis()
+                expireAdditionalDistances(now)
                 refreshPeerWorldDirections()
                 val expiredPeerIds = _peerUpdates.value.values
                     .filter { peer ->
@@ -974,6 +1029,7 @@ class DiscoveryRepository(
                 val updated = current.copy(
                     trackHost = control.trackHost,
                     useUwb = control.useUwb,
+                    useGnss = control.useGnss,
                     useWifiDirect = control.useWifiDirect,
                     acceptsNewMembers = control.acceptsNewMembers,
                     hostPeerId = control.hostPeerId,
@@ -1056,6 +1112,7 @@ class DiscoveryRepository(
                                 hostPeerId = sessionManager.peerId.value,
                                 trackHost = event.trackHost,
                                 useUwb = event.useUwb,
+                                useGnss = event.useGnss,
                                 useWifiDirect = event.useWifiDirect,
                                 acceptsNewMembers = event.acceptsNewMembers,
                                 isFull = sessionManager.sessionState.value.friends.size + 1 >= MAX_PARTICIPANTS,
@@ -1249,6 +1306,11 @@ class DiscoveryRepository(
     }
 
     fun stopDiscovery() {
+        gnssRanging.setEnabled(false)
+        wifiRttRanging.stop()
+        peerGnssFixes.clear()
+        additionalRangingSequences.clear()
+        localRangingSequence.set(0L)
         _hostConnectionLostAtMillis.value = null
         activeDiscoveryEventId = null
         activeDiscoveryPeerId = null
@@ -1611,6 +1673,7 @@ class DiscoveryRepository(
             hostPeerId = sessionManager.peerId.value,
             trackHost = event.trackHost,
             useUwb = event.useUwb,
+            useGnss = event.useGnss,
             useWifiDirect = event.useWifiDirect,
             acceptsNewMembers = event.acceptsNewMembers,
             isFull = sessionManager.sessionState.value.friends.size + 1 >= MAX_PARTICIPANTS,
@@ -1875,14 +1938,18 @@ class DiscoveryRepository(
             smoothedRssiDbm = rssiSmoother.smoothedRssi(nowMillis),
             nowMillis = nowMillis,
         )
-        val hasUwbFix = uwbRangedPeers.contains(peerId)
+        val hasUwbFix = existing?.distanceSource == RangingSourcePolicy.RangingSource.UWB &&
+            uwbRangedPeers.contains(peerId)
+        val hasAdditionalFix = existing?.lastAdditionalRangingAtMillis?.let {
+            nowMillis - it in 0..additionalDistanceLifetime(existing.distanceSource)
+        } == true
 
         val updated = RadarPeerUpdate(
             peerId = peerId,
             name = peerName,
             rssi = rssi,
             proximity = proximity,
-            distance = if (hasUwbFix) existing?.distance else rssiEstimate ?: existing?.distance,
+            distance = if (hasUwbFix || hasAdditionalFix) existing?.distance else rssiEstimate ?: existing?.distance,
             azimuth = existing?.azimuth,
             elevation = existing?.elevation,
             worldDirectionX = existing?.worldDirectionX,
@@ -1891,6 +1958,9 @@ class DiscoveryRepository(
             lastSeen = nowMillis,
             signalWeak = signalWeak,
             meshPresenceLastSeenAtMillis = existing?.meshPresenceLastSeenAtMillis,
+            distanceSource = if (hasUwbFix || hasAdditionalFix) existing?.distanceSource else RangingSourcePolicy.RangingSource.BLE_RSSI,
+            distanceAccuracyMeters = existing?.distanceAccuracyMeters.takeIf { hasUwbFix || hasAdditionalFix },
+            lastAdditionalRangingAtMillis = existing?.lastAdditionalRangingAtMillis.takeIf { hasAdditionalFix },
             // Cross-checked only once a UWB fix exists to check against. Before
             // that there is a single source and the answer is UNKNOWN, which the
             // radar shows as an estimate rather than as a confirmed distance.
@@ -1994,6 +2064,10 @@ class DiscoveryRepository(
             meshOnlyPresence = existing?.meshOnlyPresence ?: false,
             meshPresenceLastSeenAtMillis = existing?.meshPresenceLastSeenAtMillis,
             // Carried over, not reset: a transport connection says nothing about
+            distanceSource = existing?.distanceSource,
+            distanceAccuracyMeters = existing?.distanceAccuracyMeters,
+            lastAdditionalRangingAtMillis = existing?.lastAdditionalRangingAtMillis,
+            lastUwbMeasurementAtMillis = existing?.lastUwbMeasurementAtMillis,
             // when the peer joined, and clearing it here would drop a member to
             // the bottom of the arrival order every time its connection blipped.
             joinedAtMillis = existing?.joinedAtMillis
@@ -2063,6 +2137,9 @@ class DiscoveryRepository(
                 meshOnlyPresence = true,
                 meshPresenceLastSeenAtMillis = nowMillis,
                 lastUwbMeasurementAtMillis = null,
+                distanceSource = null,
+                distanceAccuracyMeters = null,
+                lastAdditionalRangingAtMillis = null,
             )
         }
         _peerUpdates.update { current -> current + (peerId to updated) }
@@ -2556,11 +2633,112 @@ class DiscoveryRepository(
                     elevation = position.elevation?.value,
                     lastSeen = measuredAtMillis,
                     lastUwbMeasurementAtMillis = measuredAtMillis,
+                    distanceSource = RangingSourcePolicy.RangingSource.UWB,
+                    distanceAccuracyMeters = null,
+                    lastAdditionalRangingAtMillis = null,
                     directionIsLastKnown = false,
                 )
             )
         }
         refreshPeerWorldDirections()
+    }
+
+    private fun publishPeerRanging(wifiAwareMac: String? = null, gnssFix: GnssFixDto? = null) {
+        val event = sessionManager.sessionState.value.currentEvent ?: return
+        if (gnssFix != null && !event.useGnss) return
+        nearbyConnectionsManager.broadcastPeerRanging(
+            PeerRangingPayloadDto(event.id, localPeerId(), localRangingSequence.getAndIncrement(), wifiAwareMac, gnssFix)
+        )
+    }
+
+    private fun hasFreshUwbMeasurement(peerId: String): Boolean =
+        _peerUpdates.value[peerId]?.lastUwbMeasurementAtMillis?.let {
+            System.currentTimeMillis() - it in 0..2_000L
+        } == true
+
+    private fun updateGnssDistances() {
+        if (sessionManager.sessionState.value.currentEvent?.useGnss != true) return
+        val local = gnssRanging.currentFix() ?: return
+        val now = android.os.SystemClock.elapsedRealtime()
+        peerGnssFixes.forEach { (peerId, entry) ->
+            val remote = entry.first.copy(ageMillis = entry.first.ageMillis + now - entry.second)
+            if (!GnssPolicy.isUsable(remote)) {
+                peerGnssFixes.remove(peerId, entry)
+            } else {
+                updateAdditionalDistance(
+                    peerId,
+                    GnssPolicy.separationMeters(local, remote),
+                    local.accuracyMeters + remote.accuracyMeters,
+                    RangingSourcePolicy.RangingSource.GNSS,
+                    measurementAgeMillis = maxOf(local.ageMillis, remote.ageMillis),
+                )
+            }
+        }
+    }
+
+    private fun updateAdditionalDistance(
+        peerId: String,
+        distance: Float,
+        accuracy: Float,
+        source: RangingSourcePolicy.RangingSource,
+        measurementAgeMillis: Long = 0L,
+    ) {
+        val state = sessionManager.sessionState.value
+        val event = state.currentEvent ?: return
+        if (peerId in departedPeerIds || peerId == localPeerId() ||
+            (event.trackHost && !state.isHost && peerId != event.hostPeerId) ||
+            (source == RangingSourcePolicy.RangingSource.GNSS && !event.useGnss) ||
+            !distance.isFinite() || !accuracy.isFinite()
+        ) return
+        if (hasFreshUwbMeasurement(peerId)) return
+        val existing = _peerUpdates.value[peerId]
+        if (source == RangingSourcePolicy.RangingSource.GNSS &&
+            existing?.distanceSource == RangingSourcePolicy.RangingSource.WIFI_RTT &&
+            System.currentTimeMillis() - (existing.lastAdditionalRangingAtMillis ?: 0L) in 0..5_000L
+        ) return
+        if (existing == null) addConnectedPeer(peerId)
+        rememberLastKnownPeerDirection(peerId)
+        val now = System.currentTimeMillis()
+        _peerUpdates.update { peers ->
+            val peer = peers[peerId] ?: return@update peers
+            peers + (peerId to peer.copy(
+                distance = distance,
+                distanceSource = source,
+                distanceAccuracyMeters = accuracy,
+                lastAdditionalRangingAtMillis = now - measurementAgeMillis,
+                azimuth = null,
+                elevation = null,
+                worldDirectionX = null,
+                worldDirectionY = null,
+                worldDirectionZ = null,
+                lastSeen = now,
+                meshOnlyPresence = false,
+                directionIsLastKnown = false,
+                rangingConfidence = RangingConfidence.UNKNOWN,
+            ))
+        }
+        _peerUpdates.value[peerId]?.let(::syncFriend)
+    }
+
+    private fun additionalDistanceLifetime(source: RangingSourcePolicy.RangingSource?): Long =
+        if (source == RangingSourcePolicy.RangingSource.WIFI_RTT) 5_000L else GnssPolicy.MAX_FIX_AGE_MILLIS
+
+    private fun clearAdditionalDistances(source: RangingSourcePolicy.RangingSource) {
+        _peerUpdates.update { peers -> peers.mapValues { (_, peer) ->
+            if (peer.distanceSource == source) peer.copy(
+                distance = null, distanceSource = null, distanceAccuracyMeters = null,
+                lastAdditionalRangingAtMillis = null,
+            ) else peer
+        } }
+    }
+
+    private fun expireAdditionalDistances(nowMillis: Long) {
+        _peerUpdates.update { peers -> peers.mapValues { (_, peer) ->
+            val measuredAt = peer.lastAdditionalRangingAtMillis
+            if (measuredAt != null && nowMillis - measuredAt !in 0..additionalDistanceLifetime(peer.distanceSource)) {
+                peer.copy(distance = null, distanceSource = null, distanceAccuracyMeters = null, lastAdditionalRangingAtMillis = null)
+            } else peer
+        } }
     }
 
     /**

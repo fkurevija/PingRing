@@ -97,6 +97,7 @@ fun PingRingSettingsScreen(
     var isDiscoverable by remember(event) { mutableStateOf(event.isDiscoverable) }
     var requiresApproval by remember(event) { mutableStateOf(event.requiresApproval) }
     var trackHost by remember(event) { mutableStateOf(event.trackHost) }
+    var useGnss by remember(event) { mutableStateOf(event.useGnss) }
     val uwbAvailability = rememberUwbAvailability(uwbHardwareSupported)
     var useUwb by remember(event, uwbAvailability.isUsable) { mutableStateOf(event.useUwb && uwbAvailability.isUsable) }
     var useWifiDirect by remember(event) { mutableStateOf(event.useWifiDirect) }
@@ -152,6 +153,7 @@ fun PingRingSettingsScreen(
                             isDiscoverable = isDiscoverable,
                             requiresApproval = requiresApproval,
                             trackHost = if (isHost) trackHost else event.trackHost,
+                            useGnss = if (isHost) useGnss else event.useGnss,
                             description = context.getString(if (acceptsNewMembers) R.string.pingring_event else R.string.closed),
                             useUwb = useUwb,
                             useWifiDirect = useWifiDirect,
@@ -263,6 +265,22 @@ fun PingRingSettingsScreen(
 
                     HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 
+                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.MyLocation, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(stringResource(R.string.gnss_sharing), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                            Text(stringResource(R.string.gnss_sharing_description), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Switch(
+                            checked = useGnss,
+                            enabled = isHost,
+                            onCheckedChange = { useGnss = it },
+                            modifier = Modifier.semantics { contentDescription = context.getString(R.string.gnss_sharing) },
+                        )
+                    }
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
                     // Driven by ConnectionMethodPolicy rather than by a bare
                     // hardware check, so the row says *why* it cannot be on -
                     // no radio, permission not granted, or an Android version
@@ -284,17 +302,17 @@ fun PingRingSettingsScreen(
                             ),
                         )
                     }
-                    val uwbRefusal = selection.unranged
+                    val uwbRefusal = ConnectionMethodPolicy.chooseMethod(
+                        capabilities = capabilities,
+                        preferences = ConnectionMethodPolicy.Preferences(uwbRangingEnabled = true),
+                    ).unranged
 
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            // Tapping asks for the permission only when that is
-                            // what is missing. Tapping a device with no UWB radio
-                            // used to promise a prompt that could not appear.
-                            .clickable(enabled = uwbRefusal == Unavailable.NO_PERMISSION) {
+                            .then(if (!capabilities.canRange) Modifier.clickable {
                                 uwbAvailability.onRequestAccess()
-                            },
+                            } else Modifier),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(Icons.Default.Sensors, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))

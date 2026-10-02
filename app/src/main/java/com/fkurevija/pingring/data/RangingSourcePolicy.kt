@@ -16,8 +16,8 @@ import androidx.core.content.ContextCompat
  *
  *  - [RangingSource.UWB] gives sub-metre distance and a bearing. Needs
  *    dedicated hardware, so only a minority of phones have it.
- *  - [RangingSource.WIFI_RTT] is 802.11mc round-trip timing: roughly
- *    metre-scale with a bearing, on hardware far more common than UWB.
+ *  - [RangingSource.WIFI_RTT] is 802.11mc round-trip timing: distance only,
+ *    requiring compatible Wi-Fi Aware peers for phone-to-phone ranging.
  *  - [RangingSource.BLE_RSSI] is the fallback that always works - it is the
  *    same radio carrying discovery - but signal strength is a poor distance
  *    proxy. It is smoothed, and no bearing can be derived from it at all.
@@ -37,7 +37,7 @@ object RangingSourcePolicy {
         /** Sub-metre distance and bearing from a UWB radio. */
         UWB,
 
-        /** 802.11mc round-trip timing: distance, standard deviation and bearing. */
+        /** 802.11mc round-trip timing: distance and standard deviation, not bearing. */
         WIFI_RTT,
 
         /**
@@ -121,8 +121,7 @@ object RangingSourcePolicy {
         val source: RangingSource,
         val rttRefusedBy: WifiRttUnavailable? = null,
     ) {
-        /** RSSI alone gives no bearing; the other two do. */
-        val hasBearing: Boolean get() = source != RangingSource.BLE_RSSI
+        val hasBearing: Boolean get() = source == RangingSource.UWB
     }
 
     /**
@@ -157,7 +156,7 @@ object RangingSourcePolicy {
             if (refusal == null) return Selection(RangingSource.WIFI_RTT)
             // Fall through, but carry the reason so the UI can say why the
             // option it just offered is not running.
-            return Selection(RangingSource.BLE_RSSI, rttRefusedBy = refusal)
+            return Selection(if (gnss.isUsable) RangingSource.GNSS else RangingSource.BLE_RSSI, rttRefusedBy = refusal)
         }
 
         if (gnss.isUsable) return Selection(RangingSource.GNSS)
@@ -183,11 +182,11 @@ object RangingSourcePolicy {
         val isUsable: Boolean
             get() = locationServicesEnabled &&
                 fixAgeMillis != null &&
-                fixAgeMillis <= MAX_FIX_AGE_MILLIS
+                fixAgeMillis in 0..MAX_FIX_AGE_MILLIS
 
         companion object {
             /** ~20 m of movement at walking pace; well inside one radar ring. */
-            const val MAX_FIX_AGE_MILLIS = 15_000L
+            const val MAX_FIX_AGE_MILLIS = GnssPolicy.MAX_FIX_AGE_MILLIS
         }
     }
 
@@ -217,7 +216,7 @@ object RangingSourcePolicy {
         WifiRttUnavailable.LOCATION_SERVICES_OFF ->
             "Turn on location services to use Wi-Fi RTT ranging."
         WifiRttUnavailable.UNSUPPORTED_OS_VERSION ->
-            "Wi-Fi RTT ranging needs Android 14 or newer."
+            "Wi-Fi RTT ranging needs Android 9 or newer."
     }
 
     /**
@@ -234,7 +233,8 @@ object RangingSourcePolicy {
         val rttAvailable = runCatching {
             val manager = context.applicationContext
                 .getSystemService(Context.WIFI_RTT_RANGING_SERVICE) as? WifiRttManager
-            manager?.isAvailable() == true
+            val aware = context.applicationContext.getSystemService(android.net.wifi.aware.WifiAwareManager::class.java)
+            manager?.isAvailable() == true && aware?.isAvailable == true
         }.getOrDefault(false)
 
         val permissionGranted = ContextCompat.checkSelfPermission(
@@ -303,13 +303,5 @@ object RangingSourcePolicy {
         RangingConfidence.OBSTRUCTED -> "Someone may be in the way."
     }
 
-    /**
-     * Whether the OS is new enough for the usable path at all.
-     *
-     * 802.11mc ranging itself arrived in Android 9, but joining a ranging result
-     * back to a *specific* peer needs Wi-Fi Direct Service Discovery, whose peer
-     * ids come back on `RangingResult.getUsdPeerId()`. Below API 34 those two
-     * cannot be connected, so the feature stays off whatever the radio reports.
-     */
-    const val MIN_API_LEVEL = Build.VERSION_CODES.UPSIDE_DOWN_CAKE
+    const val MIN_API_LEVEL = Build.VERSION_CODES.P
 }

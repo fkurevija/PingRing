@@ -4,6 +4,8 @@ import com.fkurevija.pingring.data.BeaconPayloadDto
 import com.fkurevija.pingring.data.BleIdentityKeyPayloadDto
 import com.fkurevija.pingring.data.MemberDeparturePayloadDto
 import com.fkurevija.pingring.data.MeshPresencePayloadDto
+import com.fkurevija.pingring.data.PeerRangingPayloadDto
+import com.fkurevija.pingring.data.GnssFixDto
 import com.fkurevija.pingring.data.MeshLinkAuthenticationPayloadDto
 import com.fkurevija.pingring.data.ChatHistoryPayloadDto
 import com.fkurevija.pingring.data.ChatPayloadDto
@@ -67,6 +69,10 @@ class RelayCodecTest {
             delivered += presence
         }
 
+        override fun onPeerRanging(ranging: PeerRangingPayloadDto) {
+            delivered += ranging
+        }
+
         override fun onEventControl(control: EventControlPayloadDto) {
             delivered += control
         }
@@ -122,6 +128,7 @@ class RelayCodecTest {
     private val bleIdentityKey = BleIdentityKeyPayloadDto("4C1A9B", "a1b2c3d4", "encoded-public-key")
     private val memberDeparture = MemberDeparturePayloadDto("4C1A9B", "a1b2c3d4")
     private val meshPresence = MeshPresencePayloadDto("4C1A9B", "a1b2c3d4")
+    private val peerRanging = PeerRangingPayloadDto("4C1A9B", "a1b2c3d4", 1L, "02:11:22:33:44:55", GnssFixDto(45.0, 16.0, 13f, 100L))
     private val meshAuthentication = MeshLinkAuthenticationPayloadDto(
         "4C1A9B", "a1b2c3d4", "deadbeef", "challenge",
     )
@@ -138,6 +145,7 @@ class RelayCodecTest {
             bleIdentityKey,
             memberDeparture,
             meshPresence,
+            peerRanging,
             meshAuthentication,
             joinProof,
             eventControl,
@@ -201,6 +209,7 @@ class RelayCodecTest {
             RelayCodec.CHAT, RelayCodec.CHAT_HISTORY, RelayCodec.BEACON,
             RelayCodec.INVITE_SECRET, RelayCodec.BLE_IDENTITY_KEY, RelayCodec.MEMBER_DEPARTURE,
             RelayCodec.MESH_PRESENCE,
+            RelayCodec.PEER_RANGING,
             RelayCodec.MESH_PEER_AUTHENTICATION, RelayCodec.JOIN_PROOF, RelayCodec.EVENT_CONTROL,
             RelayCodec.UWB_ADDRESS, RelayCodec.UWB_PARAMS, RelayCodec.UWB_OFFER, RelayCodec.MOCK_RANGING
         ).forEach { assertTrue("$it is not a known wire type", it in RelayCodec.knownWireTypes) }
@@ -287,6 +296,7 @@ class RelayCodecTest {
         is DecodedPayload.BleIdentityKey -> decoded.identityKey
         is DecodedPayload.MemberDeparture -> decoded.departure
         is DecodedPayload.MeshPresence -> decoded.presence
+        is DecodedPayload.PeerRanging -> decoded.ranging
         is DecodedPayload.MeshPeerAuthentication -> decoded.authentication
         is DecodedPayload.JoinProof -> decoded.proof
         is DecodedPayload.EventControl -> decoded.control

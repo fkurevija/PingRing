@@ -17,6 +17,7 @@ internal object MeshRoutingPolicy {
         RelayCodec.BLE_IDENTITY_KEY,
         RelayCodec.MEMBER_DEPARTURE,
         RelayCodec.MESH_PRESENCE,
+        RelayCodec.PEER_RANGING,
         RelayCodec.EVENT_CONTROL,
         RelayCodec.UWB_ADDRESS,
         RelayCodec.UWB_PARAMS,
@@ -30,6 +31,8 @@ internal object MeshRoutingPolicy {
     }
 
     fun isForwardable(payloadType: String): Boolean = payloadType in FORWARDABLE_PAYLOAD_TYPES
+    fun isEphemeral(payloadType: String): Boolean = payloadType == RelayCodec.MESH_PRESENCE ||
+        payloadType == RelayCodec.PEER_RANGING
 
     fun shouldDeliver(targetPeerId: String?, localPeerId: String): Boolean =
         targetPeerId == null || targetPeerId == localPeerId

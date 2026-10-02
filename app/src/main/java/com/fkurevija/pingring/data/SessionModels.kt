@@ -57,6 +57,7 @@ data class EventControlPayloadDto(
     val acceptsNewMembers: Boolean,
     val isFull: Boolean,
     val isClosed: Boolean = false,
+    val useGnss: Boolean = false,
 )
 
 object InviteSecret {
@@ -84,6 +85,7 @@ data class Event(
     val hostPeerId: String? = null,
     val trackHost: Boolean = false,
     val useUwb: Boolean = true,
+    val useGnss: Boolean = false,
     val useWifiDirect: Boolean = true,
     val useHotspot: Boolean = false,
     val acceptsNewMembers: Boolean = true,

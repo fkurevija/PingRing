@@ -62,6 +62,7 @@ class UwbAvailability(
 fun rememberUwbAvailability(hardwareSupported: Boolean): UwbAvailability {
     val context = LocalContext.current
     val unsupportedMessage = stringResource(R.string.uwb_not_supported)
+    val unsupportedOsMessage = stringResource(R.string.uwb_os_too_old)
     val permissionState = if (hardwareSupported && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
         rememberPermissionState("android.permission.UWB_RANGING")
     } else {
@@ -69,15 +70,15 @@ fun rememberUwbAvailability(hardwareSupported: Boolean): UwbAvailability {
     }
     val permissionGranted = permissionState?.status?.isGranted ?: !hardwareSupported
 
-    return remember(hardwareSupported, permissionGranted) {
+    return remember(hardwareSupported, permissionGranted, context, unsupportedMessage, unsupportedOsMessage) {
         UwbAvailability(
             hardwareSupported = hardwareSupported,
             permissionGranted = permissionGranted,
             onRequestAccess = {
-                if (!hardwareSupported) {
+                if (!hardwareSupported || Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
                     Toast.makeText(
                         context,
-                        unsupportedMessage,
+                        if (!hardwareSupported) unsupportedMessage else unsupportedOsMessage,
                         Toast.LENGTH_SHORT
                     ).show()
                 } else {

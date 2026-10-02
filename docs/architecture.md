@@ -27,7 +27,7 @@ graph TD
 2. **Mesh link proof**: Already-admitted members authenticate each new link with a fresh nonce signed by their registered per-event key, without another SAS prompt.
 3. **Data routing**: Signed-origin envelopes carry radar presence, chat, beacons, UWB coordination, and host controls. Relays suppress duplicate IDs, forward at most seven hops, and hold failed-route traffic in a bounded in-memory queue until a route returns or the Ring ends.
 4. **Presence versus proximity**: A five-second signed heartbeat can show a member as present through the mesh. It carries no RSSI, range, or bearing; those remain local BLE/UWB measurements.
-5. **Spatial ranging**: A focused UWB session provides distance and bearing when supported; otherwise the app estimates distance from locally received signed BLE RSSI. Wi-Fi RTT and GNSS are not connected to live ranging in this build.
+5. **Spatial ranging**: Fresh UWB supplies distance and bearing. Compatible Wi-Fi Aware phones can range the focused member directly with public Wi-Fi RTT APIs using an origin-signed, short-lived Aware address binding; no venue access point is needed. RTT is distance-only. Host-opt-in GPS sharing supplies a labelled coordinate-derived estimate with uncertainty. BLE RSSI remains the local signal-strength fallback.
 
 ---
 
@@ -52,7 +52,7 @@ Nearby encrypts established payload transport. PingRing requires both users to c
 1. **No external infrastructure to fail.** There is no server, no account, no remote logging, and no dependency on anyone's uptime. Nothing to be down, because nothing is there. Discovery, transport, chat, ranging and beacons are all local.
 2. **Nothing to configure.** No network to join, no SSID, no password, no login. Phones find each other directly over BLE and Nearby Connections.
 3. **It works before it works.** A phone with no SIM, in aeroplane mode with Wi-Fi and Bluetooth on, runs a full PingRing.
-4. **It degrades rather than dies.** UWB provides distance and bearing when supported; signed BLE RSSI is the local proximity fallback only when the controller supports V5 extended advertising. Mesh presence can still show a connected member without claiming range. On unsupported controllers, RSSI-based proximity is unavailable rather than accepted from the spoofable V4 packet. Wi-Fi RTT has policy and capability helpers but no ranging session, while GNSS is policy-only and has no peer-fix sharing path. See [Known limitations](roadmap.md#known-limitations).
+4. **It degrades rather than dies.** Fresh UWB takes precedence over compatible phone-to-phone RTT, then host-enabled GPS estimates, then signed local BLE RSSI. RTT cannot supply bearing; GPS is a coarse estimate. Mesh presence can show a member without claiming range. On unsupported controllers, RSSI proximity fails closed rather than accepting the spoofable V4 packet. Radio compatibility and accuracy still require [hardware validation](roadmap.md#unverified).
 
 ### Ephemeral identity
 
@@ -62,8 +62,8 @@ A random peer ID per session, rotated on leave — so there is nothing that carr
 
 Location permission is required because the radios that make this work are proximity sensors that Android gates behind it — not because anything is uploaded anywhere.
 
-- **Turning location off can break ranging.** UWB depends on location access. Wi-Fi RTT also requires location services, but is not an active ranging source in this build.
-- **Location is used for ranging between nearby devices, and nothing else.** No coordinates are transmitted, because there is nowhere to transmit them to.
+- **Turning location off can break ranging.** UWB, Wi-Fi RTT and GPS depend on the applicable location permissions and services. Unavailable sources do not fabricate readings.
+- **Coordinate sharing is host-opt-in per Ring.** It defaults off. When enabled, valid GPS fixes are rounded to an approximately 10 m grid and broadcast at ten-second intervals in signed member messages. Device accuracy plus quantization uncertainty is shown; fixes expire after thirty seconds. Coordinates are readable by admitted members/relays, kept in memory, and not replayed from partition queues. Both new sources are distance-only in this implementation.
 
 ## Background operation
 

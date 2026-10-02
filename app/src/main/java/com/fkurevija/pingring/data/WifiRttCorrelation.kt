@@ -3,13 +3,12 @@ package com.fkurevija.pingring.data
 /**
  * Joining a Wi-Fi RTT ranging result to the PingRing member it describes.
  *
- * `WifiRttManager.startRanging` takes no peer list. The platform picks
- * RTT-capable peers out of its own scan and hands back whatever it finds, with
- * no way to say which member was wanted. The only public handle tying a result
- * to a peer is `RangingResult.getUsdPeerId()`, which comes from Wi-Fi Direct
- * Service Discovery - so a member can only be ranged once it has *also*
- * published a USD record naming itself, over a second discovery path alongside
- * BLE.
+ * Production phone-to-phone ranging uses a RangingRequest targeting the
+ * focused member's origin-signed Wi-Fi Aware MAC address. The result's MAC
+ * must match that request. No access point, USD record, or result-order guess
+ * is involved. The opaque-ID attribution helpers below are retained for
+ * compatibility; production uses the reading validation here and the signed
+ * address binding in WifiAwareRangingManager.
  *
  * That makes attribution a table lookup with a genuine possibility of failure,
  * and the whole design here follows from one rule: **a result that cannot be
@@ -90,8 +89,8 @@ object WifiRttCorrelation {
     /**
      * Attributes one ranging result to a member, or explains why it cannot be.
      *
-     * [resultUsdPeerId] is `RangingResult.getUsdPeerId()`, which the platform
-     * documents as nullable. Null is handled as its own rejection rather than
+    * [resultUsdPeerId] is an optional opaque discovery ID. Null is handled as
+    * its own rejection rather than
      * being allowed to match nothing, so the caller gets a reason it can log.
      *
      * Ordering is deliberate: null first, then membership, then ambiguity.

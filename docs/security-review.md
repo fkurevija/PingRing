@@ -37,6 +37,12 @@ A guest's leave notice is sent over its accepted host endpoint. The host checks 
 
 Production logs no longer include chat text, beacon titles, raw payload JSON, or UWB STS keys. SAS prompts and pending join approvals are capped at eight; SAS attempts are limited to twelve per minute, and capacity is rechecked when a peer is authorized. See [Nearby request limits and logging](../app/src/main/java/com/fkurevija/pingring/data/NearbyConnectionsManager.kt).
 
+### Additional ranging metadata is signed and ephemeral
+
+Wi-Fi Aware addresses and opt-in GPS fixes use origin-signed mesh envelopes with member ID and sequence checks. Their payloads are never queued across partitions. Phone-to-phone RTT requests target the focused member's signed, recent Aware address, match the returned MAC address, and reject failed or stale readings. This authenticates the claimed address binding, not the underlying FTM radio exchange; it is not secure distance bounding or proof against a malicious admitted member claiming another address.
+
+GPS sharing defaults off and is enabled by host-authorized Ring controls. Coordinates are quantized to approximately 10 m and broadcast at ten-second intervals. Device accuracy, quantization error, fix age, and uncertainty are checked; stale fixes are discarded. Disabling sharing clears GPS-derived estimates and stops local GPS updates. Ring teardown closes radio sessions and clears retained metadata. GPS positions can still be false or inaccurate; signed claims are not attested physical locations. Admitted members and relays can read shared coordinates and current Aware addresses.
+
 ## Residual Risks
 
 ### Event code remains a public locator

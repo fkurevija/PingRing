@@ -56,7 +56,7 @@ class RangingSourcePolicyTest {
         )
 
         assertEquals(RangingSource.WIFI_RTT, selection.source)
-        assertTrue(selection.hasBearing)
+        assertFalse("Wi-Fi RTT measures distance, not a bearing", selection.hasBearing)
     }
 
     @Test
@@ -73,6 +73,18 @@ class RangingSourcePolicyTest {
                 "would draw a needle pointing nowhere",
             selection.hasBearing,
         )
+    }
+
+    @Test
+    fun `coordinate separation is an estimate without a directional needle`() {
+        val selection = RangingSourcePolicy.select(
+            uwbActive = false,
+            useWifiRtt = false,
+            wifiRtt = capability(),
+            gnss = RangingSourcePolicy.GnssCapability(true, 0L),
+        )
+        assertEquals(RangingSource.GNSS, selection.source)
+        assertFalse(selection.hasBearing)
     }
 
     @Test

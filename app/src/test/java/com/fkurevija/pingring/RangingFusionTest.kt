@@ -199,8 +199,7 @@ class RangingChainTest {
 
     @Test
     fun `gnss never beats an available rtt session`() {
-        // Ranked below RTT because RTT is centimetres-to-metres *with* a bearing
-        // and GNSS is metres with neither, even outdoors.
+        // Coordinate separation is coarser than a fresh direct RTT measurement.
         assertEquals(
             RangingSource.WIFI_RTT,
             RangingSourcePolicy.select(
@@ -213,10 +212,8 @@ class RangingChainTest {
     }
 
     @Test
-    fun `a refused rtt reaches rssi rather than quietly promoting gnss`() {
-        // Having asked for RTT and been refused must not silently promote GNSS
-        // over the source the user was told would be used - that is the
-        // confusion the refusal message exists to prevent.
+    fun `a refused rtt can use an explicitly enabled usable gnss fix`() {
+        // A usable, explicitly enabled GPS source remains available after an RTT refusal.
         val selection = RangingSourcePolicy.select(
             uwbActive = false,
             useWifiRtt = true,
@@ -224,7 +221,7 @@ class RangingChainTest {
             gnss = gnss(),
         )
 
-        assertEquals(RangingSource.BLE_RSSI, selection.source)
+        assertEquals(RangingSource.GNSS, selection.source)
         assertEquals(
             RangingSourcePolicy.WifiRttUnavailable.NO_LOCATION_PERMISSION,
             selection.rttRefusedBy,

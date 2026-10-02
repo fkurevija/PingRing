@@ -26,6 +26,7 @@ class MeshRoutingPolicyTest {
         assertTrue(MeshRoutingPolicy.isForwardable(RelayCodec.BEACON))
         assertTrue(MeshRoutingPolicy.isForwardable(RelayCodec.UWB_OFFER))
         assertTrue(MeshRoutingPolicy.isForwardable(RelayCodec.MESH_PRESENCE))
+        assertTrue(MeshRoutingPolicy.isForwardable(RelayCodec.PEER_RANGING))
         assertFalse(MeshRoutingPolicy.isForwardable(RelayCodec.JOIN_PROOF))
         assertFalse(MeshRoutingPolicy.isForwardable(RelayCodec.INVITE_SECRET))
         assertFalse(MeshRoutingPolicy.isForwardable(RelayCodec.MESH_PEER_AUTHENTICATION))
@@ -36,6 +37,14 @@ class MeshRoutingPolicyTest {
         assertTrue(MeshRoutingPolicy.shouldDeliver(null, "peer-a"))
         assertTrue(MeshRoutingPolicy.shouldDeliver("peer-a", "peer-a"))
         assertFalse(MeshRoutingPolicy.shouldDeliver("peer-b", "peer-a"))
+    }
+
+    @Test
+    fun staleLocationAndRadioAddressesMustNeverEnterThePartitionQueue() {
+        assertTrue(MeshRoutingPolicy.isEphemeral(RelayCodec.PEER_RANGING))
+        assertTrue(MeshRoutingPolicy.isEphemeral(RelayCodec.MESH_PRESENCE))
+        assertFalse(MeshRoutingPolicy.isEphemeral(RelayCodec.CHAT))
+        assertFalse(MeshRoutingPolicy.isEphemeral(RelayCodec.EVENT_CONTROL))
     }
 
     @Test

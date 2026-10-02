@@ -194,6 +194,11 @@
     <string name="track_member">Prati osobu %1$s</string>
     <string name="automatic">Automatski</string>
     <string name="tracking">Praćenje</string>
+    <string name="gnss_sharing">Dijeli GPS lokaciju</string>
+    <string name="gnss_sharing_description">Dijeli koordinate s članovima Ringa, zaokružene na oko 10 m svakih 10 sekundi. Samo procjene udaljenosti na otvorenom.</string>
+    <string name="gnss_distance_estimate">Procjena udaljenosti GPS-om</string>
+    <string name="wifi_rtt_distance_mode">Wi-Fi RTT · samo udaljenost</string>
+    <string name="distance_with_uncertainty">Oko %1$.0f m ± %2$.0f m</string>
     <string name="track_host_only">Prati samo domaćina</string>
     <string name="track_host_only_description">Gosti prate samo domaćina. Domaćin može pratiti bilo kojeg člana.</string>
     <string name="vibration_sos_urgent">SOS / Hitno</string>

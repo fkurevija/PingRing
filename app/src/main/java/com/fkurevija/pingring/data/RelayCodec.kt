@@ -26,6 +26,7 @@ internal sealed interface DecodedPayload {
     data class BleIdentityKey(val identityKey: BleIdentityKeyPayloadDto) : DecodedPayload
     data class MemberDeparture(val departure: MemberDeparturePayloadDto) : DecodedPayload
     data class MeshPresence(val presence: MeshPresencePayloadDto) : DecodedPayload
+    data class PeerRanging(val ranging: PeerRangingPayloadDto) : DecodedPayload
     data class MeshPeerAuthentication(val authentication: MeshLinkAuthenticationPayloadDto) : DecodedPayload
     data class JoinProof(val proof: JoinProofPayloadDto) : DecodedPayload
     data class EventControl(val control: EventControlPayloadDto) : DecodedPayload
@@ -59,6 +60,7 @@ internal object RelayCodec {
     const val BLE_IDENTITY_KEY = "ble-identity-key"
     const val MEMBER_DEPARTURE = "member-departure"
     const val MESH_PRESENCE = "mesh-presence"
+    const val PEER_RANGING = "peer-ranging"
     const val MESH_PEER_AUTHENTICATION = "mesh-peer-authentication"
     const val JOIN_PROOF = "join-proof"
     const val EVENT_CONTROL = "event-control"
@@ -77,7 +79,7 @@ internal object RelayCodec {
     /** Every payload type this build understands inside an envelope. */
     val knownWireTypes: Set<String> = setOf(
         CHAT, CHAT_HISTORY, BEACON, INVITE_SECRET, BLE_IDENTITY_KEY, MEMBER_DEPARTURE, MESH_PRESENCE,
-        MESH_PEER_AUTHENTICATION, JOIN_PROOF, EVENT_CONTROL,
+        MESH_PEER_AUTHENTICATION, JOIN_PROOF, EVENT_CONTROL, PEER_RANGING,
         UWB_ADDRESS, UWB_PARAMS, UWB_OFFER, MOCK_RANGING
     )
 
@@ -95,6 +97,7 @@ internal object RelayCodec {
     private val bleIdentityKeyAdapter: JsonAdapter<BleIdentityKeyPayloadDto> = moshi.adapter(BleIdentityKeyPayloadDto::class.java)
     private val memberDepartureAdapter: JsonAdapter<MemberDeparturePayloadDto> = moshi.adapter(MemberDeparturePayloadDto::class.java)
     private val meshPresenceAdapter: JsonAdapter<MeshPresencePayloadDto> = moshi.adapter(MeshPresencePayloadDto::class.java)
+    private val peerRangingAdapter: JsonAdapter<PeerRangingPayloadDto> = moshi.adapter(PeerRangingPayloadDto::class.java)
     private val meshPeerAuthenticationAdapter: JsonAdapter<MeshLinkAuthenticationPayloadDto> = moshi.adapter(MeshLinkAuthenticationPayloadDto::class.java)
     private val joinProofAdapter: JsonAdapter<JoinProofPayloadDto> = moshi.adapter(JoinProofPayloadDto::class.java)
     private val eventControlAdapter: JsonAdapter<EventControlPayloadDto> = moshi.adapter(EventControlPayloadDto::class.java)
@@ -133,6 +136,7 @@ internal object RelayCodec {
         BLE_IDENTITY_KEY -> decodeBody(bleIdentityKeyAdapter, json, DecodedPayload::BleIdentityKey)
         MEMBER_DEPARTURE -> decodeBody(memberDepartureAdapter, json, DecodedPayload::MemberDeparture)
         MESH_PRESENCE -> decodeBody(meshPresenceAdapter, json, DecodedPayload::MeshPresence)
+        PEER_RANGING -> decodeBody(peerRangingAdapter, json, DecodedPayload::PeerRanging)
         MESH_PEER_AUTHENTICATION -> decodeBody(meshPeerAuthenticationAdapter, json, DecodedPayload::MeshPeerAuthentication)
         JOIN_PROOF -> decodeBody(joinProofAdapter, json, DecodedPayload::JoinProof)
         EVENT_CONTROL -> decodeBody(eventControlAdapter, json, DecodedPayload::EventControl)
@@ -178,6 +182,7 @@ internal object RelayCodec {
         is DecodedPayload.BleIdentityKey -> { sink.onBleIdentityKey(payload.identityKey); true }
         is DecodedPayload.MemberDeparture -> { sink.onMemberDeparture(payload.departure); true }
         is DecodedPayload.MeshPresence -> { sink.onMeshPresence(payload.presence); true }
+        is DecodedPayload.PeerRanging -> { sink.onPeerRanging(payload.ranging); true }
         is DecodedPayload.MeshPeerAuthentication -> false
         is DecodedPayload.EventControl -> { sink.onEventControl(payload.control); true }
         is DecodedPayload.UwbAddress -> { sink.onUwbAddress(payload.address); true }
@@ -203,6 +208,7 @@ internal object RelayCodec {
         is BleIdentityKeyPayloadDto -> EncodedPayload(BLE_IDENTITY_KEY, bleIdentityKeyAdapter.toJson(params))
         is MemberDeparturePayloadDto -> EncodedPayload(MEMBER_DEPARTURE, memberDepartureAdapter.toJson(params))
         is MeshPresencePayloadDto -> EncodedPayload(MESH_PRESENCE, meshPresenceAdapter.toJson(params))
+        is PeerRangingPayloadDto -> EncodedPayload(PEER_RANGING, peerRangingAdapter.toJson(params))
         is MeshLinkAuthenticationPayloadDto -> EncodedPayload(MESH_PEER_AUTHENTICATION, meshPeerAuthenticationAdapter.toJson(params))
         is JoinProofPayloadDto -> EncodedPayload(JOIN_PROOF, joinProofAdapter.toJson(params))
         is EventControlPayloadDto -> EncodedPayload(EVENT_CONTROL, eventControlAdapter.toJson(params))

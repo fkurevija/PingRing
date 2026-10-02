@@ -47,7 +47,7 @@ Every document links back here at the top and bottom.
 ### 📡 Mesh & Connectivity
 - **One-tap hosting**, no server registration, with **admission control** — close the ring mid-event, list it on nearby phones (**Discoverable**), or approve each join by hand.
 - **Bounded capacity**: max **8 participants** (1 Host + 7 Guests), enforced by the Host.
-- **UWB ranging with signed BLE RSSI fallback**: UWB supplies distance and bearing for the focused member when supported; otherwise signature-verified BLE estimates proximity on controllers that support extended advertising. Unsupported controllers fail closed instead of accepting spoofable group-authenticated RSSI. Wi-Fi RTT and GNSS policy foundations are not connected to live ranging yet; see [Known limitations](docs/roadmap.md#known-limitations).
+- **Multiple ranging sources**: fresh UWB supplies distance and bearing; compatible Wi-Fi Aware phones can supply phone-to-phone RTT distance without access points. Host-opt-in GPS shares coordinates rounded to about 10 m every ten seconds and displays a distance estimate with uncertainty. RTT and GPS do not infer direction. Signed, live-key-gated BLE RSSI remains the local proximity fallback on capable controllers. Hardware compatibility and delivery still require [verification](docs/roadmap.md#unverified).
 
 ### 👤 Identity & Join
 - **Custom usernames**, saved locally and unique within a session.

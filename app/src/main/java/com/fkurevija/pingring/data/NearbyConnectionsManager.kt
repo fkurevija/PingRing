@@ -253,6 +253,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
     override val receivedBleIdentityKey: SharedFlow<BleIdentityKeyPayloadDto> get() = events.receivedBleIdentityKey
     override val receivedMemberDeparture: SharedFlow<MemberDeparturePayloadDto> get() = events.receivedMemberDeparture
     override val receivedMeshPresence: SharedFlow<MeshPresencePayloadDto> get() = events.receivedMeshPresence
+    override val receivedPeerRanging: SharedFlow<PeerRangingPayloadDto> get() = events.receivedPeerRanging
     override val receivedEventControl: SharedFlow<EventControlPayloadDto> get() = events.receivedEventControl
 
     /**
@@ -733,6 +734,10 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
         sendMeshBroadcast(beacon)
     }
 
+    override fun broadcastPeerRanging(ranging: PeerRangingPayloadDto) {
+        sendMeshBroadcast(ranging)
+    }
+
     private fun buildSignedMeshEnvelope(params: Any, targetPeerId: String? = null): Pair<RelayEnvelope, String>? {
         val encoded = RelayCodec.encode(params) ?: run {
             return null
@@ -826,7 +831,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
             .distinct()
             .toList()
         if (endpoints.isEmpty()) {
-            if (wireType != RelayCodec.MESH_PRESENCE) meshPendingMessages.enqueue(envelope)
+            if (!MeshRoutingPolicy.isEphemeral(wireType)) meshPendingMessages.enqueue(envelope)
             onComplete?.invoke()
             return
         }
@@ -840,7 +845,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
                     remaining--
                     if (remaining == 0) onComplete?.invoke()
                 },
-                onFailure = { if (wireType != RelayCodec.MESH_PRESENCE) meshPendingMessages.enqueue(envelope) },
+                onFailure = { if (!MeshRoutingPolicy.isEphemeral(wireType)) meshPendingMessages.enqueue(envelope) },
             )
         }
     }
@@ -1221,6 +1226,9 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
                 events.onMeshPresence(payload.presence)
                 true
             }
+        is DecodedPayload.PeerRanging -> originPeerId == payload.ranging.peerId &&
+            payload.ranging.eventCode == localEventId && payload.ranging.sequence >= 0 &&
+            RelayCodec.route(payload, events)
         is DecodedPayload.EventControl -> originPeerId == hostPeerIdProvider?.invoke() &&
             payload.control.hostPeerId == originPeerId && payload.control.eventCode == localEventId &&
             RelayCodec.route(payload, events)
@@ -1290,7 +1298,8 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
                 } else false
                 is DecodedPayload.InviteSecret, is DecodedPayload.BleIdentityKey,
                 is DecodedPayload.MemberDeparture, is DecodedPayload.MeshPeerAuthentication,
-                is DecodedPayload.MeshPresence, is DecodedPayload.JoinProof, is DecodedPayload.MockRanging -> false
+                is DecodedPayload.MeshPresence, is DecodedPayload.PeerRanging,
+                is DecodedPayload.JoinProof, is DecodedPayload.MockRanging -> false
             }
         }
     }

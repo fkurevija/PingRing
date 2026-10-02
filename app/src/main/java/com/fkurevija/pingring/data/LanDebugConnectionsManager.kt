@@ -72,6 +72,7 @@ class LanDebugConnectionsManager(
     override val receivedBleIdentityKey: SharedFlow<BleIdentityKeyPayloadDto> get() = events.receivedBleIdentityKey
     override val receivedMemberDeparture: SharedFlow<MemberDeparturePayloadDto> get() = events.receivedMemberDeparture
     override val receivedMeshPresence: SharedFlow<MeshPresencePayloadDto> get() = events.receivedMeshPresence
+    override val receivedPeerRanging: SharedFlow<PeerRangingPayloadDto> get() = events.receivedPeerRanging
     override val receivedEventControl: SharedFlow<EventControlPayloadDto> get() = events.receivedEventControl
     override val receivedMockRanging: SharedFlow<MockRangingDto> get() = events.receivedMockRanging
 
@@ -490,6 +491,10 @@ class LanDebugConnectionsManager(
 
     override fun broadcastBeacon(beacon: BeaconPayloadDto) {
         sendPayload(null, beacon)
+    }
+
+    override fun broadcastPeerRanging(ranging: PeerRangingPayloadDto) {
+        sendPayload(null, ranging)
     }
 
     companion object {
