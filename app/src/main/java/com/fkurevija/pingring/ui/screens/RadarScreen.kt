@@ -297,8 +297,14 @@ fun RadarScreen(
             snoozedUntilMillis = connectionLostSnoozedUntilMillis,
         ) ?: return@LaunchedEffect
         delay((dueAtMillis - System.currentTimeMillis()).coerceAtLeast(0L))
-        if (discoveryRepository?.hostConnectionLostAtMillis?.value == hostLostAtMillis &&
-            ConnectionRecoveryPromptPolicy.shouldPrompt(
+        // Deliberately not also re-reading the repository here. The host-lost
+        // instant arrives as a parameter precisely so this screen can be driven
+        // by it alone, and ANDing in a second copy of the same state silently
+        // kills the prompt for any caller that does not also hand over a
+        // DiscoveryRepository - the prompt then simply never appears. Losing the
+        // connection is already handled above: the caller clears
+        // hostConnectionLostAtMillis, which restarts this effect and returns.
+        if (ConnectionRecoveryPromptPolicy.shouldPrompt(
                 hostConnectionLostAtMillis = hostLostAtMillis,
                 configuredDelayMillis = connectionRecoveryPromptDelayMillis,
                 snoozedUntilMillis = connectionLostSnoozedUntilMillis,

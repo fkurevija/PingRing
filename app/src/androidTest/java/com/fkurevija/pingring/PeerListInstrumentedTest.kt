@@ -132,7 +132,7 @@ class PeerListInstrumentedTest {
         show(peers = listOf(peer(name = "Ana", rssi = -65, distance = 2.5f)))
 
         composeRule.onNodeWithText("Ana").assertIsDisplayed()
-        composeRule.onNodeWithText("Hot Â· -65 dBm").assertIsDisplayed()
+        composeRule.onNodeWithText("Hot · -65 dBm").assertIsDisplayed()
         composeRule.onNodeWithText("2.5 m").assertIsDisplayed()
     }
 
@@ -149,7 +149,7 @@ class PeerListInstrumentedTest {
     fun aMemberWithNoSignalShowsZeroRatherThanNull() {
         show(peers = listOf(peer(name = "Ana", rssi = null, proximity = "Unknown")))
 
-        composeRule.onNodeWithText("Unknown Â· 0 dBm").assertIsDisplayed()
+        composeRule.onNodeWithText("Unknown · 0 dBm").assertIsDisplayed()
     }
     @Test
     fun theTrackedMemberIsMarked() {
@@ -281,7 +281,7 @@ class PeerListInstrumentedTest {
             activeBeacons = mapOf("peer-1" to beacon()),
         )
 
-        composeRule.onNodeWithText("ðŸš¨ Emergency!").assertIsDisplayed()
+        composeRule.onNodeWithText("🚨 Emergency!").assertIsDisplayed()
     }
 
     @Test
@@ -293,7 +293,7 @@ class PeerListInstrumentedTest {
             activeBeacons = mapOf("peer-2" to beacon(id = "peer-2", title = "Regroup")),
         )
 
-        composeRule.onNodeWithText("ðŸš¨ Regroup").assertIsDisplayed()
+        composeRule.onNodeWithText("🚨 Regroup").assertIsDisplayed()
     }
 
     @Test

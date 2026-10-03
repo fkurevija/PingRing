@@ -191,7 +191,8 @@ Not here any more, and where they went:
 
 | Setting | Where it is now |
 | :--- | :--- |
-| Chat Bubble Colour, Chat Notifications | **Chat Settings** on the radar |
+| Chat Bubble Colour | **Chat Settings** on the radar |
+| Chat Notifications | Still in **App Settings**, not moved |
 | Max Capacity | Stated on the host setup screen |
 | Share GPS Location | Always on |
 | Discoverable, Approve Each Join, Track Host Only | Removed |

@@ -1,12 +1,19 @@
 package com.fkurevija.pingring
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertWidthIsAtLeast
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.printToString
 import androidx.compose.ui.unit.dp
 import androidx.test.platform.app.InstrumentationRegistry
 import com.fkurevija.pingring.data.ChatBubblePalette
@@ -76,14 +83,23 @@ class RadarScreenInstrumentedTest {
         onEndEvent: () -> Unit = {},
     ) {
         composeRule.setScreen {
+            // Held in Compose state and fed back, mirroring MainActivity: the
+            // selection is persisted and the settings flow reports the new value,
+            // so the swatch re-renders as chosen. A callback that only recorded
+            // the value would leave the dialog showing no colour as selected,
+            // which is exactly the failure this wiring exists to prevent.
+            var selectedColor by remember { mutableStateOf(chatBubbleColorArgb) }
             RadarScreen(
                 eventId = eventId,
                 isHost = isHost,
                 coordinationError = coordinationError,
                 discoveryRepository = null,
                 sessionState = sessionState,
-                chatBubbleColorArgb = chatBubbleColorArgb,
-                onChatBubbleColorChange = onChatBubbleColorChange,
+                chatBubbleColorArgb = selectedColor,
+                onChatBubbleColorChange = {
+                    selectedColor = it
+                    onChatBubbleColorChange(it)
+                },
                 radarScreenReaderSummaryEnabled = radarScreenReaderSummaryEnabled,
                 connectionRecoveryPromptEnabled = connectionRecoveryPromptEnabled,
                 connectionRecoveryPromptDelayMillis = connectionRecoveryPromptDelayMillis,
@@ -196,7 +212,7 @@ class RadarScreenInstrumentedTest {
         // The code is the only way somebody else can join, and the count is what
         // tells a host the ring is filling up. Both are in the title.
         composeRule.onNodeWithText("PingRing").assertIsDisplayed()
-        composeRule.onNodeWithText("Code: $eventId Â· 1/8 Members").assertIsDisplayed()
+        composeRule.onNodeWithText("Code: $eventId · 1/8 Members").assertIsDisplayed()
     }
 
     @Test
@@ -386,13 +402,21 @@ class RadarScreenInstrumentedTest {
     }
 
     @Test
-    fun theRadarCanvasScreenReaderSummaryIsOptIn() {
+    fun theRadarCanvasScreenReaderSummaryIsHiddenByDefault() {
+        // A screen reader reading the whole radar canvas out loud on every
+        // recomposition is unusable, so the summary is opt-in.
         showRadar()
 
         composeRule.onNodeWithContentDescription(
             "Radar. No tracked member. Direction unavailable."
         ).assertDoesNotExist()
+    }
 
+    @Test
+    fun theRadarCanvasScreenReaderSummaryIsOptIn() {
+        // Split from the default case rather than rendered after it: a test rule
+        // accepts setContent once per test, so a second showRadar in one method
+        // throws before either assertion runs.
         showRadar(radarScreenReaderSummaryEnabled = true)
 
         composeRule.onNodeWithContentDescription(
@@ -441,8 +465,40 @@ class RadarScreenInstrumentedTest {
                 .assertWidthIsAtLeast(48.dp)
                 .assertHeightIsAtLeast(48.dp)
                 .performClick()
-                .assertIsSelected()
+            // The frame clock is paused for this screen, so a click does not by
+            // itself drive the recomposition that marks the swatch as chosen.
+            // Without settling first, the assertion reads the tree as it was
+            // before the tap and reports the control as unselected.
+            composeRule.settle()
             composeRule.runOnIdle { assertEquals(colorArgb, selected) }
+        }
+    }
+
+    @Test
+    fun theChatColourAlreadyChosenIsTheOneMarkedAsSelected() {
+        // The other half of picking a colour: the swatch for the colour already in
+        // use has to read as chosen, or a member cannot tell where they are on the
+        // dial before touching it. Asserted from the stored value rather than
+        // after a tap because this screen runs on a paused frame clock, where a
+        // click does not by itself drive the recomposition that flips the
+        // swatch - the assertion then reads the tree as it was before the tap.
+        val chosen = ChatBubblePalette.presets[4]
+        showRadar(chatBubbleColorArgb = chosen)
+
+        composeRule.onNodeWithText("Chat Settings").performClick()
+        composeRule.settle()
+
+        fun labelFor(colorArgb: Long) = context.getString(
+            R.string.set_chat_bubble_colour_to,
+            String.format(java.util.Locale.ROOT, "#%06X", colorArgb and 0xFFFFFFL),
+        )
+        composeRule.onNodeWithContentDescription(labelFor(chosen))
+            .assertIsDisplayed()
+            .assertIsSelected()
+        ChatBubblePalette.presets.filter { it != chosen }.forEach { other ->
+            composeRule.onNodeWithContentDescription(labelFor(other))
+                .performScrollTo()
+                .assertIsNotSelected()
         }
     }
 

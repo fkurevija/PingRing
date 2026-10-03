@@ -28,7 +28,10 @@ class ConnectionAuthenticationDialogTest {
             }
         }
 
-        composeRule.onNodeWithText("123 456").assertIsDisplayed()
+        // The digits are interpolated into one sentence rather than standing
+        // alone, so this has to match a substring: an exact match on "123 456"
+        // finds nothing and reports the code as missing when it is on screen.
+        composeRule.onNodeWithText("123 456", substring = true).assertIsDisplayed()
         assertEquals(false, confirmed)
         composeRule.onNodeWithText("Codes match").performClick()
         assertEquals(true, confirmed)
