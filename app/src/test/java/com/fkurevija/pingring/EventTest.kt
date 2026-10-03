@@ -56,7 +56,11 @@ class EventTest {
         assertEquals(hosted.name, joined.name)
         assertEquals(hosted.description, joined.description)
         assertEquals(hosted.useWifiDirect, joined.useWifiDirect)
-        assertEquals(hosted.trackHost, joined.trackHost)
+        // GNSS sharing used to be a host-side opt-in, so a guest and a host could
+        // hold genuinely different copies of the same event. It is now always on,
+        // and this is the assertion that keeps it that way.
+        assertEquals(hosted.useGnss, joined.useGnss)
+        assertTrue(joined.useGnss)
         assertEquals(hosted.acceptsNewMembers, joined.acceptsNewMembers)
     }
 

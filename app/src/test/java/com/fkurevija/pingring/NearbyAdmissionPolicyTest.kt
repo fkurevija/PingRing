@@ -3,6 +3,8 @@ package com.fkurevija.pingring
 import com.fkurevija.pingring.data.MAX_PARTICIPANTS
 import com.fkurevija.pingring.data.ConnectionAuthenticationRequest
 import com.fkurevija.pingring.data.JOIN_REQUEST_TIMEOUT_MILLIS
+import com.fkurevija.pingring.data.JoinRequestDecision
+import com.fkurevija.pingring.data.decideJoinRequest
 import com.fkurevija.pingring.data.shouldRefuseConnection
 import com.fkurevija.pingring.data.isPayloadSenderAuthorized
 import com.fkurevija.pingring.data.isBleIdentityKeySenderAuthorized
@@ -112,10 +114,39 @@ class NearbyAdmissionPolicyTest {
     }
 
     @Test
-    fun typedCodeJoinsAlwaysRequireHostApproval() {
-        assertTrue(joinRequiresHostApproval(hasValidInviteSecret = false, hostRequiresApproval = false))
-        assertFalse(joinRequiresHostApproval(hasValidInviteSecret = true, hostRequiresApproval = false))
-        assertTrue(joinRequiresHostApproval(hasValidInviteSecret = true, hostRequiresApproval = true))
+    fun `a typed code is put to the host, a scanned QR code is not`() {
+        // The only distinction left, and it is a property of the join rather than
+        // a host setting. The QR code is rendered on the host device and carries
+        // the invitation secret, so scanning it *is* the host having offered the
+        // ring. A guest who only knows the six-character code has proved nothing,
+        // so the host decides.
+        assertTrue(joinRequiresHostApproval(hasValidInviteSecret = false))
+        assertFalse(joinRequiresHostApproval(hasValidInviteSecret = true))
+    }
+
+    @Test
+    fun `a QR join is admitted even when the host has closed the ring to code joins`() {
+        // The end-to-end property the removal was for, and the reason it is worth
+        // spelling out here rather than only in the one-argument test above:
+        // locking the ring out does not lock out the host's own invitation.
+        assertEquals(
+            JoinRequestDecision.AwaitApproval,
+            decideJoinRequest(
+                isIncoming = true,
+                requiresApproval = joinRequiresHostApproval(hasValidInviteSecret = false),
+                acceptsNewMembers = true,
+                connectedPeerCount = 0,
+            ),
+        )
+        assertEquals(
+            JoinRequestDecision.Admit,
+            decideJoinRequest(
+                isIncoming = true,
+                requiresApproval = joinRequiresHostApproval(hasValidInviteSecret = true),
+                acceptsNewMembers = true,
+                connectedPeerCount = 0,
+            ),
+        )
     }
 
     @Test

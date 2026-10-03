@@ -39,15 +39,21 @@ class HostSetupScreenInstrumentedTest {
      *
      * Checked as text because that is what a user reads; a switch whose label
      * has drifted is still a switch appearing in the wrong place.
+     *
+     * Most of these no longer exist at all - discoverable, approve-each-join,
+     * track-host and chat notifications were removed along with the behaviour
+     * they configured. They stay on this list on purpose: it is the record of
+     * what used to be duplicated here, and a row reappearing under one of these
+     * names is the regression worth catching.
      */
     private val eventSwitchesOwnedByPingRingSettings = listOf(
-        "Accept New Members",
-        "Track Host Only",
+        "Prevent New Users From Joining",
         "Ultra-wideband (UWB)",
         "High Bandwidth (Wi-Fi)",
         "Chat Notifications",
         "Discoverable",
         "Approve Each Join",
+        "Track Host Only",
     )
 
     private fun show(
@@ -123,9 +129,23 @@ class HostSetupScreenInstrumentedTest {
     fun theEventCodeIsShownSoTheHostCanShareIt() {
         show()
 
-        // The code is the only way somebody can join without the session being
-        // discoverable, so it has to be readable here.
+        // Joining is by code or by scanning the host's own QR code, and there is
+        // no longer any list of nearby sessions. The code is therefore the only
+        // route in besides the QR, so it has to be readable here.
         composeRule.onNodeWithText("4C1A9B").assertIsDisplayed()
+    }
+
+    @Test
+    fun capacityIsStatedHereWhereTheHostIsDecidingWhoToInvite() {
+        show()
+
+        // Moved off the settings screen, where it sat under a heading with no
+        // control next to it and read like something adjustable. It is not: eight
+        // is the limit, and the host is told while people are still arriving.
+        composeRule.onNodeWithText("Max Capacity").assertIsDisplayed()
+        composeRule.onNodeWithText(
+            "PingRing is limited to 8 members (1 host + 7 guests)."
+        ).assertIsDisplayed()
     }
 
     @Test

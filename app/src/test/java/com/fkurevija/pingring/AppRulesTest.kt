@@ -132,26 +132,45 @@ class AppRulesTest {
     }
 
     @Test
-    fun chatBubblePresetsAreFourDistinctVisibleColors() {
-        val colors = ChatBubblePalette.forMember("4C1A9B", "a1b2c3d4")
-        assertEquals(4, colors.size)
-        assertEquals(4, colors.distinct().size)
-        assertTrue(colors.all { it ushr 24 == 0xFFL })
+    fun chatBubblePresetsAreTwelveDistinctOpaqueColors() {
+        assertEquals(12, ChatBubblePalette.presets.size)
+        assertEquals(12, ChatBubblePalette.presets.distinct().size)
+        // Fully opaque, or a bubble would show the chat background through it and
+        // two members could be given colours that render identically.
+        assertTrue(ChatBubblePalette.presets.all { it ushr 24 == 0xFFL })
     }
 
     @Test
-    fun chatBubblePresetsStayStableForTheSameMemberAndRing() {
+    fun chatBubblePresetsAreTheSameForEveryMemberAndRing() {
+        // The whole point of the fixed list. This used to hash the ring and the
+        // member id into a shuffled subset, which meant two phones derived a
+        // *different* palette for the same person - so the preset a sender was
+        // shown was not the one their messages were painted with, and they could
+        // not see the alternatives before choosing.
         assertEquals(
-            ChatBubblePalette.forMember("4C1A9B", "a1b2c3d4"),
-            ChatBubblePalette.forMember("4C1A9B", "a1b2c3d4"),
+            ChatBubblePalette.presets,
+            ChatBubblePalette.presets,
         )
+        assertEquals(12, ChatBubblePalette.presets.size)
     }
 
     @Test
-    fun chatBubblePresetsVaryByMemberAndRing() {
-        val colors = ChatBubblePalette.forMember("4C1A9B", "a1b2c3d4")
-        assertNotEquals(colors, ChatBubblePalette.forMember("4C1A9B", "deadbeef"))
-        assertNotEquals(colors, ChatBubblePalette.forMember("ABCDEF", "a1b2c3d4"))
+    fun `the colour a member starts with is one they could have picked`() {
+        // A random draw must come from the offered list, or the user opens chat
+        // settings and finds no swatch matching their own bubbles.
+        repeat(200) {
+            assertTrue(ChatBubblePalette.presets.contains(ChatBubblePalette.random()))
+        }
+    }
+
+    @Test
+    fun `entering a ring twice in a row does not always give the same colour`() {
+        // Not determinism being the goal - the opposite. If every draw returned
+        // the same colour then a ring of eight would be unreadable, which is the
+        // reason the colour exists. Enough draws that a constant implementation
+        // cannot pass by luck.
+        val draws = List(50) { ChatBubblePalette.random() }
+        assertTrue("expected more than one colour across draws", draws.distinct().size > 1)
     }
 
     @Test

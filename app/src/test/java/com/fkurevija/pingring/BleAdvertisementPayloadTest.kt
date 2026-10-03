@@ -23,13 +23,11 @@ private object BleAdvertisementPayload {
     const val JOINED_AT_BYTES = SignedBleAdvertisementPayload.JOINED_AT_BYTES
     const val EVENT_CODE_BYTES = SignedBleAdvertisementPayload.EVENT_CODE_BYTES
     const val FLAG_HOST = SignedBleAdvertisementPayload.FLAG_HOST
-    const val FLAG_TRACK_HOST = SignedBleAdvertisementPayload.FLAG_TRACK_HOST
     const val FLAG_EVENT_CLOSED = SignedBleAdvertisementPayload.FLAG_EVENT_CLOSED
     const val FLAG_USE_UWB = SignedBleAdvertisementPayload.FLAG_USE_UWB
     const val FLAG_USE_WIFI = SignedBleAdvertisementPayload.FLAG_USE_WIFI
     const val FLAG_RING_FULL = SignedBleAdvertisementPayload.FLAG_RING_FULL
     const val FLAG_ACCEPTS_NEW_MEMBERS = SignedBleAdvertisementPayload.FLAG_ACCEPTS_NEW_MEMBERS
-    const val FLAG_DISCOVERABLE = SignedBleAdvertisementPayload.FLAG_DISCOVERABLE
     val ALL_FLAGS = SignedBleAdvertisementPayload.ALL_FLAGS
 
     fun assertFlagsFitTheByte(flags: Int) = SignedBleAdvertisementPayload.assertFlagsFitTheByte(flags)
@@ -105,15 +103,11 @@ class BleAdvertisementPayloadTest {
     }
 
     @Test
-    fun `an advert with a code and the flag is discoverable`() {
+    fun `an advert carries the code so a told guest can find its host`() {
         val decoded = BleAdvertisementPayload.decode(
-            encode(
-                flags = BleAdvertisementPayload.FLAG_HOST or BleAdvertisementPayload.FLAG_DISCOVERABLE,
-                eventCode = eventCode
-            )
+            encode(flags = BleAdvertisementPayload.FLAG_HOST, eventCode = eventCode)
         )!!
 
-        assertTrue(decoded.isDiscoverable)
         assertEquals("PingRing $eventCode", decoded.displayName)
     }
 
@@ -156,28 +150,29 @@ class BleAdvertisementPayloadTest {
     }
 
     @Test
-    fun `prejoin hint exposes only the public locator and discoverability bit`() {
+    fun `prejoin hint exposes only the public locator`() {
+        // Deliberately the code and nothing else. An unauthenticated advert from
+        // a phone that is not yet a member must not be able to tell a listener
+        // anything beyond which ring it claims to be in - the flags it used to
+        // carry described host policy a stranger had no business reading.
         val hint = SignedBleAdvertisementPayload.decodeDiscoveryHint(
             encode(
-                flags = BleAdvertisementPayload.FLAG_DISCOVERABLE or BleAdvertisementPayload.FLAG_HOST,
+                flags = BleAdvertisementPayload.FLAG_HOST or BleAdvertisementPayload.FLAG_EVENT_CLOSED,
                 eventCode = eventCode,
             )
         )!!
 
         assertEquals(eventCode, hint.eventCode)
-        assertTrue(hint.isDiscoverable)
     }
 
     @Test
-    fun `a flag without a code is not discoverable`() {
-        // The flag alone is not enough: a guest that adopted a session with no
-        // code would have nothing to join with, so this must not offer a join
-        // that cannot work.
+    fun `an advert with no code names no ring`() {
+        // Nothing to join with and nothing to display: a guest that had not been
+        // told the code cannot act on it, so it must not appear to offer a join.
         val decoded = BleAdvertisementPayload.decode(
-            encode(flags = BleAdvertisementPayload.FLAG_DISCOVERABLE, eventCode = null)
+            encode(flags = BleAdvertisementPayload.FLAG_HOST, eventCode = null)
         )!!
 
-        assertFalse("the flag alone must not make a session discoverable", decoded.isDiscoverable)
         assertNull(decoded.displayName)
     }
 
@@ -295,7 +290,6 @@ class BleAdvertisementPayloadTest {
     @Test
     fun `every flag survives the round trip`() {
         val allFlags = BleAdvertisementPayload.FLAG_HOST or
-            BleAdvertisementPayload.FLAG_TRACK_HOST or
             BleAdvertisementPayload.FLAG_USE_UWB or
             BleAdvertisementPayload.FLAG_USE_WIFI or
             BleAdvertisementPayload.FLAG_RING_FULL or
@@ -304,7 +298,6 @@ class BleAdvertisementPayloadTest {
         val decoded = BleAdvertisementPayload.decode(encode(flags = allFlags))!!
 
         assertTrue(decoded.isHost)
-        assertTrue(decoded.tracksMembers)
         assertTrue(decoded.usesUwb)
         assertTrue(decoded.usesWifi)
         assertTrue(decoded.isFull)
@@ -318,7 +311,6 @@ class BleAdvertisementPayloadTest {
         // a neighbour. Each is set alone and must be the only one that reads true.
         val readers: List<Pair<Int, (BleDecoded) -> Boolean>> = listOf(
             BleAdvertisementPayload.FLAG_HOST to { d -> d.isHost },
-            BleAdvertisementPayload.FLAG_TRACK_HOST to { d -> d.tracksMembers },
             BleAdvertisementPayload.FLAG_EVENT_CLOSED to { d -> d.eventClosed },
             BleAdvertisementPayload.FLAG_USE_UWB to { d -> d.usesUwb },
             BleAdvertisementPayload.FLAG_USE_WIFI to { d -> d.usesWifi },
@@ -336,11 +328,12 @@ class BleAdvertisementPayloadTest {
 
     @Test
     fun `theFlagBitsDoNotOverlap`() {
-        // Overlapping bits would make "track the host" also mean "use UWB", which
+        // Overlapping bits would make "closed" also mean "use UWB", which
         // no test of behaviour would catch. Driven from ALL_FLAGS rather than a
         // list written out here, because a hand-copied list is exactly how the
         // one omission happened: FLAG_DISCOVERABLE was missing from this test
-        // while existing and working.
+        // while existing and working - and has since been removed without this
+        // list being noticed, which is the same failure a second time.
         BleAdvertisementPayload.ALL_FLAGS.forEach { a ->
             BleAdvertisementPayload.ALL_FLAGS.forEach { b ->
                 if (a != b) {
@@ -469,7 +462,6 @@ class BleAdvertisementPayloadTest {
         val decoded = BleAdvertisementPayload.decode(encode(flags = 0))!!
 
         assertFalse(decoded.isHost)
-        assertFalse(decoded.tracksMembers)
         assertFalse(decoded.eventClosed)
         assertFalse(decoded.usesUwb)
         assertFalse(decoded.usesWifi)

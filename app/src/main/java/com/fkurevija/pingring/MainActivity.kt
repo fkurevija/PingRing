@@ -1,5 +1,7 @@
 package com.fkurevija.pingring
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.compose.setContent
@@ -29,6 +31,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import android.widget.Toast
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -40,6 +43,7 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
 import com.fkurevija.pingring.BuildConfig
 import com.fkurevija.pingring.data.AppearanceSettingsRepository
+import com.fkurevija.pingring.data.ChatBubblePalette
 import com.fkurevija.pingring.data.DiscoveryRepository
 import com.fkurevija.pingring.data.LanDebugConnectionsManager
 import com.fkurevija.pingring.data.NearbyTransport
@@ -184,7 +188,6 @@ fun MainNavigation(
     val backStack: NavBackStack<NavKey> = rememberNavBackStack(HomeKey)
     val currentThemeMode by rememberUpdatedState(themeMode)
     val savedUsername by appearanceSettings.userName.collectAsState(initial = "")
-    val quickBeacon by appearanceSettings.quickBeacon.collectAsState(initial = null)
     val chatColorEventId by sessionManager.sessionState
         .map { it.currentEvent?.id.orEmpty() }
         .collectAsState(initial = sessionManager.sessionState.value.currentEvent?.id.orEmpty())
@@ -192,6 +195,21 @@ fun MainNavigation(
         appearanceSettings.chatBubbleColor(chatColorEventId)
     }
     val chatBubbleColor by chatBubbleColorFlow.collectAsState(initial = null)
+
+    // Give every member a bubble colour on the way into a PingRing, rather than
+    // leaving them without one until they go looking for it.
+    //
+    // A LaunchedEffect keyed on the ring id rather than an inline `?:` so the
+    // draw happens once per entry: computing it during composition would pick a
+    // new random colour on every recomposition, and two phones in the same
+    // conversation would keep disagreeing about what colour somebody is.
+    LaunchedEffect(chatColorEventId) {
+        if (chatColorEventId.isNotEmpty() &&
+            appearanceSettings.chatBubbleColor(chatColorEventId).first() == null
+        ) {
+            appearanceSettings.setChatBubbleColor(chatColorEventId, ChatBubblePalette.random())
+        }
+    }
     val radarScreenReaderSummaryEnabled by appearanceSettings.radarScreenReaderSummaryEnabled.collectAsState(initial = false)
     val reduceMotionEnabled by appearanceSettings.reduceMotionEnabled.collectAsState(initial = false)
     val proximityHapticsEnabled by appearanceSettings.proximityHapticsEnabled.collectAsState(initial = true)
@@ -315,28 +333,36 @@ fun MainNavigation(
                     val context = LocalContext.current
                     var isConnecting by remember { mutableStateOf(false) }
                     val coroutineScope = rememberCoroutineScope()
-                    val discoveredSessions by discoveryRepository.discoveredSessions
-                        .collectAsState(initial = emptyList())
-                    // Started when the screen appears rather than on every
-                    // recomposition, and cancelled when it leaves, so a scan
-                    // cannot outlive the screen that asked for it.
-                    LaunchedEffect(Unit) { discoveryRepository.startSessionBrowsing() }
-                    DisposableEffect(Unit) {
-                        onDispose { discoveryRepository.stopSessionBrowsing() }
+                    // The join attempt itself, so back can abandon it rather
+                    // than only being refused while it is in flight.
+                    //
+                    // Back used to be inert here for the whole attempt, which
+                    // made a join that never resolved - a host out of range, a
+                    // code typed wrongly, a phone that never sees the host - a
+                    // dead end: the screen sat on "connecting" until the timeout
+                    // eventually expired, with the only control on it doing
+                    // nothing. The timeout is still the backstop for a host who
+                    // simply never answers, but it is no longer the only way out.
+                    var joinJob by remember { mutableStateOf<Job?>(null) }
+
+                    fun cancelJoin() {
+                        joinJob?.cancel()
+                        joinJob = null
+                        sessionManager.leaveEvent()
+                        isConnecting = false
                     }
 
                     PingRingJoinScreen(
                         savedUsername = savedUsername,
                         existingMembers = sessionState.friends.map { it.name },
                         isConnecting = isConnecting,
-                        // Browsing is this screen's own scanning, started and
-                        // stopped with it: a scan running behind the join screen
-                        // would keep the BLE radio busy for a user who never
-                        // opened it.
-                        discoveredSessions = discoveredSessions,
                         // Back from here (arrow or system) always lands on Home,
-                        // whatever is underneath on the stack.
-                        onBack = { if (!isConnecting) backStack.resetTo(HomeKey) },
+                        // whatever is underneath on the stack, and takes the
+                        // attempt down with it on the way out.
+                        onBack = {
+                            cancelJoin()
+                            backStack.resetTo(HomeKey)
+                        },
                         onJoinEvent = { eventCode, username, inviteSecret ->
                             if (!isConnecting) {
                                 isConnecting = true
@@ -344,14 +370,13 @@ fun MainNavigation(
                                 sessionManager.setUserName(username)
                                 val event = Event.create(id = eventCode, inviteSecret = inviteSecret)
                                 if (sessionManager.joinEvent(event)) {
-                                    coroutineScope.launch {
+                                    joinJob = coroutineScope.launch {
                                         // Long enough to outlast a host who is
-                                        // being asked to approve, and no longer.
-                                        // The old 2.5s was sized for a handshake
-                                        // that is automatic; under "Approve Each
-                                        // Join" a human is in the loop and a
-                                        // timeout here reported a perfectly good
-                                        // host as "not found".
+                                        // being asked to approve a code-only
+                                        // join, and no longer. A QR join is
+                                        // admitted without that round trip, but
+                                        // the two share one path here and the
+                                        // slow one has to fit.
                                         val connected = runCatching {
                                             withTimeout(JOIN_WAIT_TIMEOUT_MILLIS) {
                                                 sessionManager.sessionState
@@ -383,6 +408,13 @@ fun MainNavigation(
                 }
 
                 is AppSettingsKey -> {
+                    // Named distinctly from the composable's own `context`:
+                    // inside this destination block that name is shadowed by a
+                    // parameter, so reaching for it here resolves to the wrong
+                    // thing. Captured locally from the composition so the
+                    // callback below - which is not itself composable - can
+                    // still start an activity.
+                    val appSettingsContext = LocalContext.current.applicationContext
                     AppSettingsScreen(
                         selectedLanguageTag = AppCompatDelegate.getApplicationLocales().toLanguageTags(),
                         onLanguageSelected = { languageTag ->
@@ -397,6 +429,28 @@ fun MainNavigation(
                         onConnectionRecoveryPromptDelayChange = appearanceSettings::setConnectionRecoveryPromptDelayMillis,
                         showDeveloperOptions = BuildConfig.DEBUG,
                         onOpenDeveloperOptions = { backStack.add(DeveloperSettingsKey) },
+                        onReportAProblem = {
+                            // Handed to the browser rather than reported from
+                            // in-app: there is nowhere in PingRing to send it.
+                            // The URL is a constant, so there is nothing to fail
+                            // and nothing to test beyond "it starts an intent".
+                            //
+                            // Uses the application context rather than the composable's
+                            // own: an ACTION_VIEW hand-off has no business
+                            // holding an activity, and the destination context
+                            // is scoped to a screen that may not be on screen
+                            // when this callback runs.
+                            val issueUrl = Uri.parse(
+                                "https://github.com/fkurevija/PingRing/issues/new"
+                            )
+                            runCatching {
+                                appSettingsContext.startActivity(
+                                    Intent(Intent.ACTION_VIEW, issueUrl).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                )
+                            }.onFailure {
+                                Toast.makeText(appSettingsContext, R.string.report_a_problem_failed, Toast.LENGTH_LONG).show()
+                            }
+                        },
                         onBack = { backStack.popBack() }
                     )
                 }
@@ -443,14 +497,13 @@ fun MainNavigation(
                         val isHost = sessionState.isHost
                         PingRingSettingsScreen(
                             event = event,
-                            localPeerId = sessionManager.peerId.value,
-                            chatBubbleColorArgb = chatBubbleColor,
-                            onChatBubbleColorChange = { color ->
-                                appearanceSettings.setChatBubbleColor(event.id, color)
-                            },
                             uwbHardwareSupported = discoveryRepository.isUwbSupported(),
                             isHost = isHost,
                             onBack = { backStack.popBack() },
+                            // Pushed onto the same stack, so backing out of app
+                            // settings returns to this screen rather than to Home
+                            // or out of the app.
+                            onOpenAppSettings = { backStack.add(AppSettingsKey) },
                             onSave = {
                                 sessionManager.updateEvent(it)
                                 discoveryRepository.broadcastEventControl(it)
@@ -490,11 +543,12 @@ fun MainNavigation(
                         eventId = key.eventId,
                         discoveryRepository = discoveryRepository,
                         isHost = sessionState.isHost,
-                        trackHost = sessionState.currentEvent?.trackHost == true,
                         coordinationError = syncStatus.errorMessage,
                         sessionState = sessionState,
-                        quickBeacon = quickBeacon,
                         chatBubbleColorArgb = chatBubbleColor,
+                        onChatBubbleColorChange = { color ->
+                            appearanceSettings.setChatBubbleColor(key.eventId, color)
+                        },
                         radarScreenReaderSummaryEnabled = radarScreenReaderSummaryEnabled,
                         reduceMotionEnabled = reduceMotionEnabled,
                         proximityHapticsEnabled = proximityHapticsEnabled,
@@ -504,7 +558,6 @@ fun MainNavigation(
                         hostConnectionLostAtMillis = hostConnectionLostAtMillis,
                         lastKnownPeerDirections = lastKnownPeerDirections,
                         isTopDestination = topKey == key,
-                        onQuickBeaconChange = appearanceSettings::setQuickBeacon,
                         pendingJoinRequests = pendingJoinRequests,
                         onApproveJoinRequest = { discoveryRepository.approveJoinRequest(it) },
                         onDenyJoinRequest = { discoveryRepository.denyJoinRequest(it) },

@@ -9,23 +9,29 @@ internal object BleIdentityAdvertisement {
     const val MAX_SIGNATURE_BYTES = 72
     const val TOTAL_BYTES = 98
     const val FLAG_HOST = 1
-    const val FLAG_DISCOVERABLE = 1 shl 7
 
     private const val PEER_ID_BYTES = 4
     private const val EVENT_CODE_BYTES = 3
     private const val PREFIX_BYTES = 25
 
+    /**
+     * A verified member of a ring.
+     *
+     * The flags are read here but no longer interpreted: the advert's only job
+     * is to identify a member to the other members already in the ring, so the
+     * raw value is kept for debugging and nothing branches on it. The bit that
+     * used to mean "findable by strangers" was dropped rather than renumbered,
+     * so the remaining bits keep their wire values.
+     */
     data class Decoded(
         val flags: Int,
         val peerId: String,
         val eventCode: String,
         val joinedAtMillis: Long,
         val sequence: Long,
-    ) {
-        val isDiscoverable: Boolean get() = flags and FLAG_DISCOVERABLE != 0
-    }
+    )
 
-    data class DiscoveryHint(val peerId: String, val eventCode: String?, val isHost: Boolean, val isDiscoverable: Boolean)
+    data class DiscoveryHint(val peerId: String, val eventCode: String?, val isHost: Boolean)
 
     fun acceptsSequence(previousSequence: Long?, candidateSequence: Long): Boolean =
         candidateSequence >= 0 && (previousSequence == null || candidateSequence > previousSequence)
@@ -96,7 +102,6 @@ internal object BleIdentityAdvertisement {
             peerId = readPeerId(serviceData) ?: return null,
             eventCode = eventCode,
             isHost = flags and FLAG_HOST != 0,
-            isDiscoverable = flags and FLAG_DISCOVERABLE != 0,
         )
     }
 

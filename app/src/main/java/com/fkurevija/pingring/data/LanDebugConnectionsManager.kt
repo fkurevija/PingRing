@@ -89,9 +89,8 @@ class LanDebugConnectionsManager(
      * behaving alike for no gain. The approval rules themselves are unit tested
      * against [decideJoinRequest] rather than through this path.
      */
-    override var requiresApproval: Boolean = false
 
-    /** Always empty here, for the reason given on [requiresApproval]. */
+    /** Always empty here, for the reason given above. */
     override val pendingJoinRequests: StateFlow<List<PendingJoinRequest>> =
         MutableStateFlow(emptyList())
     override val pendingAuthentications: StateFlow<List<ConnectionAuthenticationRequest>> =

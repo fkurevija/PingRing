@@ -30,15 +30,10 @@
     <string name="theme_system_default">Как в системе</string>
     <string name="theme_light">Светлая тема</string>
     <string name="theme_dark">Тёмная тема</string>
-    <string name="chat_bubble_colour">Цвет пузырей чата</string>
     <string name="chat_bubble_colour_description">Показывается в новых сообщениях, которые вы отправляете</string>
     <string name="set_chat_bubble_colour_to">Установить цвет пузырей чата: %1$s</string>
     <string name="custom">Другой</string>
     <string name="use_theme_colour">Использовать цвет темы</string>
-    <string name="undo">Отменить</string>
-    <string name="custom_chat_colour">Свой цвет чата</string>
-    <string name="chat_colour_hue_wheel">Цветовой круг оттенков чата</string>
-    <string name="choose_hue">Выберите оттенок</string>
     <string name="notifications_title">Уведомления</string>
     <string name="notifications_description">Доставка уведомлений чата, звук и вибрация</string>
     <string name="developer_options">Для разработчиков</string>
@@ -90,10 +85,6 @@
     <string name="connecting">Подключение…</string>
     <string name="connect">Подключиться</string>
     <string name="or">ИЛИ</string>
-    <string name="nearby_pingrings">PingRing поблизости</string>
-    <string name="tap_to_join">Нажмите, чтобы присоединиться</string>
-    <string name="full_or_not_accepting">Мест нет или участники не принимаются</string>
-    <string name="join_session">Присоединиться: %1$s</string>
     <string name="scan_host_qr">Сканировать QR-код хоста</string>
     <string name="camera_not_available">Камера недоступна на этом устройстве</string>
     <string name="align_pingring_qr">Поместите QR-код PingRing в рамку.</string>
@@ -111,25 +102,13 @@
     <string name="closed">Закрыто</string>
     <string name="save_changes">Сохранить изменения</string>
     <string name="connectivity_participation">Подключение и участие</string>
-    <string name="accept_new_members">Принимать новых участников</string>
-    <string name="allow_nearby_discover_join">Разрешить людям поблизости находить событие и присоединяться</string>
-    <string name="discoverable">Виден поблизости</string>
-    <string name="discoverable_description">Показывать этот PingRing на телефонах поблизости. Присоединиться по коду можно в любом случае.</string>
-    <string name="approve_each_join">Подтверждать каждое подключение</string>
-    <string name="approve_each_join_description">Оставлять новых участников в ожидании до вашего подтверждения. Присоединиться по коду можно в любом случае.</string>
     <string name="uwb">Ultra-wideband (UWB)</string>
     <string name="uwb_no_hardware">На устройстве нет радиомодуля UWB.</string>
     <string name="uwb_needs_permission">Для измерения расстояния UWB требуется разрешение. Нажмите, чтобы предоставить его.</string>
     <string name="uwb_os_too_old">Для измерения расстояния UWB нужен Android 12 или новее.</string>
     <string name="sub_metre_uwb">Измерение UWB с точностью до метра на поддерживаемых устройствах.</string>
-    <string name="high_bandwidth_wifi">Высокоскоростной Wi-Fi</string>
-    <string name="wifi_transport_always_on">Всегда включён. Nearby Connections автоматически передаёт чаты и сигналы через Wi-Fi Direct; отключить его нельзя.</string>
-    <string name="always_on">Всегда включено</string>
-    <string name="chat_notifications">Уведомления чата</string>
-    <string name="event_chat_notifications_description">Уведомлять о новых сообщениях в этом PingRing</string>
     <string name="max_capacity">Максимальное число участников</string>
     <string name="max_capacity_description">Ограничение: %1$d участников (1 хост + 7 гостей) для стабильной работы радио.</string>
-    <string name="danger_zone">Опасная зона</string>
     <string name="leave_pingring">Покинуть PingRing</string>
     <string name="peer_default_name">Участник</string>
     <string name="radar_event_summary">Код: %1$s · участников %2$d/%3$d</string>
@@ -149,8 +128,6 @@
     <string name="no_messages_yet">Сообщений пока нет. Поздоровайтесь!</string>
     <string name="type_message">Введите сообщение…</string>
     <string name="send">Отправить</string>
-    <string name="no_quick_beacon">Быстрый сигнал ещё не настроен. Откройте «Новый сигнал» и нажмите «Сохранить как быстрый сигнал».</string>
-    <string name="quick_beacon">Быстрый сигнал</string>
     <string name="my_beacon">Мой сигнал</string>
     <string name="new_beacon">Новый сигнал</string>
     <string name="close">Закрыть</string>
@@ -198,13 +175,9 @@
     <string name="track_member">Следить за участником %1$s</string>
     <string name="automatic">Автоматически</string>
     <string name="tracking">Слежение</string>
-    <string name="gnss_sharing">Делиться GPS-позицией</string>
-    <string name="gnss_sharing_description">Делиться координатами с участниками Ring, округлёнными примерно до 10 м каждые 10 секунд. Только оценка расстояния на открытом воздухе.</string>
     <string name="gnss_distance_estimate">Оценка расстояния по GPS</string>
     <string name="wifi_rtt_distance_mode">Wi-Fi RTT · только расстояние</string>
     <string name="distance_with_uncertainty">Около %1$.0f м ± %2$.0f м</string>
-    <string name="track_host_only">Следить только за организатором</string>
-    <string name="track_host_only_description">Гости следят только за организатором. Организатор может следить за любым участником.</string>
     <string name="vibration_sos_urgent">SOS / Срочный сигнал</string>
     <string name="vibration_rapid_alert">Быстрый сигнал</string>
     <string name="vibration_steady_pulse">Равномерная пульсация</string>
@@ -250,4 +223,11 @@
     <string name="connection_authentication_message">Подключайтесь к устройству %1$s, только если цифры совпадают на обоих устройствах. Попросите собеседника сравнить код: %2$s</string>
     <string name="connection_digits_match">Коды совпадают</string>
     <string name="connection_reject">Отклонить</string>
+
+    <string name="app_settings">Настройки приложения</string>
+    <string name="chat_settings">Настройки чата</string>
+    <string name="prevent_new_users_joining">Запретить присоединение новых участников</string>
+    <string name="prevent_new_users_joining_description">Закрой этот PingRing для всех, кто ещё не участник. Гости, присоединяющиеся по коду, по-прежнему требуют вашего подтверждения.</string>
+    <string name="report_a_problem">Сообщить о проблеме</string>
+    <string name="report_a_problem_failed">Не удалось открыть браузер</string>
 </resources>

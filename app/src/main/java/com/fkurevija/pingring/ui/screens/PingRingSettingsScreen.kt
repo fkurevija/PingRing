@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.GroupAdd
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Rule
 import androidx.compose.material.icons.filled.Sensors
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.TravelExplore
 import androidx.compose.material.icons.filled.Wifi
@@ -82,53 +83,57 @@ import com.fkurevija.pingring.data.MAX_PARTICIPANTS
 import com.fkurevija.pingring.R
 import com.fkurevija.pingring.ui.permissions.rememberUwbAvailability
 
+/**
+ * The settings for a PingRing that is live right now.
+ *
+ * Deliberately short. This used to carry nine controls, four of which are gone
+ * because the behaviour they configured is gone: a session is no longer
+ * advertised as findable, joins are no longer held one at a time for a human,
+ * the host no longer owns what anybody tracks, and GPS is no longer something
+ * a guest has to be told about. What is left is the ring-wide lockout, the one
+ * ranging switch that can actually be turned off, and a way out.
+ *
+ * Chat settings are not here either - bubble colour and chat notifications live
+ * in the chat settings window on the radar, next to the chat they change, rather
+ * than two screens away from it.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PingRingSettingsScreen(
     event: Event,
-    localPeerId: String,
-    chatBubbleColorArgb: Long?,
-    onChatBubbleColorChange: (Long?) -> Unit,
     uwbHardwareSupported: Boolean,
     isHost: Boolean,
     onBack: () -> Unit,
+    /**
+     * Opens the app's own settings.
+     *
+     * Which is app-wide rather than about this ring: theme, language,
+     * accessibility, notifications. Pushed onto the same back stack as this
+     * screen rather than launched as a new task, so backing out of it returns
+     * to whichever PingRing screen sent the user here.
+     */
+    onOpenAppSettings: () -> Unit,
     onSave: (Event) -> Unit,
     onEndEvent: () -> Unit,
     onLeaveEvent: () -> Unit,
 ) {
     val context = LocalContext.current
     var acceptsNewMembers by remember(event) { mutableStateOf(event.acceptsNewMembers) }
-    var isDiscoverable by remember(event) { mutableStateOf(event.isDiscoverable) }
-    var requiresApproval by remember(event) { mutableStateOf(event.requiresApproval) }
-    var trackHost by remember(event) { mutableStateOf(event.trackHost) }
-    var useGnss by remember(event) { mutableStateOf(event.useGnss) }
     val uwbAvailability = rememberUwbAvailability(uwbHardwareSupported)
     var useUwb by remember(event, uwbAvailability.isUsable) { mutableStateOf(event.useUwb && uwbAvailability.isUsable) }
-    var useWifiDirect by remember(event) { mutableStateOf(event.useWifiDirect) }
-    var chatNotificationsEnabled by remember(event) { mutableStateOf(event.chatNotificationsEnabled) }
-    var selectedChatColor by remember(event.id) { mutableStateOf(chatBubbleColorArgb) }
-    val chatColorPresets = remember(event.id, localPeerId) {
-        ChatBubblePalette.forMember(event.id, localPeerId)
-    }
-    var previousChatColor by remember(event.id) { mutableStateOf<Long?>(null) }
-    var canUndoChatColor by remember(event.id) { mutableStateOf(false) }
-    var showCustomChatColorPicker by remember { mutableStateOf(false) }
     var showEndConfirmation by remember { mutableStateOf(false) }
-    LaunchedEffect(event.id, chatBubbleColorArgb) {
-        selectedChatColor = chatBubbleColorArgb
-    }
-    fun chooseChatColor(color: Long?) {
-        if (color == selectedChatColor) return
-        previousChatColor = selectedChatColor
-        selectedChatColor = color
-        canUndoChatColor = true
-        onChatBubbleColorChange(color)
-    }
 
     Scaffold(
         topBar = {
+            // No title. The screen is reached from the radar, which already says
+            // which PingRing this is, and a second copy of the name at the top of
+            // every settings screen is the thing that made this area feel like
+            // it was navigating rather than configuring. The back arrow carries
+            // all the orientation this needs.
             TopAppBar(
-                title = { Text(stringResource(R.string.pingring_settings), fontWeight = FontWeight.Bold) },
+                // Empty rather than omitted: the parameter has no default, and
+                // an empty composable is what "no title" means here.
+                title = {},
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
@@ -154,14 +159,8 @@ fun PingRingSettingsScreen(
                     onClick = {
                         onSave(event.copy(
                             acceptsNewMembers = acceptsNewMembers,
-                            isDiscoverable = isDiscoverable,
-                            requiresApproval = requiresApproval,
-                            trackHost = if (isHost) trackHost else event.trackHost,
-                            useGnss = if (isHost) useGnss else event.useGnss,
                             description = context.getString(if (acceptsNewMembers) R.string.pingring_event else R.string.closed),
                             useUwb = useUwb,
-                            useWifiDirect = useWifiDirect,
-                            chatNotificationsEnabled = chatNotificationsEnabled
                         ))
                     },
                     modifier = Modifier.weight(1f).height(50.dp),
@@ -180,6 +179,49 @@ fun PingRingSettingsScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // End/Leave, first thing on the screen.
+            //
+            // It used to sit under a "Danger Zone" heading at the bottom, which
+            // is the shape settings screens use for actions that are rare and
+            // destructive - and this is neither: on a ring you will use it at
+            // least once, and scrolling to find it made a one-tap exit a hunt.
+            // The heading goes with the position: the button is red, it says what
+            // it does, and the consequence is written underneath it rather than
+            // above.
+            //
+            // The radar's navigation bar back arrow still offers the same
+            // action, so the two routes cannot disagree.
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f)
+                )
+            ) {
+                Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                    OutlinedButton(
+                        onClick = { showEndConfirmation = true },
+                        modifier = Modifier.fillMaxWidth().height(50.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        )
+                    ) {
+                        Text(stringResource(if (isHost) R.string.end_pingring else R.string.leave_pingring))
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        if (isHost) {
+                            stringResource(R.string.end_pingring_description)
+                        } else {
+                            stringResource(R.string.leave_pingring_description)
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(18.dp),
@@ -201,97 +243,25 @@ fun PingRingSettingsScreen(
                         Icon(Icons.Default.GroupAdd, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
-                            Text(stringResource(R.string.accept_new_members), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                            Text(stringResource(R.string.allow_nearby_discover_join), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(stringResource(R.string.prevent_new_users_joining), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                            Text(stringResource(R.string.prevent_new_users_joining_description), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        Switch(checked = acceptsNewMembers, onCheckedChange = { acceptsNewMembers = it },
-                            modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp).semantics {
-                                contentDescription = context.getString(R.string.accept_new_members)
-                            })
-                    }
-
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Default.TravelExplore, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
-                        Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(stringResource(R.string.discoverable), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                            Text(
-                                stringResource(R.string.discoverable_description),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Switch(checked = isDiscoverable, onCheckedChange = { isDiscoverable = it },
-                            modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp).semantics {
-                                contentDescription = context.getString(R.string.discoverable)
-                            })
-                    }
-
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Default.Rule, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
-                        Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(stringResource(R.string.approve_each_join), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                            Text(
-                                stringResource(R.string.approve_each_join_description),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Switch(checked = requiresApproval, onCheckedChange = { requiresApproval = it },
-                            modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp).semantics {
-                                contentDescription = context.getString(R.string.approve_each_join)
-                            })
-                    }
-
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Default.MyLocation, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
-                        Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(stringResource(R.string.track_host_only), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                            Text(stringResource(R.string.track_host_only_description), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
+                        // Switched round so the control reads the same way as the
+                        // intent: turning it *on* closes the ring. Labelled "accept
+                        // new members" it had to be read as a double negative, and
+                        // the default - open - looked like the setting that needed
+                        // switching off. The stored field is still
+                        // [Event.acceptsNewMembers] so nothing on the wire changes;
+                        // only the direction the control reads in is inverted.
                         Switch(
-                            checked = trackHost,
-                            enabled = isHost,
-                            onCheckedChange = { trackHost = it },
+                            checked = !acceptsNewMembers,
+                            onCheckedChange = { acceptsNewMembers = !it },
                             modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp).semantics {
-                                contentDescription = context.getString(R.string.track_host_only)
-                            }
+                                contentDescription = context.getString(R.string.prevent_new_users_joining)
+                            },
                         )
                     }
 
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-
-                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.MyLocation, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
-                        Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(stringResource(R.string.gnss_sharing), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                            Text(stringResource(R.string.gnss_sharing_description), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        Switch(
-                            checked = useGnss,
-                            enabled = isHost,
-                            onCheckedChange = { useGnss = it },
-                            modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp).semantics { contentDescription = context.getString(R.string.gnss_sharing) },
-                        )
-                    }
                     HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 
                     // Driven by ConnectionMethodPolicy rather than by a bare
@@ -348,204 +318,39 @@ fun PingRingSettingsScreen(
                             },
                         )
                     }
-
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-
-                    val wifiDirectSupported = remember(context) {
-                        context.packageManager.hasSystemFeature(PackageManager.FEATURE_WIFI_DIRECT) ||
-                                context.packageManager.hasSystemFeature(PackageManager.FEATURE_WIFI)
-                    }
-
-                    // Not a switch, and deliberately so. Nearby Connections
-                    // carries its payload channel over Wi-Fi Direct and exposes
-                    // no way to turn that off - AdvertisingOptions has no such
-                    // setting - so this was a control that could only ever be on.
-                    // Offering it invited somebody to disable high-bandwidth
-                    // transport and watch nothing change, which is worse than
-                    // not mentioning it.
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Default.Wifi, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
-                        Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(stringResource(R.string.high_bandwidth_wifi), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                            Text(
-                                if (wifiDirectSupported) {
-                                    stringResource(R.string.wifi_transport_always_on)
-                                } else {
-                                    stringResource(R.string.not_supported_on_device)
-                                },
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Icon(
-                            Icons.Default.Check,
-                            contentDescription = stringResource(R.string.always_on),
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Default.Notifications, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
-                        Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(stringResource(R.string.chat_notifications), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                            Text(stringResource(R.string.event_chat_notifications_description), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        Switch(checked = chatNotificationsEnabled, onCheckedChange = { chatNotificationsEnabled = it },
-                            modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp).semantics {
-                                contentDescription = context.getString(R.string.chat_notifications)
-                            })
-                    }
-
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Default.GroupAdd, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
-                        Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(stringResource(R.string.max_capacity), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                            Text(stringResource(R.string.max_capacity_description, MAX_PARTICIPANTS), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
                 }
             }
 
+// A way out to the settings that are about the app rather than
+            // about this ring: theme, language, notifications, accessibility.
+            // They live two screens below Home, which is exactly why they were
+            // hard to find at the moment somebody standing in a crowd with a
+            // bright screen actually wanted one. A link, not a copy - the same
+            // argument that keeps every event switch on one screen.
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(18.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
             ) {
                 Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text(stringResource(R.string.chat_bubble_colour), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                            Text(
-                                stringResource(R.string.chat_bubble_colour_description),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        if (canUndoChatColor) {
-                            TextButton(
-                                onClick = {
-                                    chooseChatColor(previousChatColor)
-                                    canUndoChatColor = false
-                                }
-                            ) {
-                                Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = null)
-                                Spacer(Modifier.width(4.dp))
-                                Text(stringResource(R.string.undo))
-                            }
-                        }
-                    }
-                    Spacer(Modifier.height(12.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth().selectableGroup(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        chatColorPresets.forEach { colorArgb ->
-                            val selected = selectedChatColor == colorArgb
-                            val presetDescription = stringResource(
-                                R.string.set_chat_bubble_colour_to,
-                                String.format(java.util.Locale.ROOT, "#%06X", colorArgb and 0xFFFFFFL),
-                            )
-                            Box(
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .semantics { contentDescription = presetDescription }
-                                    .selectable(
-                                        selected = selected,
-                                        role = Role.RadioButton,
-                                        onClick = { chooseChatColor(colorArgb) },
-                                    ),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Box(Modifier
-                                    .size(36.dp)
-                                    .background(Color(colorArgb), CircleShape)
-                                    .border(
-                                        width = if (selected) 3.dp else 0.dp,
-                                        color = if (selected) MaterialTheme.colorScheme.onSurface else Color.Transparent,
-                                        shape = CircleShape,
-                                    )
-                                )
-                            }
-                        }
-                    }
-                    TextButton(onClick = { showCustomChatColorPicker = true }) {
-                        Text(stringResource(R.string.custom))
-                    }
-                    TextButton(onClick = { chooseChatColor(null) }, enabled = selectedChatColor != null) {
-                        Text(stringResource(R.string.use_theme_colour))
-                    }
-                }
-            }
-
-            // End/Leave live here rather than on the radar, next to the other
-            // settings for a live PingRing. It is destructive and awkward to
-            // undo, so it reads better grouped with settings than sitting in a
-            // permanent bar above the chat where a stray tap could reach it.
-            // The radar's navigation bar back arrow still offers the same
-            // action, so the two routes cannot disagree.
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f)
-                )
-            ) {
-                Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                     Text(
-                        stringResource(R.string.danger_zone),
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        if (isHost) {
-                            stringResource(R.string.end_pingring_description)
-                        } else {
-                            stringResource(R.string.leave_pingring_description)
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        stringResource(R.string.app_settings),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold
                     )
                     Spacer(Modifier.height(12.dp))
                     OutlinedButton(
-                        onClick = { showEndConfirmation = true },
+                        onClick = onOpenAppSettings,
                         modifier = Modifier.fillMaxWidth().height(50.dp),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = MaterialTheme.colorScheme.error
-                        )
+                        shape = RoundedCornerShape(14.dp)
                     ) {
-                        Text(stringResource(if (isHost) R.string.end_pingring else R.string.leave_pingring))
+                        Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.app_settings), fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
         }
-    }
-
-    if (showCustomChatColorPicker) {
-        ChatBubbleColorPickerDialog(
-            onDismiss = { showCustomChatColorPicker = false },
-            onColorSelected = ::chooseChatColor,
-        )
     }
 
     if (showEndConfirmation) {
@@ -560,53 +365,10 @@ fun PingRingSettingsScreen(
     }
 }
 
-@Composable
-private fun ChatBubbleColorPickerDialog(
-    onDismiss: () -> Unit,
-    onColorSelected: (Long) -> Unit,
-) {
-    var hue by remember { mutableFloatStateOf(0f) }
-    val selectedColor = Color.hsv(hue, 0.72f, 0.72f)
-    val wheelColors = listOf(Color.Red, Color.Yellow, Color.Green, Color.Cyan, Color.Blue, Color.Magenta, Color.Red)
-    val hueWheelDescription = stringResource(R.string.chat_colour_hue_wheel)
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = {},
-        title = { Text(stringResource(R.string.custom_chat_colour)) },
-        text = {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Canvas(
-                    modifier = Modifier
-                        .size(220.dp)
-                        .semantics { contentDescription = hueWheelDescription }
-                        .pointerInput(Unit) {
-                            detectTapGestures { tap ->
-                                val centre = Offset(size.width / 2f, size.height / 2f)
-                                val fromCentre = tap - centre
-                                if (kotlin.math.sqrt(fromCentre.x * fromCentre.x + fromCentre.y * fromCentre.y) <= minOf(size.width, size.height) / 2f) {
-                                    hue = ((Math.toDegrees(kotlin.math.atan2(fromCentre.y.toDouble(), fromCentre.x.toDouble())) + 90.0 + 360.0) % 360.0).toFloat()
-                                    onColorSelected(Color.hsv(hue, 0.72f, 0.72f).toArgb().toLong() and 0xFFFF_FFFFL)
-                                }
-                            }
-                        },
-                ) {
-                    drawCircle(brush = Brush.sweepGradient(wheelColors))
-                    drawCircle(color = selectedColor, radius = size.minDimension * 0.12f)
-                }
-                Spacer(Modifier.height(12.dp))
-                Text(stringResource(R.string.choose_hue), style = MaterialTheme.typography.bodyMedium)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) }
-        },
-    )
-}
-
 private val Unavailable.descriptionRes: Int
     get() = when (this) {
         Unavailable.NO_HARDWARE -> R.string.uwb_no_hardware
         Unavailable.NO_PERMISSION -> R.string.uwb_needs_permission
         Unavailable.UNSUPPORTED_OS_VERSION -> R.string.uwb_os_too_old
     }
+

@@ -30,15 +30,10 @@
     <string name="theme_system_default">Zadano prema sustavu</string>
     <string name="theme_light">Svijetla tema</string>
     <string name="theme_dark">Tamna tema</string>
-    <string name="chat_bubble_colour">Boja oblačića razgovora</string>
     <string name="chat_bubble_colour_description">Prikazuje se uz nove poruke koje šaljete</string>
     <string name="set_chat_bubble_colour_to">Postavi boju oblačića razgovora na %1$s</string>
     <string name="custom">Prilagođeno</string>
     <string name="use_theme_colour">Koristi boju teme</string>
-    <string name="undo">Poništi</string>
-    <string name="custom_chat_colour">Prilagođena boja razgovora</string>
-    <string name="chat_colour_hue_wheel">Kotač nijansi boje razgovora</string>
-    <string name="choose_hue">Odaberite nijansu</string>
     <string name="notifications_title">Obavijesti</string>
     <string name="notifications_description">Dostava obavijesti o razgovoru, zvuk i vibracija</string>
     <string name="developer_options">Opcije za razvojne programere</string>
@@ -90,10 +85,6 @@
     <string name="connecting">Povezivanje…</string>
     <string name="connect">Poveži se</string>
     <string name="or">ILI</string>
-    <string name="nearby_pingrings">PingRing događaji u blizini</string>
-    <string name="tap_to_join">Dodirnite za pridruživanje</string>
-    <string name="full_or_not_accepting">Pun je ili ne prima članove</string>
-    <string name="join_session">Pridruži se događaju %1$s</string>
     <string name="scan_host_qr">Skeniraj QR kod domaćina</string>
     <string name="camera_not_available">Kamera nije dostupna na ovom uređaju</string>
     <string name="align_pingring_qr">Poravnajte PingRing QR kod unutar okvira.</string>
@@ -115,24 +106,12 @@
     <string name="closed">Zatvoreno</string>
     <string name="save_changes">Spremi promjene</string>
     <string name="connectivity_participation">Povezivanje i sudjelovanje</string>
-    <string name="accept_new_members">Prihvati nove članove</string>
-    <string name="allow_nearby_discover_join">Dopusti korisnicima u blizini da pronađu događaj i pridruže mu se</string>
-    <string name="discoverable">Vidljiv u blizini</string>
-    <string name="discoverable_description">Prikaži ovaj PingRing na obližnjim telefonima. Svatko se i dalje može pridružiti kodom.</string>
-    <string name="approve_each_join">Odobri svako pridruživanje</string>
-    <string name="approve_each_join_description">Zadrži nove članove dok im ne dopustiš pristup. Svatko se i dalje može pridružiti kodom.</string>
     <string name="uwb_no_hardware">Ovaj uređaj nema UWB radio.</string>
     <string name="uwb_needs_permission">Za UWB mjerenje udaljenosti potrebno je dopuštenje. Dodirnite za dodjelu.</string>
     <string name="uwb_os_too_old">Za UWB mjerenje udaljenosti potreban je Android 12 ili noviji.</string>
     <string name="sub_metre_uwb">UWB mjerenje udaljenosti ispod jednog metra na podržanom hardveru.</string>
-    <string name="high_bandwidth_wifi">Wi-Fi velike propusnosti</string>
-    <string name="wifi_transport_always_on">Uvijek uključen. Nearby Connections automatski prenosi razgovor i signale putem Wi-Fi Directa; ne može se isključiti.</string>
-    <string name="always_on">Uvijek uključeno</string>
-    <string name="chat_notifications">Obavijesti o porukama</string>
-    <string name="event_chat_notifications_description">Obavijesti o pristiglim porukama u ovom PingRingu</string>
     <string name="max_capacity">Maksimalni kapacitet</string>
     <string name="max_capacity_description">Ograničeno na %1$d članova (1 domaćin + 7 gostiju) radi performansi radija.</string>
-    <string name="danger_zone">Opasna zona</string>
     <string name="leave_pingring">Napusti PingRing</string>
     <string name="peer_default_name">Sudionik</string>
     <string name="radar_event_summary">Kod: %1$s · članovi %2$d/%3$d</string>
@@ -151,8 +130,6 @@
     <string name="no_messages_yet">Još nema poruka. Pozdravi ostale!</string>
     <string name="type_message">Napiši poruku…</string>
     <string name="send">Pošalji</string>
-    <string name="no_quick_beacon">Brzi signal još nije postavljen. Otvori Novi signal i dodirni Postavi kao brzi signal.</string>
-    <string name="quick_beacon">Brzi signal</string>
     <string name="my_beacon">Moj signal</string>
     <string name="new_beacon">Novi signal</string>
     <string name="close">Zatvori</string>
@@ -200,13 +177,9 @@
     <string name="track_member">Prati osobu %1$s</string>
     <string name="automatic">Automatski</string>
     <string name="tracking">Praćenje</string>
-    <string name="gnss_sharing">Dijeli GPS lokaciju</string>
-    <string name="gnss_sharing_description">Dijeli koordinate s članovima Ringa, zaokružene na oko 10 m svakih 10 sekundi. Samo procjene udaljenosti na otvorenom.</string>
     <string name="gnss_distance_estimate">Procjena udaljenosti GPS-om</string>
     <string name="wifi_rtt_distance_mode">Wi-Fi RTT · samo udaljenost</string>
     <string name="distance_with_uncertainty">Oko %1$.0f m ± %2$.0f m</string>
-    <string name="track_host_only">Prati samo domaćina</string>
-    <string name="track_host_only_description">Gosti prate samo domaćina. Domaćin može pratiti bilo kojeg člana.</string>
     <string name="vibration_sos_urgent">SOS / Hitno</string>
     <string name="vibration_rapid_alert">Brzo upozorenje</string>
     <string name="vibration_steady_pulse">Ravnomjerni puls</string>
@@ -248,4 +221,11 @@
     <string name="connection_authentication_message">Povežite se s uređajem %1$s samo ako se znamenke na oba uređaja podudaraju. Zatražite od druge osobe da usporedi ovaj kod: %2$s</string>
     <string name="connection_digits_match">Kodovi se podudaraju</string>
     <string name="connection_reject">Odbij</string>
+
+    <string name="app_settings">Postavke aplikacije</string>
+    <string name="chat_settings">Postavke chata</string>
+    <string name="prevent_new_users_joining">Spriječi novim korisnicima pridruživanje</string>
+    <string name="prevent_new_users_joining_description">Zatvori ovaj PingRing za sve koji nisu već članovi. Gosti koji se pridruže kodom i dalje trebaju tvoje odobrenje.</string>
+    <string name="report_a_problem">Prijavi problem</string>
+    <string name="report_a_problem_failed">Nije moguće otvoriti preglednik</string>
 </resources>

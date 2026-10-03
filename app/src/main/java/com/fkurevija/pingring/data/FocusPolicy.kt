@@ -10,14 +10,21 @@ package com.fkurevija.pingring.data
  * UWB session on exactly that person. Everyone still *receives* every message;
  * this only decides what the radar draws and what gets precisely measured.
  *
+ * There is no host-owned "track the host" policy. It used to exist, and it made
+ * the host's radar a control surface over every guest's: a guest could see the
+ * member picker and be unable to use it, with nothing to explain why. Choosing
+ * who to follow is now always the local user's own decision, and the defaults
+ * below are only defaults - one tap overrides them.
+ *
  * Kept free of Android and Compose types so the rules are directly testable.
  */
 object FocusPolicy {
 
     /**
      * The member currently being tracked, or null for "auto", which means the
-     * nearest peer. Null-as-auto rather than a sentinel id so it survives a
-     * peer leaving and rejoining with a new ephemeral id.
+     * role-based default rather than the nearest peer. Null-as-auto rather than
+     * a sentinel id so it survives a peer leaving and rejoining with a new
+     * ephemeral id.
      */
     const val AUTO = "auto"
 
@@ -25,19 +32,18 @@ object FocusPolicy {
      * Resolves the member the radar displays and the UWB radio ranges.
      *
      * Rules, in order:
-     *  - When "track host" is on and this device is not the host, the host is
-     *    the subject, because the host set that policy deliberately. That is
-     *    not a default the user can change here - see [canUserSelect].
-     *  - Otherwise a selection the user made wins, as long as that peer is
-     *    still present. Ephemeral ids rotate, so a stale selection has to fall
-     *    back rather than leaving the radar pointed at nobody.
+     *  - A selection the user made wins, as long as that peer is still present.
+     *    Ephemeral ids rotate, so a stale selection has to fall back rather
+     *    than leaving the radar pointed at nobody.
      *  - Otherwise a guest falls back to the host, and the host to the member
      *    that has been in the ring longest.
      *
      * The fallbacks are role-based rather than distance-based on purpose. A
      * guest's job in a ring is to follow the host and a host's is to watch
      * whoever arrived first - neither is "whoever happens to be closest right
-     * now", which changes underneath the user as people move.
+     * now", which changes underneath the user as people move. It also means the
+     * two roles get different answers without either one being configured: the
+     * asymmetry falls out of the role, not out of a switch somebody set.
      *
      * [peerJoinedAt] maps peer id to when that peer reported joining, and is
      * what makes "arrived first" mean what it says. It used to be
@@ -56,23 +62,18 @@ object FocusPolicy {
         availablePeerIds: List<String>,
         peerJoinedAt: Map<String, Long?> = emptyMap(),
         isHost: Boolean,
-        trackHost: Boolean,
         localPeerId: String,
         hostPeerId: String?,
     ): String? {
-        if (shouldTrackHost(isHost, trackHost) && hostPeerId != null) {
-            return hostPeerId
-        }
-
         val candidates = availablePeerIds.filter { it != localPeerId }
         if (candidates.isEmpty()) return null
 
         if (selectedPeerId != null && selectedPeerId in candidates) {
             return selectedPeerId
         }
-        // A guest tracks the host when it can. Under "track host" the host is
-        // not one of its radar peers - discovery filters the others out - so
-        // this only fires with the policy off and both visible.
+        // A guest tracks the host when it can. The host is not one of its own
+        // radar peers - discovery filters the others out - so this only fires
+        // when both happen to be visible.
         if (!isHost && hostPeerId != null && hostPeerId in candidates) {
             return hostPeerId
         }
@@ -100,25 +101,6 @@ object FocusPolicy {
     ).first()
 
     /**
-     * Whether the local user may change what is being tracked.
-     *
-     * Only false for a guest under "track host", where the host owns the
-     * decision. The host is never locked - the policy asks *members* to track
-     * it, it does not constrain the host - and a guest picks freely once that
-     * policy is off, which is the difference between "the host chose this" and
-     * "this is the only thing you can see".
-     */
-    fun canUserSelect(isHost: Boolean, trackHost: Boolean): Boolean =
-        !shouldTrackHost(isHost, trackHost)
-
-    /**
-     * How a guest should find the host, since the host is not one of its own
-     * radar peers but is the member it tracks when the host has enabled
-     * "track host".
-     */
-    fun shouldTrackHost(isHost: Boolean, trackHost: Boolean): Boolean = !isHost && trackHost
-
-    /**
      * The single peer this device should hold a UWB session with, if any.
      *
      * Returning null means "do not range anyone right now", which is the
@@ -130,32 +112,20 @@ object FocusPolicy {
      */
     fun rangingTarget(
         focusPeerId: String?,
-        isHost: Boolean,
-        trackHost: Boolean,
         hostPeerId: String?,
         connectedPeerIds: Set<String>,
     ): RangingTarget {
-        // A guest under "track host" ranges the host, not the radar's focused
-        // member: the host is the one member it is allowed to see.
-        if (shouldTrackHost(isHost, trackHost)) {
-            val host = hostPeerId
-            return if (host != null && host in connectedPeerIds) {
-                RangingTarget.Peer(host, isHost = true)
-            } else {
-                RangingTarget.None
-            }
-        }
-
         val focus = focusPeerId ?: return RangingTarget.None
         // Only range a peer that is actually connected. A BLE sighting with no
         // transport connection has no way to exchange the UWB handshake, and
         // opening a session for it would just fail and be retried forever.
-        if (focus == hostPeerId) {
-            return if (focus in connectedPeerIds) RangingTarget.Peer(focus, isHost = true)
+        return if (focus == hostPeerId) {
+            if (focus in connectedPeerIds) RangingTarget.Peer(focus, isHost = true)
+            else RangingTarget.None
+        } else {
+            if (focus in connectedPeerIds) RangingTarget.Peer(focus, isHost = false)
             else RangingTarget.None
         }
-        return if (focus in connectedPeerIds) RangingTarget.Peer(focus, isHost = false)
-        else RangingTarget.None
     }
 
     /** Who to range, and whether that peer is the event host. */

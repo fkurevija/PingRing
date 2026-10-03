@@ -1,4 +1,4 @@
-﻿package com.fkurevija.pingring.ui.screens
+package com.fkurevija.pingring.ui.screens
 
 import android.content.pm.PackageManager
 import androidx.activity.compose.BackHandler
@@ -24,6 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Sensors
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.GroupAdd
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material3.Button
 import androidx.compose.material3.TextButton
@@ -294,6 +295,41 @@ fun HostSetupScreen(
                         Spacer(Modifier.width(8.dp))
                         Text(stringResource(R.string.pingring_settings), fontWeight = FontWeight.SemiBold)
                     }
+                }
+            }
+
+            // Capacity, above the settings link. It is a property of the ring rather than
+            // something to configure - there is no control next to it, and never
+            // was - so putting it under a heading on the settings screen made it
+            // look like a setting that could be changed. Here it reads as what
+            // it is: the host can read the code out to ten people and eight can
+            // actually come.
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+            ) {
+                Column(Modifier.fillMaxWidth().padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.GroupAdd,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Text(
+                            stringResource(R.string.max_capacity),
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        stringResource(R.string.max_capacity_description),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
 

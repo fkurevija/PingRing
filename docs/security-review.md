@@ -41,13 +41,17 @@ Production logs no longer include chat text, beacon titles, raw payload JSON, or
 
 Wi-Fi Aware addresses and opt-in GPS fixes use origin-signed mesh envelopes with member ID and sequence checks. Their payloads are never queued across partitions. Phone-to-phone RTT requests target the focused member's signed, recent Aware address, match the returned MAC address, and reject failed or stale readings. This authenticates the claimed address binding, not the underlying FTM radio exchange; it is not secure distance bounding or proof against a malicious admitted member claiming another address.
 
-GPS sharing defaults off and is enabled by host-authorized Ring controls. Coordinates are quantized to approximately 10 m and broadcast at ten-second intervals. Device accuracy, quantization error, fix age, and uncertainty are checked; stale fixes are discarded. Disabling sharing clears GPS-derived estimates and stops local GPS updates. Ring teardown closes radio sessions and clears retained metadata. GPS positions can still be false or inaccurate; signed claims are not attested physical locations. Admitted members and relays can read shared coordinates and current Aware addresses.
+GPS sharing is unconditional while a Ring is running; it is no longer a host-controlled policy. Coordinates are quantized to approximately 10 m and broadcast at ten-second intervals. Device accuracy, quantization error, fix age, and uncertainty are checked; stale fixes are discarded. Ring teardown closes radio sessions and clears retained metadata. GPS positions can still be false or inaccurate; signed claims are not attested physical locations. Admitted members and relays can read shared coordinates and current Aware addresses.
 
 ## Residual Risks
 
 ### Event code remains a public locator
 
-The six-hex code is still broadcast so a discoverable session can be found; it is a locator, not a credential. A typed-code join has no secret proof and always requires host approval. QR scans carry the 256-bit secret. Unauthenticated pre-join discovery hints can still be forged to create false nearby-list rows, but they cannot create an authenticated member or change event state. The browse list is capped at 16 entries. Protect the QR like an invitation, and compare Nearby's digits before confirming.
+The six-hex code is a locator, not a credential. A typed-code join has no secret proof and always requires host approval; a QR scan carries the 256-bit secret and is admitted directly, because the QR is only ever rendered on the host device and so showing it is already the host's decision. The code is still advertised over BLE so that a guest who was told it can find the host, which means a phone that learns it — by hearing it spoken, or by seeing the screen — can attempt a join; approval is what stands between that and admission. Unauthenticated pre-join discovery hints can still be forged, but they carry no policy flags and cannot create an authenticated member or change event state. Protect the QR like an invitation, and compare Nearby's digits before confirming.
+
+### The host's control over a ring is a single yes/no
+
+There is no per-join approval switch and no way for a host to hold a guest it personally invited. Anyone holding the six-character code can request to join at any point, and the host's only standing control is closing the ring to new arrivals entirely. That is a deliberate reduction in host authority over the decision, made because the host was being made a queue-keeper for guests it had already chosen to invite, and because a guest could not see or act on the resulting restriction. The remaining protection is unchanged: the SAS digit comparison still happens on every link, a code-only join still needs an explicit allow, and capacity still refuses the ninth member.
 
 ### BLE replay and extended-radio limits
 

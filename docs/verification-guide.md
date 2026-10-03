@@ -44,7 +44,7 @@ Start with V06/V08 (join and BLE capabilities), then V01/V03/V04 (ranging), V10 
 
 1. Record the commit and APK hash. Install the same build on all test devices. Use debug builds for instrumentation, then repeat release-critical scenarios with the signed release candidate.
 2. Turn **LAN Debug Transport off** for every production radio test. Enable Bluetooth, Wi-Fi, location services, and relevant permissions. Start a fresh Ring for each independent case.
-3. Disable **Track Host Only** for guest-to-guest tests. Keep **Share GPS location off** unless testing GNSS. Record UWB settings. Confirm the source label: a mesh-only member is not a local distance measurement.
+3. There is no Track Host or Share GPS control any more; note that a guest can range another guest and that GPS publishes for the whole Ring. Record UWB settings. Confirm the source label: a mesh-only member is not a local distance measurement.
 4. Record Android animation scales, Battery Saver, app accessibility preferences, notification preferences, and screen state. Do not silently change someone else's device-wide settings. Restore changes afterward.
 5. Use tape-measured distances or marked positions as ground truth. Keep orientation and placement consistent. Repeat radio measurements at least three times in both directions.
 
@@ -105,7 +105,7 @@ These are implementation windows for the tested build, not guarantees of radio d
 
 ## V01 - Guest-To-Guest UWB
 
-**Needs:** H plus UWB-capable A/B, UWB permission, location enabled, Track Host Only off.
+**Needs:** H plus UWB-capable A/B, UWB permission, location enabled.
 
 **Steps:** Admit A/B directly through H. Have A track B while B tracks A. Measure at marked separations and rotate the phones. Switch each focus away and back. Repeat after dropping and restoring a transport link. For relayed coordination, establish and document an actual relay path before negotiating a new UWB session; nearby phones often create direct links automatically.
 
@@ -157,7 +157,9 @@ These are implementation windows for the tested build, not guarantees of radio d
 
 **Needs:** H/A, plus sufficient devices or a harness for capacity testing.
 
-**Steps:** Exercise Discoverable on/off, QR join, and code join. Compare SAS digits before confirmation. With Approve Each Join enabled, approve one request, deny another, hold one for about a minute, and leave one unanswered past two minutes. Disconnect a requester while held. Turn Accept New Members off, attempt a join, turn it back on, and retry. Fill the Ring and attempt a ninth participant. With discovery off but admission open, try a valid code join.
+**Steps:** Confirm no session is ever advertised as findable: host on H, join screen on A, and check there is no Nearby PingRings heading or list at any point. Join by QR from A and confirm no approval card appears on H — showing the QR is the host's decision. Then join by typed code from A; confirm H gets the approval card, allow one, deny another, hold one about a minute, and leave one unanswered past two minutes. Disconnect a requester while held. Turn **Prevent New Users From Joining** on, attempt both kinds of join, turn it off, retry. Fill the Ring and attempt a ninth participant. Compare SAS digits before confirmation.
+
+**Pass:** No PingRing appears on a phone that was not given its code or shown its QR. A QR join is admitted without a second decision; a code-only join waits for the host and is refused if unanswered. No guest traffic is authorized before admission. Denied/disconnected/expired requests leave no orphan approval. Closed/full Rings reject new members. A closed ring refuses both kinds of join while it is closed.
 
 **Pass:** QR-secret joins follow host policy; code-only joins still require approval. No guest traffic is authorized before admission. Denied/disconnected/expired requests leave no orphan approval. Unanswered requests are refused after the timeout with callback delivery recorded. Closed/full Rings reject new members. Discovery off prevents browse listing, not otherwise-valid code joining.
 
@@ -213,15 +215,15 @@ These are implementation windows for the tested build, not guarantees of radio d
 
 **Evidence:** Hardware flags, service availability, session/result status, matched address binding, timestamps, measured/displayed distance, and coexistence outcomes. Signed address metadata does not authenticate FTM distance against a malicious admitted member; do not describe it as secure distance bounding.
 
-## V12 - Host-Opt-In GNSS
+## V12 - GNSS Sharing
 
 **Needs:** H/A with GPS and precise location permission, outdoors for a positive fix; indoors/disabled provider for negative cases.
 
-**Steps:** Start fresh and verify sharing is off. Enable Share GPS location as H and save; confirm guests cannot change the policy. At measured outdoor positions, wait for fixes and observe source/uncertainty. Confirm approximately 10 m quantization and ten-second publish cadence using a private instrumented observer. Try no fix, accuracy worse than 50 m before quantization, invalid coordinates, and fixes older than thirty seconds. Disable sharing, background/return, revoke permission, partition/reconnect, and end the Ring.
+**Steps:** Sharing is unconditional while a Ring runs, so start by confirming there is no control to find: open PingRing Settings on H and on A and check no GPS switch exists. Confirm coordinates begin publishing on both phones without any action. At measured outdoor positions, wait for fixes and observe source/uncertainty. Confirm approximately 10 m quantization and ten-second publish cadence using a private instrumented observer. Try no fix, accuracy worse than 50 m before quantization, invalid coordinates, and fixes older than thirty seconds. Then background/return, revoke permission, partition/reconnect, and end the Ring.
 
-**Pass:** No coordinates are sent while disabled. Enabled fixes are validated/quantized and uncertainty includes device error plus quantization allowance; 10 m is not an accuracy guarantee. Distance is labelled an estimate, draws no directional needle, and never triggers near-member haptics. Stale fixes do not become fresh through recomputation/replay. Turning sharing off stops local GPS requests and clears GPS-derived estimates; teardown clears retained metadata. Valid UWB/RTT remains higher priority.
+**Pass:** Fixes are validated and quantized and uncertainty includes device error plus quantization allowance; 10 m is not an accuracy guarantee. Distance is labelled an estimate, draws no directional needle, and never triggers near-member haptics. Stale fixes do not become fresh through recomputation/replay. Revoking permission or ending the Ring stops publishing and clears GPS-derived estimates and retained metadata. Valid UWB/RTT remains higher priority. Note that a member can no longer decline to share: record the battery cost of publishing on every device rather than only on one.
 
-**Evidence:** Source labels, uncertainty, opt-in/off timestamps, sanitized cadence/quantization observations, stale-fix outcomes, and battery results. Raw coordinates are sensitive; do not place them in production logs or public evidence. UI alone cannot prove that nothing was sent or that coordinate quantization is correct: mark those subcases Blocked without instrumentation.
+**Evidence:** Source labels, uncertainty, sanitized cadence/quantization observations, stale-fix outcomes, and battery results measured with sharing on throughout. Raw coordinates are sensitive; do not place them in production logs or public evidence. UI alone cannot prove that nothing was sent or that coordinate quantization is correct: mark those subcases Blocked without instrumentation.
 
 ## V13 - Connection Recovery Prompt
 

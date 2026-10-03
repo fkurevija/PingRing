@@ -3,6 +3,13 @@ package com.fkurevija.pingring
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertWidthIsAtLeast
+import androidx.compose.ui.test.assertHeightIsAtLeast
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.unit.dp
+import androidx.test.platform.app.InstrumentationRegistry
+import com.fkurevija.pingring.data.ChatBubblePalette
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -11,7 +18,6 @@ import androidx.compose.ui.test.performScrollTo
 import com.fkurevija.pingring.data.BeaconVibrationPattern
 import com.fkurevija.pingring.data.LastKnownPeerDirection
 import com.fkurevija.pingring.data.PendingJoinRequest
-import com.fkurevija.pingring.data.QuickBeacon
 import com.fkurevija.pingring.data.SessionState
 import com.fkurevija.pingring.ui.screens.RadarScreen
 import org.junit.Assert.assertEquals
@@ -40,6 +46,9 @@ class RadarScreenInstrumentedTest {
 
     private val eventId = "PING42"
 
+    /** Real resources, so the assertions below can resolve the strings they match on. */
+    private val context = InstrumentationRegistry.getInstrumentation().targetContext
+
     /**
      * Renders the screen with no discovery repository, as it looks before peers arrive.
      *
@@ -49,18 +58,16 @@ class RadarScreenInstrumentedTest {
      */
     private fun showRadar(
         isHost: Boolean = false,
-        trackHost: Boolean = false,
         coordinationError: String? = null,
         sessionState: SessionState = SessionState(),
-        quickBeacon: QuickBeacon? = null,
         chatBubbleColorArgb: Long? = null,
+        onChatBubbleColorChange: (Long) -> Unit = {},
         radarScreenReaderSummaryEnabled: Boolean = false,
         connectionRecoveryPromptEnabled: Boolean = true,
         connectionRecoveryPromptDelayMillis: Long = 120_000L,
         hostConnectionLostAtMillis: Long? = null,
         lastKnownPeerDirections: List<LastKnownPeerDirection> = emptyList(),
         isTopDestination: Boolean = true,
-        onQuickBeaconChange: (QuickBeacon?) -> Unit = {},
         pendingJoinRequests: List<PendingJoinRequest> = emptyList(),
         onApproveJoinRequest: (String) -> Unit = {},
         onDenyJoinRequest: (String) -> Unit = {},
@@ -72,19 +79,17 @@ class RadarScreenInstrumentedTest {
             RadarScreen(
                 eventId = eventId,
                 isHost = isHost,
-                trackHost = trackHost,
                 coordinationError = coordinationError,
                 discoveryRepository = null,
                 sessionState = sessionState,
-                quickBeacon = quickBeacon,
                 chatBubbleColorArgb = chatBubbleColorArgb,
+                onChatBubbleColorChange = onChatBubbleColorChange,
                 radarScreenReaderSummaryEnabled = radarScreenReaderSummaryEnabled,
                 connectionRecoveryPromptEnabled = connectionRecoveryPromptEnabled,
                 connectionRecoveryPromptDelayMillis = connectionRecoveryPromptDelayMillis,
                 hostConnectionLostAtMillis = hostConnectionLostAtMillis,
                 lastKnownPeerDirections = lastKnownPeerDirections,
                 isTopDestination = isTopDestination,
-                onQuickBeaconChange = onQuickBeaconChange,
                 pendingJoinRequests = pendingJoinRequests,
                 onApproveJoinRequest = onApproveJoinRequest,
                 onDenyJoinRequest = onDenyJoinRequest,
@@ -191,7 +196,7 @@ class RadarScreenInstrumentedTest {
         // The code is the only way somebody else can join, and the count is what
         // tells a host the ring is filling up. Both are in the title.
         composeRule.onNodeWithText("PingRing").assertIsDisplayed()
-        composeRule.onNodeWithText("Code: $eventId · 1/8 Members").assertIsDisplayed()
+        composeRule.onNodeWithText("Code: $eventId Â· 1/8 Members").assertIsDisplayed()
     }
 
     @Test
@@ -371,13 +376,13 @@ class RadarScreenInstrumentedTest {
     }
 
     @Test
-    fun theQuickBeaconAndNewBeaconControlsAreReachable() {
+    fun theBeaconAndChatControlsAreReachableWithNobodyElseInTheRing() {
         showRadar()
 
-        // Both are how a member signals without typing, so they have to be
-        // present with nobody else in the ring.
-        composeRule.onNodeWithText("Quick Beacon").assertIsDisplayed()
+        // How a member signals without typing, and how they change how their
+        // messages look - all three have to be present before anybody joins.
         composeRule.onNodeWithText("New Beacon").assertIsDisplayed()
+        composeRule.onNodeWithText("Chat Settings").assertIsDisplayed()
     }
 
     @Test
@@ -406,50 +411,65 @@ class RadarScreenInstrumentedTest {
     }
 
     @Test
-    fun quickBeaconWithoutOneSetOpensTheBeaconScreen() {
-        // With nothing set there is no beacon to send. The tap still has to
-        // land somewhere useful, and it toasts on the way to explain itself:
-        // opening a beacon dialog unprompted otherwise reads as a misfire.
+    fun theChatSettingsButtonSitsBelowTheBeaconControlsAndAboveTheChat() {
+        // The position is the point. Chat settings used to live on the PingRing
+        // settings screen - two destinations and a chat's length away from the
+        // chat they change - and a button in the run of chat controls is the
+        // fix, not a reshuffle.
         showRadar()
-
-        composeRule.onNodeWithText("Quick Beacon").performClick()
         composeRule.settle()
 
-        composeRule.onNodeWithText("Select Preset").assertIsDisplayed()
+        composeRule.onNodeWithText("Chat Settings").assertIsDisplayed()
     }
 
     @Test
-    fun quickBeaconWithOneSetSendsWithoutAskingQuestions() {
-        // A set beacon is what the button exists for: one tap sends it, with no
-        // screen in between.
-        showRadar(
-            quickBeacon = QuickBeacon("Regroup at my location", 0xFF00E5FF, BeaconVibrationPattern.RAPID_ALERT)
-        )
+    fun chatSettingsOffersTheTwelvePresetsAndSelectsTheirActualColour() {
+        var selected: Long? = null
+        showRadar(onChatBubbleColorChange = { selected = it })
 
-        composeRule.onNodeWithText("Quick Beacon").performClick()
+        composeRule.onNodeWithText("Chat Settings").performClick()
         composeRule.settle()
 
-        composeRule.onNodeWithText("Select Preset").assertDoesNotExist()
+        ChatBubblePalette.presets.forEach { colorArgb ->
+            val label = context.getString(
+                R.string.set_chat_bubble_colour_to,
+                String.format(java.util.Locale.ROOT, "#%06X", colorArgb and 0xFFFFFFL),
+            )
+            composeRule.onNodeWithContentDescription(label)
+                .performScrollTo()
+                .assertIsDisplayed()
+                .assertWidthIsAtLeast(48.dp)
+                .assertHeightIsAtLeast(48.dp)
+                .performClick()
+                .assertIsSelected()
+            composeRule.runOnIdle { assertEquals(colorArgb, selected) }
+        }
     }
 
     @Test
-    fun theBeaconScreenSetsTheCurrentSelectionAsTheQuickBeacon() {
-        var saved: QuickBeacon? = null
-        showRadar(onQuickBeaconChange = { saved = it })
-
-        composeRule.onNodeWithText("New Beacon").performClick()
+    fun chatSettingsDoesNotOfferACustomColourOrTheThemeColour() {
+        // A member picks a colour so their messages can be found in a busy
+        // transcript. Two phones rendering the same message differently defeats
+        // that, so neither escape hatch is available.
+        showRadar()
+        composeRule.onNodeWithText("Chat Settings").performClick()
         composeRule.settle()
-        composeRule.onNodeWithText("Set as Quick Beacon").performScrollTo().performClick()
-        composeRule.settle()
 
-        // The untouched SOS preset defaults, saved as one configuration: the
-        // message, the colour and the rhythm the Quick Beacon button will send.
-        assertEquals(
-            QuickBeacon("Emergency!", 0xFFFF1744, BeaconVibrationPattern.SOS_URGENT),
-            saved
-        )
+        composeRule.onNodeWithText(context.getString(R.string.custom)).assertDoesNotExist()
+        composeRule.onNodeWithText(context.getString(R.string.use_theme_colour)).assertDoesNotExist()
     }
 
+    @Test
+    fun theQuickBeaconButtonIsGone() {
+        // It duplicated the beacon dialog: a second place to configure a beacon
+        // from, with no way to see both at once.
+        showRadar()
+        composeRule.settle()
+
+        composeRule.onNodeWithText("Quick Beacon").assertDoesNotExist()
+        composeRule.onNodeWithText(context.getString(R.string.set_quick_beacon)).assertDoesNotExist()
+        composeRule.onNodeWithText(context.getString(R.string.remove_quick_beacon)).assertDoesNotExist()
+    }
     @Test
     fun tappingHostSettingsCallsBack() {
         var opened = 0

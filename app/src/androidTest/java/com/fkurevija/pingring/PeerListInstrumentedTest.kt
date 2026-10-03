@@ -5,6 +5,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -75,7 +76,6 @@ class PeerListInstrumentedTest {
         connectivity: ConnectivityStatus = ConnectivityStatus(true, true),
         activeBeacons: Map<String, BeaconInfo> = emptyMap(),
         focusedPeerId: String? = null,
-        canSelect: Boolean = true,
         onFocusPeer: (String?) -> Unit = {},
     ) {
         composeRule.setContent {
@@ -86,7 +86,6 @@ class PeerListInstrumentedTest {
                     repository = null,
                     activeBeacons = activeBeacons,
                     focusedPeerId = focusedPeerId,
-                    canSelect = canSelect,
                     onFocusPeer = onFocusPeer,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -133,7 +132,7 @@ class PeerListInstrumentedTest {
         show(peers = listOf(peer(name = "Ana", rssi = -65, distance = 2.5f)))
 
         composeRule.onNodeWithText("Ana").assertIsDisplayed()
-        composeRule.onNodeWithText("Hot · -65 dBm").assertIsDisplayed()
+        composeRule.onNodeWithText("Hot Â· -65 dBm").assertIsDisplayed()
         composeRule.onNodeWithText("2.5 m").assertIsDisplayed()
     }
 
@@ -143,14 +142,14 @@ class PeerListInstrumentedTest {
         // silently reusing a stale number, would be worse than a dash.
         show(peers = listOf(peer(name = "Ana", distance = null)))
 
-        composeRule.onNodeWithText("—").assertIsDisplayed()
+        composeRule.onNodeWithText("â€”").assertIsDisplayed()
     }
 
     @Test
     fun aMemberWithNoSignalShowsZeroRatherThanNull() {
         show(peers = listOf(peer(name = "Ana", rssi = null, proximity = "Unknown")))
 
-        composeRule.onNodeWithText("Unknown · 0 dBm").assertIsDisplayed()
+        composeRule.onNodeWithText("Unknown Â· 0 dBm").assertIsDisplayed()
     }
     @Test
     fun theTrackedMemberIsMarked() {
@@ -240,39 +239,39 @@ class PeerListInstrumentedTest {
     }
 
     @Test
-    fun thePickerCannotBeOpenedWhenTheHostOwnsTheChoice() {
-        // A guest under "track host" has no say. The field stays visible so the
-        // radar is never silently pointed at somebody, but it must not open.
+    fun thePickerIsOpenToEveryMember() {
+        // There is no role whose picker is locked. This used to be read-only on a
+        // guest when the host had turned on "track host", which left the radar
+        // pointed at somebody with nothing on screen to say why - the host owned
+        // a decision about the guest's own screen.
         var focused: String? = null
         show(
             peers = listOf(peer(id = "peer-1", name = "Ana")),
-            canSelect = false,
             onFocusPeer = { focused = it },
         )
 
-        // A disabled read-only field reports itself as not enabled, which is the
-        // assertion that matters: the control is visible and names the host,
-        // but cannot be opened.
-        composeRule.onNodeWithText("Tracking").assertIsNotEnabled()
-        assertEquals("no choice should be possible while locked", null, focused)
+        composeRule.onNodeWithText("Tracking").assertIsEnabled().performClick()
+        composeRule.onAllNodesWithText("Ana").onLast().performClick()
+        composeRule.waitForIdle()
+
+        assertEquals("peer-1", focused)
     }
 
     @Test
-    fun theRowButtonIsInertWhenTheHostOwnsTheChoice() {
-        // Same rule as the picker, applied to the pre-existing per-row control.
-        // Two ways to set the same thing must not disagree about when it is
-        // allowed.
+    fun theRowButtonAndThePickerAgree() {
+        // Two controls set the same value, so they must never disagree about
+        // whether it can be set. Previously the picker could be locked while the
+        // row button was not.
         var focused: String? = null
         show(
             peers = listOf(peer(id = "peer-1", name = "Ana")),
-            canSelect = false,
             onFocusPeer = { focused = it },
         )
 
         composeRule.onNodeWithContentDescription("Track Ana").performClick()
         composeRule.waitForIdle()
 
-        assertEquals(null, focused)
+        assertEquals("peer-1", focused)
     }
 
     @Test
@@ -282,7 +281,7 @@ class PeerListInstrumentedTest {
             activeBeacons = mapOf("peer-1" to beacon()),
         )
 
-        composeRule.onNodeWithText("🚨 Emergency!").assertIsDisplayed()
+        composeRule.onNodeWithText("ðŸš¨ Emergency!").assertIsDisplayed()
     }
 
     @Test
@@ -294,7 +293,7 @@ class PeerListInstrumentedTest {
             activeBeacons = mapOf("peer-2" to beacon(id = "peer-2", title = "Regroup")),
         )
 
-        composeRule.onNodeWithText("🚨 Regroup").assertIsDisplayed()
+        composeRule.onNodeWithText("ðŸš¨ Regroup").assertIsDisplayed()
     }
 
     @Test

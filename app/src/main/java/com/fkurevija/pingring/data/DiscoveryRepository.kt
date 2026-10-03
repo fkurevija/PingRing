@@ -158,12 +158,11 @@ data class ConnectivityStatus(
  * whatever [ByteBuffer.allocate] leaves, i.e. NUL, so [decode] strips NULs
  * rather than relying on `trim`, which does not treat them as whitespace.
  *
- * The event code is what makes a session discoverable: without it a guest
- * scanning nearby has a hash it cannot reverse and no way to join, so browsing
- * for a session would be a list of things it cannot act on. The display name is
- * derived from the code rather than sent, because [Event] already names every
- * event "PingRing &lt;code&gt;" - one less field, and no chance of two copies
- * disagreeing.
+ * The event code is what lets a guest that was *told* the ring find its host:
+ * without it the scanner has a hash it cannot reverse and no way to join. The
+ * display name is derived from the code rather than sent, because [Event]
+ * already names every event "PingRing <code>" - one less field, and no chance of
+ * two copies disagreeing.
  */
 object BleAdvertisementPayload {
 
@@ -187,9 +186,6 @@ object BleAdvertisementPayload {
     /** The host owns the event; members follow it. */
     const val FLAG_HOST = 1
 
-    /** Members should track the host rather than the nearest peer. */
-    const val FLAG_TRACK_HOST = 1 shl 1
-
     /** The host is closing the event; every member leaves. */
     const val FLAG_EVENT_CLOSED = 1 shl 2
 
@@ -206,26 +202,24 @@ object BleAdvertisementPayload {
     const val FLAG_ACCEPTS_NEW_MEMBERS = 1 shl 6
 
     /**
-     * The host is advertising itself as a session a guest may find and join
-     * without being told a code.
-     *
-     * Only the host sets it, and only when the event is discoverable: a guest
-     * that adopts a session from a neighbour's advert is asking to join, and
-     * that has to be the host's choice to offer, not a default.
-     */
-    const val FLAG_DISCOVERABLE = 1 shl 7
-
-    /**
      * Every flag this build defines.
      *
      * Listed rather than derived by reflection so that [encode]'s callers, the
      * bit-overlap test and the range check all read from one place. A flag added
      * here and nowhere else is caught by the overlap test; a bit assembled at a
      * call site and never declared is caught by [assertFlagsFitTheByte].
+     *
+     * Bit 1 (track-host) and bit 7 (discoverable) were dropped from this list
+     * rather than renumbered, so the bits that remain keep their wire values.
+     * Both described host policy that has since been removed: choosing who to
+     * track is now the local user's own call, and sessions are no longer
+     * advertised as findable, because joining is by code or by scanning the
+     * host's own QR code. Renumbering would silently reassign live bits to
+     * different meanings for anything still holding an old advertisement.
      */
     val ALL_FLAGS = listOf(
-        FLAG_HOST, FLAG_TRACK_HOST, FLAG_EVENT_CLOSED, FLAG_USE_UWB,
-        FLAG_USE_WIFI, FLAG_RING_FULL, FLAG_ACCEPTS_NEW_MEMBERS, FLAG_DISCOVERABLE,
+        FLAG_HOST, FLAG_EVENT_CLOSED, FLAG_USE_UWB,
+        FLAG_USE_WIFI, FLAG_RING_FULL, FLAG_ACCEPTS_NEW_MEMBERS,
     )
 
     /**
@@ -296,15 +290,11 @@ object BleAdvertisementPayload {
         fun has(flag: Int): Boolean = flags and flag != 0
 
         val isHost: Boolean get() = has(FLAG_HOST)
-        val tracksMembers: Boolean get() = has(FLAG_TRACK_HOST)
         val eventClosed: Boolean get() = has(FLAG_EVENT_CLOSED)
         val usesUwb: Boolean get() = has(FLAG_USE_UWB)
         val usesWifi: Boolean get() = has(FLAG_USE_WIFI)
         val isFull: Boolean get() = has(FLAG_RING_FULL)
         val acceptsNewMembers: Boolean get() = has(FLAG_ACCEPTS_NEW_MEMBERS)
-
-        /** Whether this advert offers a session a guest can find and join. */
-        val isDiscoverable: Boolean get() = has(FLAG_DISCOVERABLE) && eventCode != null
 
         /**
          * The name to show for a discovered session.
@@ -318,8 +308,14 @@ object BleAdvertisementPayload {
         val displayName: String? get() = eventCode?.let { "PingRing $it" }
     }
 
-    /** Pre-join hint only; its flags and code are not authenticated. */
-    data class DiscoveryHint(val eventCode: String?, val isDiscoverable: Boolean)
+    /**
+     * The unauthenticated locator fields of a legacy advert.
+     *
+     * The event code alone, with no policy flag: the code is what lets a guest
+     * that was told the ring find its host, and nothing else in an advert from a
+     * phone that is not yet a member is worth acting on.
+     */
+    data class DiscoveryHint(val eventCode: String?)
 
     /**
      * Packs the advertisement.
@@ -412,12 +408,10 @@ object BleAdvertisementPayload {
     fun decodeDiscoveryHint(serviceData: ByteArray): DiscoveryHint? {
         if (serviceData.size < TOTAL_BYTES || serviceData[0].toInt() != VERSION) return null
         val payload = ByteBuffer.wrap(serviceData)
-        payload.get()
-        val flags = payload.get().toInt()
         payload.position(1 + 1 + PEER_ID_BYTES)
         val code = bytesToHex(ByteArray(EVENT_CODE_FIELD_BYTES).also(payload::get))
             .takeIf { it != "000000" }
-        return DiscoveryHint(code, flags and FLAG_DISCOVERABLE != 0)
+        return DiscoveryHint(code)
     }
 
     /**
@@ -444,22 +438,6 @@ object BleAdvertisementPayload {
     }
 }
 
-/**
- * A session a nearby host is offering for joining.
- *
- * Keyed by the event code so the same host seen twice is one row rather than
- * two, and so a re-advertisement refreshes what is known about it instead of
- * appending.
- */
-data class DiscoveredSession(
-    val eventCode: String,
-    val name: String,
-    /** False when the host is at capacity or has stopped admitting members. */
-    val joinable: Boolean,
-)
-
-const val MAX_DISCOVERED_SESSIONS = 16
-
 @SuppressLint("MissingPermission")
 class DiscoveryRepository(
     private val context: Context,
@@ -470,11 +448,6 @@ class DiscoveryRepository(
 
     private val TAG = "DiscoveryRepository"
     private val PINGRING_SERVICE_UUID = UUID.fromString("0000fa1b-0000-1000-8000-00805f9b34fb")
-
-    // Aliases onto the single definition in BleAdvertisementPayload. They must
-    // not be re-spelled here: a second copy of a flag value is how the two ends
-    // of a discovery round trip stop agreeing about what was advertised.
-    private val discoverableFlag = BleAdvertisementPayload.FLAG_DISCOVERABLE
 
     private val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
     private val bluetoothAdapter = bluetoothManager?.adapter
@@ -564,20 +537,6 @@ class DiscoveryRepository(
     /** Devices waiting to be let in, oldest first. */
     val pendingJoinRequests get() = nearbyConnectionsManager.pendingJoinRequests
 
-    /**
-     * Nearby sessions offering themselves to be joined, keyed by event code.
-     *
-     * Only discoverable hosts appear, and only while this device is not already
-     * in a session: scanning for sessions to join is a join screen's job, and
-     * once you are in a ring the adverts are being read for members instead.
-     *
-     * The name is derived from the code on the far side
-     * ([BleAdvertisementPayload.Decoded.displayName]) and rebuilt here, rather
-     * than transmitted, so there is one way to spell it rather than two.
-     */
-    private val _discoveredSessions = MutableStateFlow<List<DiscoveredSession>>(emptyList())
-    val discoveredSessions: StateFlow<List<DiscoveredSession>> = _discoveredSessions.asStateFlow()
-
     /** Lets a held join request in. */
     fun approveJoinRequest(endpointId: String) = nearbyConnectionsManager.approveJoinRequest(endpointId)
 
@@ -632,7 +591,7 @@ class DiscoveryRepository(
     // redundant startDiscovery() call for the exact same session (e.g. both
     // HostSetupScreen and RadarScreen call this when navigating between
     // them) doesn't tear down and re-establish transport connections it
-    // doesn't need to — that churn was dropping in-flight chat messages.
+    // doesn't need to â€” that churn was dropping in-flight chat messages.
     //
     // The radio settings are part of the identity on purpose: flipping the UWB
     // or Wi-Fi switch on the host screen really does have to rebuild the
@@ -731,7 +690,6 @@ class DiscoveryRepository(
             availablePeerIds = _peerUpdates.value.keys.toList(),
             peerJoinedAt = _peerUpdates.value.mapValues { (_, peer) -> peer.joinedAtMillis },
             isHost = state.isHost,
-            trackHost = event.trackHost,
             localPeerId = sessionManager.peerId.value,
             hostPeerId = event.hostPeerId
         )
@@ -765,28 +723,6 @@ class DiscoveryRepository(
         return context.packageManager.hasSystemFeature("android.hardware.uwb")
     }
 
-    /**
-     * Starts scanning for sessions to join, with none of the machinery a live
-     * PingRing needs.
-     *
-     * Separate from [startDiscovery] rather than a mode of it: browsing wants
-     * the BLE scanner and nothing else - no advertising, no transport, no
-     * ranging session - and running the full path with a null event would mean
-     * setting up a ring that does not exist and tearing it down afterwards.
-     */
-    @SuppressLint("MissingPermission")
-    fun startSessionBrowsing() {
-        stopBleScanning()
-        _discoveredSessions.value = emptyList()
-        startBleScanning()
-    }
-
-    /** Stops browsing and forgets what was found. */
-    fun stopSessionBrowsing() {
-        stopBleScanning()
-        _discoveredSessions.value = emptyList()
-    }
-
     fun startDiscovery() {
         val event = sessionManager.sessionState.value.currentEvent
         val localPeerId = sessionManager.peerId.value
@@ -798,7 +734,6 @@ class DiscoveryRepository(
         // that are already connected.
         if (event != null) {
             nearbyConnectionsManager.acceptsNewMembers = event.acceptsNewMembers
-            nearbyConnectionsManager.requiresApproval = event.requiresApproval
         }
 
         if (event != null &&
@@ -811,7 +746,7 @@ class DiscoveryRepository(
             event.useHotspot == activeDiscoveryUseHotspot &&
             repositoryScope?.isActive == true
         ) {
-            // Already actively discovering for this exact session — skip the
+            // Already actively discovering for this exact session â€” skip the
             // teardown/restart to avoid unnecessary transport reconnects.
             Log.d(TAG, "Discovery already active for event ${event.id}, ignoring duplicate startDiscovery()")
             return
@@ -1027,7 +962,6 @@ class DiscoveryRepository(
                     return@collect
                 }
                 val updated = current.copy(
-                    trackHost = control.trackHost,
                     useUwb = control.useUwb,
                     useGnss = control.useGnss,
                     useWifiDirect = control.useWifiDirect,
@@ -1110,7 +1044,6 @@ class DiscoveryRepository(
                             EventControlPayloadDto(
                                 eventCode = event.id,
                                 hostPeerId = sessionManager.peerId.value,
-                                trackHost = event.trackHost,
                                 useUwb = event.useUwb,
                                 useGnss = event.useGnss,
                                 useWifiDirect = event.useWifiDirect,
@@ -1443,6 +1376,14 @@ class DiscoveryRepository(
         _localBeacon.value = info
         _activeBeacons.update { it + (localPeerId to info) }
 
+        // Vibrate on the device that raised the beacon too, not only on the
+        // ones that receive it. Recipients already play the pattern when the
+        // broadcast arrives, but the sender was getting silence from their own
+        // beacon - which reads as the feature being broken on the one phone the
+        // user is holding, and is why people reached for the Test Vibration
+        // button to check whether the radio worked at all.
+        playVibrationPattern(BeaconVibrationPattern.fromName(vibrationPattern).pattern)
+
         nearbyConnectionsManager.broadcastBeacon(beaconDto)
     }
 
@@ -1479,8 +1420,10 @@ class DiscoveryRepository(
         val advertiser = adapter.bluetoothLeAdvertiser ?: return
         val peerId = sessionManager.peerId.value
         val isHost = sessionManager.sessionState.value.isHost
-        val flags = (if (isHost) BleIdentityAdvertisement.FLAG_HOST else 0) or
-            (if (isHost && event.isDiscoverable) BleIdentityAdvertisement.FLAG_DISCOVERABLE else 0)
+        // Only the host bit survives here. The advert's job is to identify a member of
+        // this ring to the other members already in it; it no longer advertises
+        // the ring as something a stranger can find and join.
+        val flags = if (isHost) BleIdentityAdvertisement.FLAG_HOST else 0
         val parameters = AdvertisingSetParameters.Builder()
             .setLegacyMode(false)
             .setConnectable(false)
@@ -1564,12 +1507,10 @@ class DiscoveryRepository(
         val currentMemberCount = sessionManager.sessionState.value.friends.size + 1
         val isFull = currentMemberCount >= MAX_PARTICIPANTS
         // BLE flags are untrusted discovery hints. Host role, closure, policy,
-        // capacity and admission settings are sent over authenticated Nearby.
-        val flags = if (sessionManager.sessionState.value.isHost && currentEvent.isDiscoverable) {
-            discoverableFlag
-        } else {
-            0
-        }
+        // capacity and admission settings are sent over authenticated Nearby, and
+        // no flag here offers the session to a phone that was not already told
+        // about it, so this advert carries no policy flags at all.
+        val flags = 0
         val servicePayload = buildServicePayload(flags, peerIdBytes)
 
         val settings = BleRangePolicy.advertiseSettings()
@@ -1667,11 +1608,9 @@ class DiscoveryRepository(
     fun broadcastEventControl(event: Event, isClosed: Boolean = false) {
         if (!sessionManager.sessionState.value.isHost) return
         nearbyConnectionsManager.acceptsNewMembers = event.acceptsNewMembers
-        nearbyConnectionsManager.requiresApproval = event.requiresApproval
         val control = EventControlPayloadDto(
             eventCode = event.id,
             hostPeerId = sessionManager.peerId.value,
-            trackHost = event.trackHost,
             useUwb = event.useUwb,
             useGnss = event.useGnss,
             useWifiDirect = event.useWifiDirect,
@@ -1686,9 +1625,8 @@ class DiscoveryRepository(
      * Builds the service payload for the current session.
      *
      * The event code is supplied here rather than by each caller so that no
-     * advert can go out without it: an advert missing its code decodes as
-     * undiscoverable, which silently drops the session out of every guest's
-     * browse list rather than failing visibly.
+     * advert can go out without it: a member that cannot be told which ring it
+     * is in cannot be identified as a member of it by the peers scanning.
      */
     private fun buildServicePayload(flags: Int, peerIdBytes: ByteArray): ByteArray {
         val event = sessionManager.sessionState.value.currentEvent ?: return ByteArray(0)
@@ -1838,36 +1776,6 @@ class DiscoveryRepository(
         bleScanner = null
     }
 
-    /**
-     * Remembers a session a nearby host is advertising as joinable.
-     *
-     * Two filters, and the second is the one that matters. Only hosts that set
-     * the discoverable flag are recorded - a host that has not offered itself
-     * must not appear in a list just because it is nearby, which is the whole
-     * difference between "findable" and "trackable". And a session at capacity,
-     * or one that has stopped admitting members, is recorded but marked
-     * unjoinable: the reader can see that it is there and cannot join it, which
-     * beats a join button that silently fails.
-     */
-    private fun recordDiscoveredSession(hint: BleIdentityAdvertisement.DiscoveryHint) {
-        if (!hint.isDiscoverable) return
-        val code = hint.eventCode ?: return
-        val session = DiscoveredSession(
-            eventCode = code,
-            name = "PingRing $code",
-            // These flags are unauthenticated until the invite secret is known.
-            // Joining is safe to offer because Nearby admission is a separate step.
-            joinable = true
-        )
-        _discoveredSessions.update { current ->
-            // Keyed by code, so one host seen repeatedly is one row, and a host
-            // that fills up while you are looking updates in place.
-            (current.filterNot { it.eventCode == code } + session)
-                .takeLast(MAX_DISCOVERED_SESSIONS)
-                .sortedBy { it.eventCode }
-        }
-    }
-
     private fun handleScanResult(result: ScanResult) {
         val record = result.scanRecord ?: return
         val serviceData = record.getServiceData(ParcelUuid(PINGRING_SERVICE_UUID)) ?: return
@@ -1877,10 +1785,10 @@ class DiscoveryRepository(
 
         var currentEvent = sessionManager.sessionState.value.currentEvent
         if (currentEvent == null) {
-            // Before joining, there is no secret with which to authenticate the
-            // advert. Read only the untrusted locator hint for the browse list.
-            BleIdentityAdvertisement.decodeDiscoveryHint(serviceData)
-                ?.let(::recordDiscoveredSession)
+            // Not in a ring: nothing to do with this advert. There is no browse
+            // list any more - joining is by code or by scanning the host's QR
+            // code - so a nearby host is only interesting once this device has
+            // been told which ring it is joining.
             return
         }
         val hint = BleIdentityAdvertisement.decodeDiscoveryHint(serviceData)
@@ -1910,8 +1818,6 @@ class DiscoveryRepository(
             }
         }
         if (!acceptedSequence) return
-        val isHostPeer = peerId == currentEvent.hostPeerId
-        if (currentEvent.trackHost && !sessionManager.sessionState.value.isHost && !isHostPeer) return
         if (peerId.isEmpty() || peerId == sessionManager.peerId.value) return
 
         val rssi = result.rssi
@@ -2263,8 +2169,6 @@ class DiscoveryRepository(
 
         val target = FocusPolicy.rangingTarget(
             focusPeerId = resolveFocusedPeer(),
-            isHost = state.isHost,
-            trackHost = event.trackHost,
             hostPeerId = event.hostPeerId,
             // Retained peers count as ranging candidates: their transport is
             // down but their UWB session is deliberately still open, and
@@ -2686,7 +2590,6 @@ class DiscoveryRepository(
         val state = sessionManager.sessionState.value
         val event = state.currentEvent ?: return
         if (peerId in departedPeerIds || peerId == localPeerId() ||
-            (event.trackHost && !state.isHost && peerId != event.hostPeerId) ||
             (source == RangingSourcePolicy.RangingSource.GNSS && !event.useGnss) ||
             !distance.isFinite() || !accuracy.isFinite()
         ) return

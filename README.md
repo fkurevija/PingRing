@@ -45,23 +45,24 @@ Every document links back here at the top and bottom.
 ## ✨ Key Features
 
 ### 📡 Mesh & Connectivity
-- **One-tap hosting**, no server registration, with **admission control** — close the ring mid-event, list it on nearby phones (**Discoverable**), or approve each join by hand.
+- **One-tap hosting**, no server registration. Joining is by the host's **QR code** or their **6-character code** — a ring is never advertised as findable, so nothing appears in a list on a phone that wasn't told about it.
+- **Host admission control**: **Prevent New Users From Joining** closes the ring to arrivals. A guest joining by code is put to the host for approval; a guest who scanned the host's own QR code is admitted directly, because the host chose to show it.
 - **Bounded capacity**: max **8 participants** (1 Host + 7 Guests), enforced by the Host.
-- **Multiple ranging sources**: fresh UWB supplies distance and bearing; compatible Wi-Fi Aware phones can supply phone-to-phone RTT distance without access points. Host-opt-in GPS shares coordinates rounded to about 10 m every ten seconds and displays a distance estimate with uncertainty. RTT and GPS do not infer direction. Signed, live-key-gated BLE RSSI remains the local proximity fallback on capable controllers. Hardware compatibility and delivery still require [verification](docs/roadmap.md#unverified).
+- **Multiple ranging sources**: fresh UWB supplies distance and bearing; compatible Wi-Fi Aware phones can supply phone-to-phone RTT distance without access points. Members always share GPS coordinates, rounded to about 10 m and published every ten seconds, and display a distance estimate with uncertainty. RTT and GPS do not infer direction. Signed, live-key-gated BLE RSSI remains the local proximity fallback on capable controllers. Hardware compatibility and delivery still require [verification](docs/roadmap.md#unverified).
 
 ### 👤 Identity & Join
 - **Custom usernames**, saved locally and unique within a session.
-- **Join via QR** or a **6-character PingRing Code** (`e.g. AB12CD`), with a validated handshake.
-- **Verified nearby joins**: QR invitations carry a separate 256-bit secret; all Nearby links require both users to compare and confirm shared digits, and code-only joins require host approval.
+- **Join via QR** or a **6-character PingRing Code** (`e.g. AB12CD`), with a validated handshake. Every Nearby link requires both users to compare and confirm shared digits; a code-only join is additionally held for the host to allow or deny.
 - **Per-member BLE identity**: V5 advertisements use ephemeral per-event signing keys registered over the SAS-confirmed Nearby connection; the radar rejects unregistered or invalid signatures.
 - **Localized interface** in English, Croatian, Spanish, French, Canadian French, German, and Russian. Android 13+ offers an app-specific language setting; older versions follow the device language.
 
 ### 🚨 Beacons & Chat
-- **Intent presets** with 5 colour palettes and 5 vibration rhythms, plus a one-tap **Quick Beacon**.
+- **Intent presets** with 5 colour palettes and 5 vibration rhythms. The device that raises a beacon vibrates too, not only the ones that receive it.
 - **Offline group chat** with sender-labelled bubbles, beacons in the transcript, and host-replayed history for latecomers.
+- **12 chat bubble colours**, drawn at random when you enter a PingRing and changeable afterwards from **Chat Settings** on the radar.
 
 ### 🧭 Radar
-- **Sensor-fusion tracking** with a directional needle, proximity haptics under 2 m, and a user-controlled tracking choice.
+- **Sensor-fusion tracking** with a directional needle, proximity haptics under 2 m, and a member filter that is always available and always the local user's own choice. Guests default to the host and the host to the earliest joiner; one tap overrides either.
 - **UWB readings cross-checked against BLE.** In a crowd, UWB's dominant error is not noise but *obstruction* — a body between two phones makes the distance read long, often by metres. BLE degrades under that same body, so it is an independent measurement of the same geometry, and the radar reports **Cross-checked**, **Someone may be in the way**, or **Distance estimate only** when there is only one source.
 - **Connection recovery and last-known direction**: guests can configure a delayed prompt after losing host contact; a genuine UWB bearing can remain visible as a timestamped, frozen last-known direction.
 - **Device-aware permissions** — unsupported hardware is explained, never asked for.

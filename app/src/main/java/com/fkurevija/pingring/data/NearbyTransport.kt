@@ -45,17 +45,6 @@ interface NearbyTransport {
     var acceptsNewMembers: Boolean
 
     /**
-     * Whether a device asking to join is held for the host to approve rather
-     * than admitted on arrival.
-     *
-     * Off by default, so upgrading does not put a prompt in front of a host who
-     * never asked for one: a join that used to be automatic is a decision only
-     * the host can make, and taking it by default would silently stop people
-     * joining events they were previously able to.
-     */
-    var requiresApproval: Boolean
-
-    /**
      * Devices asking to join, oldest first, for the host to act on.
      *
      * Only ever non-empty on a host, and only while it is holding a request

@@ -51,7 +51,6 @@ data class JoinProofPayloadDto(
 data class EventControlPayloadDto(
     val eventCode: String,
     val hostPeerId: String,
-    val trackHost: Boolean,
     val useUwb: Boolean,
     val useWifiDirect: Boolean,
     val acceptsNewMembers: Boolean,
@@ -83,33 +82,38 @@ data class Event(
     val description: String,
     val expiryTimestamp: Long,
     val hostPeerId: String? = null,
-    val trackHost: Boolean = false,
     val useUwb: Boolean = true,
-    val useGnss: Boolean = false,
+    /**
+     * Whether members broadcast their own GNSS fixes to the ring.
+     *
+     * Always true. It used to be a host-controlled opt-in, which turned out to
+     * be the wrong shape twice over: a guest could not see whether coordinates
+     * were live, so two phones could silently disagree about whether the
+     * feature was on, and a ring where only some devices were publishing could
+     * show a distance estimate that was quietly missing half its sources. The
+     * receiver never draws a range it cannot attribute anyway - see
+     * [GnssPolicy] - so publishing costs one 10-second fix that is already being
+     * taken for the radar's own sake.
+     *
+     * The field is kept rather than deleted so the value still travels on the
+     * wire in one place; it is not written by any screen.
+     */
+    val useGnss: Boolean = true,
     val useWifiDirect: Boolean = true,
     val useHotspot: Boolean = false,
+    /**
+     * Whether this PingRing is open to new members at all.
+     *
+     * This is the host's only remaining admission control, and it is a single
+     * ring-wide yes/no rather than a per-join decision. Per-join approval was
+     * removed on purpose: with the QR invitation generated only on the host
+     * device, a scan is already the host having offered the ring, so holding
+     * those joins for approval meant the host could not hand out a QR code
+     * without also having to watch the approval queue for the rest of the
+     * event. What is left is "is the ring open", which is the question a host
+     * actually asks when they close the ring to new arrivals.
+     */
     val acceptsNewMembers: Boolean = true,
-    /**
-     * Whether this event advertises itself as one a nearby guest may find and
-     * join without being given a code.
-     *
-     * Distinct from [acceptsNewMembers], which is about the *host* saying yes.
-     * This is about the session being findable at all: a host that does not set
-     * it is still perfectly joinable by code, it simply does not appear in a
-     * guest's list of nearby sessions. Off by default, because a session that
-     * shows up unasked is a session somebody can wander into.
-     */
-    val isDiscoverable: Boolean = false,
-    /**
-     * Whether a device asking to join is held for the host to approve rather
-     * than admitted on arrival.
-     *
-     * Off by default: taking a join away by default would silently stop people
-     * joining events they could previously join, and a host who wants to vet
-     * arrivals has to ask for it. Distinct from [acceptsNewMembers], which is
-     * the standing yes/no; this is about whether a human sees each request.
-     */
-    val requiresApproval: Boolean = false,
     val chatNotificationsEnabled: Boolean = true,
     val inviteSecret: String? = null,
 ) {

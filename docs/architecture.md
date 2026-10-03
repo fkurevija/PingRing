@@ -27,7 +27,7 @@ graph TD
 2. **Mesh link proof**: Already-admitted members authenticate each new link with a fresh nonce signed by their registered per-event key, without another SAS prompt.
 3. **Data routing**: Signed-origin envelopes carry radar presence, chat, beacons, UWB coordination, and host controls. Relays suppress duplicate IDs, forward at most seven hops, and hold failed-route traffic in a bounded in-memory queue until a route returns or the Ring ends.
 4. **Presence versus proximity**: A five-second signed heartbeat can show a member as present through the mesh. It carries no RSSI, range, or bearing; those remain local BLE/UWB measurements.
-5. **Spatial ranging**: Fresh UWB supplies distance and bearing. Compatible Wi-Fi Aware phones can range the focused member directly with public Wi-Fi RTT APIs using an origin-signed, short-lived Aware address binding; no venue access point is needed. RTT is distance-only. Host-opt-in GPS sharing supplies a labelled coordinate-derived estimate with uncertainty. BLE RSSI remains the local signal-strength fallback.
+5. **Spatial ranging**: Fresh UWB supplies distance and bearing. Compatible Wi-Fi Aware phones can range the focused member directly with public Wi-Fi RTT APIs using an origin-signed, short-lived Aware address binding; no venue access point is needed. RTT is distance-only. GPS sharing is unconditional and supplies a labelled coordinate-derived estimate with uncertainty. BLE RSSI remains the local signal-strength fallback.
 
 ---
 
@@ -63,7 +63,11 @@ A random peer ID per session, rotated on leave — so there is nothing that carr
 Location permission is required because the radios that make this work are proximity sensors that Android gates behind it — not because anything is uploaded anywhere.
 
 - **Turning location off can break ranging.** UWB, Wi-Fi RTT and GPS depend on the applicable location permissions and services. Unavailable sources do not fabricate readings.
-- **Coordinate sharing is host-opt-in per Ring.** It defaults off. When enabled, valid GPS fixes are rounded to an approximately 10 m grid and broadcast at ten-second intervals in signed member messages. Device accuracy plus quantization uncertainty is shown; fixes expire after thirty seconds. Coordinates are readable by admitted members/relays, kept in memory, and not replayed from partition queues. Both new sources are distance-only in this implementation.
+- **Coordinate sharing is unconditional per Ring.** It was host-opt-in and defaulted off, which meant a guest could not see whether it was on: two phones in the same ring could hold different beliefs about whether coordinates were flowing, and a partially-publishing ring showed a distance estimate that was quietly missing sources. Valid GPS fixes are rounded to an approximately 10 m grid and broadcast at ten-second intervals in signed member messages. Device accuracy plus quantization uncertainty is shown; fixes expire after thirty seconds. Coordinates are readable by admitted members/relays, kept in memory, and not replayed from partition queues. Both new sources are distance-only in this implementation.
+
+- **The BLE advertisement no longer carries policy flags.** It carried a discoverable bit, so a PingRing could be found and joined by a phone nobody had told about it, and a track-host bit, so one host's choice propagated into every guest's radar. Both described host policy that no longer exists; the remaining bits keep their wire values rather than being renumbered, so the surviving flags keep their meaning.
+
+- **The authenticated event-control payload lost its track-host field.** A build before this change and a build after it cannot join the same PingRing. Both members of the test group run the current build, and the alternative — carrying a field nobody reads — is worse.
 
 ## Background operation
 

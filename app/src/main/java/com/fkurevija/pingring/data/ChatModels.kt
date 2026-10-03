@@ -7,9 +7,9 @@ const val MAX_BEACON_TITLE_LENGTH = 100
 const val MAX_USERNAME_LENGTH = 30
 
 /**
- * What a beacon whose message field was left blank is titled, so activating it
- * and saving it as the Quick Beacon agree on one name instead of one sending a
- * beacon that renders empty everywhere it is shown.
+ * What a beacon whose message field was left blank is titled, so the beacon that
+ * gets sent is named the same everywhere it is shown rather than rendering empty
+ * on somebody else's screen.
  */
 const val DEFAULT_BEACON_TITLE = "Active Beacon"
 
@@ -135,22 +135,43 @@ enum class BeaconVibrationPattern(val displayName: String, val pattern: LongArra
     }
 }
 
+/**
+ * The twelve chat bubble colours a member can pick from.
+ *
+ * A fixed list, not a generated one. This used to hash the ring and the member
+ * id into a shuffled four-colour subset, which meant every device derived a
+ * *different* palette for the same person - so the "preset" a sender was shown
+ * was not the preset that had been applied to their messages, and the choice
+ * had to be made without being able to see what the alternatives were.
+ *
+ * Twelve fixed colours, chosen to stay legible under both light and dark
+ * themes: each one is dark enough for white text to read on it, and distinct
+ * enough from its neighbours to be told apart at the size of a chat bubble.
+ * There is no custom picker and no "use the theme colour" escape hatch. A member
+ * who wanted a colour nobody else could match could pick one, but a member
+ * wanted to be *findable* in a crowded transcript, and two phones rendering
+ * the same message in different colours defeats that.
+ */
 object ChatBubblePalette {
-    private val colors = listOf(
-        0xFF00695CL, 0xFFAD1457L, 0xFF8D5A00L, 0xFF455A64L,
-        0xFF1565C0L, 0xFF2E7D32L, 0xFF6A1B9AL, 0xFFB71C1CL,
-        0xFF00838FL, 0xFF4527A0L, 0xFF9E4700L, 0xFF37474FL,
-        0xFF006747L, 0xFF880E4FL, 0xFF283593L, 0xFF5D4037L,
-        0xFF33691EL, 0xFF7B1FA2L, 0xFF0277BDL, 0xFFAF351FL,
-        0xFF005B70L, 0xFF795500L, 0xFF7C2549L, 0xFF3E596CL,
+
+    /** Every selectable colour, in the order they are offered. */
+    val presets: List<Long> = listOf(
+        0xFF00695C, 0xFFAD1457, 0xFF8D5A00, 0xFF455A64,
+        0xFF1565C0, 0xFF2E7D32, 0xFF6A1B9A, 0xFFB71C1C,
+        0xFF00838F, 0xFF4527A0, 0xFF9E4700, 0xFF37474F,
     )
 
-    fun forMember(eventId: String, peerId: String): List<Long> {
-        val seedBytes = java.security.MessageDigest.getInstance("SHA-256")
-            .digest("$eventId:$peerId".toByteArray(Charsets.UTF_8))
-        val seed = java.nio.ByteBuffer.wrap(seedBytes).long
-        return colors.shuffled(kotlin.random.Random(seed)).take(4)
-    }
+    /**
+     * The colour a member starts a PingRing with, chosen at random.
+     *
+     * Random rather than a fixed first entry so that two people who join the
+     * same event are not reliably the same colour, and not chosen by hashing
+     * the ring either: that would hand the same colour to the same member in
+     * every ring, which is a quieter version of the same problem. Called once
+     * on entry and then persisted, so the colour does not change under the
+     * user while they are looking at it.
+     */
+    fun random(): Long = presets.random()
 }
 
 enum class BeaconPreset(
@@ -160,27 +181,9 @@ enum class BeaconPreset(
     val defaultColorArgb: Long,
     val defaultPattern: BeaconVibrationPattern
 ) {
-    FOUND("Found Something", "✨", "Found Something!", 0xFF00E676, BeaconVibrationPattern.STEADY_PULSE),
-    REGROUP("Regroup Here", "📍", "Regroup at my location", 0xFF00E5FF, BeaconVibrationPattern.RAPID_ALERT),
-    CAUTION("Caution", "⚠️", "Caution", 0xFFFF9100, BeaconVibrationPattern.GENTLE_PULSE),
-    SOS("Emergency", "🚨", "Emergency!", 0xFFFF1744, BeaconVibrationPattern.SOS_URGENT),
-    CUSTOM("Custom", "⚡", "Beacon Active", 0xFFD500F9, BeaconVibrationPattern.STEADY_PULSE)
+    FOUND("Found Something", "âœ¨", "Found Something!", 0xFF00E676, BeaconVibrationPattern.STEADY_PULSE),
+    REGROUP("Regroup Here", "ðŸ“", "Regroup at my location", 0xFF00E5FF, BeaconVibrationPattern.RAPID_ALERT),
+    CAUTION("Caution", "âš ï¸", "Caution", 0xFFFF9100, BeaconVibrationPattern.GENTLE_PULSE),
+    SOS("Emergency", "ðŸš¨", "Emergency!", 0xFFFF1744, BeaconVibrationPattern.SOS_URGENT),
+    CUSTOM("Custom", "âš¡", "Beacon Active", 0xFFD500F9, BeaconVibrationPattern.STEADY_PULSE)
 }
-
-/**
- * The beacon configuration the radar's Quick Beacon button sends in one tap.
- *
- * Set in the beacon screen and kept in DataStore, so it survives the app
- * closing: the point of it is that a Quick Beacon does not have to be rebuilt
- * at the next event. Whole-configuration rather than just the preset, because
- * what people edit - the message, the colour, the rhythm - is what they want
- * back with one tap.
- *
- * Named for the button it backs rather than for "being liked", so the type and
- * the two labels on screen that name it all agree.
- */
-data class QuickBeacon(
-    val title: String,
-    val colorArgb: Long,
-    val pattern: BeaconVibrationPattern
-)

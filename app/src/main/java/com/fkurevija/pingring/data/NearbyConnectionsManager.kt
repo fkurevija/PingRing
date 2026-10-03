@@ -40,8 +40,23 @@ const val MAX_SAS_PROMPTS_PER_WINDOW = 12
 internal fun isWithinSasPromptRateLimit(recentAttempts: List<Long>, nowMillis: Long): Boolean =
     recentAttempts.count { nowMillis - it < SAS_PROMPT_WINDOW_MILLIS } < MAX_SAS_PROMPTS_PER_WINDOW
 
-internal fun joinRequiresHostApproval(hasValidInviteSecret: Boolean, hostRequiresApproval: Boolean): Boolean =
-    hostRequiresApproval || !hasValidInviteSecret
+/**
+ * Whether this particular join has to be put to the host.
+ *
+ * Only a guest that could not produce the invitation secret. The QR code is
+ * rendered on the host device and carries that secret, so scanning it is the
+ * host having offered the ring already; a guest holding only the typed
+ * six-character code has proved nothing about who they are, and the host is
+ * asked before their traffic is admitted.
+ *
+ * This used to take a second argument - the host's "approve each join" switch -
+ * which let the host hold QR joins too. That is the same over-granularity the
+ * switch itself was removed for: the host would have had to watch an approval
+ * queue for every guest it had personally handed a QR code to. What is left is
+ * a property of the join, not a policy anybody sets.
+ */
+internal fun joinRequiresHostApproval(hasValidInviteSecret: Boolean): Boolean =
+    !hasValidInviteSecret
 
 internal fun isPayloadSenderAuthorized(
     isLocalHost: Boolean,
@@ -162,6 +177,13 @@ sealed interface JoinRequestDecision {
  * A guest is never asked anything: this is about devices asking to join, and
  * the host's half of a handshake a guest started must go through untouched, for
  * the reason given on [shouldRefuseConnection].
+ *
+ * [requiresApproval] is per-request rather than a host policy, because it is
+ * derived entirely from [joinRequiresHostApproval]: a guest that scanned the
+ * host's QR code carries the invitation secret and is admitted, and a guest
+ * that only knows the six-character code does not, so the host is asked. There
+ * is no switch that turns this on for everyone - the host does not get to
+ * second-guess a guest it handed its own QR code to.
  */
 fun decideJoinRequest(
     isIncoming: Boolean,
@@ -304,8 +326,6 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
     private val requestedEndpoints = mutableSetOf<String>()
     private var localPeerId: String = ""
     override var acceptsNewMembers: Boolean = true
-
-    override var requiresApproval: Boolean = false
 
     private val _pendingJoinRequests = MutableStateFlow<List<PendingJoinRequest>>(emptyList())
     override val pendingJoinRequests: StateFlow<List<PendingJoinRequest>> = _pendingJoinRequests.asStateFlow()
@@ -1319,7 +1339,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
         when (
             decideJoinRequest(
                 isIncoming = true,
-                requiresApproval = joinRequiresHostApproval(hasValidInvite, requiresApproval),
+                requiresApproval = joinRequiresHostApproval(hasValidInvite),
                 acceptsNewMembers = acceptsNewMembers,
                 connectedPeerCount = authorizedEndpoints.size + _pendingJoinRequests.value.size,
             )

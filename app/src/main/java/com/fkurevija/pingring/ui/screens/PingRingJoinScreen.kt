@@ -35,7 +35,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import com.fkurevija.pingring.data.DiscoveredSession
 import com.fkurevija.pingring.data.MAX_PARTICIPANTS
 import com.fkurevija.pingring.R
 import com.fkurevija.pingring.ui.theme.PingRingTheme
@@ -53,7 +52,6 @@ fun PingRingJoinScreen(
     savedUsername: String = "",
     existingMembers: List<String> = emptyList(),
     isConnecting: Boolean = false,
-    discoveredSessions: List<DiscoveredSession> = emptyList(),
     onBack: () -> Unit,
     onJoinEvent: (eventCode: String, username: String, inviteSecret: String?) -> Unit
 ) {
@@ -250,52 +248,13 @@ fun PingRingJoinScreen(
 
                     Spacer(Modifier.height(20.dp))
 
-                    // Sessions nearby that are offering themselves. Tapping one
-                    // takes the same path as typing its code rather than
-                    // filling the field: the user has asked to join, and making
-                    // them confirm what they tapped adds a step to no end.
-                    if (discoveredSessions.isNotEmpty()) {
-                        Text(
-                            stringResource(R.string.nearby_pingrings),
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        discoveredSessions.forEach { session ->
-                            val canJoin = session.joinable && !isConnecting
-                            OutlinedButton(
-                                onClick = { attemptJoin(session.eventCode) },
-                                enabled = canJoin,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Column(Modifier.weight(1f)) {
-                                    Text(
-                                        session.name,
-                                        fontWeight = FontWeight.SemiBold,
-                                        style = MaterialTheme.typography.bodyMedium
-                                    )
-                                    Text(
-                                        if (session.joinable) {
-                                            stringResource(R.string.tap_to_join)
-                                        } else {
-                                            stringResource(R.string.full_or_not_accepting)
-                                        },
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                Icon(
-                                    Icons.Default.ChevronRight,
-                                    contentDescription = stringResource(R.string.join_session, session.name)
-                                )
-                            }
-                        }
-                        Spacer(Modifier.height(20.dp))
-                    }
+                    // The two ways in: the host's QR code, or the six-character
+                    // code they read out. There is no third list of nearby
+                    // sessions any more - a ring is not advertised as findable,
+                    // so a phone that has not been told the code or shown the
+                    // QR code has no way to join, and pretending otherwise with
+                    // an empty "Nearby PingRings" heading only made the code
+                    // field harder to find.
                     val hasCamera = remember(context) {
                         context.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY)
                     }

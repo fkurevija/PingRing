@@ -98,11 +98,15 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.filled.Campaign
+import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.PlayArrow
@@ -114,6 +118,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -132,6 +137,7 @@ import com.fkurevija.pingring.data.BeaconPreset
 import com.fkurevija.pingring.data.BeaconVibrationPattern
 import com.fkurevija.pingring.data.ChatMessage
 import com.fkurevija.pingring.data.ChatMessageOwnership
+import com.fkurevija.pingring.data.ChatBubblePalette
 import com.fkurevija.pingring.data.ChatTimelineItem
 import com.fkurevija.pingring.data.ChatTimelinePolicy
 import com.fkurevija.pingring.data.ConnectionRecoveryPromptPolicy
@@ -142,7 +148,6 @@ import com.fkurevija.pingring.data.FocusPolicy
 import com.fkurevija.pingring.data.LastKnownPeerDirection
 import com.fkurevija.pingring.data.MAX_PARTICIPANTS
 import com.fkurevija.pingring.data.PendingJoinRequest
-import com.fkurevija.pingring.data.QuickBeacon
 import com.fkurevija.pingring.data.RadarAccessibilityPolicy
 import com.fkurevija.pingring.data.RadarDirectionPolicy
 import com.fkurevija.pingring.data.RadarPeerUpdate
@@ -184,14 +189,12 @@ private fun Color.readableOnIt(): Color {
 fun RadarScreen(
     eventId: String,
     isHost: Boolean,
-    trackHost: Boolean,
     coordinationError: String?,
     discoveryRepository: DiscoveryRepository?,
     sessionState: SessionState,
-    quickBeacon: QuickBeacon?,
     chatBubbleColorArgb: Long?,
+    onChatBubbleColorChange: (Long) -> Unit,
     radarScreenReaderSummaryEnabled: Boolean,
-    onQuickBeaconChange: (QuickBeacon?) -> Unit,
     connectionRecoveryPromptEnabled: Boolean = true,
     connectionRecoveryPromptDelayMillis: Long = 120_000L,
     hostConnectionLostAtMillis: Long? = null,
@@ -217,6 +220,7 @@ fun RadarScreen(
 ) {
     var showEndConfirmation by remember { mutableStateOf(false) }
     var showBeaconSheet by remember { mutableStateOf(false) }
+    var showChatSettings by remember { mutableStateOf(false) }
     var showQrCode by remember { mutableStateOf(false) }
     var showConnectionLostDialog by remember(eventId) { mutableStateOf(false) }
     var connectionLostSnoozedUntilMillis by rememberSaveable(eventId) { mutableLongStateOf(0L) }
@@ -350,13 +354,12 @@ fun RadarScreen(
     // PingRing readable, and the UWB session follows the same choice.
     val focusSelection by discoveryRepository?.focusedPeerId?.collectAsState()
         ?: remember { mutableStateOf(null) }
-    val focusedPeer = remember(peers, focusSelection, sessionState, isHost, trackHost) {
+    val focusedPeer = remember(peers, focusSelection, sessionState, isHost) {
         val resolvedId = FocusPolicy.resolveFocus(
             selectedPeerId = focusSelection,
             availablePeerIds = peers.map { it.peerId },
             peerJoinedAt = peers.associate { it.peerId to it.joinedAtMillis },
             isHost = isHost,
-            trackHost = trackHost,
             localPeerId = discoveryRepository?.localPeerId ?: "",
             hostPeerId = sessionState.currentEvent?.hostPeerId
         )
@@ -373,12 +376,6 @@ fun RadarScreen(
             }
         }
     }
-
-    // A guest under "track host" has no say in this: the host set the policy
-    // for the whole event, so the picker is shown but disabled rather than
-    // hidden, which would leave the radar pointed at somebody with no visible
-    // way to find out why.
-    val canSelectTrackedMember = FocusPolicy.canUserSelect(isHost, trackHost)
 
     // Proximity feedback follows the tracked member, not whoever happens to be
     // closest, so it is a haptic about the person the user is actually watching.
@@ -681,7 +678,6 @@ fun RadarScreen(
                             discoveryRepository,
                             activeBeacons,
                             focusedPeerId = focusSelection,
-                            canSelect = canSelectTrackedMember,
                             onFocusPeer = { discoveryRepository?.setFocusedPeer(it) },
                             modifier = Modifier.width(paneWidth)
                         )
@@ -941,38 +937,6 @@ fun RadarScreen(
                                 modifier = Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 4.dp),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                // One tap on the configuration set as the Quick
-                                // Beacon in the beacon screen. With none set yet
-                                // there is nothing to send, so the tap says so
-                                // and opens that screen - the same place the
-                                // Quick Beacon is chosen. Opening it alone would
-                                // read as a misfired button, since the tap
-                                // visibly does something that has nothing to do
-                                // with beacons.
-                                OutlinedButton(
-                                    onClick = {
-                                        if (quickBeacon != null) {
-                                            discoveryRepository?.activateBeacon(
-                                                quickBeacon.title,
-                                                quickBeacon.colorArgb,
-                                                quickBeacon.pattern.name,
-                                                senderName
-                                            )
-                                        } else {
-                                            Toast.makeText(
-                                                context,
-                                                context.getString(R.string.no_quick_beacon),
-                                                Toast.LENGTH_LONG
-                                            ).show()
-                                            showBeaconSheet = true
-                                        }
-                                    },
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Icon(Icons.Default.FlashOn, contentDescription = null, modifier = Modifier.size(16.dp))
-                                    Spacer(Modifier.width(6.dp))
-                                    Text(stringResource(R.string.quick_beacon))
-                                }
                                 // The label and the icon are coloured for the
                                 // beacon they sit on rather than left at the
                                 // theme's on-primary, which is dark grey and only
@@ -985,7 +949,7 @@ fun RadarScreen(
                                 // from two different beacons.
                                 Button(
                                     onClick = { showBeaconSheet = true },
-                                    modifier = Modifier.weight(1f),
+                                    modifier = Modifier.fillMaxWidth(),
                                     colors = localBeacon?.let { beacon ->
                                         ButtonDefaults.buttonColors(
                                             containerColor = beacon.color,
@@ -997,6 +961,24 @@ fun RadarScreen(
                                     Spacer(Modifier.width(6.dp))
                                     Text(stringResource(if (localBeacon != null) R.string.my_beacon else R.string.new_beacon))
                                 }
+                            }
+
+                            // Chat settings, below the beacon buttons and above
+                            // the transcript.
+                            //
+                            // It used to live on the PingRing settings screen,
+                            // which is two destinations and a chat's length away
+                            // from the chat it changes. Beside the thing it
+                            // affects, and reachable without leaving the
+                            // conversation, is the whole reason it is its own
+                            // control rather than another entry in a list.
+                            OutlinedButton(
+                                onClick = { showChatSettings = true },
+                                modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)
+                            ) {
+                                Icon(Icons.Default.Chat, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text(stringResource(R.string.chat_settings))
                             }
                         }
 
@@ -1065,15 +1047,21 @@ fun RadarScreen(
                     )
                 }
 
+                if (showChatSettings) {
+                    ChatSettingsDialog(
+                        selectedColorArgb = chatBubbleColorArgb,
+                        onColorSelected = { onChatBubbleColorChange(it) },
+                        onDismiss = { showChatSettings = false },
+                    )
+                }
+
                 if (showBeaconSheet) {
                     BeaconCustomizationDialog(
                         localBeacon = localBeacon,
-                        quickBeacon = quickBeacon,
                         onDismiss = { showBeaconSheet = false },
                         onActivate = { title, colorArgb, patternName ->
                             discoveryRepository?.activateBeacon(title, colorArgb, patternName, senderName)
                         },
-                        onQuickBeaconChange = { onQuickBeaconChange(it) },
                         onStop = {
                             discoveryRepository?.cancelLocalBeacon()
                         },
@@ -1498,7 +1486,6 @@ internal fun PeerList(
     repository: DiscoveryRepository?,
     activeBeacons: Map<String, BeaconInfo>,
     focusedPeerId: String?,
-    canSelect: Boolean,
     onFocusPeer: (String?) -> Unit,
     modifier: Modifier
 ) {
@@ -1547,17 +1534,15 @@ internal fun PeerList(
             )
         }
         // The one member being tracked, as a control rather than only as a
-        // highlight on a row. The per-row buttons below can already set this,
-        // but they cannot show what is currently tracked without reading the
-        // list, and they give no way back to "whichever the policy picks" once
-        // something has been chosen. Disabled rather than hidden when the host
-        // owns the choice, so the radar is never pointed at somebody with no
-        // visible explanation of why.
-        if (peers.isNotEmpty()) {
+    // highlight on a row. The per-row buttons below can already set this, but
+    // they cannot show what is currently tracked without reading the list, and
+    // they give no way back to the automatic choice once something has been
+    // picked. Always available: choosing who to follow is the local user's own
+    // decision, and the host no longer owns it.
+    if (peers.isNotEmpty()) {
             TrackedMemberPicker(
                 peers = peers,
                 trackedPeerId = focusedPeerId,
-                canSelect = canSelect,
                 onSelect = onFocusPeer
             )
             Spacer(Modifier.height(8.dp))
@@ -1631,13 +1616,8 @@ internal fun PeerList(
                             // the tracked member again returns to auto, so the
                             // choice is always reversible without leaving the
                             // screen.
-                            //
-                            // Disabled under a host-owned policy rather than
-                            // hidden, so the row still shows who is being
-                            // tracked and why the control is inert.
                             IconButton(
                                 onClick = { onFocusPeer(if (isFocused) null else peer.peerId) },
-                                enabled = canSelect,
                                 modifier = Modifier.size(36.dp)
                             ) {
                                 Icon(
@@ -1671,16 +1651,15 @@ internal fun PeerList(
  * this one answers "who am I following right now" without counting badges down
  * a scrolling list, and offers a way back to the automatic choice.
  *
- * [canSelect] is false only where the host owns the decision, and the field
- * stays visible but disabled in that case. Hiding it would leave the radar
- * locked onto the host with nothing on screen to say so.
+ * Every member is always selectable. This control used to go read-only on a
+ * guest when the host had turned on "track host", which left the radar pointed
+ * at somebody with nothing on screen to explain why.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun TrackedMemberPicker(
     peers: List<RadarPeerUpdate>,
     trackedPeerId: String?,
-    canSelect: Boolean,
     onSelect: (String?) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -1688,20 +1667,18 @@ internal fun TrackedMemberPicker(
     val label = when {
         trackedName != null -> trackedName
         // No explicit choice: whatever FocusPolicy resolved is being tracked,
-        // which is not necessarily in this list - under a host-owned policy the
-        // guest tracks the host, and the host is not its own peer.
+        // which is not necessarily in this list.
         else -> stringResource(R.string.automatic)
     }
 
     ExposedDropdownMenuBox(
         expanded = expanded,
-        onExpandedChange = { if (canSelect) expanded = it }
+        onExpandedChange = { expanded = it }
     ) {
         OutlinedTextField(
             value = label,
             onValueChange = {},
             readOnly = true,
-            enabled = canSelect,
             label = { Text(stringResource(R.string.tracking)) },
             leadingIcon = { Icon(Icons.Default.MyLocation, contentDescription = null) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
@@ -1738,14 +1715,91 @@ internal fun TrackedMemberPicker(
 }
 
 
+/**
+ * Everything about chat that the member can change, in one place.
+ *
+ * Opened from the radar between the beacon buttons and the transcript, so the
+ * controls sit next to the chat they change rather than on a settings screen two
+ * destinations away.
+ *
+ * Bubble colour only, and only from [ChatBubblePalette.presets]. There is no
+ * custom picker and no "use the theme colour" option: a member picks a colour so
+ * their messages can be found in a busy transcript, which stops working the
+ * moment two phones render the same message differently.
+ */
+@Composable
+internal fun ChatSettingsDialog(
+    selectedColorArgb: Long?,
+    onColorSelected: (Long) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.chat_settings)) },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                Text(
+                    stringResource(R.string.chat_bubble_colour_description),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(12.dp))
+                // Wraps rather than scrolls sideways: twelve swatches in one
+                // row needs more width than a phone has, and a horizontal
+                // scroller hides the fact that there are eleven other choices.
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth().selectableGroup(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    ChatBubblePalette.presets.forEach { colorArgb ->
+                        val selected = selectedColorArgb == colorArgb
+                        val description = stringResource(
+                            R.string.set_chat_bubble_colour_to,
+                            String.format(java.util.Locale.ROOT, "#%06X", colorArgb and 0xFFFFFFL),
+                        )
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .semantics { contentDescription = description }
+                                .selectable(
+                                    selected = selected,
+                                    role = Role.RadioButton,
+                                    onClick = { onColorSelected(colorArgb) },
+                                ),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Box(
+                                Modifier
+                                    .size(36.dp)
+                                    .background(Color(colorArgb), CircleShape)
+                                    .border(
+                                        width = if (selected) 3.dp else 0.dp,
+                                        color = if (selected) MaterialTheme.colorScheme.onSurface else Color.Transparent,
+                                        shape = CircleShape,
+                                    )
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) }
+        },
+    )
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BeaconCustomizationDialog(
     localBeacon: BeaconInfo?,
-    quickBeacon: QuickBeacon?,
     onDismiss: () -> Unit,
     onActivate: (title: String, colorArgb: Long, patternName: String) -> Unit,
-    onQuickBeaconChange: (QuickBeacon?) -> Unit,
     onStop: () -> Unit,
     onTestVibrate: (LongArray) -> Unit
 ) {
@@ -1753,27 +1807,14 @@ fun BeaconCustomizationDialog(
     val context = LocalContext.current
     var selectedPreset by remember { mutableStateOf(BeaconPreset.entries.first()) }
     val initialPresetTitle = stringResource(selectedPreset.defaultTitleRes)
-    // Prefills from what is live, else from the set Quick Beacon, else the
-    // first preset: whichever the user is most likely to want on screen first.
-    var title by remember { mutableStateOf(localBeacon?.title ?: quickBeacon?.title ?: initialPresetTitle) }
-    var selectedColor by remember { mutableLongStateOf(localBeacon?.colorArgb ?: quickBeacon?.colorArgb ?: selectedPreset.defaultColorArgb) }
+    var title by remember { mutableStateOf(localBeacon?.title ?: initialPresetTitle) }
+    var selectedColor by remember { mutableLongStateOf(localBeacon?.colorArgb ?: selectedPreset.defaultColorArgb) }
     var selectedPattern by remember {
         mutableStateOf(
             localBeacon?.let { BeaconVibrationPattern.fromName(it.vibrationPattern) }
-                ?: quickBeacon?.pattern
                 ?: selectedPreset.defaultPattern
         )
     }
-
-    // The selection in the same shape as the saved Quick Beacon, so "is this
-    // already the Quick Beacon?" is one comparison rather than three - and the
-    // title is normalised here, so what gets set is exactly what Activate sends.
-    val currentSelection = QuickBeacon(
-        title = title.ifBlank { context.getString(R.string.active_beacon_title) },
-        colorArgb = selectedColor,
-        pattern = selectedPattern
-    )
-    val isQuickBeaconSet = currentSelection == quickBeacon
 
     val colorPalette = listOf(
         0xFFFF1744, // Red
@@ -1908,31 +1949,16 @@ fun BeaconCustomizationDialog(
                     Text(stringResource(R.string.test_vibration))
                 }
 
-                // The configuration the Quick Beacon button sends. One slot,
-                // so this both saves the current selection and clears it; the
-                // label says which, and the star fills to show the state.
-                //
-                // Named for what it is for rather than a generic "favourite":
-                // the label has to match the button on the radar that reads it
-                // back, or the two stop describing the same thing.
-                OutlinedButton(
-                    onClick = { onQuickBeaconChange(if (isQuickBeaconSet) null else currentSelection) },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(
-                        if (isQuickBeaconSet) Icons.Default.Star else Icons.Default.StarBorder,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(stringResource(if (isQuickBeaconSet) R.string.remove_quick_beacon else R.string.set_quick_beacon))
                 }
-            }
         },
         confirmButton = {
             Button(
                 onClick = {
-                    onActivate(currentSelection.title, currentSelection.colorArgb, currentSelection.pattern.name)
+                    onActivate(
+                        title.ifBlank { context.getString(R.string.active_beacon_title) },
+                        selectedColor,
+                        selectedPattern.name,
+                    )
                     onDismiss()
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = Color(selectedColor))

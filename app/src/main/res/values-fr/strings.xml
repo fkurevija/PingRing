@@ -30,15 +30,10 @@
     <string name="theme_system_default">Par défaut du système</string>
     <string name="theme_light">Thème clair</string>
     <string name="theme_dark">Thème sombre</string>
-    <string name="chat_bubble_colour">Couleur des bulles de discussion</string>
     <string name="chat_bubble_colour_description">Affichée sur les nouveaux messages que vous envoyez</string>
     <string name="set_chat_bubble_colour_to">Définir la couleur des bulles de discussion sur %1$s</string>
     <string name="custom">Personnalisé</string>
     <string name="use_theme_colour">Utiliser la couleur du thème</string>
-    <string name="undo">Annuler</string>
-    <string name="custom_chat_colour">Couleur de discussion personnalisée</string>
-    <string name="chat_colour_hue_wheel">Roue de teinte de la couleur de discussion</string>
-    <string name="choose_hue">Choisir une teinte</string>
     <string name="notifications_title">Notifications</string>
     <string name="notifications_description">Réception, son et vibration des notifications de discussion</string>
     <string name="developer_options">Options pour les développeurs</string>
@@ -90,10 +85,6 @@
     <string name="connecting">Connexion…</string>
     <string name="connect">Se connecter</string>
     <string name="or">OU</string>
-    <string name="nearby_pingrings">PingRings à proximité</string>
-    <string name="tap_to_join">Touchez pour rejoindre</string>
-    <string name="full_or_not_accepting">Complet ou n’accepte pas de membres</string>
-    <string name="join_session">Rejoindre %1$s</string>
     <string name="scan_host_qr">Scanner le code QR de l’hôte</string>
     <string name="camera_not_available">Caméra non disponible sur cet appareil</string>
     <string name="align_pingring_qr">Alignez le code QR PingRing dans le cadre.</string>
@@ -115,24 +106,12 @@
     <string name="closed">Fermé</string>
     <string name="save_changes">Enregistrer les modifications</string>
     <string name="connectivity_participation">Connexion et participation</string>
-    <string name="accept_new_members">Accepter de nouveaux membres</string>
-    <string name="allow_nearby_discover_join">Permettre aux personnes à proximité de trouver l’événement et de le rejoindre</string>
-    <string name="discoverable">Visible à proximité</string>
-    <string name="discoverable_description">Afficher ce PingRing sur les téléphones à proximité. Le code permet toujours de rejoindre l’événement.</string>
-    <string name="approve_each_join">Approuver chaque demande</string>
-    <string name="approve_each_join_description">Mettre les nouveaux membres en attente jusqu’à votre approbation. Le code reste disponible pour rejoindre l’événement.</string>
     <string name="uwb_no_hardware">Cet appareil ne possède pas de radio UWB.</string>
     <string name="uwb_needs_permission">La mesure UWB nécessite une autorisation. Touchez pour l’accorder.</string>
     <string name="uwb_os_too_old">La mesure UWB nécessite Android 12 ou une version ultérieure.</string>
     <string name="sub_metre_uwb">Mesure UWB à moins d’un mètre sur les appareils compatibles.</string>
-    <string name="high_bandwidth_wifi">Wi-Fi haut débit</string>
-    <string name="wifi_transport_always_on">Toujours actif. Nearby Connections transporte automatiquement les discussions et les balises via Wi-Fi Direct; cette option ne peut pas être désactivée.</string>
-    <string name="always_on">Toujours actif</string>
-    <string name="chat_notifications">Notifications de discussion</string>
-    <string name="event_chat_notifications_description">Notifier les nouveaux messages dans ce PingRing</string>
     <string name="max_capacity">Capacité maximale</string>
     <string name="max_capacity_description">Limite de %1$d membres (1 hôte + 7 invités) pour les performances radio.</string>
-    <string name="danger_zone">Zone de danger</string>
     <string name="leave_pingring">Quitter PingRing</string>
     <string name="peer_default_name">Membre</string>
     <string name="radar_event_summary">Code : %1$s · membres %2$d/%3$d</string>
@@ -150,8 +129,6 @@
     <string name="no_messages_yet">Aucun message pour l’instant. Dites bonjour !</string>
     <string name="type_message">Écrire un message…</string>
     <string name="send">Envoyer</string>
-    <string name="no_quick_beacon">Aucune balise rapide n’est définie. Ouvrez Nouvelle balise et touchez Définir comme balise rapide.</string>
-    <string name="quick_beacon">Balise rapide</string>
     <string name="my_beacon">Ma balise</string>
     <string name="new_beacon">Nouvelle balise</string>
     <string name="close">Fermer</string>
@@ -199,13 +176,9 @@
     <string name="track_member">Suivre %1$s</string>
     <string name="automatic">Automatique</string>
     <string name="tracking">Suivi</string>
-    <string name="gnss_sharing">Partager la position GPS</string>
-    <string name="gnss_sharing_description">Partager les coordonnées avec les membres du Ring, arrondies à environ 10 m toutes les 10 secondes. Estimation de distance en extérieur uniquement.</string>
     <string name="gnss_distance_estimate">Distance estimée par GPS</string>
     <string name="wifi_rtt_distance_mode">Wi-Fi RTT · distance uniquement</string>
     <string name="distance_with_uncertainty">Environ %1$.0f m ± %2$.0f m</string>
-    <string name="track_host_only">Suivre uniquement l’hôte</string>
-    <string name="track_host_only_description">Les invités suivent uniquement l’hôte. L’hôte peut suivre tout membre.</string>
     <string name="vibration_sos_urgent">SOS / Urgent</string>
     <string name="vibration_rapid_alert">Alerte rapide</string>
     <string name="vibration_steady_pulse">Pulsation régulière</string>
@@ -247,4 +220,11 @@
     <string name="connection_authentication_message">Connectez-vous à %1$s uniquement si les chiffres correspondent sur les deux appareils. Demandez à l’autre personne de comparer ce code : %2$s</string>
     <string name="connection_digits_match">Les codes correspondent</string>
     <string name="connection_reject">Refuser</string>
+
+    <string name="app_settings">Paramètres de l’application</string>
+    <string name="chat_settings">Paramètres de chat</string>
+    <string name="prevent_new_users_joining">Empêcher l’arrivée de nouveaux utilisateurs</string>
+    <string name="prevent_new_users_joining_description">Fermez ce PingRing à toute personne qui ne fait pas déjà partie du groupe. Les invités qui rejoignent par code ont toujours besoin de votre approbation.</string>
+    <string name="report_a_problem">Signaler un problème</string>
+    <string name="report_a_problem_failed">Impossible d’ouvrir le navigateur</string>
 </resources>

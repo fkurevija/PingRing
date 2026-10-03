@@ -27,7 +27,6 @@ class FocusPolicyTest {
             selectedPeerId = bob,
             availablePeerIds = listOf(alice, bob),
             isHost = true,
-            trackHost = false,
             localPeerId = local,
             hostPeerId = null
         )
@@ -46,7 +45,6 @@ class FocusPolicyTest {
             availablePeerIds = listOf(bob, alice),
             peerJoinedAt = mapOf(alice to 1_000L, bob to 600_000L),
             isHost = true,
-            trackHost = false,
             localPeerId = local,
             hostPeerId = null
         )
@@ -64,7 +62,6 @@ class FocusPolicyTest {
             availablePeerIds = listOf(bob, alice),
             peerJoinedAt = mapOf(alice to 1_000L),
             isHost = true,
-            trackHost = false,
             localPeerId = local,
             hostPeerId = null
         )
@@ -80,7 +77,6 @@ class FocusPolicyTest {
             availablePeerIds = listOf(bob, alice),
             peerJoinedAt = emptyMap(),
             isHost = true,
-            trackHost = false,
             localPeerId = local,
             hostPeerId = null
         )
@@ -96,7 +92,6 @@ class FocusPolicyTest {
             availablePeerIds = listOf(bob, alice),
             peerJoinedAt = mapOf(bob to 0L, alice to 1_000L),
             isHost = true,
-            trackHost = false,
             localPeerId = local,
             hostPeerId = null
         )
@@ -111,7 +106,6 @@ class FocusPolicyTest {
             selectedPeerId = null,
             availablePeerIds = listOf(bob, alice),
             isHost = true,
-            trackHost = false,
             localPeerId = local,
             hostPeerId = null
         )
@@ -127,7 +121,6 @@ class FocusPolicyTest {
             selectedPeerId = null,
             availablePeerIds = listOf(host, alice),
             isHost = false,
-            trackHost = false,
             localPeerId = local,
             hostPeerId = host
         )
@@ -142,7 +135,6 @@ class FocusPolicyTest {
             selectedPeerId = alice,
             availablePeerIds = listOf(host, alice),
             isHost = false,
-            trackHost = false,
             localPeerId = local,
             hostPeerId = host
         )
@@ -158,7 +150,6 @@ class FocusPolicyTest {
             selectedPeerId = "someone-who-left",
             availablePeerIds = listOf(alice, bob),
             isHost = true,
-            trackHost = false,
             localPeerId = local,
             hostPeerId = null
         )
@@ -166,28 +157,30 @@ class FocusPolicyTest {
     }
 
     @Test
-    fun trackHostOverridesTheUsersChoiceForAGuest() {
-        // The host set this policy, so a guest under it tracks the host even if
-        // it had picked somebody else. The host's policy is not something a
-        // local tap can quietly override.
+    fun aGuestsOwnChoiceWinsOverTheHostDefault() {
+        // The host default is a default, not a policy. It used to be a policy the
+        // host could enforce - "track host" held a guest's radar on the host even
+        // after the guest picked somebody else - which made the host a control
+        // surface over every guest's screen. Removed: a guest tracking another
+        // guest is a thing the guest is entitled to do.
         val focus = FocusPolicy.resolveFocus(
             selectedPeerId = bob,
-            availablePeerIds = listOf(alice, bob),
+            availablePeerIds = listOf(alice, bob, host),
             isHost = false,
-            trackHost = true,
             localPeerId = local,
             hostPeerId = host
         )
-        assertEquals(host, focus)
+        assertEquals(bob, focus)
     }
 
     @Test
     fun theHostIsNeverAskedToTrackItself() {
+        // A guest defaulting to the host must not put a *host* on its own radar,
+        // even when its own id is somehow in the candidate list.
         val focus = FocusPolicy.resolveFocus(
             selectedPeerId = null,
-            availablePeerIds = listOf(alice, bob),
+            availablePeerIds = listOf(local, alice, bob),
             isHost = true,
-            trackHost = true,
             localPeerId = local,
             hostPeerId = host
         )
@@ -200,7 +193,6 @@ class FocusPolicyTest {
             selectedPeerId = null,
             availablePeerIds = emptyList(),
             isHost = true,
-            trackHost = false,
             localPeerId = local,
             hostPeerId = null
         )
@@ -208,37 +200,15 @@ class FocusPolicyTest {
     }
 
     @Test
-    fun aGuestUnderTrackHostCannotChangeWhatIsTracked() {
-        // The policy is the host's, set for the whole event. A member choosing
-        // otherwise would make the host's decision advisory, which is not what
-        // turning it on promised.
-        assertFalse(FocusPolicy.canUserSelect(isHost = false, trackHost = true))
-    }
-
-    @Test
-    fun theHostIsNeverLockedOutOfItsOwnRadar() {
-        // "Track host" asks members to follow the host. It must not also stop
-        // the host deciding who it watches, which would leave the policy
-        // disabling the only device that can act on it.
-        assertTrue(FocusPolicy.canUserSelect(isHost = true, trackHost = true))
-    }
-
-    @Test
-    fun aGuestIsFreeOnceThePolicyIsOff() {
-        // With the policy off the guest can see every member, so restricting it
-        // to one would be a limit the host never asked for.
-        assertTrue(FocusPolicy.canUserSelect(isHost = false, trackHost = false))
-    }
-
-    @Test
-    fun aLockedGuestStillResolvesToTheHost() {
-        // The read-only control is only useful if it names who is actually
-        // being tracked, so the locked state has to resolve to the host too.
+    fun aGuestDefaultsToTheHostWhenItHasNotChosen() {
+        // The role-based default, and the reason it exists: a guest arriving at a
+        // ring wants to know where the host is, and the host is already the member
+        // everybody is following.
         val focus = FocusPolicy.resolveFocus(
             selectedPeerId = null,
-            availablePeerIds = listOf(host),
+            availablePeerIds = listOf(alice, host),
+            peerJoinedAt = mapOf(alice to 1_000L, host to 9_000L),
             isHost = false,
-            trackHost = true,
             localPeerId = local,
             hostPeerId = host
         )
@@ -246,11 +216,30 @@ class FocusPolicyTest {
     }
 
     @Test
+    fun everyRoleCanChooseAnyMember() {
+        // There is no role whose picker is locked, which is what the removed
+        // "track host" switch produced on a guest's screen. Asserted for both
+        // roles because the policy only ever locked the guest's.
+        FocusPolicy.resolveFocus(
+            selectedPeerId = bob,
+            availablePeerIds = listOf(alice, bob),
+            isHost = true,
+            localPeerId = local,
+            hostPeerId = null
+        )
+        assertEquals(bob, FocusPolicy.resolveFocus(
+            selectedPeerId = bob,
+            availablePeerIds = listOf(alice, bob, host),
+            isHost = false,
+            localPeerId = local,
+            hostPeerId = host
+        ))
+    }
+
+    @Test
     fun onlyTheFocusedPeerIsRanged() {
         val target = FocusPolicy.rangingTarget(
             focusPeerId = bob,
-            isHost = true,
-            trackHost = false,
             hostPeerId = null,
             connectedPeerIds = setOf(alice, bob)
         )
@@ -263,8 +252,6 @@ class FocusPolicyTest {
         // handshake, so ranging it would only produce a failing session.
         val target = FocusPolicy.rangingTarget(
             focusPeerId = bob,
-            isHost = true,
-            trackHost = false,
             hostPeerId = null,
             connectedPeerIds = setOf(alice)
         )
@@ -272,11 +259,11 @@ class FocusPolicyTest {
     }
 
     @Test
-    fun aGuestUnderTrackHostRangesTheHost() {
+    fun aGuestRangingTheHostIsMarkedAsRangingTheHost() {
+        // Kept distinct from ranging another guest so a guest-to-guest offer is
+        // never confused with the host link, which is the only one authenticated.
         val target = FocusPolicy.rangingTarget(
-            focusPeerId = bob,
-            isHost = false,
-            trackHost = true,
+            focusPeerId = host,
             hostPeerId = host,
             connectedPeerIds = setOf(host)
         )
@@ -284,11 +271,21 @@ class FocusPolicyTest {
     }
 
     @Test
+    fun aGuestChosenPeerIsRangedEvenWhenTheHostIsAlsoPresent() {
+        // The case the removed policy used to override. It has to range the peer
+        // the guest actually chose, which is never the host here.
+        val target = FocusPolicy.rangingTarget(
+            focusPeerId = bob,
+            hostPeerId = host,
+            connectedPeerIds = setOf(host, bob)
+        )
+        assertEquals(FocusPolicy.RangingTarget.Peer(bob, isHost = false), target)
+    }
+
+    @Test
     fun nothingIsRangedWithoutAFocus() {
         val target = FocusPolicy.rangingTarget(
             focusPeerId = null,
-            isHost = true,
-            trackHost = false,
             hostPeerId = null,
             connectedPeerIds = setOf(alice, bob)
         )
@@ -366,8 +363,6 @@ class FocusPolicyTest {
         val connected = (1..7).map { "peer-$it" }.toSet()
         val target = FocusPolicy.rangingTarget(
             focusPeerId = "peer-4",
-            isHost = true,
-            trackHost = false,
             hostPeerId = null,
             connectedPeerIds = connected
         )
