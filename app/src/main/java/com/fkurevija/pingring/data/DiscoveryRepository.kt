@@ -591,7 +591,7 @@ class DiscoveryRepository(
     // redundant startDiscovery() call for the exact same session (e.g. both
     // HostSetupScreen and RadarScreen call this when navigating between
     // them) doesn't tear down and re-establish transport connections it
-    // doesn't need to â€” that churn was dropping in-flight chat messages.
+    // doesn't need to — that churn was dropping in-flight chat messages.
     //
     // The radio settings are part of the identity on purpose: flipping the UWB
     // or Wi-Fi switch on the host screen really does have to rebuild the
@@ -746,7 +746,7 @@ class DiscoveryRepository(
             event.useHotspot == activeDiscoveryUseHotspot &&
             repositoryScope?.isActive == true
         ) {
-            // Already actively discovering for this exact session â€” skip the
+            // Already actively discovering for this exact session — skip the
             // teardown/restart to avoid unnecessary transport reconnects.
             Log.d(TAG, "Discovery already active for event ${event.id}, ignoring duplicate startDiscovery()")
             return

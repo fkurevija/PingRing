@@ -142,7 +142,7 @@ class PeerListInstrumentedTest {
         // silently reusing a stale number, would be worse than a dash.
         show(peers = listOf(peer(name = "Ana", distance = null)))
 
-        composeRule.onNodeWithText("â€”").assertIsDisplayed()
+        composeRule.onNodeWithText("—").assertIsDisplayed()
     }
 
     @Test
