@@ -108,7 +108,13 @@ The prompt appears only while the radar is in the foreground. PingRing cannot te
 
 ### Member list
 
+Tap the **people** icon in the radar's top bar to open it. It slides up from the bottom over the radar and closes by swiping it away.
+
+On a tablet the list is also a permanent pane beside the radar, so the icon there just reopens what is already on screen.
+
 Each row shows a status dot (beacon colour if they have a beacon running, otherwise green when close and blue when not), the name, proximity and signal strength in dBm, and the distance. The host's radar shows pending join requests above the radar.
+
+Without this the ring was unreadable on a phone: the title carried the count (`Members (3/8)`) but nothing on the screen could say *who* those three were.
 
 ### Haptics
 

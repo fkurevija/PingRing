@@ -16,6 +16,7 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.printToString
 import androidx.compose.ui.unit.dp
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.espresso.Espresso
 import com.fkurevija.pingring.data.ChatBubblePalette
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -534,5 +535,48 @@ class RadarScreenInstrumentedTest {
         composeRule.onNodeWithText("Settings").performClick()
 
         assertEquals(1, opened)
+    }
+@Test
+    fun theMemberListCanBeOpenedOnAPhone() {
+        // The peers are a permanent second pane only at tablet width. Below that
+        // the radar and chat fill the screen and this control is the only route
+        // to the list, so before it existed a host on a phone could see the
+        // member count in the title but had no way at all to see who was in the
+        // ring. The test runs at the device's own width, which is a phone.
+        showRadar()
+
+        composeRule.onNodeWithContentDescription("Show members").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Show members").performClick()
+        // The sheet animates in on the frame clock, which this screen pauses so the
+        // radar pulse can never settle. settle() covers the dialogs used
+        // elsewhere on this screen; the sheet needs its frames walked explicitly.
+        repeat(10) { composeRule.mainClock.advanceTimeByFrame() }
+        composeRule.waitForIdle()
+
+        // Proof the real list rendered rather than an empty sheet: the count
+        // includes this device, and the empty-state copy explains itself.
+        composeRule.onNodeWithText("Members (1/8)").assertIsDisplayed()
+        composeRule.onNodeWithText("Your ephemeral ID is private to this event.", substring = true)
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun theMemberListCanBeClosedAgain() {
+        // A sheet that only opened would strand the reader on top of the radar,
+        // so dismissal is asserted. System back rather than tapping the icon
+        // again, because the sheet covers the top bar and tapping a covered
+        // control would test nothing.
+        showRadar()
+
+        composeRule.onNodeWithContentDescription("Show members").performClick()
+        repeat(10) { composeRule.mainClock.advanceTimeByFrame() }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Members (1/8)").assertIsDisplayed()
+
+        Espresso.pressBack()
+        composeRule.settle()
+
+        composeRule.onNodeWithText("Your ephemeral ID is private to this event.", substring = true)
+            .assertDoesNotExist()
     }
 }

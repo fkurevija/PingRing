@@ -57,6 +57,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -108,6 +110,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.FilterChip
@@ -222,6 +225,7 @@ fun RadarScreen(
     var showBeaconSheet by remember { mutableStateOf(false) }
     var showChatSettings by remember { mutableStateOf(false) }
     var showQrCode by remember { mutableStateOf(false) }
+    var showMemberSheet by remember { mutableStateOf(false) }
     var showConnectionLostDialog by remember(eventId) { mutableStateOf(false) }
     var connectionLostSnoozedUntilMillis by rememberSaveable(eventId) { mutableLongStateOf(0L) }
     var connectionPromptSilenced by rememberSaveable(eventId) { mutableStateOf(false) }
@@ -459,6 +463,20 @@ fun RadarScreen(
                     }
                 },
                 actions = {
+                    // The member list, on every screen size.
+                    //
+                    // On a tablet the peers are a permanent second pane, so this
+                    // button repeats what is already on screen. It is kept
+                    // regardless, because one predictable control is easier to
+                    // find and to document than one that only sometimes exists,
+                    // and because on a phone it is the only way to see who is in
+                    // the ring at all.
+                    IconButton(onClick = { showMemberSheet = true }) {
+                        Icon(
+                            Icons.Default.People,
+                            contentDescription = stringResource(R.string.show_members)
+                        )
+                    }
                     val acceptsNewMembers = sessionState.currentEvent?.acceptsNewMembers ?: true
                     if (acceptsNewMembers) {
                         IconButton(onClick = { showQrCode = true }) {
@@ -1075,6 +1093,39 @@ fun RadarScreen(
                             discoveryRepository?.playVibrationPattern(pattern)
                         }
                     )
+                }
+
+                if (showMemberSheet) {
+                    // A sheet rather than a screen, deliberately. The peers are a
+                    // view onto the radar, not a place of their own: they answer
+                    // "who is here" and are worth one gesture, not a navigation
+                    // step that has to be undone before you can see the radar
+                    // again.
+                    //
+                    // Fully expanded rather than half-height, because PeerList
+                    // opens with its connectivity warnings when Bluetooth is off
+                    // and a half-height sheet buries the count and the rows under
+                    // them. Opening the member list has to actually show the
+                    // member list, which is the whole reason this control exists.
+                    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+                    ModalBottomSheet(
+                        onDismissRequest = { showMemberSheet = false },
+                        sheetState = sheetState,
+                    ) {
+                        // No heading of our own: PeerList already states the
+                        // count, and it states it differently when the ring is
+                        // full. A second copy here would disagree with it the
+                        // moment the count changed underneath.
+                        PeerList(
+                            peers = peers,
+                            connectivity = connectivity,
+                            repository = discoveryRepository,
+                            activeBeacons = activeBeacons,
+                            focusedPeerId = focusSelection,
+                            onFocusPeer = { discoveryRepository?.setFocusedPeer(it) },
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                        )
+                    }
                 }
 
                 if (showQrCode) {
