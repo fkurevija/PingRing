@@ -14,8 +14,6 @@
     <string name="spoken_radar_updates">Annonces des changements du radar</string>
     <string name="spoken_radar_updates_description">Avec un lecteur d’écran actif, annoncer les changements stables de membre, de proximité et de balise au maximum toutes les 10 secondes lorsque le radar est ouvert.</string>
     <string name="accessibility_card_description">Fonctionnalités facultatives pour lecteur d’écran</string>
-    <string name="appearance_title">Apparence</string>
-    <string name="appearance_description">Thème</string>
     <string name="language">Langue</string>
     <string name="language_description">Choisissez la langue de PingRing. Le réglage par défaut suit la langue de l’appareil.</string>
     <string name="language_system_default">Par défaut du système</string>
@@ -34,8 +32,6 @@
     <string name="set_chat_bubble_colour_to">Définir la couleur des bulles de discussion sur %1$s</string>
     <string name="custom">Personnalisé</string>
     <string name="use_theme_colour">Utiliser la couleur du thème</string>
-    <string name="notifications_title">Notifications</string>
-    <string name="notifications_description">Réception, son et vibration des notifications de discussion</string>
     <string name="developer_options">Options pour les développeurs</string>
     <string name="lan_debug_transport">Transport LAN de débogage</string>
     <string name="use_lan_debug_transport">Utiliser le transport LAN de débogage</string>

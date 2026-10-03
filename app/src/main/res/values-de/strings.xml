@@ -14,8 +14,6 @@
     <string name="spoken_radar_updates">Gesprochene Radar-Updates</string>
     <string name="spoken_radar_updates_description">Bei aktivem Screenreader stabile Mitglieder-, Näherungs- und Signaländerungen höchstens alle 10 Sekunden bei geöffnetem Radar ansagen.</string>
     <string name="accessibility_card_description">Optionale Funktionen für Screenreader</string>
-    <string name="appearance_title">Darstellung</string>
-    <string name="appearance_description">Design</string>
     <string name="language">Sprache</string>
     <string name="language_description">Wähle die Sprache von PingRing. „Systemstandard“ folgt der Gerätesprache.</string>
     <string name="language_system_default">Systemstandard</string>
@@ -34,8 +32,6 @@
     <string name="set_chat_bubble_colour_to">Farbe der Chat-Sprechblase auf %1$s festlegen</string>
     <string name="custom">Benutzerdefiniert</string>
     <string name="use_theme_colour">Designfarbe verwenden</string>
-    <string name="notifications_title">Benachrichtigungen</string>
-    <string name="notifications_description">Zustellung, Ton und Vibration von Chatbenachrichtigungen</string>
     <string name="developer_options">Entwickleroptionen</string>
     <string name="lan_debug_transport">LAN-Debug-Transport</string>
     <string name="use_lan_debug_transport">LAN-Debug-Transport verwenden</string>

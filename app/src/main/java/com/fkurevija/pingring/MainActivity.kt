@@ -55,10 +55,8 @@ import com.fkurevija.pingring.data.PingRingService
 import com.fkurevija.pingring.data.SessionManager
 import com.fkurevija.pingring.data.ThemeMode
 import com.fkurevija.pingring.ui.navigation.AppSettingsKey
-import com.fkurevija.pingring.ui.navigation.AppearanceSettingsKey
 import com.fkurevija.pingring.ui.navigation.AccessibilitySettingsKey
 import com.fkurevija.pingring.ui.navigation.DeveloperSettingsKey
-import com.fkurevija.pingring.ui.navigation.NotificationSettingsKey
 import com.fkurevija.pingring.ui.navigation.PingRingJoinKey
 import com.fkurevija.pingring.ui.navigation.PingRingSettingsKey
 import com.fkurevija.pingring.ui.navigation.HomeKey
@@ -66,11 +64,9 @@ import com.fkurevija.pingring.ui.navigation.HostSetupKey
 import com.fkurevija.pingring.ui.navigation.RadarKey
 import com.fkurevija.pingring.ui.permissions.PermissionWrapper
 import com.fkurevija.pingring.ui.screens.AppSettingsScreen
-import com.fkurevija.pingring.ui.screens.AppearanceSettingsScreen
 import com.fkurevija.pingring.ui.screens.AccessibilitySettingsScreen
 import com.fkurevija.pingring.ui.screens.DeveloperSettingsScreen
 import com.fkurevija.pingring.ui.screens.ConnectionAuthenticationDialog
-import com.fkurevija.pingring.ui.screens.NotificationSettingsScreen
 import com.fkurevija.pingring.ui.screens.PingRingJoinScreen
 import com.fkurevija.pingring.ui.screens.PingRingSettingsScreen
 import com.fkurevija.pingring.ui.screens.HomeScreen
@@ -218,6 +214,12 @@ fun MainNavigation(
     val connectionRecoveryPromptDelayMillis by appearanceSettings.connectionRecoveryPromptDelayMillis.collectAsState(
         initial = 120_000L
     )
+    // The notification switches live on the App Settings screen itself rather
+    // than behind a Notifications submenu, so they are collected here with the
+    // rest of the appearance settings and handed straight down.
+    val chatNotificationsEnabled by appearanceSettings.chatNotificationsEnabled.collectAsState(initial = true)
+    val notificationSoundEnabled by appearanceSettings.notificationSoundEnabled.collectAsState(initial = true)
+    val notificationVibrationEnabled by appearanceSettings.notificationVibrationEnabled.collectAsState(initial = true)
     val hostConnectionLostAtMillis by discoveryRepository.hostConnectionLostAtMillis.collectAsState(initial = null)
     val lastKnownPeerDirections by discoveryRepository.lastKnownPeerDirections.collectAsState(initial = emptyList())
     // Devices waiting on the host to approve. Collected here rather than inside
@@ -420,8 +422,14 @@ fun MainNavigation(
                         onLanguageSelected = { languageTag ->
                             AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(languageTag))
                         },
-                        onOpenAppearance = { backStack.add(AppearanceSettingsKey) },
-                        onOpenNotifications = { backStack.add(NotificationSettingsKey) },
+                        themeMode = currentThemeMode,
+                        onThemeModeChange = appearanceSettings::setThemeMode,
+                        chatNotificationsEnabled = chatNotificationsEnabled,
+                        onChatNotificationsEnabledChange = appearanceSettings::setChatNotificationsEnabled,
+                        notificationSoundEnabled = notificationSoundEnabled,
+                        onNotificationSoundEnabledChange = appearanceSettings::setNotificationSoundEnabled,
+                        notificationVibrationEnabled = notificationVibrationEnabled,
+                        onNotificationVibrationEnabledChange = appearanceSettings::setNotificationVibrationEnabled,
                         onOpenAccessibility = { backStack.add(AccessibilitySettingsKey) },
                         connectionRecoveryPromptEnabled = connectionRecoveryPromptEnabled,
                         connectionRecoveryPromptDelayMillis = connectionRecoveryPromptDelayMillis,
@@ -452,21 +460,6 @@ fun MainNavigation(
                             }
                         },
                         onBack = { backStack.popBack() }
-                    )
-                }
-
-                is AppearanceSettingsKey -> {
-                    AppearanceSettingsScreen(
-                        themeMode = currentThemeMode,
-                        onThemeModeChange = appearanceSettings::setThemeMode,
-                        onBack = { backStack.popBack() },
-                    )
-                }
-
-                is NotificationSettingsKey -> {
-                    NotificationSettingsScreen(
-                        appearanceSettings = appearanceSettings,
-                        onBack = { backStack.popBack() },
                     )
                 }
 

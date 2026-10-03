@@ -14,8 +14,6 @@
     <string name="spoken_radar_updates">Spoken radar updates</string>
     <string name="spoken_radar_updates_description">With a screen reader active, announce stable member, proximity and beacon changes at most once every 10 seconds while the radar is open.</string>
     <string name="accessibility_card_description">Optional screen-reader features</string>
-    <string name="appearance_title">Appearance</string>
-    <string name="appearance_description">Theme</string>
     <string name="language">Language</string>
     <string name="language_description">Choose PingRingâ€™s language. System default follows your device.</string>
     <string name="language_system_default">System default</string>
@@ -35,8 +33,6 @@
     <string name="set_chat_bubble_colour_to">Set chat bubble colour to %1$s</string>
     <string name="custom">Custom</string>
     <string name="use_theme_colour">Use theme colour</string>
-    <string name="notifications_title">Notifications</string>
-    <string name="notifications_description">Chat notification delivery, sound, and vibration</string>
     <string name="developer_options">Developer Options</string>
     <string name="lan_debug_transport">LAN debug transport</string>
     <string name="use_lan_debug_transport">Use LAN Debug Transport</string>

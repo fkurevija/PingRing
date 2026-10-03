@@ -14,8 +14,6 @@
     <string name="spoken_radar_updates">Govorne promjene radara</string>
     <string name="spoken_radar_updates_description">Uz aktivan čitač zaslona izgovori stabilne promjene osobe, blizine i signala najviše jednom svakih 10 sekundi dok je radar otvoren.</string>
     <string name="accessibility_card_description">Neobavezne značajke za čitač zaslona</string>
-    <string name="appearance_title">Izgled</string>
-    <string name="appearance_description">Tema</string>
     <string name="language">Jezik</string>
     <string name="language_description">Odaberite jezik PingRinga. Zadana postavka prati jezik uređaja.</string>
     <string name="language_system_default">Zadano prema sustavu</string>
@@ -34,8 +32,6 @@
     <string name="set_chat_bubble_colour_to">Postavi boju oblačića razgovora na %1$s</string>
     <string name="custom">Prilagođeno</string>
     <string name="use_theme_colour">Koristi boju teme</string>
-    <string name="notifications_title">Obavijesti</string>
-    <string name="notifications_description">Dostava obavijesti o razgovoru, zvuk i vibracija</string>
     <string name="developer_options">Opcije za razvojne programere</string>
     <string name="lan_debug_transport">LAN prijenos za otklanjanje pogrešaka</string>
     <string name="use_lan_debug_transport">Koristi LAN prijenos za otklanjanje pogrešaka</string>

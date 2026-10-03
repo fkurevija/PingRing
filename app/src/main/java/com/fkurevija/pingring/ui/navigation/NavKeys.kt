@@ -16,12 +16,6 @@ data class HostSetupKey(val eventCode: String) : NavKey
 data object AppSettingsKey : NavKey
 
 @Serializable
-data object AppearanceSettingsKey : NavKey
-
-@Serializable
-data object NotificationSettingsKey : NavKey
-
-@Serializable
 data object DeveloperSettingsKey : NavKey
 
 @Serializable
