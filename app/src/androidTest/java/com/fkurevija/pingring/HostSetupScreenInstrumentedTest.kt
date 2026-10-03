@@ -10,6 +10,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
 import com.fkurevija.pingring.data.DiscoveryRepository
+import com.fkurevija.pingring.data.PendingJoinRequest
 import com.fkurevija.pingring.ui.screens.HostSetupScreen
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -49,7 +50,12 @@ class HostSetupScreenInstrumentedTest {
         "Approve Each Join",
     )
 
-    private fun show(onOpenSettings: () -> Unit = {}) {
+    private fun show(
+        onOpenSettings: () -> Unit = {},
+        pendingJoinRequests: List<PendingJoinRequest> = emptyList(),
+        onApproveJoinRequest: (String) -> Unit = {},
+        onDenyJoinRequest: (String) -> Unit = {},
+    ) {
         val context = ApplicationProvider.getApplicationContext<Context>()
         // The screen asks the repository only whether this device can range, so
         // a repository is needed but no radio is ever touched. The production
@@ -69,7 +75,10 @@ class HostSetupScreenInstrumentedTest {
                     onEndEvent = {},
                     onSaveUsername = {},
                     onView = {},
-                    onOpenSettings = onOpenSettings
+                    onOpenSettings = onOpenSettings,
+                    pendingJoinRequests = pendingJoinRequests,
+                    onApproveJoinRequest = onApproveJoinRequest,
+                    onDenyJoinRequest = onDenyJoinRequest,
                 )
             }
         }
@@ -117,5 +126,35 @@ class HostSetupScreenInstrumentedTest {
         // The code is the only way somebody can join without the session being
         // discoverable, so it has to be readable here.
         composeRule.onNodeWithText("4C1A9B").assertIsDisplayed()
+    }
+
+    @Test
+    fun aHostCanApproveAJoinWhileStillOnHostSetup() {
+        var approved: String? = null
+        show(
+            pendingJoinRequests = listOf(PendingJoinRequest("endpoint-1", "Ana", 1L)),
+            onApproveJoinRequest = { approved = it },
+        )
+
+        composeRule.onNodeWithText("Ana").assertIsDisplayed()
+        composeRule.onNodeWithText("Allow").performClick()
+        composeRule.waitForIdle()
+
+        assertEquals("endpoint-1", approved)
+    }
+
+    @Test
+    fun aHostCanDenyAJoinWhileStillOnHostSetup() {
+        var denied: String? = null
+        show(
+            pendingJoinRequests = listOf(PendingJoinRequest("endpoint-2", "Sam", 1L)),
+            onDenyJoinRequest = { denied = it },
+        )
+
+        composeRule.onNodeWithText("Sam").assertIsDisplayed()
+        composeRule.onNodeWithText("Deny").performClick()
+        composeRule.waitForIdle()
+
+        assertEquals("endpoint-2", denied)
     }
 }

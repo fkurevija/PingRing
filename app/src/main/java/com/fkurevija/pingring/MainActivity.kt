@@ -304,7 +304,10 @@ fun MainNavigation(
                         // second copy here to drift out of step with the first.
                         onOpenSettings = {
                             backStack.add(PingRingSettingsKey(key.eventCode))
-                        }
+                        },
+                        pendingJoinRequests = pendingJoinRequests,
+                        onApproveJoinRequest = discoveryRepository::approveJoinRequest,
+                        onDenyJoinRequest = discoveryRepository::denyJoinRequest,
                     )
                 }
 

@@ -24,7 +24,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Sensors
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material3.Button
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -54,7 +56,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import com.fkurevija.pingring.data.DiscoveryRepository
+import com.fkurevija.pingring.data.PendingJoinRequest
 import com.fkurevija.pingring.R
+import androidx.compose.ui.res.pluralStringResource
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -77,7 +81,10 @@ fun HostSetupScreen(
      * them at all. So the duplicates are gone and this screen is what it is
      * actually for - the code to share, a name, and the way in.
      */
-    onOpenSettings: () -> Unit
+    onOpenSettings: () -> Unit,
+    pendingJoinRequests: List<PendingJoinRequest> = emptyList(),
+    onApproveJoinRequest: (String) -> Unit = {},
+    onDenyJoinRequest: (String) -> Unit = {},
 ) {
     val defaultHostName = stringResource(R.string.host_default_name)
     var username by remember(savedUsername, defaultHostName) { mutableStateOf(savedUsername.ifBlank { defaultHostName }) }
@@ -140,6 +147,39 @@ fun HostSetupScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            if (pendingJoinRequests.isNotEmpty()) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                ) {
+                    Column(Modifier.fillMaxWidth().padding(12.dp)) {
+                        Text(
+                            pluralStringResource(R.plurals.join_request_count, pendingJoinRequests.size, pendingJoinRequests.size),
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        pendingJoinRequests.forEach { request ->
+                            Row(
+                                Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Icon(Icons.Default.PersonAdd, contentDescription = null, modifier = Modifier.size(20.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text(request.deviceName, Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
+                                TextButton(onClick = { onDenyJoinRequest(request.endpointId) }) {
+                                    Text(stringResource(R.string.deny))
+                                }
+                                Button(onClick = { onApproveJoinRequest(request.endpointId) }) {
+                                    Text(stringResource(R.string.allow))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             // QR Code Showcase Card
             Card(
                 modifier = Modifier.fillMaxWidth(),

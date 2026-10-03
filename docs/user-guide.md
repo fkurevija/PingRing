@@ -169,7 +169,7 @@ Reached from the host setup screen's **PingRing Settings** card or from **Settin
 **Connectivity & Participation**
 - **Accept New Members** — allow new members to join. Turning it off rejects further authenticated Nearby requests and hides the QR button until it is back on.
 - **Discoverable** — list this session on nearby phones' **Nearby PingRings** list. Off by default. Does not affect joining by code.
-- **Approve Each Join** — hold QR-secret joins on the radar until you allow or deny them. Off by default. Code-only joins always need approval. Unanswered requests are refused after two minutes.
+- **Approve Each Join** — hold QR-secret joins for you to allow or deny. Off by default. Code-only joins always need approval. Unanswered requests are refused after two minutes. The approval card appears on both Host Setup and Radar, after you and the guest confirm that the Nearby security digits match.
 - **Track Host Only** — ask every guest's radar to follow you. Guests can see the picker but cannot change it. You are never locked out of tracking whoever you like.
 - **Ultra-wideband (UWB)** — sub-metre ranging. When it is off, the row says *why*: this device has no UWB radio; ranging needs permission (tap the row to grant it); or ranging needs Android 12 or newer.
 - **High Bandwidth (Wi-Fi)** — always on, nothing to change.
