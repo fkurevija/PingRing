@@ -169,7 +169,9 @@ The button is painted in your chosen colour, with the label drawn for contrast a
 
 ### Chat Settings
 
-Tap **Chat Settings**, between the beacon buttons and the transcript, for everything about how chat looks. It sits next to the chat it changes rather than two screens away.
+Tap **Chat Settings** for everything about how chat looks. It sits on the same row as the beacon button — **Chat Settings** on the left, the beacon on the right — directly above the transcript it changes, rather than two screens away.
+
+In English the two share the row on one line. In German or Canadian French the labels are long enough that a button wraps its text to a second line and the pair becomes slightly taller; nothing is cut off or abbreviated.
 
 - **Chat Bubble Colour** — one of **12 fixed colours**. You are given one at random when you enter a PingRing, and you can change it at any time; the choice is saved immediately.
 - There is no custom picker and no "use the theme colour" option. Everyone in the ring sees the same colour for your messages, which is the entire point: two phones drawing your messages differently is what makes a busy transcript unreadable.

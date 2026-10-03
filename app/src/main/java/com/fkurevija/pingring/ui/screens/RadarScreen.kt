@@ -961,6 +961,32 @@ fun RadarScreen(
                                 modifier = Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 4.dp),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
+                                // Chat settings on the left, the beacon on the right, one
+                                // row. They used to be stacked, each filling the width, which
+                                // spent two rows of a short screen on two short controls
+                                // and pushed the chat transcript down for both.
+                                //
+                                // The order is deliberate rather than arbitrary: the left is
+                                // how the conversation looks and the right is what the
+                                // conversation is saying about where you are.
+                                //
+                                // Equal halves, and the labels are allowed to wrap to a
+                                // second line rather than being clipped. German
+                                // "Chat-Einstellungen" and Canadian French "Réglages du
+                                // clavardage" do not fit half a phone width on one line, and
+                                // an ellipsised button label in one language and not another
+                                // is worse than a button that is briefly taller.
+                                OutlinedButton(
+                                    onClick = { showChatSettings = true },
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Icon(Icons.Default.Chat, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(
+                                        stringResource(R.string.chat_settings),
+                                        textAlign = TextAlign.Center,
+                                    )
+                                }
                                 // The label and the icon are coloured for the
                                 // beacon they sit on rather than left at the
                                 // theme's on-primary, which is dark grey and only
@@ -973,7 +999,7 @@ fun RadarScreen(
                                 // from two different beacons.
                                 Button(
                                     onClick = { showBeaconSheet = true },
-                                    modifier = Modifier.fillMaxWidth(),
+                                    modifier = Modifier.weight(1f),
                                     colors = localBeacon?.let { beacon ->
                                         ButtonDefaults.buttonColors(
                                             containerColor = beacon.color,
@@ -983,26 +1009,11 @@ fun RadarScreen(
                                 ) {
                                     Icon(Icons.Default.Campaign, contentDescription = null, modifier = Modifier.size(18.dp))
                                     Spacer(Modifier.width(6.dp))
-                                    Text(stringResource(if (localBeacon != null) R.string.my_beacon else R.string.new_beacon))
+                                    Text(
+                                        stringResource(if (localBeacon != null) R.string.my_beacon else R.string.new_beacon),
+                                        textAlign = TextAlign.Center,
+                                    )
                                 }
-                            }
-
-                            // Chat settings, below the beacon buttons and above
-                            // the transcript.
-                            //
-                            // It used to live on the PingRing settings screen,
-                            // which is two destinations and a chat's length away
-                            // from the chat it changes. Beside the thing it
-                            // affects, and reachable without leaving the
-                            // conversation, is the whole reason it is its own
-                            // control rather than another entry in a list.
-                            OutlinedButton(
-                                onClick = { showChatSettings = true },
-                                modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)
-                            ) {
-                                Icon(Icons.Default.Chat, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(6.dp))
-                                Text(stringResource(R.string.chat_settings))
                             }
                         }
 

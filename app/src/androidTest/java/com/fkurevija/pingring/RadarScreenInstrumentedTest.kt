@@ -10,6 +10,7 @@ import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertWidthIsAtLeast
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onRoot
@@ -29,6 +30,7 @@ import com.fkurevija.pingring.data.PendingJoinRequest
 import com.fkurevija.pingring.data.SessionState
 import com.fkurevija.pingring.ui.screens.RadarScreen
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
@@ -436,15 +438,34 @@ class RadarScreenInstrumentedTest {
     }
 
     @Test
-    fun theChatSettingsButtonSitsBelowTheBeaconControlsAndAboveTheChat() {
+    fun chatSettingsAndNewBeaconShareOneRowWithChatSettingsOnTheLeft() {
         // The position is the point. Chat settings used to live on the PingRing
         // settings screen - two destinations and a chat's length away from the
-        // chat they change - and a button in the run of chat controls is the
-        // fix, not a reshuffle.
+        // chat they change - and it then sat stacked above the beacon button with
+        // each filling the width, spending a second row of a short screen on a
+        // short control.
+        //
+        // Asserted from measured bounds rather than from both labels merely
+        // existing, because "both are on screen" is exactly what the old stacked
+        // layout also satisfied. The order matters too: chat settings on the left.
         showRadar()
         composeRule.settle()
 
-        composeRule.onNodeWithText("Chat Settings").assertIsDisplayed()
+        val chatBounds = composeRule.onNodeWithText("Chat Settings").getUnclippedBoundsInRoot()
+        val beaconBounds = composeRule.onNodeWithText("New Beacon").getUnclippedBoundsInRoot()
+
+        assertTrue(
+            "Chat Settings should sit left of New Beacon, was " +
+                "chat=${chatBounds.left} beacon=${beaconBounds.left}",
+            chatBounds.left < beaconBounds.left,
+        )
+        // Same row rather than stacked: the two vertical spans have to overlap.
+        assertTrue(
+            "Chat Settings and New Beacon should share one row, was " +
+                "chat=${chatBounds.top}-${chatBounds.bottom} " +
+                "beacon=${beaconBounds.top}-${beaconBounds.bottom}",
+            chatBounds.top < beaconBounds.bottom && beaconBounds.top < chatBounds.bottom,
+        )
     }
 
     @Test
