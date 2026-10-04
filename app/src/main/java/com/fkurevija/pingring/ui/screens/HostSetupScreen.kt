@@ -120,33 +120,29 @@ fun HostSetupScreen(
                     }
                 },
             )
-        },
-        bottomBar = {
-            Box(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-                Button(
-                    onClick = {
-                        val trimmed = username.trim()
-                        if (trimmed.isNotBlank()) {
-                            onSaveUsername(trimmed)
-                            onView()
-                        }
-                    },
-                    enabled = username.isNotBlank(),
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                    shape = RoundedCornerShape(16.dp)
-                ) {
-                    Text(stringResource(R.string.launch_radar), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                }
-            }
         }
     ) { padding ->
+        // Shaped like the join screen: the same 20dp inset, the same centred
+        // column, the same explicit Spacers between blocks, and the primary
+        // action inline rather than pinned to a bottom bar. The two screens ask
+        // for the same thing from opposite directions, and a host who has just
+        // read a code out to somebody should be looking at the same shape they
+        // will see a minute later when they scan it.
+        //
+        // The scroll stays as a guard, not as a habit. Everything here fits a
+        // phone with room to spare, so nothing scrolls in the resting state and
+        // anEmptyUsernameErrorAndThePrimaryActionBothFitWithoutScrolling says
+        // so. What it is for is the one thing here that grows at runtime: the
+        // queue of people waiting to be admitted, each a full row with Allow
+        // and Deny on it. Clip those and nobody can get into the ring, so the
+        // page gives way before the approvals do.
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(horizontal = 16.dp)
+                .padding(20.dp)
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             if (pendingJoinRequests.isNotEmpty()) {
                 Card(
@@ -181,6 +177,10 @@ fun HostSetupScreen(
                 }
             }
 
+            // Spacers, not spacedBy: the join screen sets its rhythm with
+            // explicit ones and matching it here is the point of this layout.
+            Spacer(Modifier.height(12.dp))
+
             // QR Code Showcase Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -207,7 +207,7 @@ fun HostSetupScreen(
                     }
                     Box(
                         modifier = Modifier
-                            .size(200.dp)
+                            .size(150.dp)
                             .clip(RoundedCornerShape(16.dp))
                             .background(Color.White)
                             .padding(12.dp),
@@ -243,6 +243,8 @@ fun HostSetupScreen(
                     }
                 }
             }
+
+            Spacer(Modifier.height(12.dp))
 
             // Username Field
             //
@@ -281,6 +283,8 @@ fun HostSetupScreen(
                 }
             }
 
+            Spacer(Modifier.height(12.dp))
+
             // One link, not a second copy of the switches. Every event switch
             // lives on PingRing Settings, which is one tap away and the only
             // place any of them change.
@@ -318,6 +322,8 @@ fun HostSetupScreen(
                 }
             }
 
+            Spacer(Modifier.height(12.dp))
+
             // Capacity, above the settings link. It is a property of the ring rather than
             // something to configure - there is no control next to it, and never
             // was - so putting it under a heading on the settings screen made it
@@ -353,7 +359,32 @@ fun HostSetupScreen(
                 }
             }
 
+            // The primary action, inline and last, the way the join screen puts
+            // its own. It was pinned to a bottom bar, which cost the page ~84dp
+            // it could not use and made this the only one of the two screens
+            // whose call to action lived somewhere else.
+            //
+            // Guarded on a trimmed name as well as enabled on a blank one, so a
+            // name of only spaces cannot open a session called " ".
             Spacer(Modifier.height(16.dp))
+            Button(
+                onClick = {
+                    val trimmed = username.trim()
+                    if (trimmed.isNotBlank()) {
+                        onSaveUsername(trimmed)
+                        onView()
+                    }
+                },
+                enabled = username.isNotBlank(),
+                modifier = Modifier.fillMaxWidth().height(50.dp),
+                shape = RoundedCornerShape(16.dp),
+            ) {
+                Text(
+                    stringResource(R.string.launch_radar),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
         }
 
         if (showEndConfirmation) {

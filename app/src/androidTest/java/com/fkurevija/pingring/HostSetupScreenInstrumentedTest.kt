@@ -2,6 +2,8 @@ package com.fkurevija.pingring
 
 import android.content.Context
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -240,4 +242,31 @@ class HostSetupScreenInstrumentedTest {
             message.bottom > field.bottom,
         )
     }
+
+    @Test
+    fun anEmptyUsernameErrorAndThePrimaryActionBothFitWithoutScrolling() {
+        // The one promise this screen makes: a host sees all of it on one page.
+        // The scroll modifier stays as a guard for the join-request queue, which
+        // grows at runtime, so this is what proves it is not needed while resting.
+        //
+        // Measured against the scroll viewport, NOT the window. The window is the
+        // full 923dp of screen; the viewport is what is left once the system bars
+        // are taken off, and it is the viewport the button has to fit inside. An
+        // earlier version compared against the window and passed while the button
+        // was visibly cut in half - which is the exact bug this asserts against.
+        show()
+        composeRule.onNodeWithText("Alex").performTextClearance()
+        composeRule.waitForIdle()
+
+        val action = composeRule.onNodeWithText("Launch Radar").getUnclippedBoundsInRoot()
+        val viewport = composeRule.onNode(hasScrollAction()).getUnclippedBoundsInRoot()
+
+        assertTrue(
+            "the whole screen should fit without scrolling, was " +
+                "actionBottom=${action.bottom} viewportBottom=${viewport.bottom}",
+            action.bottom <= viewport.bottom,
+        )
+        composeRule.onNodeWithText("Username cannot be empty").assertIsDisplayed()
+    }
+
 }
