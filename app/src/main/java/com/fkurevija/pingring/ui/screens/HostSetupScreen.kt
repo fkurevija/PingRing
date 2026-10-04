@@ -31,6 +31,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -181,21 +182,34 @@ fun HostSetupScreen(
             // explicit ones and matching it here is the point of this layout.
             Spacer(Modifier.height(12.dp))
 
-            // QR Code Showcase Card
+            // One panel, the way the join screen has one. That screen puts its
+            // heading and both of its fields inside a single card and leaves only
+            // the buttons outside; this one had four separate cards for the same
+            // job, which made one short form read as four unrelated blocks.
+            //
+            // Merging them also buys the vertical room the one-page promise
+            // needed: three card paddings and two card gaps disappear into three
+            // dividers, which is cheaper than the cards they replace.
+            //
+            // The queue of waiting devices stays in a card of its own. It is
+            // transient, it appears and disappears on its own, and it is an
+            // interruption rather than part of the form - folding it in would
+            // imply setting up a ring and being asked to join one are the same
+            // screen.
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(20.dp),
+                        .padding(24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
                         stringResource(R.string.scan_to_join),
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(Modifier.height(12.dp))
@@ -219,7 +233,7 @@ fun HostSetupScreen(
                             modifier = Modifier.fillMaxSize()
                         )
                     }
-                    Spacer(Modifier.height(14.dp))
+                    Spacer(Modifier.height(12.dp))
                     Text(
                         stringResource(R.string.pingring_code),
                         style = MaterialTheme.typography.labelMedium,
@@ -241,121 +255,104 @@ fun HostSetupScreen(
                             color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                     }
-                }
-            }
 
-            Spacer(Modifier.height(12.dp))
+                    HorizontalDivider(Modifier.padding(vertical = 16.dp))
 
-            // Username Field
-            //
-            // The error is a sibling Text rather than the TextField's
-            // supportingText slot. supportingText is measured into a reserved
-            // strip inside the field, and a message that only appears once the
-            // field is empty has been seen clipped by a few pixels at the bottom
-            // on a real device. Laying it out as ordinary content in this Column
-            // means it takes its height from the text at whatever font scale the
-            // phone is using, and the scrolling column can never crop it.
-            //
-            // An inner Column with no spacing so the message sits close under the
-            // field the way supporting text did, while the outer Column still
-            // separates the pair from the cards above and below.
-            Column {
-                OutlinedTextField(
-                    value = username,
-                    onValueChange = { username = it },
-                    label = { Text(stringResource(R.string.username)) },
-                    placeholder = { Text(stringResource(R.string.username_example)) },
-                    isError = username.isBlank(),
-                    shape = RoundedCornerShape(14.dp),
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(
-                        capitalization = KeyboardCapitalization.Words
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                if (username.isBlank()) {
-                    Text(
-                        stringResource(R.string.username_required),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(start = 16.dp, top = 4.dp),
-                    )
-                }
-            }
+            // Username Field. Inside the panel, where the join screen keeps its
+                    // two fields, rather than loose below it.
+                    //
+                    // The error is a sibling Text rather than the TextField's
+                    // supportingText slot. supportingText is measured into a
+                    // reserved strip inside the field, and a message that only
+                    // appears once the field is empty has been seen clipped by a
+                    // few pixels at the bottom on a real device. Laid out as
+                    // ordinary content it takes its height from the text at
+                    // whatever font scale the phone is using.
+                    Column(Modifier.fillMaxWidth()) {
+                        OutlinedTextField(
+                            value = username,
+                            onValueChange = { username = it },
+                            label = { Text(stringResource(R.string.username)) },
+                            placeholder = { Text(stringResource(R.string.username_example)) },
+                            isError = username.isBlank(),
+                            shape = RoundedCornerShape(14.dp),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(
+                                capitalization = KeyboardCapitalization.Words
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        if (username.isBlank()) {
+                            Text(
+                                stringResource(R.string.username_required),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.padding(start = 16.dp, top = 4.dp),
+                            )
+                        }
+                    }
 
-            Spacer(Modifier.height(12.dp))
+                    HorizontalDivider(Modifier.padding(vertical = 16.dp))
 
             // One link, not a second copy of the switches. Every event switch
-            // lives on PingRing Settings, which is one tap away and the only
-            // place any of them change.
-            //
-            // No heading above the button. The button is already labelled "PingRing
-            // Settings", so a title repeating those words two lines above it said the
-            // same thing twice and made the card look like a section rather than the
-            // single control it holds.
-            //
-            // The hint goes below the button, where it captions it: it answers what
-            // tapping will take you to, which is what the reader is looking at once
-            // they have read the label. Above the button it read as prose to skim
-            // past before reaching the thing it was describing.
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
-            ) {
-                Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-                    OutlinedButton(
-                        onClick = onOpenSettings,
-                        modifier = Modifier.fillMaxWidth().height(50.dp),
-                        shape = RoundedCornerShape(14.dp)
-                    ) {
-                        Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text(stringResource(R.string.pingring_settings), fontWeight = FontWeight.SemiBold)
-                    }
-                    Spacer(Modifier.height(12.dp))
-                    Text(
-                        stringResource(R.string.event_settings_description),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(12.dp))
-
-            // Capacity, above the settings link. It is a property of the ring rather than
-            // something to configure - there is no control next to it, and never
-            // was - so putting it under a heading on the settings screen made it
-            // look like a setting that could be changed. Here it reads as what
-            // it is: the host can read the code out to ten people and eight can
-            // actually come.
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
-            ) {
-                Column(Modifier.fillMaxWidth().padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            Icons.Default.GroupAdd,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(22.dp)
-                        )
-                        Spacer(Modifier.width(12.dp))
+                    // lives on PingRing Settings, which is one tap away and the only
+                    // place any of them change.
+                    //
+                    // No heading above the button: it is already labelled "PingRing
+                    // Settings", and a title repeating those words two lines above
+                    // it said the same thing twice.
+                    //
+                    // The hint goes below the button, where it captions it: it
+                    // answers what tapping will take you to, which is what the
+                    // reader is looking at once they have read the label.
+                    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                        OutlinedButton(
+                            onClick = onOpenSettings,
+                            modifier = Modifier.fillMaxWidth().height(50.dp),
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+                            Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(20.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text(stringResource(R.string.pingring_settings), fontWeight = FontWeight.SemiBold)
+                        }
+                        Spacer(Modifier.height(12.dp))
                         Text(
-                            stringResource(R.string.max_capacity),
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold
+                            stringResource(R.string.event_settings_description),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        stringResource(R.string.max_capacity_description),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+
+                    HorizontalDivider(Modifier.padding(vertical = 16.dp))
+
+                    // Capacity, at the foot of the panel. It is a property of the
+                    // ring rather than something to configure - there is no
+                    // control next to it, and never was - so putting it under a
+                    // heading on the settings screen made it look like a setting
+                    // that could be changed. Here it reads as what it is: the host
+                    // can read the code out to ten people and eight can come.
+                    Column(Modifier.fillMaxWidth()) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.GroupAdd,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(22.dp)
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Text(
+                                stringResource(R.string.max_capacity),
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            stringResource(R.string.max_capacity_description),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
 

@@ -34,7 +34,7 @@ How to use PingRing as it exists today — what each screen does and which switc
 2. Enter a **Username**. It is saved on the device and pre-filled next time. Names must be unique within a session — a collision is refused with an alert.
 3. Share the **QR code** when possible; it contains the 256-bit invitation secret. The 6-character **PingRing Code** (`e.g. AB12CD`) is a public event locator, not a secret.
 4. The screen also states **Max Capacity** — PingRing is limited to 8 members (1 host + 7 guests) — because you are the one deciding who to invite.
-5. If you want to change who may join or whether this device uses UWB, tap **PingRing Settings** in the settings section.
+5. If you want to change who may join or whether this device uses UWB, tap **PingRing Settings** further down the same panel.
 6. Tap **Launch Radar**.
 
 Everything in step 5 has a working default, so you can skip it and launch straight away.
@@ -180,7 +180,7 @@ In English the two share the row on one line. In German or Canadian French the l
 
 ## PingRing Settings
 
-Reached from the host setup screen's **PingRing Settings** card or from **Settings** in the radar's top bar. This is the only screen that owns the event switches — the host setup screen deliberately carries none, so there is only one copy of each. Switches apply when you press **Save Changes**.
+Reached from the host setup screen's **PingRing Settings** button — in the panel below your username — or from **Settings** in the radar's top bar. This is the only screen that owns the event switches — the host setup screen deliberately carries none, so there is only one copy of each. Switches apply when you press **Save Changes**.
 
 It is deliberately short: two controls, a way out, and a link onwards.
 
