@@ -132,6 +132,37 @@ Against a peer holding station at 3.16 m with one reading in twenty a 20 dB refl
 
 The radar reacts as it would to real UWB: distance readout, "Direction locked" line, rings, arrow, haptics and the 15 s staleness sweep all follow the script. Run `python tools/test_mock_radar.py` to check the script and relay path with no device attached.
 
+## 📱 Driving the UI by Text (device scripts)
+
+Two PowerShell helpers sit in `tools/` for the case where a device test is not enough — checking something by hand, or setting up two devices before a scripted run. Both need a booted device and a serial from `adb devices`, which is normally two or three of them, since the emulator and a physical phone are usually both up.
+
+- **`tools/enable_lan_debug.ps1`** walks Home → Settings → Developer Options on each device and switches on the LAN debug transport, scrolling until the row appears rather than assuming a coordinate. It optionally sets the relay host, which has to differ per device: `10.0.2.2` reaches the host machine from an emulator, while a phone needs `127.0.0.1` forwarded by `adb reverse`.
+- **`tools/tap_text.ps1`** taps any single node by the text it shows:
+
+```powershell
+.\tools\tap_text.ps1 -Device emulator-5554 -List                    # what does this screen call things?
+.\tools\tap_text.ps1 -Device emulator-5554 -Text 'Developer Options'
+.\tools\tap_text.ps1 -Device emulator-5554 -Text 'Relay host' -Partial
+```
+
+```powershell
+# Switch on the transport and set the relay host, per device
+.\tools\enable_lan_debug.ps1 -Device emulator-5554 -RelayHost 10.0.2.2
+.\tools\enable_lan_debug.ps1 -Device emulator-5554        # just the toggle
+```
+
+**Why text and not coordinates.** A coordinate is the one thing that cannot survive a change: a phone and an emulator differ in size, and a Compose screen moves its controls whenever the copy changes — so a coordinate script needs redrawing per device per screen, and fails by tapping whatever moved into its place. Resolving by visible text is also how a person reading the screen would name the control.
+
+When nothing matches, `tap_text.ps1` prints the text currently on screen and exits non-zero. That is deliberate: the commonest cause of a miss is that the wording changed rather than the control disappearing, and the on-screen list is the answer to that. `-List` prints the same list without tapping, which is what to run first when a name is not what you expected. It exits non-zero on an empty screen too, because a blank screen and a locked one both dump successfully and printing nothing would leave you guessing which happened.
+
+`adb` is resolved from `ANDROID_SDK_ROOT`, `ANDROID_HOME`, the project's `local.properties`, then `PATH` — in that order — rather than hardcoded, so a committed absolute path cannot make the script work on exactly one machine.
+
+**Text entry is verified, not assumed.** `enable_lan_debug.ps1` reads the relay host back out of the field and fails if it does not match what was asked for. This is not ceremony: `input text` drops characters when the IME is still opening, and the result still parses as a host — `10.0.2.2` has been typed as `10.2.01` — so the mistake surfaces much later as peers that never arrive, far from the field that was mistyped. Two details make clearing the field work at all, and both were found the hard way: `adb keyevent` does not deliver `CTRL_A` reliably enough to select-all, and a `DEL` sent with the cursor at position 0 deletes forward into nothing, leaving the last character in place through any number of further presses. The script therefore clears in verified rounds, alternating `KEYCODE_DEL` and `KEYCODE_FORWARD_DEL`, and stops only when the field reads back empty.
+
+These are conveniences for manual work, not a test suite, and they assert nothing: `uiautomator` serialises per device, so two of these against the *same* device at the same moment will collide — run them in sequence when they target one screen. For behaviour that should be checked automatically, add it to the instrumented suite.
+
+**Verified on** an `x86_64` emulator (API 36 image) on Windows: `tap_text.ps1` was exercised for `-List`, exact and `-Partial` matching, a not-found miss, a bad serial, and an empty (locked) screen. `enable_lan_debug.ps1` was verified for the toggle and for navigating to Developer Options; **its text entry has not been re-run since the delete-key fix above**, because the emulators shut down during that test. Run it once against a device before trusting it with a relay host.
+
 ## 📥 Filing a development request
 
 Requests used to live in a chat thread, where they are answered once and then lost: nothing lists what has been asked for, and nothing distinguishes *declined* from *forgotten*. Two pieces address that, and they are separate on purpose.
