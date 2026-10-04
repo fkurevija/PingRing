@@ -342,9 +342,16 @@ fun HostSetupScreen(
                         }
                     }
 
-                    HorizontalDivider(Modifier.padding(vertical = 16.dp))
+                    // No divider above the settings block. There are two blocks in
+                    // the panel - the invitation, and the name you host it under -
+                    // and only one line was ever drawn between them, which made
+                    // it look arbitrary: it read as if the button had been
+                    // tacked on below a boundary rather than being part of the
+                    // same panel. The 16dp that separated them still does that
+                    // job, and costs 1dp less than the rule did.
+                    Spacer(Modifier.height(16.dp))
 
-            // One link, not a second copy of the switches. Every event switch
+                    // One link, not a second copy of the switches. Every event switch
                     // lives on PingRing Settings, which is one tap away and the only
                     // place any of them change.
                     //
