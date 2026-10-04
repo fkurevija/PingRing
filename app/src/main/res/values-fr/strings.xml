@@ -150,7 +150,7 @@
     <string name="radar_weak_tracked_signal">Le signal BLE de %1$s est faible. Sa proximité pourrait bientôt disparaître; rapprochez-vous.</string>
     <string name="radar_weak_group_signal">Le signal BLE est faible pour %1$d membres du groupe. Leur proximité pourrait bientôt disparaître.</string>
     <string name="recheck">Vérifier à nouveau</string>
-    <string name="connection_recovery_title">Récupération de connexion</string>
+    <string name="connection_recovery_title">Demander si vous devez quitter</string>
     <string name="connection_recovery_description">Choisissez quand PingRing doit vous demander si vous souhaitez quitter après la perte de contact avec l’hôte.</string>
     <string name="connection_recovery_enabled">Demander si vous souhaitez quitter</string>
     <string name="connection_recovery_enabled_description">Afficher un message après la perte de connexion avec l’hôte.</string>

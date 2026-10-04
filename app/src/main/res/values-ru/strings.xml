@@ -149,7 +149,7 @@
     <string name="radar_weak_tracked_signal">Слабый сигнал BLE от участника «%1$s». Его близость может скоро исчезнуть — подойдите ближе.</string>
     <string name="radar_weak_group_signal">Слабый сигнал BLE от %1$d участников группы. Их близость может скоро исчезнуть.</string>
     <string name="recheck">Проверить снова</string>
-    <string name="connection_recovery_title">Восстановление соединения</string>
+    <string name="connection_recovery_title">Спрашивать, хотите ли вы выйти</string>
     <string name="connection_recovery_description">Выберите, когда PingRing должен спросить, хотите ли вы выйти после потери связи с организатором.</string>
     <string name="connection_recovery_enabled">Спрашивать перед выходом</string>
     <string name="connection_recovery_enabled_description">Показывать запрос после потери связи с организатором.</string>
