@@ -150,7 +150,7 @@
     <string name="radar_weak_tracked_signal">La señal BLE de %1$s es débil. Su proximidad podría desaparecer pronto; acércate.</string>
     <string name="radar_weak_group_signal">La señal BLE es débil para %1$d miembros del grupo. Su proximidad podría desaparecer pronto.</string>
     <string name="recheck">Volver a comprobar</string>
-    <string name="connection_recovery_title">Preguntar si quieres salir</string>
+    <string name="connection_recovery_title">Preguntar si pierdo el PingRing</string>
     <string name="connection_recovery_description">Elige cuándo PingRing debe preguntar si quieres salir tras perder el contacto con el anfitrión.</string>
     <string name="connection_recovery_enabled">Preguntar si quieres salir</string>
     <string name="connection_recovery_enabled_description">Mostrar un aviso cuando se pierda la conexión con el anfitrión.</string>

@@ -153,7 +153,7 @@
     <string name="radar_weak_tracked_signal">Weak BLE signal to %1$s. Their proximity may disappear soon; move closer.</string>
     <string name="radar_weak_group_signal">Weak BLE signal from %1$d group members. Their proximity may disappear soon.</string>
     <string name="recheck">Recheck</string>
-    <string name="connection_recovery_title">Ask If I Should Leave</string>
+    <string name="connection_recovery_title">Ask If I Lose The PingRing</string>
     <string name="connection_recovery_description">Choose when PingRing should ask whether to leave after losing host contact.</string>
     <string name="connection_recovery_enabled">Ask whether to leave</string>
     <string name="connection_recovery_enabled_description">Show a prompt after the host connection is lost.</string>
