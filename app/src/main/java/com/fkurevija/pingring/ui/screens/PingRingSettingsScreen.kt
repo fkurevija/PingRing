@@ -327,18 +327,16 @@ fun PingRingSettingsScreen(
             // hard to find at the moment somebody standing in a crowd with a
             // bright screen actually wanted one. A link, not a copy - the same
             // argument that keeps every event switch on one screen.
+            //
+            // No heading above the button: it is already labelled "App Settings",
+            // and repeating those words two lines up said the same thing twice.
+            // The button is the whole card, so the card needs no name of its own.
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(18.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
             ) {
                 Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-                    Text(
-                        stringResource(R.string.app_settings),
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Spacer(Modifier.height(12.dp))
                     OutlinedButton(
                         onClick = onOpenAppSettings,
                         modifier = Modifier.fillMaxWidth().height(50.dp),

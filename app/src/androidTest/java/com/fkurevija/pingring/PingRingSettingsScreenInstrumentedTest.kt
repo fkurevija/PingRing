@@ -1,6 +1,7 @@
 package com.fkurevija.pingring
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
@@ -168,7 +169,12 @@ class PingRingSettingsScreenInstrumentedTest {
         var opened = 0
         showSettings(Event.create("4C1A9B"), isHost = true, onSave = {}, onOpenAppSettings = { opened++ })
 
-        composeRule.onAllNodesWithText(context.getString(R.string.app_settings))[1].performClick()
+        // Exactly one, the button. This used to index [1] past a heading that
+        // repeated the button's own label, so the count is what catches that
+        // heading coming back.
+        composeRule.onAllNodesWithText(context.getString(R.string.app_settings))
+            .assertCountEquals(1)
+        composeRule.onNodeWithText(context.getString(R.string.app_settings)).performClick()
         composeRule.waitForIdle()
 
         assertEquals(1, opened)
