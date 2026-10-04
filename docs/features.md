@@ -18,7 +18,7 @@ For step-by-step instructions on using any of this, see the [User Guide](user-gu
 
 ## 👤 Identity & Join
 - **Custom usernames**, saved locally via DataStore and pre-filled on future sessions. Names are enforced unique within a session, with an alert on collision.
-- **Join via QR** (ML Kit, on the Host's on-screen code) or a **6-character PingRing Code** (`e.g. AB12CD`). Code fields force ALL CAPS, usernames use Word Capitalization. The Radar's QR button re-opens the code mid-event for latecomers.
+- **Join via QR** (ML Kit, on the Host's on-screen code) or a **6-character PingRing Code** (`e.g. AB12CD`). Code fields force ALL CAPS, usernames use Word Capitalization. The Radar's QR button re-opens the code mid-event for latecomers. The host setup panel and that dialog share one `PingRingCodeBlock` — QR, the code in a labelled monospace chip, and Max Capacity — so the invitation a guest is given does not change shape between the two; only the QR is drawn larger in the dialog. Capacity is in both because it is part of what is being read out, and the radar states it nowhere else.
 - **Invite secret stays in the QR**: each event gets a random 256-bit secret. The six-character code is only a public locator; code-only joins require host approval. BLE never carries the secret.
 - **Join verification**: both devices compare Nearby's shared digits before accepting. Code-only joins wait for host approval; unanswered requests expire after two minutes and are cleaned up so the guest can retry.
 

@@ -1144,34 +1144,16 @@ fun RadarScreen(
                         onDismissRequest = { showQrCode = false },
                         title = { Text(stringResource(R.string.scan_to_join)) },
                         text = {
-                            Column(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(220.dp)
-                                        .clip(RoundedCornerShape(16.dp))
-                                        .background(Color.White)
-                                        .padding(12.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Image(
-                                        bitmap = generateQrCode(
-                                            PingRingInvite(eventId, sessionState.currentEvent?.inviteSecret).toQrValue()
-                                        ).asImageBitmap(),
-                                        contentDescription = stringResource(R.string.qr_code_for_pingring, eventId),
-                                        modifier = Modifier.fillMaxSize()
-                                    )
-                                }
-                                Spacer(Modifier.height(12.dp))
-                                Text(
-                                    eventId,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    letterSpacing = 2.sp
-                                )
-                            }
+                            // The same block Host Setup shows, so the invitation a guest is given
+                            // looks the same before the radar as it does during it. Only the
+                            // QR code is drawn larger here: this is a dialog with room to
+                            // spare, and a guest scanning it across a table wants the
+                            // modules big.
+                            PingRingCodeBlock(
+                                eventCode = eventId,
+                                inviteSecret = sessionState.currentEvent?.inviteSecret,
+                                qrSize = 200.dp,
+                            )
                         },
                         confirmButton = {
                             TextButton(onClick = { showQrCode = false }) { Text(stringResource(R.string.close)) }

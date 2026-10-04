@@ -11,14 +11,14 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertWidthIsAtLeast
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.printToString
 import androidx.compose.ui.unit.dp
-import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.espresso.Espresso
 import com.fkurevija.pingring.data.ChatBubblePalette
+import androidx.test.platform.app.InstrumentationRegistry
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -557,7 +557,8 @@ class RadarScreenInstrumentedTest {
 
         assertEquals(1, opened)
     }
-@Test
+
+    @Test
     fun theMemberListCanBeOpenedOnAPhone() {
         // The peers are a permanent second pane only at tablet width. Below that
         // the radar and chat fill the screen and this control is the only route
@@ -599,5 +600,42 @@ class RadarScreenInstrumentedTest {
 
         composeRule.onNodeWithText("Your ephemeral ID is private to this event.", substring = true)
             .assertDoesNotExist()
+    }
+
+    @Test
+    fun theQrPopupLabelsAndChipsTheCodeExactlyAsHostSetupDoes() {
+        showRadar()
+
+        composeRule.onNodeWithContentDescription("Show QR code to join this PingRing").performClick()
+        composeRule.settle()
+
+        // The dialog used to print the bare event id with letter spacing and
+        // nothing naming it, while Host Setup labelled it "PingRing Code" and put
+        // it in a chip. The same six characters were shaped two different ways
+        // depending on which screen the host was looking at, so a guest told to
+        // expect the code under a heading found no heading on the radar.
+        composeRule.onNodeWithText("PingRing Code").assertIsDisplayed()
+        composeRule.onNodeWithText(eventId).assertIsDisplayed()
+
+        // One occurrence. A label and its value are one unit, and the label
+        // repeating itself above the chip is what Host Setup deliberately dropped,
+        // so a count is what catches that coming back.
+        composeRule.onAllNodesWithText("PingRing Code").assertCountEquals(1)
+    }
+
+    @Test
+    fun theQrPopupStatesTheCapacitySoAHostCanQuoteItWithoutLeavingTheRadar() {
+        showRadar()
+
+        composeRule.onNodeWithContentDescription("Show QR code to join this PingRing").performClick()
+        composeRule.settle()
+
+        // Capacity is part of the invitation being read out, not a fact about the
+        // host setup screen that happens to state it. A host saying "come to my
+        // ring" had no number to quote from anywhere on the radar, which is
+        // exactly when the question gets asked.
+        composeRule.onNodeWithText("Max Capacity").assertIsDisplayed()
+        composeRule.onNodeWithText(context.getString(R.string.max_capacity_description))
+            .assertIsDisplayed()
     }
 }

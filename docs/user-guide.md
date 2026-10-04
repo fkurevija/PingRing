@@ -132,6 +132,8 @@ In **App Settings → Accessibility**, turn on **Radar screen-reader summary** t
 
 Tap the **QR icon** in the top bar to reopen the "Scan to Join" dialog — useful when somebody arrives late. The button is hidden while the ring is closed to new members.
 
+The dialog shows the same invitation as your host screen did — QR code, the **PingRing Code** to read out, and **Max Capacity** — so a latecomer is told the same thing a guest at the start was. Only the QR code is drawn larger, since it is being scanned across a table.
+
 ---
 
 ## Beacons

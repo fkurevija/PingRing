@@ -2,8 +2,6 @@ package com.fkurevija.pingring.ui.screens
 
 import android.content.pm.PackageManager
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,7 +22,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Sensors
 import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material.icons.filled.GroupAdd
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material3.Button
 import androidx.compose.material3.TextButton
@@ -49,11 +46,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
@@ -213,65 +208,8 @@ fun HostSetupScreen(
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(Modifier.height(12.dp))
-                    val qrValue = remember(eventCode, inviteSecret) {
-                        PingRingInvite(eventCode, inviteSecret).toQrValue()
-                    }
-                    val qrCodeBitmap = remember(qrValue) {
-                        generateQrCode(qrValue).asImageBitmap()
-                    }
-                    Box(
-                        modifier = Modifier
-                            .size(150.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(Color.White)
-                            .padding(12.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Image(
-                            bitmap = qrCodeBitmap,
-                            contentDescription = stringResource(R.string.qr_code_for_pingring, eventCode),
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    }
-                    Spacer(Modifier.height(12.dp))
-                    Text(
-                        stringResource(R.string.pingring_code),
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(MaterialTheme.colorScheme.primaryContainer)
-                            .padding(horizontal = 16.dp, vertical = 6.dp)
-                    ) {
-                        Text(
-                            text = eventCode,
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.Monospace,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    }
-
-                    Spacer(Modifier.height(12.dp))
-
-                    // Capacity, directly under the code it qualifies.
-                    //
-                    // It belongs here rather than at the foot of the panel because
-                    // it is the same sentence as the code above it: this is the code
-                    // to read out, and this is how many people reading it can
-                    // actually come. Separated by a username field, the two read as
-                    // unrelated facts about the host.
-                    //
-                    // It is a property of the ring, not something to configure -
-                    // there is no control next to it, and never was - so putting it
-                    // under a heading on the settings screen made it look like a
-                    // setting that could be changed.
-                    // Spacing on this screen is one small scale, so the panel reads as evenly
-                    // set rather than assorted:
+                    // Spacing on this screen is one small scale, so the panel reads as
+                    // evenly set rather than assorted:
                     //
                     //   4dp  a label and the value it labels - the code and its chip, the
                     //        capacity line and its sentence. These are one unit, so they
@@ -280,31 +218,21 @@ fun HostSetupScreen(
                     //  16dp  between blocks outside the panel, and either side of a
                     //        divider, which is the widest gap on the screen.
                     //
-                    // Capacity used to have no gap at all above it - jammed against the
-                    // code chip while every other pair had 12dp - which is what made the
-                    // panel look unevenly set rather than rhythmically set.
-                    Column(Modifier.fillMaxWidth()) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Default.GroupAdd,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(22.dp)
-                            )
-                            Spacer(Modifier.width(12.dp))
-                            Text(
-                                stringResource(R.string.max_capacity),
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            stringResource(R.string.max_capacity_description),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                    // Capacity used to have no gap at all above it - jammed against
+                    // the code chip while every other pair had 12dp - which is what
+                    // made the panel look unevenly set rather than rhythmically set.
+                    //
+                    // The invitation itself - QR code, the code to read out, and how
+                    // many people reading it can come - is one shared block. It used
+                    // to be written out here and again in the radar's QR dialog, and
+                    // the two drifted until the same six characters were labelled
+                    // and chipped on this screen and bare and letter-spaced on that
+                    // one.
+                    PingRingCodeBlock(
+                        eventCode = eventCode,
+                        inviteSecret = inviteSecret,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
 
                     HorizontalDivider(Modifier.padding(vertical = 16.dp))
 
@@ -424,3 +352,4 @@ fun HostSetupScreen(
         }
     }
 }
+
