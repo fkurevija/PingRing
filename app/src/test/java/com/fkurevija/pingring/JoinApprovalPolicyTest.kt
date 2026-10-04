@@ -1,6 +1,8 @@
 package com.fkurevija.pingring
 
+import com.fkurevija.pingring.data.JOIN_APPROVAL_GRACE_MILLIS
 import com.fkurevija.pingring.data.JOIN_REQUEST_TIMEOUT_MILLIS
+import com.fkurevija.pingring.data.MIN_JOIN_WAIT_TIMEOUT_MILLIS
 import com.fkurevija.pingring.data.JoinRequestDecision
 import com.fkurevija.pingring.data.MAX_PARTICIPANTS
 import com.fkurevija.pingring.data.PendingJoinRequest
@@ -103,9 +105,19 @@ class JoinApprovalPolicyTest {
     fun `the request timeout is long enough to be usable`() {
         // Not a policy so much as a guard: a window a host cannot come back
         // within turns approval into a coin flip rather than a decision.
+        //
+        // Down from two minutes to 45s, which is a real reduction and worth
+        // naming rather than quietly relaxing. The trade is deliberate: a host who
+        // has the phone in hand answers in seconds, and a host who has walked away
+        // is not answering at all - two minutes of the guest staring at a spinner
+        // buys nothing there. What is left has to cover noticing a request,
+        // reading who it is from, and tapping Allow.
+        //
+        // If this is ever raised again, raise the guest's wait with it - the
+        // invariant below is what stops a slow host being reported as a failure.
         assertTrue(
             "the host needs a usable window to answer in",
-            JOIN_REQUEST_TIMEOUT_MILLIS >= 60_000L
+            JOIN_REQUEST_TIMEOUT_MILLIS >= 30_000L
         )
     }
 
@@ -114,12 +126,19 @@ class JoinApprovalPolicyTest {
         // If the guest's own wait were shorter, a host that times out first
         // would leave the guest reporting an answer as a failed join - telling
         // somebody they could not join a PingRing that was merely slow to answer.
-        // The margin is the same 15s MainActivity adds to the request window.
-        val guestWait = JOIN_REQUEST_TIMEOUT_MILLIS + 15_000L
+        // The margin is JOIN_APPROVAL_GRACE_MILLIS rather than a literal, because it is
+        // now the thing that fixes the slider's floor: MainActivity derives the
+        // shortest safe guest wait from these two constants. A literal here would
+        // pass while the slider quietly offered a value that raced the host.
+        val guestWait = JOIN_REQUEST_TIMEOUT_MILLIS + JOIN_APPROVAL_GRACE_MILLIS
 
         assertTrue(
             "the guest must wait longer than the host holds a request",
             guestWait > JOIN_REQUEST_TIMEOUT_MILLIS
+        )
+        assertTrue(
+            "the slider's floor must not race the host either",
+            MIN_JOIN_WAIT_TIMEOUT_MILLIS >= guestWait
         )
     }
 

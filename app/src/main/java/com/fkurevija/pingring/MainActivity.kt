@@ -73,19 +73,21 @@ import com.fkurevija.pingring.ui.screens.HomeScreen
 import com.fkurevija.pingring.ui.screens.HostSetupScreen
 import com.fkurevija.pingring.ui.screens.RadarScreen
 import com.fkurevija.pingring.ui.theme.PingRingTheme
+import com.fkurevija.pingring.data.DEFAULT_JOIN_WAIT_TIMEOUT_MILLIS
+import com.fkurevija.pingring.data.JOIN_APPROVAL_GRACE_MILLIS
 import com.fkurevija.pingring.data.JOIN_REQUEST_TIMEOUT_MILLIS
 import com.fkurevija.pingring.data.PingRingRuntime
 import java.util.UUID
 
 /**
- * How long a guest waits for a join to complete before giving up.
+ * The shortest guest wait that still cannot race the host.
  *
- * A host can be holding the request open for approval, so this has to outlast
- * [JOIN_REQUEST_TIMEOUT_MILLIS] rather than race it: the host giving up first
- * and the guest then timing out on a request that was already refused would
- * report a decision as a failure.
+ * Derived rather than repeated, so the invariant the two windows depend on -
+ * the guest must not give up before the host has refused - cannot be broken by
+ * editing one number and leaving the other. At the default host window this is
+ * also the floor the slider offers, which is why the slider cannot go lower.
  */
-private const val JOIN_WAIT_TIMEOUT_MILLIS = JOIN_REQUEST_TIMEOUT_MILLIS + 15_000L
+private val MINIMUM_JOIN_WAIT_MILLIS = JOIN_REQUEST_TIMEOUT_MILLIS + JOIN_APPROVAL_GRACE_MILLIS
 
 class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -213,6 +215,12 @@ fun MainNavigation(
     val connectionRecoveryPromptEnabled by appearanceSettings.connectionRecoveryPromptEnabled.collectAsState(initial = true)
     val connectionRecoveryPromptDelayMillis by appearanceSettings.connectionRecoveryPromptDelayMillis.collectAsState(
         initial = 120_000L
+    )
+    // Collected here rather than at the top with the other settings because this
+    // is where the join and App Settings destinations can already see it: the join
+    // timeout is read inside a destination block, which is a deeper scope.
+    val joinWaitTimeoutMillis by appearanceSettings.joinWaitTimeoutMillis.collectAsState(
+        initial = DEFAULT_JOIN_WAIT_TIMEOUT_MILLIS
     )
     // The notification switches live on the App Settings screen itself rather
     // than behind a Notifications submenu, so they are collected here with the
@@ -373,14 +381,20 @@ fun MainNavigation(
                                 val event = Event.create(id = eventCode, inviteSecret = inviteSecret)
                                 if (sessionManager.joinEvent(event)) {
                                     joinJob = coroutineScope.launch {
-                                        // Long enough to outlast a host who is
-                                        // being asked to approve a code-only
-                                        // join, and no longer. A QR join is
-                                        // admitted without that round trip, but
-                                        // the two share one path here and the
-                                        // slow one has to fit.
+                                        // The user's own setting, floored at the point where it
+                                        // would start racing the host. A QR join is admitted
+                                        // without an approval round trip, but the two share
+                                        // one path here and the slow one has to fit.
+                                        val joinWaitMillis = maxOf(
+                                            joinWaitTimeoutMillis,
+                                            MINIMUM_JOIN_WAIT_MILLIS,
+                                        )
+                                        Log.i(
+                                            "PingRingJoin",
+                                            "Joining $eventCode, giving up after ${joinWaitMillis}ms",
+                                        )
                                         val connected = runCatching {
-                                            withTimeout(JOIN_WAIT_TIMEOUT_MILLIS) {
+                                            withTimeout(joinWaitMillis) {
                                                 sessionManager.sessionState
                                                     .map { it.friends }
                                                     .first { it.isNotEmpty() }
@@ -435,6 +449,8 @@ fun MainNavigation(
                         connectionRecoveryPromptDelayMillis = connectionRecoveryPromptDelayMillis,
                         onConnectionRecoveryPromptEnabledChange = appearanceSettings::setConnectionRecoveryPromptEnabled,
                         onConnectionRecoveryPromptDelayChange = appearanceSettings::setConnectionRecoveryPromptDelayMillis,
+                        joinWaitTimeoutMillis = joinWaitTimeoutMillis,
+                        onJoinWaitTimeoutChange = appearanceSettings::setJoinWaitTimeoutMillis,
                         showDeveloperOptions = BuildConfig.DEBUG,
                         onOpenDeveloperOptions = { backStack.add(DeveloperSettingsKey) },
                         onReportAProblem = {

@@ -154,6 +154,9 @@
     <string name="connection_recovery_title">Pitaj gubim li domaćina</string>
     <string name="connection_recovery_description">Odaberite kada će PingRing pitati želite li napustiti događaj nakon gubitka veze s domaćinom.</string>
     <string name="connection_recovery_delay">Pitaj nakon %1$d min bez veze s domaćinom</string>
+    <string name="join_wait_title">Vremensko ograničenje pridruživanja</string>
+    <string name="join_wait_description">Koliko dugo se pridruživanje čeka domaćina prije odustajanja. Domaćin i dalje mora odobriti pridruživanje kodom.</string>
+    <string name="join_wait_delay">Odustani nakon %1$d s</string>
     <string name="connection_lost_title">Veza s PingRingom nije dostupna</string>
     <string name="connection_lost_message">Nema potvrđene veze s domaćinom %1$d min. Domaćin je možda izvan dometa ili je PingRing završio.</string>
     <string name="connection_lost_snooze">Podsjeti me za 2 min</string>

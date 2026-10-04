@@ -156,6 +156,9 @@
     <string name="connection_recovery_title">Ask If I Lose The Host</string>
     <string name="connection_recovery_description">Choose when PingRing should ask whether to leave after losing host contact.</string>
     <string name="connection_recovery_delay">Ask after %1$d min without host contact</string>
+    <string name="join_wait_title">Join Timeout</string>
+    <string name="join_wait_description">How long joining waits for the host before giving up. The host still has to approve a code join.</string>
+    <string name="join_wait_delay">Give up after %1$d s</string>
     <string name="connection_lost_title">PingRing connection unavailable</string>
     <string name="connection_lost_message">No authenticated host connection for %1$d min. The host may be out of range, or this PingRing may have ended.</string>
     <string name="connection_lost_snooze">Remind me in 2 min</string>

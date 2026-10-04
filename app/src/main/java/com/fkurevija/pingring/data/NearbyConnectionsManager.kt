@@ -138,10 +138,18 @@ internal fun expiredAuthenticationRequests(
  * guest is told the request was dropped, so both sides end up in a known state
  * rather than a connection that never resolves.
  *
- * Long enough to be usable - a host who is busy can come back to it - and
- * short enough that nobody waits on a decision that will not come.
+ * 45s rather than the previous two minutes. The guest's own wait is what a person
+ * experiences as "connecting", and it has to be longer than this plus a margin -
+ * so a long host window does not cost the guest nothing, it costs them two minutes
+ * of staring at a spinner for a host who has already walked away. A minute is
+ * still enough to notice a request and answer it; past that, the request is not
+ * being worked on.
+ *
+ * Kept as its own constant rather than derived from the guest's setting, because
+ * this is the host's window and the host is not the one waiting. The guest can
+ * choose to wait less; the host cannot be made to decide faster.
  */
-const val JOIN_REQUEST_TIMEOUT_MILLIS = 120_000L
+const val JOIN_REQUEST_TIMEOUT_MILLIS = 45_000L
 private const val MAX_PENDING_AUTHENTICATIONS = 8
 private const val MAX_PENDING_JOIN_REQUESTS = 8
 private const val CLOSURE_SEND_GRACE_MILLIS = 2_000L

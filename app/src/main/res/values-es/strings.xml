@@ -153,6 +153,9 @@
     <string name="connection_recovery_title">Preguntar si pierdo el anfitrión</string>
     <string name="connection_recovery_description">Elige cuándo PingRing debe preguntar si quieres salir tras perder el contacto con el anfitrión.</string>
     <string name="connection_recovery_delay">Preguntar tras %1$d min sin contacto con el anfitrión</string>
+    <string name="join_wait_title">Tiempo de espera para unirse</string>
+    <string name="join_wait_description">Cuánto espera unirse al anfitrión antes de rendirse. El anfitrión aún debe aprobar una unirse por código.</string>
+    <string name="join_wait_delay">Rendirse tras %1$d s</string>
     <string name="connection_lost_title">Conexión de PingRing no disponible</string>
     <string name="connection_lost_message">No hay conexión autenticada con el anfitrión desde hace %1$d min. Puede estar fuera de alcance o este PingRing puede haber terminado.</string>
     <string name="connection_lost_snooze">Recordármelo en 2 min</string>

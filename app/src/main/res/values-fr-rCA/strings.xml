@@ -153,6 +153,9 @@
     <string name="connection_recovery_title">Demander si je perds l’hôte</string>
     <string name="connection_recovery_description">Choisissez quand PingRing doit vous demander si vous souhaitez quitter après la perte de contact avec l’hôte.</string>
     <string name="connection_recovery_delay">Demander après %1$d min sans contact avec l’hôte</string>
+    <string name="join_wait_title">Délai de connexion</string>
+    <string name="join_wait_description">Combien de temps la connexion attend l’hôte avant d’abandonner. L’hôte doit toujours approuver une connexion par code.</string>
+    <string name="join_wait_delay">Abandonner après %1$d s</string>
     <string name="connection_lost_title">Connexion PingRing indisponible</string>
     <string name="connection_lost_message">Aucune connexion authentifiée avec l’hôte depuis %1$d min. Il est peut-être hors de portée ou ce PingRing est peut-être terminé.</string>
     <string name="connection_lost_snooze">Me le rappeler dans 2 min</string>

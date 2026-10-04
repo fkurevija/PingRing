@@ -59,6 +59,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
 import com.fkurevija.pingring.R
+import com.fkurevija.pingring.data.DEFAULT_JOIN_WAIT_TIMEOUT_MILLIS
+import com.fkurevija.pingring.data.MAX_JOIN_WAIT_TIMEOUT_MILLIS
+import com.fkurevija.pingring.data.MIN_JOIN_WAIT_TIMEOUT_MILLIS
 import com.fkurevija.pingring.data.ThemeMode
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -99,6 +102,17 @@ fun AppSettingsScreen(
     connectionRecoveryPromptDelayMillis: Long = 120_000L,
     onConnectionRecoveryPromptEnabledChange: (Boolean) -> Unit = {},
     onConnectionRecoveryPromptDelayChange: (Long) -> Unit = {},
+    /**
+     * How long a guest waits for a join to complete.
+     *
+     * A setting rather than a constant because the right value is a property of
+     * the ring rather than of the app: a host watching the screen answers in
+     * seconds, and a host who is busy does not. The range starts where the host's
+     * own approval window ends, because a guest who gives up first would report
+     * the host's refusal as a failure to reach anybody.
+     */
+    joinWaitTimeoutMillis: Long = DEFAULT_JOIN_WAIT_TIMEOUT_MILLIS,
+    onJoinWaitTimeoutChange: (Long) -> Unit = {},
     showDeveloperOptions: Boolean,
     onOpenDeveloperOptions: () -> Unit,
     onBack: () -> Unit,
@@ -132,6 +146,14 @@ fun AppSettingsScreen(
     val delayMinutes = (connectionRecoveryPromptDelayMillis / 60_000L).toInt().coerceIn(1, 10)
     var delayDraft by remember { mutableFloatStateOf(delayMinutes.toFloat()) }
     LaunchedEffect(delayMinutes) { delayDraft = delayMinutes.toFloat() }
+
+    // Seconds rather than minutes, because the useful range is short and minutes
+    // would collapse 60/90/120/150/180 onto four indistinguishable stops. Held as
+    // a float draft for the same reason the recovery slider is: writing on every
+    // drag frame would put a DataStore edit per pixel of movement.
+    val joinWaitSeconds = (joinWaitTimeoutMillis / 1_000L).toFloat()
+    var joinWaitDraft by remember { mutableFloatStateOf(joinWaitSeconds) }
+    LaunchedEffect(joinWaitSeconds) { joinWaitDraft = joinWaitSeconds }
     val selectedLanguage = languages.firstOrNull { it.first == selectedLanguageTag } ?: languages.first()
     Scaffold(
         topBar = {
@@ -304,6 +326,56 @@ fun AppSettingsScreen(
                             steps = 8,
                         )
                     }
+                }
+            }
+            // Directly after the recovery card: both are about how long the app
+            // waits before deciding something has gone wrong, so they read
+            // together as a pair rather than as two unrelated preferences.
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                ),
+            ) {
+                Column(Modifier.fillMaxWidth().padding(16.dp)) {
+                    Text(
+                        stringResource(R.string.join_wait_title),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        stringResource(R.string.join_wait_description),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        // Seconds, not minutes: the whole range is one to three
+                        // minutes, so minutes would read "1 min" for both 60s and
+                        // 75s and "2 min" for both 90s and 105s - which is the
+                        // difference between the setting appearing to do nothing
+                        // and a slider that is working.
+                        stringResource(
+                            R.string.join_wait_delay,
+                            joinWaitDraft.roundToInt(),
+                        ),
+                        modifier = Modifier.padding(top = 12.dp),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Slider(
+                        value = joinWaitDraft,
+                        onValueChange = { joinWaitDraft = it },
+                        onValueChangeFinished = {
+                            onJoinWaitTimeoutChange(joinWaitDraft.roundToInt() * 1_000L)
+                        },
+                        // Rounded to 15s stops. The floor is the host's approval
+                        // window plus its margin, not a round number: below that the
+                        // guest gives up before the host has refused, and reports the
+                        // refusal as a failure to reach anybody.
+                        valueRange = MIN_JOIN_WAIT_TIMEOUT_MILLIS / 1_000f..
+                            MAX_JOIN_WAIT_TIMEOUT_MILLIS / 1_000f,
+                        steps = 7,
+                    )
                 }
             }
             // Accessibility below recovery, not above it. Both are about a member having a

@@ -152,6 +152,9 @@
     <string name="connection_recovery_title">Спрашивать, теряю ли я связь с организатором</string>
     <string name="connection_recovery_description">Выберите, когда PingRing должен спросить, хотите ли вы выйти после потери связи с организатором.</string>
     <string name="connection_recovery_delay">Спрашивать через %1$d мин. без связи с организатором</string>
+    <string name="join_wait_title">Время ожидания присоединения</string>
+    <string name="join_wait_description">Сколько присоединение ждёт организатора, прежде чем сдаться. Организатор всё равно должен подтвердить присоединение по коду.</string>
+    <string name="join_wait_delay">Сдаться через %1$d с</string>
     <string name="connection_lost_title">Связь с PingRing недоступна</string>
     <string name="connection_lost_message">Нет подтверждённого соединения с организатором уже %1$d мин. Возможно, он вне зоны действия или PingRing завершён.</string>
     <string name="connection_lost_snooze">Напомнить через 2 мин.</string>
