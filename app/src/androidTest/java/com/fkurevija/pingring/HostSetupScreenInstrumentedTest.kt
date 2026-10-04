@@ -103,11 +103,31 @@ class HostSetupScreenInstrumentedTest {
         show(onOpenSettings = { opened++ })
 
         composeRule.onNodeWithText("All Settings").assertDoesNotExist()
-        composeRule.onAllNodesWithText("PingRing Settings").assertCountEquals(2)
-        composeRule.onAllNodesWithText("PingRing Settings")[1].performClick()
+        // Exactly one, the button itself. There used to be a heading above it
+        // repeating the same words, which this count is what pinned down.
+        composeRule.onAllNodesWithText("PingRing Settings").assertCountEquals(1)
+        composeRule.onNodeWithText("PingRing Settings").performClick()
         composeRule.waitForIdle()
 
         assertEquals(1, opened)
+    }
+
+    @Test
+    fun theSettingsHintCaptionsTheButtonFromBelowRatherThanHeadingIt() {
+        // The card holds one control, so the hint belongs under that control
+        // where it captions it. Above the button it read as prose to skim past on
+        // the way to the thing it was describing.
+        show()
+
+        val button = composeRule.onNodeWithText("PingRing Settings").getUnclippedBoundsInRoot()
+        val hint = composeRule
+            .onNodeWithText("Membership, chat colour, tracking, UWB and notifications are set here.")
+            .getUnclippedBoundsInRoot()
+
+        assertTrue(
+            "hint should sit below the button, was hintTop=${hint.top} buttonBottom=${button.bottom}",
+            hint.top >= button.bottom,
+        )
     }
 
     @Test
@@ -129,7 +149,10 @@ class HostSetupScreenInstrumentedTest {
 
         // Removing the duplicates only helps if the way in is obvious. The card
         // is the whole point of this screen now, so it has to be findable.
-        composeRule.onAllNodesWithText("PingRing Settings").assertCountEquals(2)
+        //
+        // One occurrence, the button. It used to be two, a heading repeating the
+        // same words above it, so the count is what would catch that returning.
+        composeRule.onAllNodesWithText("PingRing Settings").assertCountEquals(1)
     }
 
     @Test

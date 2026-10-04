@@ -284,25 +284,22 @@ fun HostSetupScreen(
             // One link, not a second copy of the switches. Every event switch
             // lives on PingRing Settings, which is one tap away and the only
             // place any of them change.
+            //
+            // No heading above the button. The button is already labelled "PingRing
+            // Settings", so a title repeating those words two lines above it said the
+            // same thing twice and made the card look like a section rather than the
+            // single control it holds.
+            //
+            // The hint goes below the button, where it captions it: it answers what
+            // tapping will take you to, which is what the reader is looking at once
+            // they have read the label. Above the button it read as prose to skim
+            // past before reaching the thing it was describing.
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(18.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
             ) {
                 Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-                    Text(
-                        stringResource(R.string.pingring_settings),
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        stringResource(R.string.event_settings_description),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(Modifier.height(12.dp))
                     OutlinedButton(
                         onClick = onOpenSettings,
                         modifier = Modifier.fillMaxWidth().height(50.dp),
@@ -312,6 +309,12 @@ fun HostSetupScreen(
                         Spacer(Modifier.width(8.dp))
                         Text(stringResource(R.string.pingring_settings), fontWeight = FontWeight.SemiBold)
                     }
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        stringResource(R.string.event_settings_description),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
 
