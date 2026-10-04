@@ -151,9 +151,9 @@
     <string name="radar_weak_tracked_signal">BLE signal osobe %1$s je slab. Njezina blizina može uskoro nestati; približite se.</string>
     <string name="radar_weak_group_signal">BLE signal je slab kod %1$d članova grupe. Njihova blizina može uskoro nestati.</string>
     <string name="recheck">Provjeri ponovno</string>
-    <string name="connection_recovery_title">Pitaj gubim li PingRing</string>
-    <string name="connection_recovery_description">Odaberite kada će PingRing pitati želite li napustiti događaj nakon gubitka veze s PingRingom.</string>
-    <string name="connection_recovery_delay">Pitaj nakon %1$d min bez veze s PingRingom</string>
+    <string name="connection_recovery_title">Pitaj gubim li domaćina</string>
+    <string name="connection_recovery_description">Odaberite kada će PingRing pitati želite li napustiti događaj nakon gubitka veze s domaćinom.</string>
+    <string name="connection_recovery_delay">Pitaj nakon %1$d min bez veze s domaćinom</string>
     <string name="connection_lost_title">Veza s PingRingom nije dostupna</string>
     <string name="connection_lost_message">Nema potvrđene veze s domaćinom %1$d min. Domaćin je možda izvan dometa ili je PingRing završio.</string>
     <string name="connection_lost_snooze">Podsjeti me za 2 min</string>

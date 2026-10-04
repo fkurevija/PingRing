@@ -149,9 +149,9 @@
     <string name="radar_weak_tracked_signal">Слабый сигнал BLE от участника «%1$s». Его близость может скоро исчезнуть — подойдите ближе.</string>
     <string name="radar_weak_group_signal">Слабый сигнал BLE от %1$d участников группы. Их близость может скоро исчезнуть.</string>
     <string name="recheck">Проверить снова</string>
-    <string name="connection_recovery_title">Спрашивать, теряю ли я PingRing</string>
-    <string name="connection_recovery_description">Выберите, когда PingRing должен спросить, хотите ли вы выйти после потери связи с PingRing.</string>
-    <string name="connection_recovery_delay">Спрашивать через %1$d мин. без связи с PingRing</string>
+    <string name="connection_recovery_title">Спрашивать, теряю ли я связь с организатором</string>
+    <string name="connection_recovery_description">Выберите, когда PingRing должен спросить, хотите ли вы выйти после потери связи с организатором.</string>
+    <string name="connection_recovery_delay">Спрашивать через %1$d мин. без связи с организатором</string>
     <string name="connection_lost_title">Связь с PingRing недоступна</string>
     <string name="connection_lost_message">Нет подтверждённого соединения с организатором уже %1$d мин. Возможно, он вне зоны действия или PingRing завершён.</string>
     <string name="connection_lost_snooze">Напомнить через 2 мин.</string>
