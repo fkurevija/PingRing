@@ -180,7 +180,7 @@ fun HostSetupScreen(
 
             // Spacers, not spacedBy: the join screen sets its rhythm with
             // explicit ones and matching it here is the point of this layout.
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(16.dp))
 
             // One panel, the way the join screen has one. That screen puts its
             // heading and both of its fields inside a single card and leaves only
@@ -256,6 +256,8 @@ fun HostSetupScreen(
                         )
                     }
 
+                    Spacer(Modifier.height(12.dp))
+
                     // Capacity, directly under the code it qualifies.
                     //
                     // It belongs here rather than at the foot of the panel because
@@ -268,6 +270,19 @@ fun HostSetupScreen(
                     // there is no control next to it, and never was - so putting it
                     // under a heading on the settings screen made it look like a
                     // setting that could be changed.
+                    // Spacing on this screen is one small scale, so the panel reads as evenly
+                    // set rather than assorted:
+                    //
+                    //   4dp  a label and the value it labels - the code and its chip, the
+                    //        capacity line and its sentence. These are one unit, so they
+                    //        sit close.
+                    //  12dp  between one item and the next inside a block.
+                    //  16dp  between blocks outside the panel, and either side of a
+                    //        divider, which is the widest gap on the screen.
+                    //
+                    // Capacity used to have no gap at all above it - jammed against the
+                    // code chip while every other pair had 12dp - which is what made the
+                    // panel look unevenly set rather than rhythmically set.
                     Column(Modifier.fillMaxWidth()) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(

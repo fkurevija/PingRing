@@ -268,7 +268,4 @@ class HostSetupScreenInstrumentedTest {
         )
         composeRule.onNodeWithText("Username cannot be empty").assertIsDisplayed()
     }
-
-
-
 }
