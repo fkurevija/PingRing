@@ -5,6 +5,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.assertIsDisplayed
 import com.fkurevija.pingring.ui.screens.EndPingRingDialog
 import com.fkurevija.pingring.ui.screens.HomeScreen
 import org.junit.Assert.assertEquals
@@ -76,6 +77,24 @@ class HomeScreenInstrumentedTest {
         composeRule.onNodeWithText("Join a PingRing").performClick()
 
         assertEquals("tapping Join must reach the join path", 1, joined)
+    }
+
+    @Test
+    fun tappingSettingsCallsBack() {
+        // The route from the one screen every session starts on into App
+        // Settings. Nothing else on Home reaches it, so a rewired button here
+        // would leave App Settings reachable only from inside a live ring.
+        var opened = 0
+        composeRule.setContent {
+            MaterialTheme { HomeScreen(onHost = {}, onJoin = {}, onSettings = { opened++ }) }
+        }
+
+        // No performScrollTo: Home is not a scrolling screen, so the button is
+        // already on the viewport. Scrolling it would assert nothing and would
+        // fail on any layout where the settings button moves.
+        composeRule.onNodeWithText("Settings").assertIsDisplayed().performClick()
+
+        assertEquals("Settings must reach App Settings", 1, opened)
     }
 
     @Test

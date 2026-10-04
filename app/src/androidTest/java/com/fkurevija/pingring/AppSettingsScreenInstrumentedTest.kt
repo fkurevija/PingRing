@@ -39,6 +39,9 @@ class AppSettingsScreenInstrumentedTest {
         onChatNotificationsEnabledChange: (Boolean) -> Unit = {},
         onNotificationSoundEnabledChange: (Boolean) -> Unit = {},
         onNotificationVibrationEnabledChange: (Boolean) -> Unit = {},
+        onOpenAccessibility: () -> Unit = {},
+        showDeveloperOptions: Boolean = false,
+        onOpenDeveloperOptions: () -> Unit = {},
     ) {
         composeRule.setContent {
             MaterialTheme {
@@ -53,10 +56,10 @@ class AppSettingsScreenInstrumentedTest {
                     onNotificationSoundEnabledChange = onNotificationSoundEnabledChange,
                     notificationVibrationEnabled = notificationVibrationEnabled,
                     onNotificationVibrationEnabledChange = onNotificationVibrationEnabledChange,
-                    onOpenAccessibility = {},
+                    onOpenAccessibility = onOpenAccessibility,
                     onReportAProblem = {},
-                    showDeveloperOptions = false,
-                    onOpenDeveloperOptions = {},
+                    showDeveloperOptions = showDeveloperOptions,
+                    onOpenDeveloperOptions = onOpenDeveloperOptions,
                     onBack = {},
                 )
             }
@@ -173,7 +176,6 @@ class AppSettingsScreenInstrumentedTest {
     @Test
     fun theVibrationSwitchReflectsWhetherTheDeviceCanVibrateAtAll() {
         // The stored preference is independent of the hardware, so a phone with
-        // no vibrator shows the setting switched off and labelled unsupported
         // rather than hiding it or showing a switch that silently does nothing.
         // Which branch this lands in depends on the device, so the assertion is
         // that the control and its explanation agree, not which one they are.
@@ -197,5 +199,38 @@ class AppSettingsScreenInstrumentedTest {
 
         composeRule.onNodeWithText("System default follows your device", substring = true)
             .assertDoesNotExist()
+    }
+
+    @Test
+    fun tappingAccessibilityCallsBack() {
+        // The route to the Accessibility screen. It is the only one, so if this
+        // row stops reporting, the switches it holds become unreachable from
+        // anywhere in the app.
+        var opened = 0
+        showSettings(onOpenAccessibility = { opened++ })
+
+        composeRule.onNodeWithText("Accessibility").performScrollTo().performClick()
+
+        assertEquals("Accessibility must be reachable from App Settings", 1, opened)
+    }
+
+    @Test
+    fun developerOptionsAreHiddenInABuildThatIsNotDebug() {
+        // MainActivity passes BuildConfig.DEBUG. A release build that showed the
+        // row would offer a LAN transport override to a user who has no way to
+        // tell whether it is doing anything.
+        showSettings(showDeveloperOptions = false)
+
+        composeRule.onNodeWithText("Developer Options").assertDoesNotExist()
+    }
+
+    @Test
+    fun developerOptionsAreOfferedInADebugBuildAndLeadSomewhere() {
+        var opened = 0
+        showSettings(showDeveloperOptions = true, onOpenDeveloperOptions = { opened++ })
+
+        composeRule.onNodeWithText("Developer Options").performScrollTo().performClick()
+
+        assertEquals("Developer Options must be reachable when it is shown", 1, opened)
     }
 }
