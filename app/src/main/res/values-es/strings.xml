@@ -151,10 +151,8 @@
     <string name="radar_weak_group_signal">La señal BLE es débil para %1$d miembros del grupo. Su proximidad podría desaparecer pronto.</string>
     <string name="recheck">Volver a comprobar</string>
     <string name="connection_recovery_title">Preguntar si pierdo el PingRing</string>
-    <string name="connection_recovery_description">Elige cuándo PingRing debe preguntar si quieres salir tras perder el contacto con el anfitrión.</string>
-    <string name="connection_recovery_enabled">Preguntar si quieres salir</string>
-    <string name="connection_recovery_enabled_description">Mostrar un aviso cuando se pierda la conexión con el anfitrión.</string>
-    <string name="connection_recovery_delay">Preguntar tras %1$d min sin contacto con el anfitrión</string>
+    <string name="connection_recovery_description">Elige cuándo PingRing debe preguntar si quieres salir tras perder el contacto con PingRing.</string>
+    <string name="connection_recovery_delay">Preguntar tras %1$d min sin contacto con PingRing</string>
     <string name="connection_lost_title">Conexión de PingRing no disponible</string>
     <string name="connection_lost_message">No hay conexión autenticada con el anfitrión desde hace %1$d min. Puede estar fuera de alcance o este PingRing puede haber terminado.</string>
     <string name="connection_lost_snooze">Recordármelo en 2 min</string>

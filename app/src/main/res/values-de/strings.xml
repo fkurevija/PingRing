@@ -151,10 +151,8 @@
     <string name="radar_weak_group_signal">Das BLE-Signal ist bei %1$d Gruppenmitgliedern schwach. Ihre Nähe kann bald verschwinden.</string>
     <string name="recheck">Erneut prüfen</string>
     <string name="connection_recovery_title">Fragen, ob ich den PingRing verliere</string>
-    <string name="connection_recovery_description">Lege fest, wann PingRing nach dem Verlust des Hostkontakts fragt, ob du den Ring verlassen möchtest.</string>
-    <string name="connection_recovery_enabled">Vor dem Verlassen fragen</string>
-    <string name="connection_recovery_enabled_description">Nach dem Verlust der Hostverbindung einen Hinweis anzeigen.</string>
-    <string name="connection_recovery_delay">Nach %1$d Min. ohne Hostkontakt fragen</string>
+    <string name="connection_recovery_description">Lege fest, wann PingRing nach dem Verlust des PingRing-Kontakts fragt, ob du den Ring verlassen möchtest.</string>
+    <string name="connection_recovery_delay">Nach %1$d Min. ohne PingRing-Kontakt fragen</string>
     <string name="connection_lost_title">PingRing-Verbindung nicht verfügbar</string>
     <string name="connection_lost_message">Seit %1$d Min. besteht keine authentifizierte Hostverbindung. Der Host ist möglicherweise außer Reichweite oder dieser PingRing wurde beendet.</string>
     <string name="connection_lost_snooze">In 2 Min. erneut erinnern</string>
