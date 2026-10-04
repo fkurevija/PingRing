@@ -84,6 +84,20 @@ function Relay-Host($dev) {
     return $null
 }
 
+# Whether we are on the Developer Options screen itself, as opposed to still sitting
+# on the App Settings row of the same name. The heading and the transport toggle are
+# that screen's own content, so both appearing together is the signal.
+#
+# Deliberately not keyed on 'Relay host': that field only exists once the transport
+# switch is on, which this function runs before. Waiting for it here meant the script
+# scrolled the whole screen and gave up while standing on the right one.
+function On-Developer-Options($dev) {
+    $x = Dump $dev
+    $heading = $x.SelectNodes('//node') | Where-Object { $_.text -eq 'Developer Options' } | Select-Object -First 1
+    $toggle = $x.SelectNodes('//node') | Where-Object { $_.text -eq 'Use LAN Debug Transport' } | Select-Object -First 1
+    return [bool]($heading -and $toggle)
+}
+
 Write-Output "== $Device =="
 & $adb -s $Device shell am force-stop com.fkurevija.pingring
 & $adb -s $Device shell am start -n com.fkurevija.pingring/.MainActivity | Out-Null
@@ -100,7 +114,7 @@ if (-not (Tap-Text $Device 'Settings')) { Write-Output 'FAIL: no Settings button
 # heading on the screen itself.
 $found = $false
 for ($i = 0; $i -lt 8; $i++) {
-    if ((Tap-Text $Device 'Developer Options') -and (Relay-Host $Device)) { $found = $true; break }
+    if ((Tap-Text $Device 'Developer Options') -and (On-Developer-Options $Device)) { $found = $true; break }
     & $adb -s $Device shell input swipe 600 1600 600 700 300
     Start-Sleep -Seconds 1
 }

@@ -84,8 +84,17 @@ The script also judges whether a release is warranted, counting `feat`/`fix`/`pe
 Nearby Connections cannot bridge an emulator to a physical device, since the emulator has no real BLE/Wi-Fi Direct radio. For local development PingRing ships a **debug-only** TCP transport that virtualizes the connection over your PC's LAN/loopback, so multi-device flows can be tested without two phones.
 
 1. **Start the relay.** Use the bundled run configuration **"app + LAN Debug Relay"**, which runs `adb reverse tcp:8942 tcp:8942` and launches `tools/lan_debug_relay.py` alongside the app. Or run it manually: `python tools\lan_debug_relay.py`.
-2. **Enable LAN Debug Transport** in Home → Settings (gear icon, before hosting/joining) on *both* devices. The emulator reaches the relay via `10.0.2.2`; a physical device uses `127.0.0.1`, forwarded by `adb reverse`.
+2. **Enable LAN Debug Transport** in Home → Settings (gear icon) → Developer Options on *both* devices, before hosting or joining. The emulator reaches the relay via `10.0.2.2`; a physical device uses `127.0.0.1`, forwarded by `adb reverse`. `tools\enable_lan_debug.ps1` does this for a device, host included.
 3. **Host on one device, join on the other** as usual — messages relay over TCP instead of Nearby Connections. Stop with `Ctrl+C`, which closes the socket and all clients cleanly so the port is immediately free.
+
+Nothing connects to the relay until a device actually hosts or joins, so an idle relay showing no clients is expected rather than a fault.
+
+**A join that sits on "connecting" is nearly always the tunnel, not the app.** The phone reaches `127.0.0.1:8942` only through `adb reverse`, so check in this order:
+
+- `adb devices` lists the phone at all. A wireless-attached phone drops off adb on its own, and **the tunnel goes with it** — `adb reverse` is per-connection, so reconnecting (`adb connect <ip:port>`, the address `adb mdns services` reports) is not enough; re-run `adb reverse tcp:8942 tcp:8942` afterwards.
+- `adb -s <serial> reverse --list` shows `tcp:8942 tcp:8942` for that device. The emulator correctly has none, because it reaches the relay directly.
+- The relay host on the phone is `127.0.0.1` and on the emulator `10.0.2.2`. These differ deliberately and are not interchangeable.
+- The relay's relay host field holds what you meant to type. That field validates rather than repairs, so a mistyped address is refused and the previous value kept — but a value left over from an earlier session is equally capable of connecting to nothing. `tools\enable_lan_debug.ps1` reads the field back and fails if it does not match.
 
 The Developer Options card holding this toggle appears only in debug builds, and only while the device looks set up for development (ADB over USB/Wi-Fi, USB attached, or an emulator). It stays visible while the transport is on so it can always be switched back off.
 
@@ -161,7 +170,7 @@ When nothing matches, `tap_text.ps1` prints the text currently on screen and exi
 
 These are conveniences for manual work, not a test suite, and they assert nothing: `uiautomator` serialises per device, so two of these against the *same* device at the same moment will collide — run them in sequence when they target one screen. For behaviour that should be checked automatically, add it to the instrumented suite.
 
-**Verified on** an `x86_64` emulator (API 36 image) on Windows: `tap_text.ps1` was exercised for `-List`, exact and `-Partial` matching, a not-found miss, a bad serial, and an empty (locked) screen. `enable_lan_debug.ps1` was verified for the toggle and for navigating to Developer Options; **its text entry has not been re-run since the delete-key fix above**, because the emulators shut down during that test. Run it once against a device before trusting it with a relay host.
+**Verified on** an `x86_64` emulator (API 36 image) on Windows: `tap_text.ps1` across `-List`, exact and `-Partial` matching, a not-found miss, a bad serial, and an empty (locked) screen. `enable_lan_debug.ps1` end to end on the emulator — toggle on, relay host set to `10.0.2.2`, and the value read back — and reaching the relay over `10.0.2.2`. **Not** run against a physical phone: the handset in use was locked, so the phone-side half of the LAN debug flow (the `adb reverse` tunnel and `127.0.0.1`) is configured and confirmed present but not exercised end to end.
 
 ## 📥 Filing a development request
 

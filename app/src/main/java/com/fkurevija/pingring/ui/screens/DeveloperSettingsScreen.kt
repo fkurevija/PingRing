@@ -83,9 +83,23 @@ fun DeveloperSettingsScreen(
                         // something the user did not type. The relay then fails
                         // to connect in an obvious way instead of silently
                         // connecting somewhere unexpected.
-                        TextInputPolicy.sanitizeRelayHost(raw)?.let { host ->
-                            hostFieldValue = host
-                            appearanceSettings.setLanDebugHost(host)
+                        //
+                        // An empty field is the one exception, and it is allowed
+                        // through as an editing state rather than rejected. It has
+                        // to be: rejecting "" means the last character can never be
+                        // deleted, because the backspace that empties the field is
+                        // refused and the controlled value snaps straight back. The
+                        // field was then impossible to edit - a host left over from a
+                        // previous session could be appended to but not replaced.
+                        // Nothing is written to the store for an empty field, so an
+                        // abandoned edit keeps the last good value.
+                        if (raw.isEmpty()) {
+                            hostFieldValue = ""
+                        } else {
+                            TextInputPolicy.sanitizeRelayHost(raw)?.let { host ->
+                                hostFieldValue = host
+                                appearanceSettings.setLanDebugHost(host)
+                            }
                         }
                     },
                     label = { Text(stringResource(R.string.relay_host)) },
