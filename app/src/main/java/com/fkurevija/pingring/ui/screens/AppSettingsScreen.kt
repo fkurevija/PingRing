@@ -368,13 +368,16 @@ fun AppSettingsScreen(
                         onValueChangeFinished = {
                             onJoinWaitTimeoutChange(joinWaitDraft.roundToInt() * 1_000L)
                         },
-                        // Rounded to 15s stops. The floor is the host's approval
-                        // window plus its margin, not a round number: below that the
-                        // guest gives up before the host has refused, and reports the
-                        // refusal as a failure to reach anybody.
+                        // 5s stops across 10-120s. 5 rather than 15 because the
+                        // bottom of the range is now a genuine choice rather than a
+                        // floor derived from another constant, and a coarse step
+                        // there would put most of the useful values out of reach:
+                        // 10, 25, 40 leaves nothing between "give up at once" and
+                        // "wait half a minute".
                         valueRange = MIN_JOIN_WAIT_TIMEOUT_MILLIS / 1_000f..
                             MAX_JOIN_WAIT_TIMEOUT_MILLIS / 1_000f,
-                        steps = 7,
+                        // 23 stops between two inclusive endpoints: 110/5 - 1.
+                        steps = 21,
                     )
                 }
             }

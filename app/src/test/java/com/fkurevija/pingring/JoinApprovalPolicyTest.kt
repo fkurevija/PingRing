@@ -1,8 +1,8 @@
 package com.fkurevija.pingring
 
+import com.fkurevija.pingring.data.DEFAULT_JOIN_WAIT_TIMEOUT_MILLIS
 import com.fkurevija.pingring.data.JOIN_APPROVAL_GRACE_MILLIS
 import com.fkurevija.pingring.data.JOIN_REQUEST_TIMEOUT_MILLIS
-import com.fkurevija.pingring.data.MIN_JOIN_WAIT_TIMEOUT_MILLIS
 import com.fkurevija.pingring.data.JoinRequestDecision
 import com.fkurevija.pingring.data.MAX_PARTICIPANTS
 import com.fkurevija.pingring.data.PendingJoinRequest
@@ -123,13 +123,14 @@ class JoinApprovalPolicyTest {
 
     @Test
     fun `a guest waiting outlasts the host giving up on it`() {
-        // If the guest's own wait were shorter, a host that times out first
-        // would leave the guest reporting an answer as a failed join - telling
-        // somebody they could not join a PingRing that was merely slow to answer.
-        // The margin is JOIN_APPROVAL_GRACE_MILLIS rather than a literal, because it is
-        // now the thing that fixes the slider's floor: MainActivity derives the
-        // shortest safe guest wait from these two constants. A literal here would
-        // pass while the slider quietly offered a value that raced the host.
+        // A guest that gives up while the host is still deciding reports "could not
+        // reach anybody" for a join the host was about to allow - so the *default*
+        // still has to outlast the host's window, and does.
+        //
+        // It is no longer true of every value the slider offers, and deliberately
+        // so: a member may now choose to wait less than a slow host, which is the
+        // point of the setting. What must not regress is the default, which is what
+        // a member who never opens the setting gets.
         val guestWait = JOIN_REQUEST_TIMEOUT_MILLIS + JOIN_APPROVAL_GRACE_MILLIS
 
         assertTrue(
@@ -137,8 +138,8 @@ class JoinApprovalPolicyTest {
             guestWait > JOIN_REQUEST_TIMEOUT_MILLIS
         )
         assertTrue(
-            "the slider's floor must not race the host either",
-            MIN_JOIN_WAIT_TIMEOUT_MILLIS >= guestWait
+            "the default must leave room for the host's answer",
+            DEFAULT_JOIN_WAIT_TIMEOUT_MILLIS >= guestWait
         )
     }
 

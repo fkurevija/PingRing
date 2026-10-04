@@ -74,20 +74,8 @@ import com.fkurevija.pingring.ui.screens.HostSetupScreen
 import com.fkurevija.pingring.ui.screens.RadarScreen
 import com.fkurevija.pingring.ui.theme.PingRingTheme
 import com.fkurevija.pingring.data.DEFAULT_JOIN_WAIT_TIMEOUT_MILLIS
-import com.fkurevija.pingring.data.JOIN_APPROVAL_GRACE_MILLIS
-import com.fkurevija.pingring.data.JOIN_REQUEST_TIMEOUT_MILLIS
 import com.fkurevija.pingring.data.PingRingRuntime
 import java.util.UUID
-
-/**
- * The shortest guest wait that still cannot race the host.
- *
- * Derived rather than repeated, so the invariant the two windows depend on -
- * the guest must not give up before the host has refused - cannot be broken by
- * editing one number and leaving the other. At the default host window this is
- * also the floor the slider offers, which is why the slider cannot go lower.
- */
-private val MINIMUM_JOIN_WAIT_MILLIS = JOIN_REQUEST_TIMEOUT_MILLIS + JOIN_APPROVAL_GRACE_MILLIS
 
 class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -381,14 +369,15 @@ fun MainNavigation(
                                 val event = Event.create(id = eventCode, inviteSecret = inviteSecret)
                                 if (sessionManager.joinEvent(event)) {
                                     joinJob = coroutineScope.launch {
-                                        // The user's own setting, floored at the point where it
-                                        // would start racing the host. A QR join is admitted
-                                        // without an approval round trip, but the two share
-                                        // one path here and the slow one has to fit.
-                                        val joinWaitMillis = maxOf(
-                                            joinWaitTimeoutMillis,
-                                            MINIMUM_JOIN_WAIT_MILLIS,
-                                        )
+                                        // Exactly what the member set, with no floor applied.
+                                        // There used to be a maxOf here against the host's
+                                        // approval window, which meant a member who chose a
+                                        // short wait silently got a long one and the setting
+                                        // appeared not to work below a threshold. Choosing to
+                                        // wait less than a slow host is the point of the
+                                        // setting; the cost is documented on the constant
+                                        // rather than hidden by overriding the choice here.
+                                        val joinWaitMillis = joinWaitTimeoutMillis
                                         Log.i(
                                             "PingRingJoin",
                                             "Joining $eventCode, giving up after ${joinWaitMillis}ms",

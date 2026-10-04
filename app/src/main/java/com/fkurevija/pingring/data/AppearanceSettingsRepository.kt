@@ -33,28 +33,30 @@ internal fun normalizeConnectionRecoveryPromptDelayMillis(delayMillis: Long): Lo
  * the failure the timeout exists for, since a join to nobody sits in "connecting"
  * forever otherwise.
  *
- * The default is a minute rather than the five to ten seconds that would fail
- * fastest. A short window does not make a failed join fail sooner in any way a
- * user benefits from - it makes joins that *would* have succeeded give up while
- * the host was still reading the request. It is also a narrower window for a
- * nearby stranger to answer in place of the intended host, which is the one
- * thing a join timeout should not make easier.
+ * Adjustable across a wide range, 10 s to 120 s, because the two ends are both
+ * real choices. A host who is watching the screen answers in seconds and a short
+ * wait is what they want; a host who is busy makes a short wait wrong, and the
+ * member picks the longer one knowing their own host. Making the range wide
+ * enough to hold both is better than picking a floor that is wrong for one of
+ * them.
  *
- * Adjustable because the right value depends on the ring: a host watching the
- * screen needs far less than one busy on another call, and the cost of guessing
- * wrong is a join that fails for no visible reason.
+ * The short end deliberately does NOT wait for a slow host. Below the host's own
+ * approval window, a guest that gives up first is no longer racing the host's
+ * refusal - it is giving up while the host is still deciding, and it reports
+ * "could not reach anybody" for a join the host was about to allow. That is the
+ * trade, and it is the member's to make: set it short for a host who is present,
+ * and the failure it causes is a join that gives up early, which is exactly what
+ * was asked for. [JOIN_APPROVAL_GRACE_MILLIS] still governs the host's own window
+ * so that a *refusal* reaches the guest promptly rather than being inferred from
+ * a dead socket.
  *
- * The floor is not arbitrary. The guest's wait has to outlast the host's approval
- * window plus a margin, or the guest gives up first and reports a host's refusal
- * as a join failure - the host said no, and the guest would say "couldn't reach
- * anybody". That invariant is why the minimum is 60s and not the 30s a slider
- * might otherwise offer: [JOIN_REQUEST_TIMEOUT_MILLIS] plus
- * [JOIN_APPROVAL_GRACE_MILLIS] is exactly 60s. Lowering the floor below that would
- * reintroduce the race, so the range is derived from those two rather than picked.
+ * It is also a narrower window for a nearby stranger to answer in place of the
+ * intended host, which is the one thing a join timeout should not make easier -
+ * so the default is not the minimum.
  */
 const val DEFAULT_JOIN_WAIT_TIMEOUT_MILLIS = 60_000L
-const val MIN_JOIN_WAIT_TIMEOUT_MILLIS = 60_000L
-const val MAX_JOIN_WAIT_TIMEOUT_MILLIS = 180_000L
+const val MIN_JOIN_WAIT_TIMEOUT_MILLIS = 10_000L
+const val MAX_JOIN_WAIT_TIMEOUT_MILLIS = 120_000L
 
 internal fun normalizeJoinWaitTimeoutMillis(timeoutMillis: Long): Long = timeoutMillis.coerceIn(
     MIN_JOIN_WAIT_TIMEOUT_MILLIS,
@@ -64,9 +66,11 @@ internal fun normalizeJoinWaitTimeoutMillis(timeoutMillis: Long): Long = timeout
 /**
  * The margin between the host giving up and the guest doing so.
  *
- * Covers the host's refusal travelling back to the guest. Long enough that the
- * guest is not still waiting when the answer arrives; short enough that the guest
- * is not left sitting on a decision the host has already abandoned.
+ * Covers the host's refusal travelling back to the guest, so that a host who says
+ * no produces a prompt failure rather than one inferred from a dead socket. Kept
+ * as a named constant because the host's sweep and the guest's wait are two
+ * halves of one decision, and a literal in either would let them drift apart
+ * silently.
  */
 const val JOIN_APPROVAL_GRACE_MILLIS = 15_000L
 

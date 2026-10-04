@@ -95,7 +95,7 @@ These are implementation windows for the tested build, not guarantees of radio d
 | Live-key proof validity / nonce response deadline | 10 s / 15 s |
 | Mesh presence heartbeat | 5 s; not queued across partitions |
 | Unanswered SAS or host-approval request | 45 s for its respective stage |
-| Guest join wait before reporting failure | Configurable 60-180 s, default 60 s; floored at the approval window plus 15 s |
+| Guest join wait before reporting failure | Configurable 10-120 s, default 60 s; below the 45 s approval window a guest gives up while the host is still deciding |
 | Focused UWB transport retention | 45 s or 20 s according to the actual radio plan |
 | UWB bearing becomes last known / separate marker lifetime | 2 s since the last fix / 120 s since marker recording |
 | RTT result freshness / peer-address freshness | 5 s / 20 s |
