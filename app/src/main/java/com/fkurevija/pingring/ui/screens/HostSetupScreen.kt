@@ -245,24 +245,41 @@ fun HostSetupScreen(
             }
 
             // Username Field
-            OutlinedTextField(
-                value = username,
-                onValueChange = { username = it },
-                label = { Text(stringResource(R.string.username)) },
-                placeholder = { Text(stringResource(R.string.username_example)) },
-                isError = username.isBlank(),
-                supportingText = {
-                    if (username.isBlank()) {
-                        Text(stringResource(R.string.username_required), color = MaterialTheme.colorScheme.error)
-                    }
-                },
-                shape = RoundedCornerShape(14.dp),
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(
-                    capitalization = KeyboardCapitalization.Words
-                ),
-                modifier = Modifier.fillMaxWidth()
-            )
+            //
+            // The error is a sibling Text rather than the TextField's
+            // supportingText slot. supportingText is measured into a reserved
+            // strip inside the field, and a message that only appears once the
+            // field is empty has been seen clipped by a few pixels at the bottom
+            // on a real device. Laying it out as ordinary content in this Column
+            // means it takes its height from the text at whatever font scale the
+            // phone is using, and the scrolling column can never crop it.
+            //
+            // An inner Column with no spacing so the message sits close under the
+            // field the way supporting text did, while the outer Column still
+            // separates the pair from the cards above and below.
+            Column {
+                OutlinedTextField(
+                    value = username,
+                    onValueChange = { username = it },
+                    label = { Text(stringResource(R.string.username)) },
+                    placeholder = { Text(stringResource(R.string.username_example)) },
+                    isError = username.isBlank(),
+                    shape = RoundedCornerShape(14.dp),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(
+                        capitalization = KeyboardCapitalization.Words
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (username.isBlank()) {
+                    Text(
+                        stringResource(R.string.username_required),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(start = 16.dp, top = 4.dp),
+                    )
+                }
+            }
 
             // One link, not a second copy of the switches. Every event switch
             // lives on PingRing Settings, which is one tap away and the only

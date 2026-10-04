@@ -2,17 +2,23 @@ package com.fkurevija.pingring
 
 import android.content.Context
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
 import com.fkurevija.pingring.data.DiscoveryRepository
 import com.fkurevija.pingring.data.PendingJoinRequest
 import com.fkurevija.pingring.ui.screens.HostSetupScreen
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
@@ -57,6 +63,7 @@ class HostSetupScreenInstrumentedTest {
     )
 
     private fun show(
+        savedUsername: String = "Alex",
         onOpenSettings: () -> Unit = {},
         pendingJoinRequests: List<PendingJoinRequest> = emptyList(),
         onApproveJoinRequest: (String) -> Unit = {},
@@ -76,7 +83,7 @@ class HostSetupScreenInstrumentedTest {
             MaterialTheme {
                 HostSetupScreen(
                     eventCode = "4C1A9B",
-                    savedUsername = "Alex",
+                    savedUsername = savedUsername,
                     discoveryRepository = repository,
                     onEndEvent = {},
                     onSaveUsername = {},
@@ -176,5 +183,38 @@ class HostSetupScreenInstrumentedTest {
         composeRule.waitForIdle()
 
         assertEquals("endpoint-2", denied)
+    }
+
+    @Test
+    fun theUsernameErrorSitsBelowTheFieldRatherThanInsideIt() {
+        // The message used to live in the TextField's supportingText slot: a strip
+        // measured inside the field's own bounds, reported cut off at the bottom on
+        // a real device. It is now ordinary content laid out after the field.
+        //
+        // Asserted geometrically, because that is the only thing that actually
+        // differs: in the merged tree a supporting message carries the same Text
+        // semantics as a plain one, so asking "is there a node with the error on
+        // it" passes either way. The field node's bottom edge is where the
+        // supporting strip used to end, so the message finishing below it is the
+        // layout having changed rather than the text merely existing.
+        show()
+        composeRule.onNodeWithText("Alex").performTextClearance()
+        composeRule.waitForIdle()
+
+        // InputText is what picks the TextField out of the pair: the error
+        // message itself contains the word "Username" too, so matching on the
+        // text alone is ambiguous once the message is showing.
+        val field = composeRule.onNode(
+            hasText("Username", substring = true) and
+                SemanticsMatcher.keyIsDefined(SemanticsProperties.InputText)
+        ).getUnclippedBoundsInRoot()
+        val message = composeRule.onNodeWithText("Username cannot be empty", useUnmergedTree = true)
+            .getUnclippedBoundsInRoot()
+
+        assertTrue(
+            "error should finish below the field, was msgBottom=${message.bottom} " +
+                "fieldBottom=${field.bottom}",
+            message.bottom > field.bottom,
+        )
     }
 }
