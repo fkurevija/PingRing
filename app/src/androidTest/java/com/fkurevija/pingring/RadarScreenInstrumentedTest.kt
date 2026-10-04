@@ -576,10 +576,11 @@ class RadarScreenInstrumentedTest {
         composeRule.waitForIdle()
 
         // Proof the real list rendered rather than an empty sheet: the count
-        // includes this device, and the empty-state copy explains itself.
+        // includes this device. Nothing else is on screen - with nobody else
+        // present the sheet is empty, and there is no placeholder copy.
         composeRule.onNodeWithText("Members (1/8)").assertIsDisplayed()
         composeRule.onNodeWithText("Your ephemeral ID is private to this event.", substring = true)
-            .assertIsDisplayed()
+            .assertDoesNotExist()
     }
 
     @Test
@@ -598,8 +599,10 @@ class RadarScreenInstrumentedTest {
         Espresso.pressBack()
         composeRule.settle()
 
-        composeRule.onNodeWithText("Your ephemeral ID is private to this event.", substring = true)
-            .assertDoesNotExist()
+        // Asserted on the sheet title rather than on the old empty-state copy:
+        // that text is gone from the app entirely now, so checking it stayed
+        // hidden would pass whether or not the sheet had actually closed.
+        composeRule.onNodeWithText("Members (1/8)").assertDoesNotExist()
     }
 
     @Test

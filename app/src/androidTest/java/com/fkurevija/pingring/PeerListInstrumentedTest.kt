@@ -94,15 +94,20 @@ class PeerListInstrumentedTest {
     }
 
     @Test
-    fun anEmptyListExplainsThatNobodyHasAppearedYet() {
+    fun anEmptyListShowsNothingRatherThanPlaceholderProse() {
         show()
 
-        // Silence here reads as a broken screen; the copy has to say the feature
-        // is working and that the peer ids are private.
+        // This used to assert the opposite. The empty state explained that the
+        // ephemeral ID is private and that peers would appear later - two
+        // sentences about a thing nobody had asked about, sitting where the list
+        // of members should be. Asserted as absence now, because that is the
+        // behaviour: opening the list to see who is there and finding nothing
+        // there is the answer, and the title already carries the count.
         composeRule.onNodeWithText(
             "Your ephemeral ID is private to this event. When someone appears, " +
                 "their signal and direction will show here."
-        ).assertIsDisplayed()
+        ).assertDoesNotExist()
+        composeRule.onNodeWithText("When someone appears", substring = true).assertDoesNotExist()
     }
 
     @Test

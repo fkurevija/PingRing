@@ -160,7 +160,6 @@
     <string name="radar_last_known_direction">Dernière direction connue de %1$s : %2$d°. Détecté il y a %3$d s; la personne a pu se déplacer.</string>
     <string name="member_count">Membres (%1$d/%2$d)</string>
     <string name="member_count_full">Membres (%1$d/%2$d - complet)</string>
-    <string name="empty_peer_list">Votre identifiant temporaire est privé à cet événement. Lorsqu’une personne apparaît, son signal et sa direction s’affichent ici.</string>
     <string name="tracking_badge">SUIVI</string>
     <string name="peer_signal_strength">%1$s · %2$d dBm</string>
     <string name="distance_meters">%1$.1f m</string>

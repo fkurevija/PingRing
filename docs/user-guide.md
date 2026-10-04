@@ -114,6 +114,8 @@ On a tablet the list is also a permanent pane beside the radar, so the icon ther
 
 Each row shows a status dot (beacon colour if they have a beacon running, otherwise green when close and blue when not), the name, proximity and signal strength in dBm, and the distance. The host's radar shows pending join requests above the radar.
 
+The title carries the count, including you — **Members (1/8)** when you are alone. With nobody else present the sheet is simply empty.
+
 Without this the ring was unreadable on a phone: the title carried the count (`Members (3/8)`) but nothing on the screen could say *who* those three were.
 
 ### Haptics

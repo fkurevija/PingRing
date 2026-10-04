@@ -1598,14 +1598,14 @@ internal fun PeerList(
             )
             Spacer(Modifier.height(8.dp))
         }
-        if (peers.isEmpty()) {
-            Text(
-                stringResource(R.string.empty_peer_list),
-                textAlign = TextAlign.Center,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.fillMaxWidth().padding(24.dp)
-            )
-        } else {
+        // No empty-state text. With nobody else in the ring the sheet would say
+        // something about ephemeral IDs and about peers appearing later, which
+        // is two sentences of explanation about a thing nobody asked about -
+        // and it sat where a list of members should be, so a host opening the
+        // list to see who was there was told what the list would have said if
+        // there were anyone in it. The title already carries the count
+        // ("Members (1/8)"), which is the part that is actually informative.
+        if (peers.isNotEmpty()) {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(peers, key = { it.peerId }) { peer ->
                     val peerBeacon = activeBeacons[peer.peerId]
