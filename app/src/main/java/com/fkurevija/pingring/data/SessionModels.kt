@@ -32,6 +32,144 @@ data class MeshPresencePayloadDto(
     val peerId: String,
 )
 
+/**
+ * A member's request to hold one chat bubble colour, and the host's answer.
+ *
+ * A guest asking for a colour rather than announcing one, because uniqueness has
+ * to be decided by somebody. Two members choosing at the same moment would
+ * otherwise both be told yes and both render the same colour - which is the
+ * confusion the claim exists to prevent, arrived at by the exact route it was
+ * meant to avoid.
+ *
+ * The host is the only member that can say yes, so a guest is told to wait for
+ * the answer rather than assuming its pick was taken. [granted] false is a
+ * refusal and is worth distinguishing from silence: a member who is told no can
+ * pick something else, while one that never hears back is left with a colour it
+ * does not have.
+ */
+@Serializable
+data class ChatColourClaimPayloadDto(
+    val eventCode: String,
+    val peerId: String,
+    /** The colour being claimed. Absent in the host's reply. */
+    val colorArgb: Long? = null,
+    /**
+     * The host's answer: true grants it, false refuses it, null means this is a
+     * request rather than a reply.
+     */
+    val granted: Boolean? = null,
+    /**
+     * When the claim was made, host-clock millis.
+     *
+     * Carried so the host can break a tie between two guests wanting the same
+     * colour with a rule both can check: the earlier claim wins. Without it the
+     * loser would have to simply be told, and would have no way to tell whether
+     * the answer was about its own race or something else.
+     */
+    val requestedAtMillis: Long = 0L,
+)
+
+/**
+ * Who holds which chat bubble colour, and whether a new claim can be granted.
+ *
+ * Host-authoritative, and that is the only arrangement that actually delivers
+ * what the setting promises. Best-effort sharing would leave a window in which
+ * two members believe they hold the same colour, and the user is relying on the
+ * colour to tell people apart in a crowded transcript - so a colour that is
+ * sometimes shared is worse than one that is occasionally refused.
+ *
+ * The host already arbitrates admission, holds the authoritative member list and
+ * is the only member every other member is authenticated to, so it is the only
+ * party whose answer all of them can believe.
+ *
+ * Pure and Android-free so the rules are directly testable.
+ */
+object ChatColourPolicy {
+
+    /**
+     * What the host does with a claim for [colorArgb].
+     *
+     * Granting a colour somebody already holds is refused, not honoured, because
+     * the point is that a colour identifies one person. The exception is a member
+     * re-claiming the colour it already holds: that is not a conflict, and
+     * refusing it would make the setting impossible to re-open and confirm.
+     */
+    fun evaluateClaim(
+        claimColorArgb: Long,
+        claimPeerId: String,
+        currentHolders: Map<Long, String>,
+        localPeerId: String,
+    ): Decision {
+        // A claim from ourselves is not a claim: the host is the authority, and
+        // treating its own pick as a request would deadlock it into waiting for
+        // permission from itself.
+        if (claimPeerId == localPeerId) return Decision.GRANTED
+        val holder = currentHolders[claimColorArgb]
+        // Already ours, or unheld. Either way there is nothing to decide.
+        if (holder == null || holder == claimPeerId) return Decision.GRANTED
+        return Decision.REFUSED
+    }
+
+    /**
+     * Whether the host should grant [claimColorArgb], resolving a race between
+     * two guests that asked for the same colour at the same moment.
+     *
+     * The earlier claim wins, by [requestedAtMillis] and then by peer id so that
+     * two claims stamped identically still produce one answer rather than two.
+     * The tie-break on peer id is arbitrary but it has to be *total* and it has
+     * to be the same on every device, or the loser would be told it had won by
+     * one host and lost by another.
+     */
+    fun shouldGrantAmongCompetingClaims(
+        claimColorArgb: Long,
+        claimPeerId: String,
+        requestedAtMillis: Long,
+        competingClaims: List<Pair<String, Long>>,
+    ): Boolean {
+        val winner = competingClaims.minWithOrNull(
+            compareBy({ it.second }, { it.first })
+        ) ?: return true
+        val winnerIsUs = winner.first == claimPeerId && winner.second == requestedAtMillis
+        return winnerIsUs
+    }
+
+    /**
+     * What the host does with a claim.
+     *
+     * DISTINCT so the caller can treat a refusal visibly: a member told no can
+     * choose again, which a member that never heard back cannot.
+     */
+    enum class Decision {
+        GRANTED,
+        REFUSED,
+    }
+
+    /**
+     * The colours a member may still pick: the presets nobody else holds.
+     *
+     * Returned in palette order so the picker keeps a stable layout, and always
+     * including the member's own colour - it is theirs, and greyed out it would
+     * read as unavailable and leave them with no way to see their choice.
+     */
+    fun availableColors(
+        localPeerId: String,
+        currentHolders: Map<Long, String>,
+        presets: List<Long>,
+    ): List<Long> = presets.filter { color ->
+        val holder = currentHolders[color]
+        holder == null || holder == localPeerId
+    }
+
+    /**
+     * Who holds [colorArgb], for labelling a swatch as taken.
+     *
+     * Null when it is free. The name is passed in rather than looked up so this
+     * stays pure; the caller has the member list and the repository does not.
+     */
+    fun holderOf(colorArgb: Long, currentHolders: Map<Long, String>): String? =
+        currentHolders[colorArgb]
+}
+
 @Serializable
 data class MeshLinkAuthenticationPayloadDto(
     val eventCode: String,
