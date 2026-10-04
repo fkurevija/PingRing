@@ -1299,8 +1299,15 @@ class DiscoveryRepository(
     }
 
     fun broadcastOutgoingChatMessage(text: String, senderName: String, colorArgb: Long?) {
-        val sanitizedText = text.take(MAX_CHAT_LENGTH).trim()
-        val sanitizedName = senderName.take(MAX_USERNAME_LENGTH).trim()
+        // Sanitized again here, not just at the field, because a sender name also
+        // arrives from a peer: this is the only place every outgoing message is
+        // checked regardless of which screen sent it.
+        //
+        // The previous `take(MAX_CHAT_LENGTH)` could cut a surrogate pair in
+        // half, because a Char is a UTF-16 unit and an emoji is two of them -
+        // leaving a lone surrogate to be serialised and sent to every peer.
+        val sanitizedText = TextInputPolicy.sanitizeMessage(text)
+        val sanitizedName = TextInputPolicy.sanitizeUsername(senderName)
         if (sanitizedText.isBlank() || sanitizedName.isBlank()) return
         val localPeerId = sessionManager.peerId.value
         val dto = ChatPayloadDto(

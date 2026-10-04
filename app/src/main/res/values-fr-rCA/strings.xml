@@ -220,4 +220,6 @@
     <string name="prevent_new_users_joining_description">Fermez ce PingRing à toute personne qui ne fait pas déjà partie du groupe. Les invités qui joignent par code ont toujours besoin de votre approbation.</string>
     <string name="report_a_problem">Signaler un problème</string>
     <string name="report_a_problem_failed">Impossible d’ouvrir le navigateur</string>
+    <string name="copy_pingring_code">Copier le code PingRing</string>
+    <string name="pingring_code_copied">Code PingRing copié</string>
 </resources>

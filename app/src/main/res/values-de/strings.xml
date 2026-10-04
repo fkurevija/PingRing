@@ -220,4 +220,6 @@
     <string name="prevent_new_users_joining_description">Schließe diesen PingRing für alle, die nicht bereits Mitglied sind. Gäste, die per Code beitreten, benötigen weiterhin deine Freigabe.</string>
     <string name="report_a_problem">Problem melden</string>
     <string name="report_a_problem_failed">Der Browser konnte nicht geöffnet werden</string>
+    <string name="copy_pingring_code">PingRing-Code kopieren</string>
+    <string name="pingring_code_copied">PingRing-Code kopiert</string>
 </resources>

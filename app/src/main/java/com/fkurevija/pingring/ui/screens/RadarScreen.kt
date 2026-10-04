@@ -1,4 +1,5 @@
 package com.fkurevija.pingring.ui.screens
+import com.fkurevija.pingring.data.TextInputPolicy
 import com.fkurevija.pingring.data.RadarFeedbackPolicy
 import com.fkurevija.pingring.data.RadarAnnouncementPolicy
 import androidx.compose.runtime.rememberUpdatedState
@@ -895,7 +896,7 @@ fun RadarScreen(
                                 ) {
                                     OutlinedTextField(
                                         value = chatText,
-                                        onValueChange = { chatText = it },
+                                        onValueChange = { chatText = TextInputPolicy.sanitizeMessage(it) },
                                         placeholder = { Text(stringResource(R.string.type_message), style = MaterialTheme.typography.bodyMedium) },
                                         modifier = Modifier.weight(1f),
                                         shape = RoundedCornerShape(24.dp),
@@ -1919,7 +1920,7 @@ fun BeaconCustomizationDialog(
 
                 OutlinedTextField(
                     value = title,
-                    onValueChange = { title = it },
+                    onValueChange = { title = TextInputPolicy.sanitizeBeaconTitle(it) },
                     label = { Text(stringResource(R.string.beacon_message_intent)) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,

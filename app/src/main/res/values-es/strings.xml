@@ -220,4 +220,6 @@
     <string name="prevent_new_users_joining_description">Cierra este PingRing a quien no esté ya dentro. Los invitados que se unan por código siguen necesitando tu aprobación.</string>
     <string name="report_a_problem">Informar de un problema</string>
     <string name="report_a_problem_failed">No se pudo abrir el navegador</string>
+    <string name="copy_pingring_code">Copiar código de PingRing</string>
+    <string name="pingring_code_copied">Código de PingRing copiado</string>
 </resources>

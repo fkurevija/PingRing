@@ -221,4 +221,6 @@
     <string name="prevent_new_users_joining_description">Zatvori ovaj PingRing za sve koji nisu već članovi. Gosti koji se pridruže kodom i dalje trebaju tvoje odobrenje.</string>
     <string name="report_a_problem">Prijavi problem</string>
     <string name="report_a_problem_failed">Nije moguće otvoriti preglednik</string>
+    <string name="copy_pingring_code">Kopiraj PingRing kod</string>
+    <string name="pingring_code_copied">PingRing kod kopiran</string>
 </resources>

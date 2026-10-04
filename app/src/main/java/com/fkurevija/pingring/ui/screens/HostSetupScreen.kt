@@ -52,6 +52,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
+import com.fkurevija.pingring.data.TextInputPolicy
 import com.fkurevija.pingring.data.DiscoveryRepository
 import com.fkurevija.pingring.data.PendingJoinRequest
 import com.fkurevija.pingring.R
@@ -249,7 +250,7 @@ fun HostSetupScreen(
                     Column(Modifier.fillMaxWidth()) {
                         OutlinedTextField(
                             value = username,
-                            onValueChange = { username = it },
+                            onValueChange = { username = TextInputPolicy.sanitizeUsername(it) },
                             label = { Text(stringResource(R.string.username)) },
                             placeholder = { Text(stringResource(R.string.username_example)) },
                             isError = username.isBlank(),

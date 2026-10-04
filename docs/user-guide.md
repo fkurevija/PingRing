@@ -32,7 +32,7 @@ How to use PingRing as it exists today — what each screen does and which switc
 
 1. Tap **Create a PingRing** on the home screen.
 2. Enter a **Username**. It is saved on the device and pre-filled next time. Names must be unique within a session — a collision is refused with an alert.
-3. Share the **QR code** when possible; it contains the 256-bit invitation secret. The 6-character **PingRing Code** (`e.g. AB12CD`) is a public event locator, not a secret.
+3. Share the **QR code** when possible; it contains the 256-bit invitation secret. The 6-character **PingRing Code** (`e.g. AB12CD`) is a public event locator, not a secret. **Long-press the code to copy it** — reading six characters aloud is exactly how one of them gets misheard, and copying beats transcribing. Screen readers get the same thing as a **Copy PingRing Code** action.
 4. The screen also states **Max Capacity** — PingRing is limited to 8 members (1 host + 7 guests) — because you are the one deciding who to invite.
 5. If you want to change who may join or whether this device uses UWB, tap **PingRing Settings** further down the same panel.
 6. Tap **Launch Radar**.
@@ -57,7 +57,7 @@ There are exactly two ways in, and both start with you:
 
 1. Tap **Join a PingRing**.
 2. Enter your **Username** and one of:
-  - the **6-character PingRing Code** — the field forces capitals; the host must approve this code-only request;
+  - the **6-character PingRing Code** — the field forces capitals and holds six characters at most, so a pasted code cannot leave extra digits behind; the host must approve this code-only request;
   - the host's **QR code** — tap **Scan Host QR Code** (disabled with a reason if there is no camera); this includes the invitation secret.
 3. Tap **Connect**.
 
@@ -132,7 +132,7 @@ In **App Settings → Accessibility**, turn on **Radar screen-reader summary** t
 
 Tap the **QR icon** in the top bar to reopen the "Scan to Join" dialog — useful when somebody arrives late. The button is hidden while the ring is closed to new members.
 
-The dialog shows the same invitation as your host screen did — QR code, the **PingRing Code** to read out, and **Max Capacity** — so a latecomer is told the same thing a guest at the start was. Only the QR code is drawn larger, since it is being scanned across a table.
+The dialog shows the same invitation as your host screen did — QR code, the **PingRing Code** to read out, and **Max Capacity** — so a latecomer is told the same thing a guest at the start was. Only the QR code is drawn larger, since it is being scanned across a table. Long-pressing the code here copies it, exactly as on the host screen.
 
 ---
 

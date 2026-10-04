@@ -223,4 +223,6 @@
     <string name="prevent_new_users_joining_description">Закрой этот PingRing для всех, кто ещё не участник. Гости, присоединяющиеся по коду, по-прежнему требуют вашего подтверждения.</string>
     <string name="report_a_problem">Сообщить о проблеме</string>
     <string name="report_a_problem_failed">Не удалось открыть браузер</string>
+    <string name="copy_pingring_code">Копировать код PingRing</string>
+    <string name="pingring_code_copied">Код PingRing скопирован</string>
 </resources>

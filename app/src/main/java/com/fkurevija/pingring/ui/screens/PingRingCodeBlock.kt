@@ -1,5 +1,14 @@
 package com.fkurevija.pingring.ui.screens
 
+import android.widget.Toast
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -51,6 +60,7 @@ import com.fkurevija.pingring.R
  * "come to my ring" had no capacity to quote without leaving the radar.
  */
 @Composable
+@OptIn(ExperimentalFoundationApi::class)
 fun PingRingCodeBlock(
     eventCode: String,
     inviteSecret: String?,
@@ -93,10 +103,41 @@ fun PingRingCodeBlock(
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(Modifier.height(4.dp))
+        // Long press copies. A code that is read out is a code that gets
+        // mistyped, and the two things a host wants to do with it - say it, or
+        // send it - are "say the digits" and "paste it into a chat", both of
+        // which want it on the clipboard rather than transcribed by hand.
+        //
+        // Implemented here rather than on each screen so the host panel and the
+        // radar's QR dialog behave identically; both render this block.
+        //
+        // The custom accessibility action is not optional. A long press is a
+        // gesture with no keyboard or screen-reader equivalent, so without it
+        // the copy is unreachable for exactly the people least able to
+        // transcribe six characters correctly.
+        val context = LocalContext.current
+        val clipboard = LocalClipboardManager.current
+        val copyActionLabel = stringResource(R.string.copy_pingring_code)
         Box(
             modifier = Modifier
                 .clip(RoundedCornerShape(12.dp))
                 .background(MaterialTheme.colorScheme.primaryContainer)
+                .combinedClickable(
+                    onClick = {},
+                    onLongClick = {
+                        clipboard.setText(AnnotatedString(eventCode))
+                        Toast.makeText(context, R.string.pingring_code_copied, Toast.LENGTH_SHORT).show()
+                    },
+                )
+                .semantics {
+                    customActions = listOf(
+                        CustomAccessibilityAction(copyActionLabel) {
+                            clipboard.setText(AnnotatedString(eventCode))
+                            Toast.makeText(context, R.string.pingring_code_copied, Toast.LENGTH_SHORT).show()
+                            true
+                        },
+                    )
+                }
                 .padding(horizontal = 16.dp, vertical = 6.dp)
         ) {
             Text(

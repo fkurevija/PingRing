@@ -221,4 +221,7 @@
     <string name="connection_authentication_message">Connect to %1$s only if the digits on this device match the other device. Ask the other person to compare this code: %2$s</string>
     <string name="connection_digits_match">Codes match</string>
     <string name="connection_reject">Reject</string>
+    <!-- Shown as an accessibility action on the code, and as the confirmation. -->
+    <string name="copy_pingring_code">Copy PingRing Code</string>
+    <string name="pingring_code_copied">PingRing Code copied</string>
 </resources>

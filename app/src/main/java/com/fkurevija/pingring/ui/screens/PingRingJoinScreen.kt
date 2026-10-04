@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.fkurevija.pingring.data.TextInputPolicy
 import com.fkurevija.pingring.data.MAX_PARTICIPANTS
 import com.fkurevija.pingring.R
 import com.fkurevija.pingring.ui.theme.PingRingTheme
@@ -166,7 +167,11 @@ fun PingRingJoinScreen(
                     OutlinedTextField(
                         value = username,
                         onValueChange = {
-                            username = it
+                            // Sanitized as typed rather than on save, so the host
+                            // sees their name as it will actually be stored and
+                            // shown to guests rather than discovering a stripped
+                            // character on the radar after launching.
+                            username = TextInputPolicy.sanitizeUsername(it)
                             usernameError = null
                         },
                         label = { Text(stringResource(R.string.username)) },
@@ -189,7 +194,12 @@ fun PingRingJoinScreen(
                     OutlinedTextField(
                         value = eventCode,
                         onValueChange = {
-                            eventCode = it.uppercase()
+                            // Upper case and hex-only are enforced here, not just
+                            // by the keyboard: a pasted code or a hardware
+                            // keyboard bypasses KeyboardCapitalization entirely,
+                            // and accepting those characters only to refuse the
+                            // code on submit is the worse failure.
+                            eventCode = TextInputPolicy.sanitizeEventCode(it)
                             inputError = null
                         },
                         label = { Text(stringResource(R.string.pingring_code)) },

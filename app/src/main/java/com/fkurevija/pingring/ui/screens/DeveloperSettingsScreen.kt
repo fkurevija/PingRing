@@ -31,6 +31,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.fkurevija.pingring.R
+import com.fkurevija.pingring.data.TextInputPolicy
 import com.fkurevija.pingring.data.AppearanceSettingsRepository
 
 @Suppress("FunctionName")
@@ -75,9 +76,17 @@ fun DeveloperSettingsScreen(
             if (lanDebugEnabled) {
                 OutlinedTextField(
                     value = hostFieldValue,
-                    onValueChange = {
-                        hostFieldValue = it
-                        appearanceSettings.setLanDebugHost(it)
+                    onValueChange = { raw ->
+                        // The one field that becomes a socket address, so an
+                        // invalid entry is rejected outright and the previous
+                        // value is kept, rather than being repaired into
+                        // something the user did not type. The relay then fails
+                        // to connect in an obvious way instead of silently
+                        // connecting somewhere unexpected.
+                        TextInputPolicy.sanitizeRelayHost(raw)?.let { host ->
+                            hostFieldValue = host
+                            appearanceSettings.setLanDebugHost(host)
+                        }
                     },
                     label = { Text(stringResource(R.string.relay_host)) },
                     supportingText = { Text(stringResource(R.string.relay_host_help)) },
