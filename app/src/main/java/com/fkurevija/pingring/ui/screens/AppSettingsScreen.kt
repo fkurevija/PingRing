@@ -224,12 +224,12 @@ fun AppSettingsScreen(
                     }
                 }
             }
-            Text(
-                stringResource(R.string.language_description),
-                modifier = Modifier.padding(start = 4.dp),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            // No hint under the dropdown. It explained that System default follows
+            // the device, which is what the option is called, and the field already
+            // shows the current choice. The App Settings screen is a flat list of
+            // settings rather than a form to be filled in, so nothing here needs
+            // explaining to a reader who has just tapped a control.
+            //
             // The three notification switches, listed here rather than behind a
             // Notifications screen: a group heading plus a submenu to reach three
             // switches is a tap and a back press spent on nothing, and the App

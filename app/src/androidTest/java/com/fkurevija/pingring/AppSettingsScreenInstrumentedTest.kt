@@ -182,4 +182,20 @@ class AppSettingsScreenInstrumentedTest {
         composeRule.onNodeWithContentDescription("Notification Vibration").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("Notification Vibration").performScrollTo().assertIsDisplayed()
     }
+
+    @Test
+    fun theLanguageDropdownHasNoHintUnderIt() {
+        // A line of explanatory copy used to sit under the dropdown. Every other
+        // entry on this screen is a control with its own label, and nothing here
+        // needs a sentence describing it to someone who has just tapped it.
+        //
+        // Asserted as a substring rather than an exact match because the copy
+        // existed only as a free-standing Text and had no name to assert on.
+        // The wording is what is being guarded, not the idea: a future hint with
+        // different words should still fail rather than slip back in unnoticed.
+        showSettings()
+
+        composeRule.onNodeWithText("System default follows your device", substring = true)
+            .assertDoesNotExist()
+    }
 }

@@ -15,7 +15,6 @@
     <string name="spoken_radar_updates_description">При активном чтении экрана озвучивать устойчивые изменения участника, близости и сигнала не чаще раза в 10 секунд, пока радар открыт.</string>
     <string name="accessibility_card_description">Дополнительные функции для программы чтения с экрана</string>
     <string name="language">Язык</string>
-    <string name="language_description">Выберите язык PingRing. По умолчанию используется язык устройства.</string>
     <string name="language_system_default">Как в системе</string>
     <string name="language_english">English</string>
     <string name="language_croatian">Hrvatski</string>

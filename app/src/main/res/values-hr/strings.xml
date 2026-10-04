@@ -15,7 +15,6 @@
     <string name="spoken_radar_updates_description">Uz aktivan čitač zaslona izgovori stabilne promjene osobe, blizine i signala najviše jednom svakih 10 sekundi dok je radar otvoren.</string>
     <string name="accessibility_card_description">Neobavezne značajke za čitač zaslona</string>
     <string name="language">Jezik</string>
-    <string name="language_description">Odaberite jezik PingRinga. Zadana postavka prati jezik uređaja.</string>
     <string name="language_system_default">Zadano prema sustavu</string>
     <string name="language_english">English</string>
     <string name="language_croatian">Hrvatski</string>

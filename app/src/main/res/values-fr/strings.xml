@@ -15,7 +15,6 @@
     <string name="spoken_radar_updates_description">Avec un lecteur d’écran actif, annoncer les changements stables de membre, de proximité et de balise au maximum toutes les 10 secondes lorsque le radar est ouvert.</string>
     <string name="accessibility_card_description">Fonctionnalités facultatives pour lecteur d’écran</string>
     <string name="language">Langue</string>
-    <string name="language_description">Choisissez la langue de PingRing. Le réglage par défaut suit la langue de l’appareil.</string>
     <string name="language_system_default">Par défaut du système</string>
     <string name="language_english">English</string>
     <string name="language_croatian">Hrvatski</string>

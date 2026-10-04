@@ -15,7 +15,6 @@
     <string name="spoken_radar_updates_description">With a screen reader active, announce stable member, proximity and beacon changes at most once every 10 seconds while the radar is open.</string>
     <string name="accessibility_card_description">Optional screen-reader features</string>
     <string name="language">Language</string>
-    <string name="language_description">Choose PingRing\'s language. System default follows your device.</string>
     <string name="language_system_default">System default</string>
     <string name="language_english">English</string>
     <string name="language_croatian">Hrvatski</string>
