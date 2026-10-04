@@ -140,6 +140,94 @@ class AppRulesTest {
         assertTrue(ChatBubblePalette.presets.all { it ushr 24 == 0xFFL })
     }
 
+    /**
+     * Every preset must be readable with the text colour the bubble actually
+     * chooses.
+     *
+     * The bubble picks black or white by contrast ratio rather than assuming
+     * white, which is what lets the palette contain a real yellow and a real
+     * lime. Without that check, brightening the palette to nameable colours could
+     * quietly reintroduce unreadable bubbles - and the old palette's comment
+     * claimed "dark enough for white text" precisely because at the time white
+     * was the only option. The threshold is WCAG AA for normal text (4.5:1).
+     */
+    @Test
+    fun chatBubblePresetsStayReadableWithWhicheverTextColourTheyGet() {
+        ChatBubblePalette.presets.forEach { argb ->
+            val best = maxOf(contrastRatio(argb, 0xFF000000), contrastRatio(argb, 0xFFFFFFFF))
+            assertTrue(
+                "#%06X has only %.2f:1 against its best text colour".format(argb and 0xFFFFFF, best),
+                best >= 4.5,
+            )
+        }
+    }
+
+    /**
+     * No two colours may sit next to each other in the picker unless they are
+     * genuinely distinguishable.
+     *
+     * The swatches are a wrapping FlowRow, so "adjacent in the list" means
+     * adjacent on screen, including across the wrap. Sorting by hue looks tidier
+     * and is worse: it put lime and green at 18 in L*a*b*, which at bubble size is
+     * a difference most people cannot see - the member was being asked to choose
+     * between two things that looked the same. The threshold below is generous
+     * rather than tight; the current worst neighbour pair is about 66.
+     */
+    @Test
+    fun neighbouringSwatchesAreFarEnoughApartToTellApart() {
+        val lab = ChatBubblePalette.presets.map { it.toLab() }
+        for (i in 0 until lab.size - 1) {
+            val distance = lab[i].distanceTo(lab[i + 1])
+            assertTrue(
+                "presets[$i] and presets[${i + 1}] are only %.1f apart".format(distance),
+                distance >= 40.0,
+            )
+        }
+    }
+
+    /** WCAG 2.x relative luminance for one packed ARGB colour. */
+    private fun luminance(argb: Long): Double {
+        fun channel(shift: Int): Double {
+            val c = ((argb shr shift) and 0xFF) / 255.0
+            return if (c <= 0.03928) c / 12.92 else Math.pow((c + 0.055) / 1.055, 2.4)
+        }
+        return 0.2126 * channel(16) + 0.7152 * channel(8) + 0.0722 * channel(0)
+    }
+
+    private fun contrastRatio(a: Long, b: Long): Double {
+        val la = luminance(a)
+        val lb = luminance(b)
+        // (lighter, darker) in that order. Getting this backwards yields the
+        // reciprocal - a ratio of 0.24:1 for a mid red, which fails everything.
+        val (hi, lo) = if (la < lb) lb to la else la to lb
+        return (hi + 0.05) / (lo + 0.05)
+    }
+
+    /** CIE L*a*b*, so "do these look different" is a number rather than an opinion. */
+    private data class Lab(val l: Double, val a: Double, val b: Double) {
+        fun distanceTo(other: Lab): Double {
+            val dl = l - other.l
+            val da = a - other.a
+            val db = b - other.b
+            return Math.sqrt(dl * dl + da * da + db * db)
+        }
+    }
+
+    private fun Long.toLab(): Lab {
+        fun linear(shift: Int): Double {
+            val c = ((this shr shift) and 0xFF) / 255.0
+            return if (c <= 0.04045) c / 12.92 else Math.pow((c + 0.055) / 1.055, 2.4)
+        }
+        fun f(t: Double) = if (t > 0.008856) Math.pow(t, 1.0 / 3.0) else 7.787 * t + 16.0 / 116.0
+        val r = linear(16)
+        val g = linear(8)
+        val b = linear(0)
+        val fx = f((0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047)
+        val fy = f(0.2126 * r + 0.7152 * g + 0.0722 * b)
+        val fz = f((0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883)
+        return Lab(116.0 * fy - 16.0, 500.0 * (fx - fy), 200.0 * (fy - fz))
+    }
+
     @Test
     fun chatBubblePresetsAreTheSameForEveryMemberAndRing() {
         // The whole point of the fixed list. This used to hash the ring and the

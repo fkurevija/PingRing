@@ -144,21 +144,60 @@ enum class BeaconVibrationPattern(val displayName: String, val pattern: LongArra
  * was not the preset that had been applied to their messages, and the choice
  * had to be made without being able to see what the alternatives were.
  *
- * Twelve fixed colours, chosen to stay legible under both light and dark
- * themes: each one is dark enough for white text to read on it, and distinct
- * enough from its neighbours to be told apart at the size of a chat bubble.
- * There is no custom picker and no "use the theme colour" escape hatch. A member
- * who wanted a colour nobody else could match could pick one, but a member
- * wanted to be *findable* in a crowded transcript, and two phones rendering
- * the same message in different colours defeats that.
+ * Twelve hues spanning the spectrum a person would name without hesitating:
+ * red, orange, amber, yellow, lime, green, teal, cyan, blue, indigo, violet and
+ * pink. The earlier set was Material 800 tones - teal, brown, blue-grey - which
+ * are three or four neighbouring hues wearing different names, and a member
+ * picking "the brown one" in a crowded transcript was relying on a difference
+ * most people cannot see. Naming a colour and getting that colour is the whole
+ * point of a palette a person chooses from.
+ *
+ * Brightness is safe here because the text on a bubble picks black or white by
+ * contrast ratio (`Color.readableOnIt()` in RadarScreen) rather than assuming
+ * white. That is what lets yellow and lime be genuinely yellow instead of a dark
+ * ochre pretending to be one. AppRulesTest asserts that every preset clears
+ * 4.5:1 against whichever of the two it ends up with, so brightening this list
+ * again cannot quietly make a bubble unreadable.
+ *
+ * Still no custom picker and no "use the theme colour" escape hatch. A member
+ * wanted to be *findable* in a crowded transcript, and two phones rendering the
+ * same message in different colours defeats that.
  */
 object ChatBubblePalette {
 
-    /** Every selectable colour, in the order they are offered. */
+    /**
+     * Every selectable colour, in the order they are offered.
+     *
+     * Twelve named hues a person would reach for without hesitating: red, orange,
+     * amber, yellow, lime, green, teal, cyan, blue, indigo, violet and pink. The
+     * set this replaces was Material 800 tones - teal, brown, blue-grey - which
+     * are three or four neighbouring hues wearing different names, so a member
+     * picking "the brown one" out of a crowded transcript was relying on a
+     * difference most people cannot see.
+     *
+     * The order alternates warm and cool rather than running the spectrum, and
+     * that is deliberate. Sorted by hue it looks tidier, but it puts the two
+     * colours most likely to be confused next to each other: lime and green sit
+     * at a CIE L*a*b* distance of 18 from each other, against 46 for red and
+     * orange. In a wrapping FlowRow - where the end of one row sits beside the
+     * start of the next - "adjacent" means adjacent on screen, so the rainbow
+     * order offered two near-identical swatches as a pair to choose between.
+     * Interleaving puts the worst neighbouring pair at 66, nearly four times
+     * further apart, and still scans as a set of distinct colours.
+     */
     val presets: List<Long> = listOf(
-        0xFF00695C, 0xFFAD1457, 0xFF8D5A00, 0xFF455A64,
-        0xFF1565C0, 0xFF2E7D32, 0xFF6A1B9A, 0xFFB71C1C,
-        0xFF00838F, 0xFF4527A0, 0xFF9E4700, 0xFF37474F,
+        0xFFE53935, // red
+        0xFF00ACC1, // cyan
+        0xFF7CB342, // lime
+        0xFF1E88E5, // blue
+        0xFFFFB300, // amber
+        0xFF00897B, // teal
+        0xFF8E24AA, // violet
+        0xFFFB8C00, // orange
+        0xFF3949AB, // indigo
+        0xFF43A047, // green
+        0xFFFDD835, // yellow
+        0xFFD81B60, // pink
     )
 
     /**
