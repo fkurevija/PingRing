@@ -256,6 +256,41 @@ fun HostSetupScreen(
                         )
                     }
 
+                    // Capacity, directly under the code it qualifies.
+                    //
+                    // It belongs here rather than at the foot of the panel because
+                    // it is the same sentence as the code above it: this is the code
+                    // to read out, and this is how many people reading it can
+                    // actually come. Separated by a username field, the two read as
+                    // unrelated facts about the host.
+                    //
+                    // It is a property of the ring, not something to configure -
+                    // there is no control next to it, and never was - so putting it
+                    // under a heading on the settings screen made it look like a
+                    // setting that could be changed.
+                    Column(Modifier.fillMaxWidth()) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.GroupAdd,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(22.dp)
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Text(
+                                stringResource(R.string.max_capacity),
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            stringResource(R.string.max_capacity_description),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
                     HorizontalDivider(Modifier.padding(vertical = 16.dp))
 
             // Username Field. Inside the panel, where the join screen keeps its
@@ -318,37 +353,6 @@ fun HostSetupScreen(
                         Spacer(Modifier.height(12.dp))
                         Text(
                             stringResource(R.string.event_settings_description),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    HorizontalDivider(Modifier.padding(vertical = 16.dp))
-
-                    // Capacity, at the foot of the panel. It is a property of the
-                    // ring rather than something to configure - there is no
-                    // control next to it, and never was - so putting it under a
-                    // heading on the settings screen made it look like a setting
-                    // that could be changed. Here it reads as what it is: the host
-                    // can read the code out to ten people and eight can come.
-                    Column(Modifier.fillMaxWidth()) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Default.GroupAdd,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(22.dp)
-                            )
-                            Spacer(Modifier.width(12.dp))
-                            Text(
-                                stringResource(R.string.max_capacity),
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            stringResource(R.string.max_capacity_description),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
