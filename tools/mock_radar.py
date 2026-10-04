@@ -49,15 +49,32 @@ RSSI_AT_ONE_METER = -59.0
 PATH_LOSS_EXPONENT = 2.2
 SENSITIVITY_FLOOR_DBM = -96.0
 
+# The same two bounds RssiDistanceEstimator uses, for the same reason: they are
+# what the app could ever report, so a script has to stay inside them to be
+# worth running. Below the minimum is a bogus 0.0 m reading; above the maximum
+# the estimate is dominated by noise and multi-path and the app clamps it there
+# anyway, so a scripted 200 m would render as exactly 40 m and quietly test
+# nothing. Past the point where the curve falls under the noise floor the RSSI
+# saturates too, so every distance beyond it reports the same dBm - the mock
+# would be claiming a peer at 60 m and one at 600 m were indistinguishable.
+MIN_DISTANCE_METERS = 0.3
+MAX_DISTANCE_METERS = 40.0
+
+
+def clamp_distance(metres):
+    """Confines a scripted distance to what the app could actually report."""
+    return max(MIN_DISTANCE_METERS, min(MAX_DISTANCE_METERS, float(metres)))
+
 
 def rssi_for_distance(metres):
     """The RSSI a real peer at this distance would report, absent noise.
 
     The inverse of the app's estimator, so a scripted distance and a scripted
-    dBm mean the same thing.
+    dBm mean the same thing. Clamped at both ends to the same bounds the app
+    uses, because an RSSI computed from an out-of-range distance is not a value
+    any radio could produce.
     """
-    clamped = max(0.3, metres)
-    rssi = RSSI_AT_ONE_METER - 10.0 * PATH_LOSS_EXPONENT * math.log10(clamped)
+    rssi = RSSI_AT_ONE_METER - 10.0 * PATH_LOSS_EXPONENT * math.log10(clamp_distance(metres))
     return max(SENSITIVITY_FLOOR_DBM, min(0.0, rssi))
 
 # approach: walks between --start and --end metres, in place. This is the one
@@ -68,8 +85,11 @@ def rssi_for_distance(metres):
 # static:  a frozen reading, for checking that a steady state looks right.
 PATTERNS = ("approach", "orbit", "walk", "static")
 
-# Never report a negative distance, however silly the arguments are.
-MIN_DISTANCE_METERS = 0.0
+# The scripted range, confined to what RssiDistanceEstimator could report.
+# Arguments outside it are refused at parse time instead - see parse_args - so a
+# leg that would be silently flattened never runs.
+MIN_DISTANCE_METERS = 0.3
+MAX_DISTANCE_METERS = 40.0
 
 
 def _gaussian(rng):
@@ -146,17 +166,17 @@ def sample(pattern, phase, start, end, distance, azimuth, elevation):
     """
     phase = phase % 1.0
     if pattern == "static":
-        return max(MIN_DISTANCE_METERS, distance), azimuth % 360.0, elevation
+        return clamp_distance(distance), azimuth % 360.0, elevation
     if pattern == "orbit":
-        return max(MIN_DISTANCE_METERS, distance), (azimuth + 360.0 * phase) % 360.0, elevation
+        return clamp_distance(distance), (azimuth + 360.0 * phase) % 360.0, elevation
     if pattern == "walk":
         return (
-            max(MIN_DISTANCE_METERS, _triangle(phase, start, end)),
+            clamp_distance(_triangle(phase, start, end)),
             (azimuth + 360.0 * phase) % 360.0,
             elevation,
         )
     if pattern == "approach":
-        return max(MIN_DISTANCE_METERS, _triangle(phase, start, end)), azimuth % 360.0, elevation
+        return clamp_distance(_triangle(phase, start, end)), azimuth % 360.0, elevation
     raise ValueError(f"unknown pattern {pattern!r}")
 
 
@@ -455,6 +475,16 @@ def parse_args(argv):
     for name, value in (("--outliers", args.outliers), ("--dropout", args.dropout)):
         if value > 1:
             parser.error(f"{name} is a probability and must be between 0 and 1")
+    # Distances outside the app's own range are refused rather than clamped. A
+    # silent clamp here is the worst outcome: the run looks like it worked, the
+    # radar shows a plausible number, and what was actually tested was the
+    # ceiling rather than the trajectory asked for.
+    for name, value in (("--start", args.start), ("--end", args.end), ("--distance", args.distance)):
+        if not MIN_DISTANCE_METERS <= value <= MAX_DISTANCE_METERS:
+            parser.error(
+                f"{name} must be between {MIN_DISTANCE_METERS} and {MAX_DISTANCE_METERS} m; "
+                f"{value} is beyond what the app could report, and would be clamped to it"
+            )
     return args
 
 

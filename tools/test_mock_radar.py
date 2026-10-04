@@ -335,10 +335,81 @@ async def main():
     test_dropout_removes_readings_rather_than_inventing_them()
     test_noise_is_reproducible_from_a_seed()
     test_impossible_probabilities_are_rejected()
+    test_a_distance_beyond_the_apps_range_is_refused_not_clamped()
+    test_a_distance_inside_the_apps_range_is_accepted()
+    test_the_scripted_range_is_the_apps_own()
+    test_no_scripted_distance_can_leave_the_apps_range()
+    test_a_distance_past_the_noise_floor_still_yields_a_real_reading()
     await test_range_reports_reach_the_addressed_peer()
     await test_every_member_is_driven_by_default()
     await test_script_gives_up_when_the_relay_is_gone()
     print("[test] ALL CHECKS PASSED")
+
+
+def test_a_distance_beyond_the_apps_range_is_refused_not_clamped():
+    # A silent clamp is the worst outcome here: the run looks like it worked,
+    # the radar shows a plausible number, and what was actually exercised was
+    # the ceiling rather than the trajectory that was asked for.
+    for bad in ("--start", "--end", "--distance"):
+        for value in ("0", "-5", "40.1", "500"):
+            argv = ["evt", bad, value, "--rssi-only"]
+            try:
+                mock_radar.parse_args(argv)
+            except SystemExit:
+                pass
+            else:
+                raise AssertionError(f"{bad} {value} should have been refused")
+
+
+def test_a_distance_inside_the_apps_range_is_accepted():
+    # The bound is the app's own, so the extremes of it are legitimate script
+    # values and refusing them would be just as wrong as accepting nonsense.
+    for good in ("0.3", "0.4", "1", "20", "40"):
+        mock_radar.parse_args(["evt", "--start", good, "--end", good, "--distance", good])
+
+
+def test_the_scripted_range_is_the_apps_own():
+    # If either moves in RssiDistanceEstimator and not here, the mock is
+    # quietly wrong rather than obviously wrong, which is the failure mode the
+    # mirrored constants exist to prevent.
+    source = pathlib.Path(mock_radar.__file__).read_text(encoding="utf-8")
+    estimator = (
+        pathlib.Path(mock_radar.__file__).resolve().parents[1]
+        / "app/src/main/java/com/fkurevija/pingring/data/RssiDistanceEstimator.kt"
+    ).read_text(encoding="utf-8")
+    assert "RSSI_AT_ONE_METER = -59.0" in source
+    assert "PATH_LOSS_EXPONENT = 2.2" in source
+    assert "MIN_DISTANCE_METERS = 0.3f" in estimator
+    assert "MAX_DISTANCE_METERS = 40f" in estimator
+    print("[test] the mocked radio and range match RssiDistanceEstimator")
+
+
+def test_no_scripted_distance_can_leave_the_apps_range():
+    # Belt and braces against the parser: whatever a caller passes straight to
+    # sample(), the report is still inside the range the app can show.
+    for pattern in mock_radar.PATTERNS:
+        for start, end, distance in (
+            (-100.0, 900.0, 5000.0),
+            (0.0, 0.0, 0.0),
+            (0.3, 40.0, 40.0),
+        ):
+            for step in range(60):
+                got = mock_radar.sample(pattern, step / 59.0, start, end, distance, 0.0, 0.0)[0]
+                assert mock_radar.MIN_DISTANCE_METERS <= got <= mock_radar.MAX_DISTANCE_METERS, (
+                    pattern, start, end, distance, got,
+                )
+    print("[test] no scripted distance escapes the range the app can report")
+
+
+def test_a_distance_past_the_noise_floor_still_yields_a_real_reading():
+    # At 40 m the curve is close to the sensitivity floor. Beyond it the RSSI
+    # saturates, so a peer at 60 m and one at 600 m report the same dBm and the
+    # mock would be asserting they were indistinguishable.
+    far = mock_radar.rssi_for_distance(mock_radar.MAX_DISTANCE_METERS)
+    beyond = mock_radar.rssi_for_distance(mock_radar.MAX_DISTANCE_METERS * 100)
+    assert far == beyond, (far, beyond)
+    assert far >= mock_radar.SENSITIVITY_FLOOR_DBM
+    print("[test] distances beyond the ceiling collapse to one reading, by design")
 
 
 if __name__ == "__main__":

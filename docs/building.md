@@ -114,6 +114,13 @@ python tools\mock_radar.py <event-id> --rssi-only --noise-db 3 --outliers 0.05 -
 | `--name` | Display name for the driven peer(s), so two scripted pins are told apart |
 | `--period`, `--rate`, `--azimuth`, `--elevation`, `--spread` | Cycle length, reports/second, starting bearing, elevation, and one bearing slice per peer |
 | `--rssi-only` | Send a signal strength instead of a distance, so the reading goes through the real RSSI smoothing. **Required for the noise flags to mean anything** — see below |
+| `--start`, `--end`, `--distance` | Distances in metres. Must be between **0.3 m and 40 m**, the same bounds `RssiDistanceEstimator` uses. Anything outside is refused, not clamped — see below |
+
+**Mocked signal strength.** Every report carries an `rssi` derived by inverting the app's own estimator, so a scripted distance and a scripted dBm mean the same thing. On top of that sit `--noise-db` (symmetric jitter, `3.0` is a realistic indoor peer), `--outliers` (a multi-path reflection arriving far too strong) and `--dropout` (an advert that never arrives, dropped rather than replaced with a stale value). The signal strength is mocked either way; `--rssi-only` changes what the app *does* with it, which is the part that matters and is explained next.
+
+**Why distances are bounded at 0.3–40 m.** Those are the app's own `RssiDistanceEstimator` limits, mirrored so a script cannot claim something the app could never report. Below 0.3 m is a bogus reading; above 40 m the estimate is noise-dominated and the app clamps it there anyway, so a scripted 200 m would render as exactly 40 m and quietly test nothing. Past the point where the curve falls under the sensitivity floor the dBm saturates too, which is the more insidious version: a peer at 60 m and one at 600 m would report identical signal strength, so the mock would be asserting they were indistinguishable. Out-of-range arguments are **refused with an error rather than silently clamped** — a silent clamp looks like a successful run while exercising the ceiling instead of the trajectory you asked for, which is the same reasoning that already rejects an out-of-range `--outliers`.
+
+A test reads `RssiDistanceEstimator.kt` and fails if either bound moves there and not here, so the mirror cannot quietly drift.
 | `--noise-db` | Standard deviation of symmetric jitter per reading, in dBm. `3.0` is a realistic indoor peer |
 | `--outliers` | Probability a single reading arrives wildly *too strong*, as a multi-path reflection does |
 | `--dropout` | Probability an advert never arrives. It is dropped, never replaced with a stale value |
