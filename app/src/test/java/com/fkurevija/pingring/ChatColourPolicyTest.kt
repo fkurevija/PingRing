@@ -115,6 +115,111 @@ class ChatColourPolicyTest {
         assertEquals("exactly one of two tied claims must win", 1, winners)
     }
 
+@Test
+    fun `switching colour hands the old one back`() {
+        // The release half. Ana takes teal, then changes her mind to pink: teal is
+        // nobody's again and Bo must be able to take it. Without this Ana would
+        // hold two colours for the rest of the ring and teal would stay greyed out
+        // for everyone while she no longer rendered in it.
+        val afterTeal = ChatColourPolicy.applyGrantedClaim(emptyMap(), teal, "ana")
+        val afterPink = ChatColourPolicy.applyGrantedClaim(afterTeal, pink, "ana")
+
+        assertEquals("ana should hold exactly one colour", mapOf(pink to "ana"), afterPink)
+        assertNull(
+            "the released colour must be free again",
+            ChatColourPolicy.holderOf(teal, afterPink),
+        )
+        assertEquals(
+            "the released colour must be claimable by somebody else",
+            Decision.GRANTED,
+            claim(teal, "bo", holders = afterPink),
+        )
+    }
+
+    @Test
+    fun `switching does not disturb anybody else's colour`() {
+        // The release is scoped to the member who switched. Losing teal must not
+        // un-reserve a colour some third member is relying on.
+        val holders = ChatColourPolicy.applyGrantedClaim(
+            ChatColourPolicy.applyGrantedClaim(emptyMap(), teal, "ana"),
+            blue,
+            "bo",
+        )
+
+        val after = ChatColourPolicy.applyGrantedClaim(holders, pink, "ana")
+
+        assertEquals("bo's colour must survive ana switching", "bo", ChatColourPolicy.holderOf(blue, after))
+        assertEquals("ana's new colour is hers", "ana", ChatColourPolicy.holderOf(pink, after))
+        assertNull("ana's old colour is released", ChatColourPolicy.holderOf(teal, after))
+    }
+
+    @Test
+    fun `re-claiming the same colour does not release it`() {
+        // Re-opening Chat Settings and confirming is not a switch. Releasing first
+        // and re-claiming would work by accident here, but only because the grant
+        // is unconditional for a colour you already hold - and if it were ever
+        // refused the colour would be lost on a no-op edit.
+        val holders = ChatColourPolicy.applyGrantedClaim(emptyMap(), teal, "ana")
+
+        val after = ChatColourPolicy.applyGrantedClaim(holders, teal, "ana")
+
+        assertEquals(mapOf(teal to "ana"), after)
+    }
+
+    @Test
+    fun `a member who leaves releases their colour`() {
+        // Otherwise a departed member holds a colour for the rest of the event, and
+        // with eight members and twelve colours four of them are gone for good.
+        val holders = ChatColourPolicy.applyGrantedClaim(
+            ChatColourPolicy.applyGrantedClaim(emptyMap(), teal, "ana"),
+            pink,
+            "bo",
+        )
+
+        val after = ChatColourPolicy.releaseDepartedMembers(holders, setOf("bo"))
+
+        assertEquals("only the remaining member keeps a colour", mapOf(pink to "bo"), after)
+    }
+
+    @Test
+    fun `a released colour becomes available to pick in the UI`() {
+        // The end-to-end statement of what the picker offers: the colours nobody
+        // holds, plus your own. Teal was ana's, is now released, and must be back
+        // on bo's list.
+        val held = ChatColourPolicy.applyGrantedClaim(emptyMap(), teal, "ana")
+        val anaSwitched = ChatColourPolicy.applyGrantedClaim(held, pink, "ana")
+
+        val availableToBo = ChatColourPolicy.availableColors(
+            localPeerId = "bo",
+            currentHolders = anaSwitched,
+            presets = ChatBubblePalette.presets,
+        )
+
+        assertTrue("the released colour must be offered again", teal in availableToBo)
+        assertFalse("a colour still held must not be", pink in availableToBo)
+    }
+
+    @Test
+    fun `switching and claiming can never produce two holders of one colour`() {
+        // The invariant across the transition rather than at a point in time: after
+        // any sequence of switches, every colour has at most one holder.
+        var holders = emptyMap<Long, String>()
+        val colours = listOf(teal, pink, blue)
+        // A deliberately repetitive sequence: the same members switching back and
+        // forth is the case that would strand a colour if release were missing.
+        repeat(6) { round ->
+            holders = ChatColourPolicy.applyGrantedClaim(holders, colours[round % 3], "ana")
+            holders = ChatColourPolicy.applyGrantedClaim(holders, colours[(round + 1) % 3], "bo")
+        }
+
+        assertEquals(
+            "each colour must have exactly one holder or none",
+            emptySet<Any>(),
+            holders.entries.groupBy { it.key }.filterValues { it.size > 1 }.keys,
+        )
+        assertEquals("neither member may hold two colours", 2, holders.values.toSet().size)
+    }
+
     @Test
     fun `a colour a member holds stays available to them`() {
         // Their colour is theirs. Greying it out would leave them unable to see

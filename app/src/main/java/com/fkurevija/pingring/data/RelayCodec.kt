@@ -26,6 +26,7 @@ internal sealed interface DecodedPayload {
     data class BleIdentityKey(val identityKey: BleIdentityKeyPayloadDto) : DecodedPayload
     data class MemberDeparture(val departure: MemberDeparturePayloadDto) : DecodedPayload
     data class MeshPresence(val presence: MeshPresencePayloadDto) : DecodedPayload
+    data class ChatColourClaim(val claim: ChatColourClaimPayloadDto) : DecodedPayload
     data class PeerRanging(val ranging: PeerRangingPayloadDto) : DecodedPayload
     data class MeshPeerAuthentication(val authentication: MeshLinkAuthenticationPayloadDto) : DecodedPayload
     data class JoinProof(val proof: JoinProofPayloadDto) : DecodedPayload
@@ -67,6 +68,7 @@ internal object RelayCodec {
     const val UWB_ADDRESS = "uwb-address"
     const val UWB_PARAMS = "uwb-params"
     const val UWB_OFFER = "uwb-offer"
+    const val CHAT_COLOUR_CLAIM = "chat-colour-claim"
 
     /**
      * Debug-only: a scripted range report from tools/mock_radar.py.
@@ -80,7 +82,7 @@ internal object RelayCodec {
     val knownWireTypes: Set<String> = setOf(
         CHAT, CHAT_HISTORY, BEACON, INVITE_SECRET, BLE_IDENTITY_KEY, MEMBER_DEPARTURE, MESH_PRESENCE,
         MESH_PEER_AUTHENTICATION, JOIN_PROOF, EVENT_CONTROL, PEER_RANGING,
-        UWB_ADDRESS, UWB_PARAMS, UWB_OFFER, MOCK_RANGING
+        UWB_ADDRESS, UWB_PARAMS, UWB_OFFER, MOCK_RANGING, CHAT_COLOUR_CLAIM
     )
 
     // One Moshi for the whole process, with the adapters resolved once. The
@@ -105,6 +107,8 @@ internal object RelayCodec {
     private val uwbParamsAdapter: JsonAdapter<UwbControllerParametersDto> = moshi.adapter(UwbControllerParametersDto::class.java)
     private val uwbOfferAdapter: JsonAdapter<UwbRangingOfferDto> = moshi.adapter(UwbRangingOfferDto::class.java)
     private val mockRangingAdapter: JsonAdapter<MockRangingDto> = moshi.adapter(MockRangingDto::class.java)
+    private val chatColourClaimAdapter: JsonAdapter<ChatColourClaimPayloadDto> =
+        moshi.adapter(ChatColourClaimPayloadDto::class.java)
 
     fun encodeEnvelope(envelope: RelayEnvelope): String = envelopeAdapter.toJson(envelope)
 
@@ -136,6 +140,7 @@ internal object RelayCodec {
         BLE_IDENTITY_KEY -> decodeBody(bleIdentityKeyAdapter, json, DecodedPayload::BleIdentityKey)
         MEMBER_DEPARTURE -> decodeBody(memberDepartureAdapter, json, DecodedPayload::MemberDeparture)
         MESH_PRESENCE -> decodeBody(meshPresenceAdapter, json, DecodedPayload::MeshPresence)
+        CHAT_COLOUR_CLAIM -> decodeBody(chatColourClaimAdapter, json, DecodedPayload::ChatColourClaim)
         PEER_RANGING -> decodeBody(peerRangingAdapter, json, DecodedPayload::PeerRanging)
         MESH_PEER_AUTHENTICATION -> decodeBody(meshPeerAuthenticationAdapter, json, DecodedPayload::MeshPeerAuthentication)
         JOIN_PROOF -> decodeBody(joinProofAdapter, json, DecodedPayload::JoinProof)
@@ -183,6 +188,7 @@ internal object RelayCodec {
         is DecodedPayload.MemberDeparture -> { sink.onMemberDeparture(payload.departure); true }
         is DecodedPayload.MeshPresence -> { sink.onMeshPresence(payload.presence); true }
         is DecodedPayload.PeerRanging -> { sink.onPeerRanging(payload.ranging); true }
+        is DecodedPayload.ChatColourClaim -> { sink.onChatColourClaim(payload.claim); true }
         is DecodedPayload.MeshPeerAuthentication -> false
         is DecodedPayload.EventControl -> { sink.onEventControl(payload.control); true }
         is DecodedPayload.UwbAddress -> { sink.onUwbAddress(payload.address); true }
@@ -215,6 +221,7 @@ internal object RelayCodec {
         is UwbPeerAddressDto -> EncodedPayload(UWB_ADDRESS, uwbAddressAdapter.toJson(params))
         is UwbControllerParametersDto -> EncodedPayload(UWB_PARAMS, uwbParamsAdapter.toJson(params))
         is UwbRangingOfferDto -> EncodedPayload(UWB_OFFER, uwbOfferAdapter.toJson(params))
+        is ChatColourClaimPayloadDto -> EncodedPayload(CHAT_COLOUR_CLAIM, chatColourClaimAdapter.toJson(params))
         else -> null
     }
 }

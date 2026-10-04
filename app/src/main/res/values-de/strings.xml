@@ -29,6 +29,8 @@
     <string name="theme_dark">Dunkles Design</string>
     <string name="chat_bubble_colour_description">Wird bei neuen Nachrichten von dir angezeigt</string>
     <string name="set_chat_bubble_colour_to">Farbe der Chat-Sprechblase auf %1$s festlegen</string>
+    <string name="chat_colour_taken_by">%1$s wird von %2$s verwendet</string>
+    <string name="chat_colour_refused">Diese Farbe ist bereits vergeben. Wähle eine andere.</string>
     <string name="custom">Benutzerdefiniert</string>
     <string name="use_theme_colour">Designfarbe verwenden</string>
     <string name="developer_options">Entwickleroptionen</string>

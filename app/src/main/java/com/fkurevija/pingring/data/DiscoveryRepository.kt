@@ -716,6 +716,127 @@ class DiscoveryRepository(
     private val connectedPeerIds = mutableSetOf<String>()
     private val departedPeerIds = mutableSetOf<String>()
 
+    /**
+     * Which member holds which chat bubble colour, keyed colour to peer.
+     *
+     * On the host this is the authority it answers claims from. On a guest it is
+     * what the host last told it, so the picker greys out the same swatches
+     * everywhere - which is the entire point, since two members picking the same
+     * colour is the confusion being prevented.
+     *
+     * A member appears at most once: switching colour releases the old one, so
+     * the map never holds a colour for somebody who is no longer rendering in it.
+     */
+    private val _chatColourHolders = MutableStateFlow<Map<Long, String>>(emptyMap())
+    val chatColourHolders: StateFlow<Map<Long, String>> = _chatColourHolders.asStateFlow()
+
+    /**
+     * Asks the host for [colorArgb], or reports a refusal locally.
+     *
+     * The pick is *not* applied optimistically. Applying it and then reverting on
+     * a refusal would show a member a colour for as long as the round trip took,
+     * which is exactly the window in which two members think they share one.
+     * Instead the local value changes only when the host agrees.
+     */
+    fun requestChatColour(colorArgb: Long, onResult: (Boolean) -> Unit = {}) {
+        val eventId = sessionManager.sessionState.value.currentEvent?.id
+        if (eventId == null) {
+            onResult(false)
+            return
+        }
+        val localPeerId = sessionManager.peerId.value
+        val state = sessionManager.sessionState.value
+
+        if (state.isHost) {
+            // The host is the authority; asking it would be asking itself.
+            applyGrantedChatColour(colorArgb, localPeerId)
+            onResult(true)
+            return
+        }
+
+        nearbyConnectionsManager.broadcastChatColourClaim(
+            ChatColourClaimPayloadDto(
+                eventCode = eventId,
+                peerId = localPeerId,
+                colorArgb = colorArgb,
+                granted = null,
+                requestedAtMillis = System.currentTimeMillis(),
+            )
+        )
+        // Not persisted until the host answers, so a refused pick does not leave a
+        // member rendering in a colour they do not hold.
+        chatColourRequests[colorArgb] = onResult
+    }
+
+    /**
+     * The callbacks waiting on the host's answer, keyed by the colour claimed.
+     *
+     * Held so a guest can tell "refused" from "never heard back" - the first can
+     * be reported and the picker can fall back, the second is a lost message and
+     * must not leave the member believing they hold the colour.
+     */
+    private val chatColourRequests = java.util.concurrent.ConcurrentHashMap<Long, (Boolean) -> Unit>()
+
+    /**
+     * Applies a granted colour locally: records the holder and releases whatever
+     * this member held before.
+     */
+    private fun applyGrantedChatColour(colorArgb: Long, peerId: String) {
+        _chatColourHolders.update { current ->
+            ChatColourPolicy.applyGrantedClaim(current, colorArgb, peerId)
+        }
+    }
+
+    /**
+     * One claim, resolved by whoever is in a position to.
+     *
+     * The host decides and announces; a guest only listens for the answer to its
+     * own claim. A guest ignoring another guest's claim is deliberate: two guests
+     * are not in a position to arbitrate between each other, and letting them
+     * would reintroduce exactly the race the host exists to remove.
+     */
+    private fun handleChatColourClaim(claim: ChatColourClaimPayloadDto) {
+        val state = sessionManager.sessionState.value
+        val eventId = state.currentEvent?.id ?: return
+        if (claim.eventCode != eventId) return
+        val localPeerId = sessionManager.peerId.value
+        val colorArgb = claim.colorArgb
+
+        if (state.isHost) {
+            if (colorArgb == null) return
+            val decision = ChatColourPolicy.evaluateClaim(
+                claimColorArgb = colorArgb,
+                claimPeerId = claim.peerId,
+                currentHolders = _chatColourHolders.value,
+                localPeerId = localPeerId,
+            )
+            if (decision == ChatColourPolicy.Decision.GRANTED) {
+                applyGrantedChatColour(colorArgb, claim.peerId)
+            }
+            // Always answered, granted or not. Silence would leave the member
+            // waiting with no way to tell a refusal from a lost message.
+            nearbyConnectionsManager.broadcastChatColourClaim(
+                ChatColourClaimPayloadDto(
+                    eventCode = eventId,
+                    peerId = claim.peerId,
+                    colorArgb = colorArgb,
+                    granted = decision == ChatColourPolicy.Decision.GRANTED,
+                    requestedAtMillis = claim.requestedAtMillis,
+                )
+            )
+            return
+        }
+
+        // Guest: only our own claim is answered.
+        if (claim.peerId != localPeerId || claim.granted == null || colorArgb == null) return
+        if (claim.granted) {
+            applyGrantedChatColour(colorArgb, localPeerId)
+        }
+        // Remove the callback whether granted or refused: this is the answer, and
+        // leaving it would hold onto a lambda the caller is waiting on.
+        chatColourRequests.remove(colorArgb)?.invoke(claim.granted)
+    }
+
     fun setFocusedPeer(peerId: String?) {
         _focusedPeerId.value = peerId
         Log.i(TAG, "Radar focus set to ${peerId ?: "auto (nearest)"}")
@@ -976,6 +1097,12 @@ class DiscoveryRepository(
         }
 
         repositoryScope?.launch {
+            nearbyConnectionsManager.receivedChatColourClaim.collect { claim ->
+                handleChatColourClaim(claim)
+            }
+        }
+
+        repositoryScope?.launch {
             nearbyConnectionsManager.receivedMemberDeparture.collect { departure ->
                 val currentEvent = sessionManager.sessionState.value.currentEvent ?: return@collect
                 // The rule that separates losing contact from leaving lives in
@@ -1004,6 +1131,17 @@ class DiscoveryRepository(
                     sessionManager.updateFriends(remaining)
                 }
                 peerDisplayNames.forget(departure.peerId)
+                // Their colour goes back too. Otherwise a departed member holds it
+                // for the rest of the event, and with eight members and twelve
+                // colours four of them would be gone for good.
+                if (sessionManager.sessionState.value.isHost) {
+                    _chatColourHolders.update { current ->
+                        ChatColourPolicy.releaseDepartedMembers(
+                            current,
+                            remainingPeerIds = connectedPeerIds - departure.peerId + localPeerId(),
+                        )
+                    }
+                }
                 onFocusChanged()
             }
         }

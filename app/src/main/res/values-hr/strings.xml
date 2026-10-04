@@ -29,6 +29,8 @@
     <string name="theme_dark">Tamna tema</string>
     <string name="chat_bubble_colour_description">Prikazuje se uz nove poruke koje šaljete</string>
     <string name="set_chat_bubble_colour_to">Postavi boju oblačića razgovora na %1$s</string>
+    <string name="chat_colour_taken_by">%1$s koristi %2$s</string>
+    <string name="chat_colour_refused">Ta je boja već zauzeta. Odaberi drugu.</string>
     <string name="custom">Prilagođeno</string>
     <string name="use_theme_colour">Koristi boju teme</string>
     <string name="developer_options">Opcije za razvojne programere</string>

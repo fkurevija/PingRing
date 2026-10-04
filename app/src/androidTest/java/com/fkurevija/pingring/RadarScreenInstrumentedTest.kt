@@ -6,6 +6,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
@@ -72,6 +75,21 @@ class RadarScreenInstrumentedTest {
         sessionState: SessionState = SessionState(),
         chatBubbleColorArgb: Long? = null,
         onChatBubbleColorChange: (Long) -> Unit = {},
+        /**
+         * The taken-colour state, which the screen would otherwise read from a
+         * repository these tests do not have. Without it every test sees a ring of
+         * one and cannot exercise the only interesting case.
+         */
+        chatColourHolders: Map<Long, String>? = null,
+        refusedChatColourArgb: Long? = null,
+        /**
+         * Who "us" is, for the chat-colour picker.
+         *
+         * Without it the screen cannot tell the member's own colour from somebody
+         * else's and greys out the wrong one, so both cases under test have to say
+         * who the local member is.
+         */
+        localPeerId: String? = null,
         radarScreenReaderSummaryEnabled: Boolean = false,
         connectionRecoveryPromptEnabled: Boolean = true,
         connectionRecoveryPromptDelayMillis: Long = 120_000L,
@@ -99,6 +117,9 @@ class RadarScreenInstrumentedTest {
                 discoveryRepository = null,
                 sessionState = sessionState,
                 chatBubbleColorArgb = selectedColor,
+                chatColourHoldersOverride = chatColourHolders,
+                refusedChatColourArgb = refusedChatColourArgb,
+                localPeerIdOverride = localPeerId,
                 onChatBubbleColorChange = {
                     selectedColor = it
                     onChatBubbleColorChange(it)
@@ -522,6 +543,100 @@ class RadarScreenInstrumentedTest {
                 .performScrollTo()
                 .assertIsNotSelected()
         }
+    }
+
+    @Test
+    fun aColourSomebodyElseHoldsIsOfferedAsTakenRatherThanSelectable() {
+        // The visible half of uniqueness. Two members rendering the same colour is
+        // what makes a busy transcript unreadable, so a swatch somebody else holds
+        // must not be pickable - and must say whose it is, or the member is looking
+        // at a disabled control with no explanation.
+        //
+        // The holder is named by its peer id, because the repository that maps ids to
+        // display names is absent here and the id is the honest fallback. What is
+        // under test is that the swatch is disabled and says who has it, not what
+        // the name resolution does.
+        val taken = ChatBubblePalette.presets[3]
+        showRadar(
+            chatBubbleColorArgb = ChatBubblePalette.presets[0],
+            chatColourHolders = mapOf(taken to "peer-other"),
+            localPeerId = "peer-me",
+        )
+
+        composeRule.onNodeWithText("Chat Settings").performClick()
+        composeRule.settle()
+
+        composeRule.onNodeWithContentDescription(
+            context.getString(
+                R.string.chat_colour_taken_by,
+                String.format(java.util.Locale.ROOT, "#%06X", taken and 0xFFFFFFL),
+                "peer-other",
+            )
+        )
+            .performScrollTo()
+            .assertIsDisplayed()
+            .assertIsNotEnabled()
+    }
+
+    @Test
+    fun aColourYouHoldIsNotOfferedAsTakenByYou() {
+        // The regression the last one could hide: comparing against any holder
+        // rather than any holder *other than us* would grey out our own colour and
+        // leave a member unable to see or keep what they picked.
+        val mine = ChatBubblePalette.presets[2]
+        showRadar(
+            chatBubbleColorArgb = mine,
+            chatColourHolders = mapOf(mine to "peer-me"),
+            localPeerId = "peer-me",
+        )
+
+        composeRule.onNodeWithText("Chat Settings").performClick()
+        composeRule.settle()
+
+        fun labelFor(colorArgb: Long) = context.getString(
+            R.string.set_chat_bubble_colour_to,
+            String.format(java.util.Locale.ROOT, "#%06X", colorArgb and 0xFFFFFFL),
+        )
+        composeRule.onNodeWithContentDescription(labelFor(mine))
+            .assertIsDisplayed()
+            .assertIsSelected()
+            .assertIsEnabled()
+    }
+
+    @Test
+    fun everyColourIsPickableWhenNobodyElseHoldsOne() {
+        // The inverse, and the case the suite would otherwise never see: a ring of
+        // one. If taken-ness were computed wrongly every swatch would be disabled
+        // and a lone member could not choose at all.
+        showRadar(chatColourHolders = emptyMap(), localPeerId = "peer-me")
+
+        composeRule.onNodeWithText("Chat Settings").performClick()
+        composeRule.settle()
+
+        ChatBubblePalette.presets.forEach { colorArgb ->
+            composeRule.onNodeWithContentDescription(
+                context.getString(
+                    R.string.set_chat_bubble_colour_to,
+                    String.format(java.util.Locale.ROOT, "#%06X", colorArgb and 0xFFFFFFL),
+                )
+            )
+                .performScrollTo()
+                .assertIsEnabled()
+        }
+    }
+
+    @Test
+    fun aRefusedPickSaysSoRatherThanFailingSilently() {
+        // The host can refuse, and a member who tapped and saw nothing happen has
+        // no other way to learn why. The message is the only feedback there is.
+        val refused = ChatBubblePalette.presets[6]
+        showRadar(refusedChatColourArgb = refused)
+
+        composeRule.onNodeWithText("Chat Settings").performClick()
+        composeRule.settle()
+
+        composeRule.onNodeWithText(context.getString(R.string.chat_colour_refused))
+            .assertIsDisplayed()
     }
 
     @Test

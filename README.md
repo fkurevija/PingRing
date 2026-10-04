@@ -59,7 +59,7 @@ Every document links back here at the top and bottom.
 ### 🚨 Beacons & Chat
 - **Intent presets** with 5 colour palettes and 5 vibration rhythms. The device that raises a beacon vibrates too, not only the ones that receive it.
 - **Offline group chat** with sender-labelled bubbles, beacons in the transcript, and host-replayed history for latecomers.
-- **12 chat bubble colours**, drawn at random when you enter a PingRing and changeable afterwards from **Chat Settings** on the radar.
+- **12 chat bubble colours**, drawn at random when you enter a PingRing and changeable afterwards from **Chat Settings** on the radar. Each colour belongs to one member at a time, and switching hands your old one back.
 
 ### 🧭 Radar
 - **Sensor-fusion tracking** with a directional needle, proximity haptics under 2 m, and a member filter that is always available and always the local user's own choice. Guests default to the host and the host to the earliest joiner; one tap overrides either.

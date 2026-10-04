@@ -28,6 +28,7 @@ interface NearbyTransport {
     val receivedMemberDeparture: SharedFlow<MemberDeparturePayloadDto>
     val receivedMeshPresence: SharedFlow<MeshPresencePayloadDto>
     val receivedPeerRanging: SharedFlow<PeerRangingPayloadDto>
+    val receivedChatColourClaim: SharedFlow<ChatColourClaimPayloadDto>
     val receivedEventControl: SharedFlow<EventControlPayloadDto>
 
     /**
@@ -109,4 +110,14 @@ interface NearbyTransport {
     fun broadcastMemberDeparture(departure: MemberDeparturePayloadDto)
     fun sendJoinProofToHost(proof: JoinProofPayloadDto)
     fun sendEventControl(peerId: String, control: EventControlPayloadDto)
+
+    /**
+     * Claims a chat bubble colour, or answers somebody else's claim.
+     *
+     * Broadcast rather than targeted because a guest's claim has to reach the host
+     * and the host's answer has to reach every guest: the message carries both
+     * directions in [ChatColourClaimPayloadDto.granted], and a member that only
+     * heard about one colour would grey out the wrong swatches.
+     */
+    fun broadcastChatColourClaim(claim: ChatColourClaimPayloadDto)
 }

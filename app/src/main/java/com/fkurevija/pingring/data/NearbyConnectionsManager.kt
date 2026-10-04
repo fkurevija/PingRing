@@ -284,6 +284,8 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
     override val receivedMemberDeparture: SharedFlow<MemberDeparturePayloadDto> get() = events.receivedMemberDeparture
     override val receivedMeshPresence: SharedFlow<MeshPresencePayloadDto> get() = events.receivedMeshPresence
     override val receivedPeerRanging: SharedFlow<PeerRangingPayloadDto> get() = events.receivedPeerRanging
+    override val receivedChatColourClaim: SharedFlow<ChatColourClaimPayloadDto>
+        get() = events.receivedChatColourClaim
     override val receivedEventControl: SharedFlow<EventControlPayloadDto> get() = events.receivedEventControl
 
     /**
@@ -687,6 +689,10 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
             return
         }
         sendMeshTargetedPayload(offer.targetPeerId, offer)
+    }
+
+    override fun broadcastChatColourClaim(claim: ChatColourClaimPayloadDto) {
+        sendMeshBroadcast(claim)
     }
 
     override fun broadcastChatMessage(chatMsg: ChatPayloadDto) {
@@ -1314,6 +1320,20 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
                 is DecodedPayload.UwbParameters ->
                     (!isLocalHost && endpointId == authenticatedHostEndpoint && payload.params.hostPeerId == endpointPeerId) &&
                         RelayCodec.route(payload, events)
+                is DecodedPayload.ChatColourClaim ->
+                    // Authorized exactly like chat, and for the same reason: the
+                    // claim names the member holding the colour, so a peer able to
+                    // send one on another's behalf could take their colour and
+                    // grey it out for them. Only the host may send a granted reply.
+                    if (isPayloadSenderAuthorized(
+                            isLocalHost,
+                            endpointPeerId,
+                            endpointToPeerId[authenticatedHostEndpoint],
+                            payload.claim.peerId,
+                        )
+                    ) {
+                        RelayCodec.route(payload, events)
+                    } else false
                 is DecodedPayload.EventControl ->
                     (!isLocalHost && endpointId == authenticatedHostEndpoint &&
                         payload.control.eventCode == localEventId &&

@@ -29,6 +29,8 @@
     <string name="theme_dark">Thème sombre</string>
     <string name="chat_bubble_colour_description">Affichée sur les nouveaux messages que vous envoyez</string>
     <string name="set_chat_bubble_colour_to">Définir la couleur des bulles de discussion sur %1$s</string>
+    <string name="chat_colour_taken_by">%1$s est utilisée par %2$s</string>
+    <string name="chat_colour_refused">Cette couleur est déjà prise. Choisissez-en une autre.</string>
     <string name="custom">Personnalisé</string>
     <string name="use_theme_colour">Utiliser la couleur du thème</string>
     <string name="developer_options">Options pour les développeurs</string>

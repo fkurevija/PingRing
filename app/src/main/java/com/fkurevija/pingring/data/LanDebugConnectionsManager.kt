@@ -73,6 +73,8 @@ class LanDebugConnectionsManager(
     override val receivedMemberDeparture: SharedFlow<MemberDeparturePayloadDto> get() = events.receivedMemberDeparture
     override val receivedMeshPresence: SharedFlow<MeshPresencePayloadDto> get() = events.receivedMeshPresence
     override val receivedPeerRanging: SharedFlow<PeerRangingPayloadDto> get() = events.receivedPeerRanging
+    override val receivedChatColourClaim: SharedFlow<ChatColourClaimPayloadDto>
+        get() = events.receivedChatColourClaim
     override val receivedEventControl: SharedFlow<EventControlPayloadDto> get() = events.receivedEventControl
     override val receivedMockRanging: SharedFlow<MockRangingDto> get() = events.receivedMockRanging
 
@@ -444,6 +446,10 @@ class LanDebugConnectionsManager(
 
     override fun broadcastUwbParameters(params: Any) {
         sendPayload(null, params)
+    }
+
+    override fun broadcastChatColourClaim(claim: ChatColourClaimPayloadDto) {
+        sendPayload(null, claim)
     }
 
     override fun broadcastChatMessage(chatMsg: ChatPayloadDto) {

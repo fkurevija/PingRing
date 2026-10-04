@@ -8,6 +8,7 @@ import com.fkurevija.pingring.data.PeerRangingPayloadDto
 import com.fkurevija.pingring.data.GnssFixDto
 import com.fkurevija.pingring.data.MeshLinkAuthenticationPayloadDto
 import com.fkurevija.pingring.data.ChatHistoryPayloadDto
+import com.fkurevija.pingring.data.ChatColourClaimPayloadDto
 import com.fkurevija.pingring.data.ChatPayloadDto
 import com.fkurevija.pingring.data.DecodedPayload
 import com.fkurevija.pingring.data.EventControlPayloadDto
@@ -73,6 +74,10 @@ class RelayCodecTest {
             delivered += ranging
         }
 
+        override fun onChatColourClaim(claim: ChatColourClaimPayloadDto) {
+            delivered += claim
+        }
+
         override fun onEventControl(control: EventControlPayloadDto) {
             delivered += control
         }
@@ -128,12 +133,50 @@ class RelayCodecTest {
     private val bleIdentityKey = BleIdentityKeyPayloadDto("4C1A9B", "a1b2c3d4", "encoded-public-key")
     private val memberDeparture = MemberDeparturePayloadDto("4C1A9B", "a1b2c3d4")
     private val meshPresence = MeshPresencePayloadDto("4C1A9B", "a1b2c3d4")
+    // Both directions of the colour protocol in one DTO: a request has granted
+    // null, an answer has true or false. Round-tripping both matters because a
+    // member cannot tell a refusal from a lost message if the discriminator does
+    // not survive the wire.
+    private val colourClaimRequest = ChatColourClaimPayloadDto(
+        eventCode = "4C1A9B",
+        peerId = "a1b2c3d4",
+        colorArgb = 0xFF00695C,
+        granted = null,
+        requestedAtMillis = 1_700_000_000_000L,
+    )
+    private val colourClaimGranted = colourClaimRequest.copy(granted = true)
+    private val colourClaimRefused = colourClaimRequest.copy(granted = false)
     private val peerRanging = PeerRangingPayloadDto("4C1A9B", "a1b2c3d4", 1L, "02:11:22:33:44:55", GnssFixDto(45.0, 16.0, 13f, 100L))
     private val meshAuthentication = MeshLinkAuthenticationPayloadDto(
         "4C1A9B", "a1b2c3d4", "deadbeef", "challenge",
     )
     private val joinProof = JoinProofPayloadDto("4C1A9B", null)
     private val eventControl = EventControlPayloadDto("4C1A9B", "peer-a", true, true, true, true, false)
+
+    @Test
+    fun aChatColourClaimSurvivesTheWireInBothDirections() {
+        // Request, grant and refusal all in one place. The refusal is the one that
+        // matters: a guest that cannot tell "the host said no" from "the message
+        // was lost" is left holding a colour it does not have, with no way to
+        // recover except by guessing.
+        listOf(colourClaimRequest, colourClaimGranted, colourClaimRefused).forEach { claim ->
+            val encoded = RelayCodec.encode(claim)!!
+            assertEquals(RelayCodec.CHAT_COLOUR_CLAIM, encoded.wireType)
+
+            assertEquals(claim, payloadOf(decoded(encoded.wireType, encoded.json)))
+        }
+    }
+
+    @Test
+    fun aRefusedClaimStaysARefusalRatherThanDecodingAsARequest() {
+        // Called out separately because the failure is silent: granted=false
+        // decoding as null would make a refusal look like an unanswered request,
+        // and the member's picker would sit waiting instead of offering another.
+        val encoded = RelayCodec.encode(colourClaimRefused)!!
+        val round = payloadOf(decoded(encoded.wireType, encoded.json)) as ChatColourClaimPayloadDto
+
+        assertEquals(false, round.granted)
+    }
 
     @Test
     fun everyPayloadKindSurvivesItsOwnWireType() {
@@ -145,6 +188,7 @@ class RelayCodecTest {
             bleIdentityKey,
             memberDeparture,
             meshPresence,
+            colourClaimRequest,
             peerRanging,
             meshAuthentication,
             joinProof,
@@ -211,7 +255,8 @@ class RelayCodecTest {
             RelayCodec.MESH_PRESENCE,
             RelayCodec.PEER_RANGING,
             RelayCodec.MESH_PEER_AUTHENTICATION, RelayCodec.JOIN_PROOF, RelayCodec.EVENT_CONTROL,
-            RelayCodec.UWB_ADDRESS, RelayCodec.UWB_PARAMS, RelayCodec.UWB_OFFER, RelayCodec.MOCK_RANGING
+            RelayCodec.UWB_ADDRESS, RelayCodec.UWB_PARAMS, RelayCodec.UWB_OFFER, RelayCodec.MOCK_RANGING,
+            RelayCodec.CHAT_COLOUR_CLAIM
         ).forEach { assertTrue("$it is not a known wire type", it in RelayCodec.knownWireTypes) }
     }
 
@@ -258,9 +303,11 @@ class RelayCodecTest {
         assertTrue(RelayCodec.route(DecodedPayload.BleIdentityKey(bleIdentityKey), sink))
         assertTrue(RelayCodec.route(DecodedPayload.MemberDeparture(memberDeparture), sink))
         assertTrue(RelayCodec.route(DecodedPayload.MeshPresence(meshPresence), sink))
+        assertTrue(RelayCodec.route(DecodedPayload.ChatColourClaim(colourClaimRequest), sink))
         assertTrue(RelayCodec.route(DecodedPayload.EventControl(eventControl), sink))
         assertEquals(
-            listOf<Any>(chat, beacon, inviteSecret, bleIdentityKey, memberDeparture, meshPresence, eventControl),
+            listOf<Any>(chat, beacon, inviteSecret, bleIdentityKey, memberDeparture, meshPresence,
+                colourClaimRequest, eventControl),
             sink.delivered,
         )
 
@@ -271,7 +318,9 @@ class RelayCodecTest {
         assertFalse(RelayCodec.route(DecodedPayload.JoinProof(joinProof), sink))
         assertFalse(RelayCodec.route(DecodedPayload.MockRanging(report), sink))
         assertFalse(RelayCodec.route(DecodedPayload.MeshPeerAuthentication(meshAuthentication), sink))
-        assertEquals(7, sink.delivered.size)
+        // Only the eight routings above delivered anything; the four refused
+        // payloads must not have leaked onto the sink on the way past.
+        assertEquals(8, sink.delivered.size)
     }
 
     private fun encodedJson(payload: Any): String = RelayCodec.encode(payload)!!.json
@@ -296,6 +345,7 @@ class RelayCodecTest {
         is DecodedPayload.BleIdentityKey -> decoded.identityKey
         is DecodedPayload.MemberDeparture -> decoded.departure
         is DecodedPayload.MeshPresence -> decoded.presence
+        is DecodedPayload.ChatColourClaim -> decoded.claim
         is DecodedPayload.PeerRanging -> decoded.ranging
         is DecodedPayload.MeshPeerAuthentication -> decoded.authentication
         is DecodedPayload.JoinProof -> decoded.proof

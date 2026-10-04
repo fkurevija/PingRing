@@ -124,6 +124,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -198,6 +199,26 @@ fun RadarScreen(
     sessionState: SessionState,
     chatBubbleColorArgb: Long?,
     onChatBubbleColorChange: (Long) -> Unit,
+    /**
+     * Overrides for the chat-colour state the screen would otherwise read from the
+     * repository.
+     *
+     * Present because the repository is null in the screenshot tests, and a colour
+     * somebody else holds is the only interesting case here - without an override
+     * every test would see a ring of one and every swatch free, which is precisely
+     * the state that cannot show the feature working. Null means "read it from the
+     * repository", which is what the real app does.
+     */
+    chatColourHoldersOverride: Map<Long, String>? = null,
+    refusedChatColourArgb: Long? = null,
+    /**
+     * Our own peer id, when the repository that knows it is absent.
+     *
+     * The app always has one, so this exists only so a test can say who "us" is:
+     * without it the picker cannot tell our own colour from somebody else's, and
+     * greys out the wrong one. Null means "read it from the repository".
+     */
+    localPeerIdOverride: String? = null,
     radarScreenReaderSummaryEnabled: Boolean,
     connectionRecoveryPromptEnabled: Boolean = true,
     connectionRecoveryPromptDelayMillis: Long = 120_000L,
@@ -225,6 +246,10 @@ fun RadarScreen(
     var showEndConfirmation by remember { mutableStateOf(false) }
     var showBeaconSheet by remember { mutableStateOf(false) }
     var showChatSettings by remember { mutableStateOf(false) }
+    // The colour the host last refused, so the dialog can say so. Null when
+    // nothing was refused, which is what a member sees almost always - it is only
+    // set for the round trip after a refused pick, and cleared by the next one.
+    var refused by remember { mutableStateOf<Long?>(null) }
     var showQrCode by remember { mutableStateOf(false) }
     var showMemberSheet by remember { mutableStateOf(false) }
     var showConnectionLostDialog by remember(eventId) { mutableStateOf(false) }
@@ -347,6 +372,16 @@ fun RadarScreen(
         ?: remember { mutableStateOf(ConnectivityStatus(isBluetoothEnabled = true, isWifiEnabled = true)) }
     val activeBeacons by discoveryRepository?.activeBeacons?.collectAsState()
         ?: remember { mutableStateOf(emptyMap()) }
+    // Which chat bubble colour each member holds, so the picker can grey out the
+    // ones that are taken and name who has them.
+    //
+    // Read from the repository in the app. The override exists because the
+    // screenshot tests pass no repository, and a ring of one is exactly the state
+    // that cannot show this feature working - so without it every test would see
+    // twelve free swatches.
+    val repositoryHolders by discoveryRepository?.chatColourHolders?.collectAsState()
+        ?: remember { mutableStateOf(emptyMap<Long, String>()) }
+    val chatColourHolders = chatColourHoldersOverride ?: repositoryHolders
     // Beacons that have ended, so a finished one keeps its place in the
     // transcript instead of disappearing. See ChatTimelinePolicy.
     val endedBeacons by discoveryRepository?.endedBeacons?.collectAsState()
@@ -1091,8 +1126,33 @@ fun RadarScreen(
                 if (showChatSettings) {
                     ChatSettingsDialog(
                         selectedColorArgb = chatBubbleColorArgb,
-                        onColorSelected = { onChatBubbleColorChange(it) },
+                        // Routed through the claim rather than applied directly: a
+                        // guest's pick is a request the host has to agree to, and
+                        // applying it optimistically would show a colour for as long
+                        // as the round trip took - which is the window in which two
+                        // members think they share one.
+                        onColorSelected = { requested ->
+                            val repository = discoveryRepository
+                            if (repository == null) {
+                                onChatBubbleColorChange(requested)
+                            } else {
+                                repository.requestChatColour(requested) { granted ->
+                                    // Said out loud on a refusal rather than left
+                                    // to the greyed swatch: a member who tapped
+                                    // and nothing happened has no other way to
+                                    // learn it was refused.
+                                    refused = if (granted) null else requested
+                                    if (granted) onChatBubbleColorChange(requested)
+                                }
+                            }
+                        },
                         onDismiss = { showChatSettings = false },
+                        colourHolders = chatColourHolders,
+                        memberNameFor = { peerId ->
+                            peers.firstOrNull { it.peerId == peerId }?.name ?: peerId
+                        },
+                        localPeerId = localPeerIdOverride ?: discoveryRepository?.localPeerId,
+                        refusedColorArgb = refused ?: refusedChatColourArgb,
                     )
                 }
 
@@ -1788,6 +1848,18 @@ internal fun ChatSettingsDialog(
     selectedColorArgb: Long?,
     onColorSelected: (Long) -> Unit,
     onDismiss: () -> Unit,
+    /**
+     * Who holds which colour, and which of those holders is us.
+     *
+     * Needed because a colour somebody else holds cannot be picked: two members
+     * rendering the same colour is what makes a transcript unreadable, so the
+     * swatch is shown as taken rather than silently failing on tap. The holder's
+     * name is passed in rather than looked up so this stays a plain composable.
+     */
+    colourHolders: Map<Long, String> = emptyMap(),
+    memberNameFor: (String) -> String = { it },
+    localPeerId: String? = null,
+    refusedColorArgb: Long? = null,
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1803,6 +1875,14 @@ internal fun ChatSettingsDialog(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                if (refusedColorArgb != null) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        stringResource(R.string.chat_colour_refused),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
                 Spacer(Modifier.height(12.dp))
                 // Wraps rather than scrolls sideways: twelve swatches in one
                 // row needs more width than a phone has, and a horizontal
@@ -1814,16 +1894,49 @@ internal fun ChatSettingsDialog(
                 ) {
                     ChatBubblePalette.presets.forEach { colorArgb ->
                         val selected = selectedColorArgb == colorArgb
-                        val description = stringResource(
-                            R.string.set_chat_bubble_colour_to,
-                            String.format(java.util.Locale.ROOT, "#%06X", colorArgb and 0xFFFFFFL),
-                        )
+                        // Ours is not taken, and ours is the one thing that must
+                        // never grey out or a member cannot see or keep their own.
+                        //
+                        // A null localPeerId means we do not know who we are, and
+                        // that disables nothing rather than everything: treating
+                        // every holder as somebody else would grey out the
+                        // member's own colour, which is the one case the whole
+                        // screen has to get right. Unknown identity is a
+                        // screenshot-test situation, not a real one.
+                        val holder = colourHolders[colorArgb]
+                        val heldByOther = holder != null &&
+                            localPeerId != null &&
+                            holder != localPeerId
+                        val description = when {
+                            selected -> stringResource(
+                                R.string.set_chat_bubble_colour_to,
+                                String.format(java.util.Locale.ROOT, "#%06X", colorArgb and 0xFFFFFFL),
+                            )
+                            heldByOther -> stringResource(
+                                R.string.chat_colour_taken_by,
+                                String.format(java.util.Locale.ROOT, "#%06X", colorArgb and 0xFFFFFFL),
+                                memberNameFor(holder ?: ""),
+                            )
+                            else -> stringResource(
+                                R.string.set_chat_bubble_colour_to,
+                                String.format(java.util.Locale.ROOT, "#%06X", colorArgb and 0xFFFFFFL),
+                            )
+                        }
                         Box(
                             modifier = Modifier
                                 .size(48.dp)
-                                .semantics { contentDescription = description }
+                                .semantics {
+                                    contentDescription = description
+                                    // Announced as well as drawn, and only when it is
+                                    // genuinely taken: dimming is a colour change
+                                    // alone, which a screen reader cannot convey. Set
+                                    // unconditionally it would announce all twelve
+                                    // swatches as disabled.
+                                    if (heldByOther) disabled()
+                                }
                                 .selectable(
                                     selected = selected,
+                                    enabled = !heldByOther,
                                     role = Role.RadioButton,
                                     onClick = { onColorSelected(colorArgb) },
                                 ),
@@ -1832,7 +1945,16 @@ internal fun ChatSettingsDialog(
                             Box(
                                 Modifier
                                     .size(36.dp)
-                                    .background(Color(colorArgb), CircleShape)
+                                    // Dimmed rather than hidden: the member can see
+                                    // the colour is spoken for and who has it,
+                                    // instead of finding eleven options and no
+                                    // explanation for the gap.
+                                    .background(
+                                        Color(colorArgb).copy(
+                                            alpha = if (heldByOther) 0.25f else 1f,
+                                        ),
+                                        CircleShape,
+                                    )
                                     .border(
                                         width = if (selected) 3.dp else 0.dp,
                                         color = if (selected) MaterialTheme.colorScheme.onSurface else Color.Transparent,

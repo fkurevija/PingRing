@@ -82,9 +82,38 @@ data class ChatColourClaimPayloadDto(
  * is the only member every other member is authenticated to, so it is the only
  * party whose answer all of them can believe.
  *
+ * The other half is *releasing*. A claim is not permanent: switching colour hands
+ * the old one back, because a colour nobody is using is not taken. Without that,
+ * a member who changed their mind once would hold two colours for the rest of
+ * the ring - or, worse, have their old colour permanently greyed out for
+ * everybody else while they no longer render in it.
+ *
  * Pure and Android-free so the rules are directly testable.
  */
 object ChatColourPolicy {
+
+    /**
+     * Applies a granted claim, releasing whatever the member held before.
+     *
+     * The whole state transition in one function, because the two halves have to
+     * happen together: releasing on its own would let a member briefly hold
+     * nothing, and claiming on its own is the bug above. [evaluateClaim] decides
+     * whether to call this at all; it is only ever called on a GRANTED decision.
+     *
+     * Returns a new map rather than mutating, so a host applying a claim cannot
+     * half-update the state it is broadcasting.
+     */
+    fun applyGrantedClaim(
+        currentHolders: Map<Long, String>,
+        claimColorArgb: Long,
+        claimPeerId: String,
+    ): Map<Long, String> {
+        // Drop this member's previous colour first. Without this the old one
+        // stays held by somebody who is no longer rendering in it, and stays
+        // unavailable to everyone else for the rest of the ring.
+        val released = currentHolders.filterValues { it != claimPeerId }
+        return released + (claimColorArgb to claimPeerId)
+    }
 
     /**
      * What the host does with a claim for [colorArgb].
@@ -109,6 +138,19 @@ object ChatColourPolicy {
         if (holder == null || holder == claimPeerId) return Decision.GRANTED
         return Decision.REFUSED
     }
+
+    /**
+     * A member leaving the ring releases whatever colour it held.
+     *
+     * Otherwise a departed member keeps a colour reserved for the rest of the
+     * event, and with eight members and twelve colours that is four colours gone
+     * for good. The member list is authoritative for who is still here, so the
+     * release is driven from that rather than from an explicit goodbye.
+     */
+    fun releaseDepartedMembers(
+        currentHolders: Map<Long, String>,
+        remainingPeerIds: Set<String>,
+    ): Map<Long, String> = currentHolders.filterValues { it in remainingPeerIds }
 
     /**
      * Whether the host should grant [claimColorArgb], resolving a race between

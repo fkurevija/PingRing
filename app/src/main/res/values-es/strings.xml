@@ -29,6 +29,8 @@
     <string name="theme_dark">Tema oscuro</string>
     <string name="chat_bubble_colour_description">Se muestra en los mensajes nuevos que envías</string>
     <string name="set_chat_bubble_colour_to">Establecer el color de la burbuja del chat en %1$s</string>
+    <string name="chat_colour_taken_by">%1$s lo usa %2$s</string>
+    <string name="chat_colour_refused">Ese color ya está en uso. Elige otro.</string>
     <string name="custom">Personalizado</string>
     <string name="use_theme_colour">Usar el color del tema</string>
     <string name="developer_options">Opciones para desarrolladores</string>

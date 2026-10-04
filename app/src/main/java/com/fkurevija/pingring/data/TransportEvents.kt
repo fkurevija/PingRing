@@ -26,6 +26,7 @@ internal interface PayloadSink {
     fun onMemberDeparture(departure: MemberDeparturePayloadDto)
     fun onMeshPresence(presence: MeshPresencePayloadDto)
     fun onPeerRanging(ranging: PeerRangingPayloadDto)
+    fun onChatColourClaim(claim: ChatColourClaimPayloadDto)
     fun onEventControl(control: EventControlPayloadDto)
     fun onUwbAddress(address: UwbPeerAddressDto)
     fun onUwbParameters(params: UwbControllerParametersDto)
@@ -125,6 +126,21 @@ internal class TransportEvents(private val tag: String) : PayloadSink {
         onBufferOverflow = BufferOverflow.DROP_OLDEST,
     )
     val receivedMeshPresence: SharedFlow<MeshPresencePayloadDto> = _receivedMeshPresence.asSharedFlow()
+
+    /**
+     * Chat colour claims and the host's answers to them.
+     *
+     * A request and a reply travel the same flow because they are the same message
+     * with [ChatColourClaimPayloadDto.granted] set or unset, and a guest has to
+     * tell a reply from its own request echoing back - hence the discriminator is
+     * on the payload rather than on the channel.
+     */
+    private val _receivedChatColourClaim = MutableSharedFlow<ChatColourClaimPayloadDto>(
+        extraBufferCapacity = 8,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+    val receivedChatColourClaim: SharedFlow<ChatColourClaimPayloadDto> =
+        _receivedChatColourClaim.asSharedFlow()
     private val _receivedPeerRanging = MutableSharedFlow<PeerRangingPayloadDto>(
         extraBufferCapacity = 16,
         onBufferOverflow = BufferOverflow.DROP_OLDEST,
@@ -208,6 +224,10 @@ internal class TransportEvents(private val tag: String) : PayloadSink {
 
     override fun onMeshPresence(presence: MeshPresencePayloadDto) {
         _receivedMeshPresence.tryEmit(presence)
+    }
+
+    override fun onChatColourClaim(claim: ChatColourClaimPayloadDto) {
+        _receivedChatColourClaim.tryEmit(claim)
     }
 
     override fun onPeerRanging(ranging: PeerRangingPayloadDto) {

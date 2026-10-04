@@ -180,6 +180,8 @@ In English the two share the row on one line. In German or Canadian French the l
 
 - **Chat Bubble Colour** — one of **12 fixed colours**. You are given one at random when you enter a PingRing, and you can change it at any time; the choice is saved immediately.
 - There is no custom picker and no "use the theme colour" option. Everyone in the ring sees the same colour for your messages, which is the entire point: two phones drawing your messages differently is what makes a busy transcript unreadable.
+- **A colour already in use cannot be picked.** Whoever holds it is named on the swatch, and the swatch is dimmed and unselectable. The **host** decides who gets what, so two people cannot pick the same colour by tapping at the same moment.
+- **Switching hands your old colour back.** The one you had before becomes free for anybody else immediately, so you can change your mind as often as you like without losing options. The same happens if you leave the PingRing.
 
 ---
 
