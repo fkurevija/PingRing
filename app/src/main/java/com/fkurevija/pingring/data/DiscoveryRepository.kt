@@ -462,6 +462,52 @@ class DiscoveryRepository(
     // Expose peer updates
     private val _peerUpdates = MutableStateFlow<Map<String, RadarPeerUpdate>>(emptyMap())
     val peerUpdates: Flow<List<RadarPeerUpdate>> = _peerUpdates.map { it.values.toList() }
+
+    /**
+     * Everyone in the ring, whether or not they are currently in reach.
+     *
+     * The member list is rendered from this rather than from [peerUpdates], and
+     * the difference is the whole bug. `_peerUpdates` is a cache of *live radar
+     * readings*: a member not heard from for 15 s is swept out of it, which is
+     * right for drawing a pin and wrong for listing who is in the ring. Rendering
+     * the list from that cache made it empty whenever contact lapsed, so two
+     * devices in one ring could each show a single member - themselves - while the
+     * member count, derived from the same cache, agreed with it.
+     *
+     * A member with no fresh reading is still listed, with distance unknown.
+     * Losing sight of somebody is not the same as losing them.
+     */
+    val members: Flow<List<RadarPeerUpdate>> =
+        // Combines both sources deliberately. Membership alone would not
+        // recompose when a distance arrives, and radar alone is the bug: a
+        // member is listed because they are *in the ring*, and shown as close or
+        // unknown according to whether there is a fresh reading for them.
+        combine(sessionManager.sessionState, _peerUpdates) { state, live ->
+            state.friends.map { friend ->
+                // The radar reading if there is one, otherwise a bare entry
+                // carrying only what membership knows: the peer and their name.
+                // Never a stale distance, which would claim a reading the app no
+                // longer has - the sweep has already removed those.
+                live[friend.peerId] ?: RadarPeerUpdate(
+                    peerId = friend.peerId,
+                    name = friend.name,
+                    // No reading at all, rather than a stale one: the sweep has
+                    // already dropped everything out of date, so anything left here
+                    // is a member the app cannot currently place. "Unknown" is the
+                    // honest proximity for that, and the row shows their distance as
+                    // unavailable instead of inventing a number.
+                    rssi = null,
+                    proximity = "Unknown",
+                    distance = null,
+                    azimuth = null,
+                    elevation = null,
+                    worldDirectionX = null,
+                    worldDirectionY = null,
+                    worldDirectionZ = null,
+                    lastSeen = friend.lastSeen,
+                )
+            }
+        }
     private val _lastKnownPeerDirections = MutableStateFlow<List<LastKnownPeerDirection>>(emptyList())
     val lastKnownPeerDirections: StateFlow<List<LastKnownPeerDirection>> = _lastKnownPeerDirections.asStateFlow()
 
@@ -932,13 +978,32 @@ class DiscoveryRepository(
         repositoryScope?.launch {
             nearbyConnectionsManager.receivedMemberDeparture.collect { departure ->
                 val currentEvent = sessionManager.sessionState.value.currentEvent ?: return@collect
-                if (departure.eventCode != currentEvent.id || departure.peerId == sessionManager.peerId.value) {
+                // The rule that separates losing contact from leaving lives in
+                // MembershipPolicy, so it has one place to be asserted rather
+                // than being re-derived here every time this path is touched.
+                if (!MembershipPolicy.leavesRingOnGracefulDeparture(
+                        departureEventCode = departure.eventCode,
+                        currentEventCode = currentEvent.id,
+                        departurePeerId = departure.peerId,
+                        localPeerId = sessionManager.peerId.value,
+                    )
+                ) {
                     return@collect
                 }
                 departedPeerIds.add(departure.peerId)
                 connectedPeerIds.remove(departure.peerId)
                 peerUwbAddresses.remove(departure.peerId)
                 removePeer(departure.peerId, preserveLastKnownDirection = false)
+                // removePeer deliberately leaves membership alone, because losing
+                // contact is not leaving. This is the case that *is* leaving, and
+                // an authenticated graceful departure is the only thing short of
+                // the host ending the ring that removes somebody from the list.
+                val remaining = sessionManager.sessionState.value.friends
+                    .filterNot { it.peerId == departure.peerId }
+                if (remaining.size != sessionManager.sessionState.value.friends.size) {
+                    sessionManager.updateFriends(remaining)
+                }
+                peerDisplayNames.forget(departure.peerId)
                 onFocusChanged()
             }
         }
@@ -1923,10 +1988,22 @@ class DiscoveryRepository(
     }
 
     /**
-     * Forgets everything about a peer that is no longer connected: its radar
-     * pin, any beacon it was broadcasting, and its place in the member list.
-     */
-    private fun removePeer(peerId: String, preserveLastKnownDirection: Boolean = true) {
+ * Forgets a peer's *live* state: its radar pin, any beacon it was broadcasting,
+ * and the ranging and smoothing state that only makes sense while it is in reach.
+ *
+ * Deliberately does NOT remove it from [sessionManager]'s friends. Losing contact
+ * is not leaving: a member who walks to the other side of a room is still in the
+ * ring, and the member list is membership rather than reachability. Removing them
+ * there made the member list disagree with ring membership, and each device
+ * dropped a different member - whichever one's transport dropped first - so the
+ * two phones each showed the other as gone while both were still counted in the
+ * ring.
+ *
+ * A member leaves the list only on an authenticated departure: an explicit
+ * graceful departure, or the host ending the event. Both clear the whole session,
+ * so nothing here has to unpick a half-removed member.
+ */
+private fun removePeer(peerId: String, preserveLastKnownDirection: Boolean = true) {
         if (preserveLastKnownDirection) rememberLastKnownPeerDirection(peerId)
         else _lastKnownPeerDirections.update { current -> current.filterNot { it.peerId == peerId } }
         _peerUpdates.update { current -> current - peerId }
@@ -1941,13 +2018,13 @@ class DiscoveryRepository(
         bleSignalWarningTracker.remove(peerId)
         lastUwbMeasurementAt.remove(peerId)
         retainedRangingPeerIds.remove(peerId)
-        // Forget the label too, so a member who leaves and rejoins is numbered
-        // afresh rather than claiming a number nobody else can see.
-        peerDisplayNames.forget(peerId)
-        val friends = sessionManager.sessionState.value.friends
-        if (friends.any { it.peerId == peerId }) {
-            sessionManager.updateFriends(friends.filterNot { it.peerId == peerId })
-        }
+        peerUwbAddresses.remove(peerId)
+        // The display label is keyed to the member rather than to their
+        // proximity, so it survives a drop. Forgetting it renumbered a member who
+        // had merely stepped out of range, which is how two people ended up shown
+        // under different numbers depending on who had dropped out of contact.
+        // Nothing else consults it for a peer that is not present, so keeping it
+        // costs nothing while a member is away.
     }
 
     private fun addConnectedPeer(peerId: String) {

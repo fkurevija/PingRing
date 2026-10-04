@@ -93,6 +93,7 @@ Use the **Tracking** dropdown, or the button on a member's row. Both set the sam
 - Tap a member's row button to track them; the row is marked **TRACKING** and the card is highlighted.
 - Tap the tracked row again, or pick **Automatic**, to go back to the default.
 - Tracking changes what the radar draws and what UWB ranges. **You still receive every message**, no matter who you are tracking.
+- Changing who you track never affects who is in the ring. Repointing the radar moves one ranging session between members, and the one losing it can briefly fall out of contact; it stays in the member list regardless, shown with its distance unavailable.
 
 > This is entirely your own choice. The host cannot point your radar at somebody, and cannot stop you ranging another guest.
 
@@ -257,7 +258,7 @@ Android still stops the work after a **force-stop**, a **process kill**, a **reb
 | "Verified BLE proximity is unavailable" | This controller cannot send the extended V5 signed advertisement, so RSSI-based member presence is disabled on this device. |
 | "Weak BLE signal" notice | The smoothed signal is near the expected receive limit. Proximity may disappear; move closer if possible. |
 | "N devices want to join" card | A guest joined by typed code. Allow or Deny each one; unanswered requests time out after two minutes. |
-| Distance shown as "—" in the member list | No fix for that peer yet, or it has gone stale. Peers normally expire after 15 s without an advert; the focused peer can remain during its retained UWB window. |
+| Distance shown as "—" in the member list | No fix for that peer yet, or it has gone stale. Peers normally expire after 15 s without an advert; the focused peer can remain during its retained UWB window. **The member stays listed either way** — losing sight of somebody is not the same as losing them from the ring, so the list only changes when somebody leaves deliberately or the host ends the ring. |
 | A member's dot turning green | They are close (hot). Blue means not close. |
 | Distance holds while somebody has walked off | A tracked UWB session is retained for up to 45 s, or 20 s under high radio load. The app cannot tell "out of range" from "left", so it treats the member as unreachable rather than claiming they left. |
 | A last-known direction appears | It is a frozen UWB bearing from the last fix, shown with its age for at most 2 minutes. The person may have moved; RSSI alone cannot provide direction. |

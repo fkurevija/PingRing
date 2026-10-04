@@ -95,6 +95,9 @@ $adb = Resolve-Adb
 # concurrent runs against the *same* device will collide regardless; run them in
 # sequence when they target one screen.
 $pidTag = [System.Diagnostics.Process]::GetCurrentProcess().Id
+# The serial is not used in this filename: a wireless serial carries dots and
+# colons ("192.168.2.65:44781"), which Windows rejects as a path. The process id
+# is enough, since only one dump runs at a time here.
 $dump = "/sdcard/ui-$pidTag.xml"
 $local = Join-Path $env:TEMP "tap-ui-$pidTag.xml"
 

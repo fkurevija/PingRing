@@ -40,7 +40,10 @@ function Resolve-Adb {
 $adb = Resolve-Adb
 
 function Dump($dev) {
-    $local = "$env:TEMP\ui-$dev.xml"
+    # The serial goes in the filename, and a wireless serial carries dots and
+    # colons ("192.168.2.65:44781") - which Windows rejects as a path. Hashing it
+    # keeps two devices apart without putting an invalid character in a path.
+    $local = Join-Path $env:TEMP "ui-$([Math]::Abs($dev.GetHashCode())).xml"
     # Removed first so a failed pull cannot be read as success. Without this the
     # previous dump is still sitting there, and a device that has since disappeared
     # keeps reporting the screen it showed a minute ago - which reads as the app

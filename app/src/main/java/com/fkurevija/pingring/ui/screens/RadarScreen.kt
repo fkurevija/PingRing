@@ -336,7 +336,12 @@ fun RadarScreen(
     // explicitly when the user actually leaves/ends the event, via
     // onLeaveEvent/onEndEvent in MainActivity.
 
-    val peers by discoveryRepository?.peerUpdates?.collectAsState(initial = emptyList())
+    // Members, not radar readings. The member list and the count beside it are
+    // rendered from this; `peers` below is the live radar cache and is what the
+    // pins are drawn from. Using the cache for the list made the list empty
+    // whenever contact lapsed, so two devices in one ring could each show a
+    // single member - themselves - while both were still counted in the ring.
+    val peers by discoveryRepository?.members?.collectAsState(initial = emptyList())
         ?: remember { mutableStateOf(emptyList<RadarPeerUpdate>()) }
     val connectivity by discoveryRepository?.connectivityStatus?.collectAsState()
         ?: remember { mutableStateOf(ConnectivityStatus(isBluetoothEnabled = true, isWifiEnabled = true)) }
