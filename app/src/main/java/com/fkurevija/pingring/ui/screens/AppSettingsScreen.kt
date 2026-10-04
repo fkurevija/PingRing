@@ -327,9 +327,22 @@ fun AppSettingsScreen(
             // the app to somewhere the problem can actually be described. Putting
             // it in the run of settings implied it was one more preference.
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+            // Padding on the button rather than on the Column: spacedBy only
+            // separates children from each other, so the last one gets nothing
+            // below it and this sat flush against the bottom edge of the screen.
+            //
+            // Before the height, not after. Compose applies modifiers outside-in,
+            // so height-then-padding would squeeze 16dp out of the button's own
+            // contents while its border still ran to the screen edge; padding
+            // first puts the space outside the 50dp button entirely. 16dp matches
+            // the screen's horizontal inset, so the button now ends where
+            // everything above it does rather than at the boundary.
             OutlinedButton(
                 onClick = onReportAProblem,
-                modifier = Modifier.fillMaxWidth().height(50.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp)
+                    .height(50.dp)
             ) {
                 Icon(Icons.Default.BugReport, contentDescription = null, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(8.dp))
