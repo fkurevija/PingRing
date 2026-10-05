@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -25,6 +26,7 @@ import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -35,15 +37,21 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.fkurevija.pingring.R
 import com.fkurevija.pingring.data.BleRangePolicy
@@ -90,11 +98,15 @@ fun AboutScreen(
      * half-filled draft nobody can send.
      */
     onReportAProblem: () -> Unit = {},
+    reduceMotionEnabled: Boolean = false,
 ) {
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val rows = remember(facts) { DiagnosticsPolicy.rows(facts) }
+    val versionTapSequence = remember { VersionTapSequence() }
+    var showMatrixPrompt by rememberSaveable { mutableStateOf(false) }
+    var showMatrix by rememberSaveable { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -114,6 +126,9 @@ fun AboutScreen(
     ) { padding ->
         AboutBody(
             rows = rows,
+            onVersionTap = {
+                if (versionTapSequence.tap(android.os.SystemClock.elapsedRealtime())) showMatrixPrompt = true
+            },
             onCopy = {
                 copyReportToClipboard(context, facts)
                 scope.launch {
@@ -128,6 +143,20 @@ fun AboutScreen(
                 .padding(padding),
         )
     }
+    if (showMatrixPrompt) {
+        AlertDialog(
+            onDismissRequest = { showMatrixPrompt = false },
+            text = { Text(stringResource(R.string.matrix_invitation)) },
+            confirmButton = {
+                TextButton(onClick = { showMatrixPrompt = false; showMatrix = true }) {
+                    Text(stringResource(R.string.matrix_accept))
+                }
+            },
+        )
+    }
+    if (showMatrix) {
+        MatrixEasterEgg(onDismiss = { showMatrix = false }, reduceMotionEnabled = reduceMotionEnabled)
+    }
 }
 /**
  * The scrolling contents, split out so the copy button can be exercised without
@@ -136,6 +165,7 @@ fun AboutScreen(
 @Composable
 private fun AboutBody(
     rows: List<DiagnosticsPolicy.Row>,
+    onVersionTap: () -> Unit,
     onCopy: () -> Unit,
     onReportAProblem: () -> Unit,
     modifier: Modifier = Modifier,
@@ -181,6 +211,9 @@ private fun AboutBody(
                             text = row.value,
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.SemiBold,
+                            modifier = if (row.key == Key.APP_VERSION) {
+                                Modifier.clickable(role = Role.Button, onClickLabel = stringResource(R.string.diag_app_version), onClick = onVersionTap)
+                            } else Modifier,
                         )
                     }
                 }

@@ -9,6 +9,8 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.click
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.fkurevija.pingring.data.DiagnosticsFacts
@@ -191,5 +193,19 @@ class AboutScreenInstrumentedTest {
         composeRule.waitForIdle()
 
         assertEquals(1, backed)
+    }
+
+    @Test
+    fun sevenVersionTapsOpenThePromptAndMatrixReturnsToAboutOnTap() {
+        show()
+        repeat(7) { composeRule.onNodeWithText("1.4 (7)").performClick() }
+
+        composeRule.onNodeWithText(context.getString(R.string.matrix_invitation)).assertIsDisplayed()
+        composeRule.onNodeWithText(context.getString(R.string.matrix_accept)).performClick()
+        composeRule.onNodeWithContentDescription(context.getString(R.string.matrix_exit)).assertIsDisplayed()
+        composeRule.onNodeWithContentDescription(context.getString(R.string.matrix_exit))
+            .performTouchInput { click(center) }
+
+        composeRule.onNodeWithText("1.4 (7)").assertIsDisplayed()
     }
 }

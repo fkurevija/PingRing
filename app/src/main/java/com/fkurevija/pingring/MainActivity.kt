@@ -485,6 +485,7 @@ fun MainNavigation(
                     )
                     AboutScreen(
                         facts = aboutFacts,
+                        reduceMotionEnabled = reduceMotionEnabled,
                         onBack = { backStack.popBack() },
                         onReportAProblem = {
                             // The report and the title are assembled here, from the
