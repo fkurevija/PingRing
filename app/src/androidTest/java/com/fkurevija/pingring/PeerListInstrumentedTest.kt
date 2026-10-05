@@ -5,6 +5,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -18,6 +20,7 @@ import com.fkurevija.pingring.data.ConnectivityStatus
 import com.fkurevija.pingring.data.RadarPeerUpdate
 import com.fkurevija.pingring.ui.screens.PeerList
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
@@ -133,12 +136,25 @@ class PeerListInstrumentedTest {
     }
 
     @Test
-    fun aMemberIsListedWithItsSignalAndDistance() {
+    fun aMemberIsListedWithItsProximityAndDistance() {
         show(peers = listOf(peer(name = "Ana", rssi = -65, distance = 2.5f)))
 
         composeRule.onNodeWithText("Ana").assertIsDisplayed()
-        composeRule.onNodeWithText("Hot · -65 dBm").assertIsDisplayed()
+        composeRule.onNodeWithText("Hot").assertIsDisplayed()
         composeRule.onNodeWithText("2.5 m").assertIsDisplayed()
+    }
+
+    @Test
+    fun aRowDoesNotShowTheRawSignalReading() {
+        show(peers = listOf(peer(name = "Ana", rssi = -65, distance = 2.5f)))
+
+        // dBm used to sit on the row next to the proximity word. It is a raw
+        // radio reading with no action attached to it - two members in one room
+        // differ by 10 dB for reasons the user cannot control - so it is gone.
+        // Asserted as absent, since a leftover number is easy to reintroduce and
+        // impossible to notice once nobody is looking for it.
+        composeRule.onNodeWithText("-65 dBm").assertDoesNotExist()
+        composeRule.onNode(hasText("dBm", substring = true)).assertDoesNotExist()
     }
 
     @Test
@@ -151,10 +167,59 @@ class PeerListInstrumentedTest {
     }
 
     @Test
-    fun aMemberWithNoSignalShowsZeroRatherThanNull() {
+    fun aMemberWithNoSignalSaysUnknownRatherThanShowingAFakeReading() {
+        // This used to render "Unknown · 0 dBm", which claimed a perfect signal
+        // for a peer we cannot hear at all - the one value that is certainly
+        // wrong. "Unknown" is the honest reading.
         show(peers = listOf(peer(name = "Ana", rssi = null, proximity = "Unknown")))
 
-        composeRule.onNodeWithText("Unknown · 0 dBm").assertIsDisplayed()
+        composeRule.onNodeWithText("Unknown").assertIsDisplayed()
+        composeRule.onNode(hasText("dBm", substring = true)).assertDoesNotExist()
+    }
+
+    @Test
+    fun theNearestMemberIsListedFirst() {
+        // The list used to arrive in whatever order the ranging pipeline emitted,
+        // so rows moved around for reasons the user could not see. Nearest first
+        // is the order the list exists to answer.
+        show(
+            peers = listOf(
+                peer(id = "far", name = "Far", rssi = -95, proximity = "Cold"),
+                peer(id = "near", name = "Near", rssi = -45, proximity = "Hot"),
+                peer(id = "mid", name = "Mid", rssi = -70, proximity = "Cold"),
+            )
+        )
+
+        // Read where each name actually landed on screen, rather than trusting the
+        // list order, so this fails if the ordering is not applied at all.
+        val top = listOf("Far", "Near", "Mid").associateWith { name ->
+            composeRule.onNodeWithText(name).getUnclippedBoundsInRoot().top
+        }
+        assertTrue(
+            "nearest should be above the others, got $top",
+            top.getValue("Near") < top.getValue("Mid") &&
+                top.getValue("Mid") < top.getValue("Far"),
+        )
+    }
+
+    @Test
+    fun aMemberWeCannotHearIsListedLastRatherThanFirst() {
+        // A missing RSSI is missing information, not a measurement of distance.
+        // Ranking an unheard peer first would put someone we have lost above
+        // somebody standing next to us.
+        show(
+            peers = listOf(
+                peer(id = "silent", name = "Silent", rssi = null, proximity = "Unknown"),
+                peer(id = "close", name = "Close", rssi = -50, proximity = "Hot"),
+            )
+        )
+
+        val silentTop = composeRule.onNodeWithText("Silent").getUnclippedBoundsInRoot().top
+        val closeTop = composeRule.onNodeWithText("Close").getUnclippedBoundsInRoot().top
+        assertTrue(
+            "an unheard peer was listed above a close one",
+            silentTop > closeTop,
+        )
     }
     @Test
     fun theTrackedMemberIsMarked() {

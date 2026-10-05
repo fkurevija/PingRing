@@ -169,9 +169,7 @@
     <string name="member_count">Members (%1$d/%2$d)</string>
     <string name="show_members">Show members</string>
     <string name="member_count_full">Members (%1$d/%2$d - Full)</string>
-    <string name="tracking_badge">TRACKING</string>
-    <string name="peer_signal_strength">%1$s · %2$d dBm</string>
-    <string name="distance_meters">%1$.1f m</string>
+    <string name="tracking_badge">TRACKING</string>    <string name="distance_meters">%1$.1f m</string>
     <string name="no_distance">—</string>
     <string name="stop_tracking_member">Stop tracking %1$s</string>
     <string name="track_member">Track %1$s</string>

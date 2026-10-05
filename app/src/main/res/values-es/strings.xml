@@ -165,9 +165,7 @@
     <string name="radar_last_known_direction">Última dirección conocida de %1$s: %2$d°. Detectado hace %3$d s; puede haberse movido.</string>
     <string name="member_count">Miembros (%1$d/%2$d)</string>
     <string name="member_count_full">Miembros (%1$d/%2$d - completo)</string>
-    <string name="tracking_badge">SIGUIENDO</string>
-    <string name="peer_signal_strength">%1$s · %2$d dBm</string>
-    <string name="distance_meters">%1$.1f m</string>
+    <string name="tracking_badge">SIGUIENDO</string>    <string name="distance_meters">%1$.1f m</string>
     <string name="no_distance">—</string>
     <string name="stop_tracking_member">Dejar de seguir a %1$s</string>
     <string name="track_member">Seguir a %1$s</string>

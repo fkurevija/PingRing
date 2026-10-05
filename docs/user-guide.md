@@ -115,7 +115,9 @@ Tap the **people** icon in the radar's top bar to open it. It slides up from the
 
 On a tablet the list is also a permanent pane beside the radar, so the icon there just reopens what is already on screen.
 
-Each row shows a status dot (beacon colour if they have a beacon running, otherwise green when close and blue when not), the name, proximity and signal strength in dBm, and the distance. The host's radar shows pending join requests above the radar.
+Members are listed **nearest first**, by signal strength. The raw reading (dBm) is not shown — it is a number with no action attached to it, and two members in the same room routinely differ by 10 dB for reasons you cannot control. A member the app cannot hear at all is listed **last**, not first: a missing reading is missing information, not a measurement of distance. Members on the same signal keep a stable order (by name) so the list does not reshuffle while you read it.
+
+Each row shows a status dot (beacon colour if they have a beacon running, otherwise green when close and blue when not), the name, whether they are **Hot**, **Cold** or **Unknown**, and the distance. The dot is colour, so the word is there too for anyone who cannot separate green from blue. The host's radar shows pending join requests above the radar.
 
 The title carries the count, including you — **Members (1/8)** when you are alone. With nobody else present the sheet is simply empty.
 

@@ -149,6 +149,7 @@ import com.fkurevija.pingring.data.ConnectionRecoveryPromptPolicy
 import com.fkurevija.pingring.data.ConnectivityStatus
 import com.fkurevija.pingring.data.DEFAULT_BEACON_TITLE
 import com.fkurevija.pingring.data.DiscoveryRepository
+import com.fkurevija.pingring.data.PeerListOrderPolicy
 import com.fkurevija.pingring.data.FocusPolicy
 import com.fkurevija.pingring.data.LastKnownPeerDirection
 import com.fkurevija.pingring.data.MAX_PARTICIPANTS
@@ -1609,6 +1610,12 @@ internal fun PeerList(
     onFocusPeer: (String?) -> Unit,
     modifier: Modifier
 ) {
+    // Nearest first, everywhere in this sheet. The rows below and the tracking
+    // dropdown above are two views of the same members, so they read from one
+    // ordered list - a picker that offered them in a different order than the
+    // list showed would make the list's ordering look arbitrary.
+    val orderedPeers = remember(peers) { PeerListOrderPolicy.bySignalStrength(peers) }
+
     Column(modifier.padding(bottom = 8.dp)) {
         if (!connectivity.isBluetoothEnabled) {
             Card(
@@ -1661,7 +1668,7 @@ internal fun PeerList(
     // decision, and the host no longer owns it.
     if (peers.isNotEmpty()) {
             TrackedMemberPicker(
-                peers = peers,
+                peers = orderedPeers,
                 trackedPeerId = focusedPeerId,
                 onSelect = onFocusPeer
             )
@@ -1676,7 +1683,7 @@ internal fun PeerList(
         // ("Members (1/8)"), which is the part that is actually informative.
         if (peers.isNotEmpty()) {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(peers, key = { it.peerId }) { peer ->
+                items(orderedPeers, key = { it.peerId }) { peer ->
                     val peerBeacon = activeBeacons[peer.peerId]
                     val isFocused = peer.peerId == focusedPeerId
                     Card(
@@ -1722,12 +1729,25 @@ internal fun PeerList(
                                         )
                                     }
                                 }
+                                // Proximity as a word, not as a number. The dBm used
+                                // to be shown here and it was the least useful thing
+                                // on the row: it is a raw radio reading, two members
+                                // in the same room routinely differ by 10 dB for
+                                // reasons nobody can control, and reading it told a
+                                // user nothing about where to walk. The row's dot
+                                // already encodes the same thing visually, and the
+                                // distance at the end encodes it precisely.
+                                //
+                                // The word stays even though the dot also encodes it,
+                                // because the dot is colour: for a member who cannot
+                                // separate green from blue, the dot is the one signal
+                                // on this row they cannot read.
                                 val proximityLabel = when (peer.proximity) {
                                     "Hot" -> stringResource(R.string.proximity_hot)
                                     "Cold" -> stringResource(R.string.proximity_cold)
                                     else -> stringResource(R.string.proximity_unknown)
                                 }
-                                Text(stringResource(R.string.peer_signal_strength, proximityLabel, peer.rssi ?: 0), style = MaterialTheme.typography.bodySmall)
+                                Text(proximityLabel, style = MaterialTheme.typography.bodySmall)
                             }
                             Text(peer.distance?.let { stringResource(R.string.distance_meters, it) } ?: stringResource(R.string.no_distance), fontWeight = FontWeight.Bold)
                             Spacer(Modifier.width(8.dp))
