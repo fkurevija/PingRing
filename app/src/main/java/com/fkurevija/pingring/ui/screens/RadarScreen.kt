@@ -141,6 +141,7 @@ import com.fkurevija.pingring.data.BeaconInfo
 import com.fkurevija.pingring.data.BeaconPreset
 import com.fkurevija.pingring.data.BeaconVibrationPattern
 import com.fkurevija.pingring.data.ChatMessage
+import com.fkurevija.pingring.data.ChatBubbleColorPolicy
 import com.fkurevija.pingring.data.ChatMessageOwnership
 import com.fkurevija.pingring.data.ChatBubblePalette
 import com.fkurevija.pingring.data.ChatTimelineItem
@@ -401,6 +402,13 @@ fun RadarScreen(
     val context = LocalContext.current
     val accessibilityEnvironment = rememberAccessibilityEnvironment(reduceMotionEnabled)
 
+    // Who we are, resolved once. This was read from the repository in four places
+    // and from the repository-or-override in a fifth, so the screen could hold
+    // two different answers to "am I this message's sender" at the same time -
+    // which is precisely the kind of disagreement that shows up as a message
+    // drawn on the wrong side. One value, used everywhere.
+    val localPeerId = localPeerIdOverride ?: discoveryRepository?.localPeerId
+
     // The focused member, chosen by the user or defaulted by FocusPolicy. The
     // radar draws only this person, which is what makes a full 8-member
     // PingRing readable, and the UWB session follows the same choice.
@@ -412,7 +420,7 @@ fun RadarScreen(
             availablePeerIds = peers.map { it.peerId },
             peerJoinedAt = peers.associate { it.peerId to it.joinedAtMillis },
             isHost = isHost,
-            localPeerId = discoveryRepository?.localPeerId ?: "",
+            localPeerId = localPeerId ?: "",
             hostPeerId = sessionState.currentEvent?.hostPeerId
         )
         peers.firstOrNull { it.peerId == resolvedId }
@@ -791,6 +799,16 @@ fun RadarScreen(
 
                     val chatListState = rememberLazyListState()
 
+                    // The newest colour each sender has been seen using, across
+                    // the whole transcript. Built from the messages rather than
+                    // tracked per send as they arrive, so repainting an old
+                    // bubble needs no extra bookkeeping: every bubble asks this
+                    // map who somebody is *now*, not what they were when they
+                    // typed.
+                    val latestSenderColors = remember(sessionState.chatMessages) {
+                        ChatBubbleColorPolicy.latestColorsBySender(sessionState.chatMessages)
+                    }
+
                     /**
                      * Whether the transcript is parked at the newest end, which is
                      * where it starts and returns to.
@@ -884,10 +902,24 @@ fun RadarScreen(
                                                     // and names are neither unique nor
                                                     // stable. See ChatMessageOwnership.
                                                     val isMe = ChatMessageOwnership.isOwnMessage(
-                                                msg.senderPeerId,
-                                                discoveryRepository?.localPeerId
-                                            )
-                                            val senderBubbleColor = msg.colorArgb?.let(::Color)
+                                                    msg.senderPeerId,
+                                                    localPeerId
+                                                )
+                                                // "The colour this person is
+                                                // using now", not the one the
+                                                // message carried when it was sent.
+                                                // See ChatBubbleColorPolicy:
+                                                // without this a member who changes
+                                                // colour has their own transcript
+                                                // split down the middle.
+                                                val senderBubbleColor = ChatBubbleColorPolicy
+                                                    .colorFor(
+                                                        message = msg,
+                                                        localPeerId = localPeerId,
+                                                        localColorArgb = chatBubbleColorArgb,
+                                                        latestColorByPeer = latestSenderColors,
+                                                    )
+                                                    ?.let(::Color)
                                             Column(
                                                 modifier = Modifier.fillMaxWidth(),
                                                 horizontalAlignment = if (isMe) Alignment.End else Alignment.Start
@@ -1156,7 +1188,7 @@ fun RadarScreen(
                         memberNameFor = { peerId ->
                             peers.firstOrNull { it.peerId == peerId }?.name ?: peerId
                         },
-                        localPeerId = localPeerIdOverride ?: discoveryRepository?.localPeerId,
+                        localPeerId = localPeerId,
                         refusedColorArgb = refused ?: refusedChatColourArgb,
                     )
                 }

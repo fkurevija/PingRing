@@ -28,6 +28,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import com.fkurevija.pingring.data.BeaconVibrationPattern
+import com.fkurevija.pingring.data.ChatMessage
 import com.fkurevija.pingring.data.LastKnownPeerDirection
 import com.fkurevija.pingring.data.PendingJoinRequest
 import com.fkurevija.pingring.data.SessionState
@@ -61,6 +62,20 @@ class RadarScreenInstrumentedTest {
 
     /** Real resources, so the assertions below can resolve the strings they match on. */
     private val context = InstrumentationRegistry.getInstrumentation().targetContext
+
+    /** A sent message, with the colour it carried at the time it was sent. */
+    private fun chatMessage(
+        from: String,
+        text: String,
+        colorArgb: Long?,
+    ) = ChatMessage(
+        id = "$from-$text",
+        senderPeerId = from,
+        senderName = from,
+        messageText = text,
+        timestamp = 0L,
+        colorArgb = colorArgb,
+    )
 
     /**
      * Renders the screen with no discovery repository, as it looks before peers arrive.
@@ -257,6 +272,75 @@ class RadarScreenInstrumentedTest {
         showRadar()
 
         composeRule.onNodeWithText("No messages yet. Say hello!").assertIsDisplayed()
+    }
+
+    /**
+     * A member who changes colour must still see every message they ever sent.
+     *
+     * The colour arithmetic itself is covered exhaustively by ChatBubbleColorPolicyTest;
+     * what this pins down is the wiring - that the screen resolves "who am I" and
+     * feeds the current colour through for *every* bubble, including the ones sent
+     * before the change. Asserted on presence and attribution rather than on
+     * pixels: this suite asserts on semantics throughout and has no pixel-capture
+     * idiom, so a colour assertion here would be testing the harness.
+     */
+    @Test
+    fun changingMyColourKeepsEveryMessageIAlreadySentInTheTranscript() {
+        val oldColour = 0xFFE53935
+        val newColour = 0xFF1E88E5
+        showRadar(
+            localPeerId = "me",
+            chatBubbleColorArgb = newColour,
+            sessionState = SessionState(
+                chatMessages = listOf(
+                    chatMessage("me", "first", colorArgb = oldColour),
+                    chatMessage("me", "second", colorArgb = oldColour),
+                )
+            ),
+        )
+
+        // Both messages were sent in the old colour and must both survive the
+        // change. A member who loses their own history when they recolour has
+        // been made to look like a ring with two "me"s in it.
+        composeRule.onNodeWithText("first").assertIsDisplayed()
+        composeRule.onNodeWithText("second").assertIsDisplayed()
+        composeRule.onNodeWithText("No messages yet. Say hello!").assertDoesNotExist()
+    }
+
+    @Test
+    fun aMessageFromBeforeColoursExistedStillRendersInTheTranscript() {
+        // Legacy messages carry no colour at all. They must keep rendering the way
+        // they always have, rather than being dropped or crashing the bubble path
+        // when the policy resolves null.
+        showRadar(
+            localPeerId = "me",
+            sessionState = SessionState(
+                chatMessages = listOf(
+                    chatMessage("ana", "old message", colorArgb = null),
+                )
+            ),
+        )
+
+        composeRule.onNodeWithText("old message").assertIsDisplayed()
+    }
+
+    @Test
+    fun aMixedTranscriptOfLegacyAndColouredMessagesStillRenders() {
+        // The normal state after an upgrade: some messages predate colours, the
+        // rest do not. This is the case where the sender's colour is learned from
+        // a later message and applied backwards, so it is worth having on screen.
+        showRadar(
+            localPeerId = "me",
+            sessionState = SessionState(
+                chatMessages = listOf(
+                    chatMessage("ana", "legacy one", colorArgb = null),
+                    chatMessage("ana", "coloured one", colorArgb = 0xFFE53935),
+                )
+            ),
+        )
+
+        composeRule.onNodeWithText("legacy one").assertIsDisplayed()
+        composeRule.onNodeWithText("coloured one").assertIsDisplayed()
     }
 
     @Test
