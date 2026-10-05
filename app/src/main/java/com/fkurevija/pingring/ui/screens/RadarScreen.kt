@@ -2193,7 +2193,12 @@ fun BeaconCustomizationDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text(stringResource(R.string.select_preset), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                Text(
+                    stringResource(R.string.select_preset),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                )
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -2226,39 +2231,76 @@ fun BeaconCustomizationDialog(
                     )
                 )
 
-                Text(stringResource(R.string.beacon_color), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                Text(
+                    stringResource(R.string.beacon_color),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                )
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceAround,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .selectableGroup(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     colorPalette.forEach { colorArgb ->
                         val isSelected = selectedColor == colorArgb
+                        // Announced as "Set beacon color to #RRGGBB" and marked
+                        // selected, exactly like the chat settings swatches: a
+                        // colour circle drawn with .clickable tells a screen
+                        // reader nothing, so TalkBack users would sweep five
+                        // unlabelled items and never learn which one is picked.
+                        val description = stringResource(
+                            R.string.set_beacon_color_to,
+                            String.format(java.util.Locale.ROOT, "#%06X", colorArgb and 0xFFFFFFL),
+                        )
                         Box(
                             modifier = Modifier
-                                .size(42.dp)
-                                .background(Color(colorArgb), CircleShape)
-                                .clickable { selectedColor = colorArgb }
-                                .then(
-                                    if (isSelected) {
-                                        Modifier.border(3.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
-                                    } else Modifier
+                                .size(48.dp)
+                                .semantics { contentDescription = description }
+                                .selectable(
+                                    selected = isSelected,
+                                    role = Role.RadioButton,
+                                    onClick = { selectedColor = colorArgb },
                                 ),
                             contentAlignment = Alignment.Center
                         ) {
-                            if (isSelected) {
-                                Icon(
-                                    Icons.Default.Check,
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(20.dp)
-                                )
+                            Box(
+                                Modifier
+                                    .size(36.dp)
+                                    .background(Color(colorArgb), CircleShape)
+                                    .border(
+                                        width = if (isSelected) 3.dp else 0.dp,
+                                        color = if (isSelected) MaterialTheme.colorScheme.onSurface else Color.Transparent,
+                                        shape = CircleShape,
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                // The tick stays inside the ring: the ring alone
+                                // is how chat settings mark a selected swatch,
+                                // but on a fully coloured circle it is easier to
+                                // miss, and the tick also gives the selection a
+                                // shape difference beyond the border width.
+                                if (isSelected) {
+                                    Icon(
+                                        Icons.Default.Check,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
                             }
                         }
                     }
                 }
 
-                Text(stringResource(R.string.vibration_rhythm_intensity), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                Text(
+                    stringResource(R.string.vibration_rhythm_intensity),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                )
                 ExposedDropdownMenuBox(
                     expanded = isVibrationMenuExpanded,
                     onExpandedChange = { isVibrationMenuExpanded = !isVibrationMenuExpanded }
@@ -2301,6 +2343,7 @@ fun BeaconCustomizationDialog(
                     stringResource(R.string.beacon_alert_repetition_label),
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
                 )
                 Text(
                     stringResource(R.string.beacon_alert_repetition_explainer),
@@ -2356,6 +2399,7 @@ fun BeaconCustomizationDialog(
                         stringResource(R.string.beacon_alert_gap_label),
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
                     )
                     ExposedDropdownMenuBox(
                         expanded = repeatGapMenuExpanded,
