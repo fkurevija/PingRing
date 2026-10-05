@@ -99,7 +99,7 @@ cd PingRing
 ./gradlew assembleDebug       # debug APK
 ```
 
-`check` and `build` deliberately skip the instrumented tests so a slow machine can stay fast — CI runs them on every push instead.
+`check` and `build` deliberately skip the instrumented tests so a slow machine can stay fast — CI runs them on every push instead. `check` does enforce an 80% per-class coverage floor over the code a JVM test can reach; the Compose screens and the framework-bound plumbing are measured by the instrumented suite instead.
 
 Releases, signing, CI behaviour, the emulator↔device LAN debug transport and scripted-distance testing are all in **[Building & Testing](docs/building.md)**.
 

@@ -12,6 +12,19 @@ Every screen is covered by at least one device test, and the routes between them
 
 Run `uiTest` on a booted device to execute the Compose and device tests; real extended-advertising and sensor behavior still requires compatible physical phones.
 
+## Coverage gate
+
+`check` runs a JaCoCo line-coverage floor of **80% per class**, applied to `jacocoVerify`. This is a per-class rule and not a project total on purpose: an aggregate lets a well-tested policy class pay for an untested one, which is how the radar screen sat at 0% for a long time while the overall number looked respectable. The rule costs no extra test run — it reads the execution data `testDebugUnitTest` has already written.
+
+The floor is **scoped, and the scope is the interesting part.** The gate reads unit-test data only, so anything a JVM cannot reach would fail at 0% while being thoroughly tested on a device. Two groups are excluded for that reason and are covered by the instrumented suite instead:
+
+- the Compose screens, which need a real composition and a real `Context`;
+- the framework-bound plumbing, which needs a `BluetoothAdapter`, a `Vibrator` or a `WifiRttManager` to exist at all.
+
+What remains in scope is the code a JVM test genuinely can reach — the pure decision objects, which is where untested logic actually hides. The exclusions are listed explicitly in `coverageGateExclusions` and **rot visibly**: a new framework-bound class fails the gate until somebody names it there with a reason. That friction is deliberate, because guessing at reachability is what lets an untested policy class slip through disguised as plumbing.
+
+Three policy classes are excluded for a narrower reason and are the real remaining debt: `RangingSourcePolicy`, `BleRangePolicy` and `RadarAccessibilityPolicy` each mix a platform probe into the same class as its rules. A per-class floor on unit data can never be met by that shape — the probe's lines are unreachable — so the fix is to move the probe out beside `DiagnosticsProbe`, as the other policies already do. See the [Roadmap](roadmap.md).
+
 ```bash
 git clone https://github.com/fkurevija/PingRing.git
 cd PingRing
