@@ -13,6 +13,7 @@ import androidx.compose.ui.test.performScrollTo
 import com.fkurevija.pingring.data.ThemeMode
 import com.fkurevija.pingring.ui.screens.AppSettingsScreen
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
@@ -247,5 +248,31 @@ class AppSettingsScreenInstrumentedTest {
         composeRule.onNodeWithText("Developer Options").performScrollTo().performClick()
 
         assertEquals("Developer Options must be reachable when it is shown", 1, opened)
+    }
+
+    @Test
+    fun aboutIsTheLastRowWhetherOrNotDeveloperOptionsIsShown() {
+        // About is the row every build has, so it closes the list in both.
+        // Asserted by position rather than by presence: About existed above
+        // Developer Options before, which left a debug build ending on a
+        // screen most users never see and the release build ending somewhere
+        // else entirely.
+        showSettings(showDeveloperOptions = true)
+
+        composeRule.onNodeWithText("About").performScrollTo()
+        val aboutTop = composeRule.onNodeWithText("About")
+            .fetchSemanticsNode().boundsInRoot.top
+        val developerTop = composeRule.onNodeWithText("Developer Options")
+            .fetchSemanticsNode().boundsInRoot.top
+
+        // Both rows have to be genuinely on screen, not just ordered.
+        // Compose clips a fully scrolled-out node to an empty rect, so a
+        // Developer Options row sitting below the fold reads as top = 0 and
+        // any row above the fold compares greater than it. Without the
+        // developerTop > 0 conjunct the swapped order passes vacuously.
+        assertTrue(
+            "About must sit below Developer Options",
+            developerTop > 0 && aboutTop > developerTop,
+        )
     }
 }

@@ -160,7 +160,13 @@ fun AppSettingsScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .padding(horizontal = 16.dp)
-                .verticalScroll(rememberScrollState()),
+                .verticalScroll(rememberScrollState())
+                // Inside the scroll rather than after it, so the gap travels
+                // with the list and sits below the last row - About - instead of
+                // reserving a band at the bottom of the viewport that rows scroll
+                // behind. One spacedBy height (12.dp), so the margin reads as one
+                // more gap in the run rather than a new section of its own.
+                .padding(bottom = 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             // One flat list, most-changed first. The old layout interleaved full cards for
@@ -378,6 +384,14 @@ fun AppSettingsScreen(
                 description = stringResource(R.string.accessibility_card_description),
                 onClick = onOpenAccessibility,
             )
+            if (showDeveloperOptions) {
+                SettingsRow(
+                    icon = { Text("</>", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) },
+                    title = stringResource(R.string.developer_options),
+                    description = stringResource(R.string.lan_debug_transport),
+                    onClick = onOpenDeveloperOptions,
+                )
+            }
             // Last in the run of settings, and ungated. Unlike Developer options
             // this is not a debug affordance - it is the one place a user can
             // find out what they are running, and a build number in a bug report
@@ -388,14 +402,6 @@ fun AppSettingsScreen(
                 description = stringResource(R.string.about_description),
                 onClick = onOpenAbout,
             )
-            if (showDeveloperOptions) {
-                SettingsRow(
-                    icon = { Text("</>", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) },
-                    title = stringResource(R.string.developer_options),
-                    description = stringResource(R.string.lan_debug_transport),
-                    onClick = onOpenDeveloperOptions,
-                )
-            }
             // Reporting a problem used to live here, as the last item below a
             // divider. It moved to the About screen, which already holds every
             // fact a report carries: a button here had to send someone to the

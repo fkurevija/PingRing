@@ -255,6 +255,8 @@ The gear icon on the home screen, before hosting or joining, and from PingRing S
 
    What is sent is only your build, your device and your capabilities: no username, no ring code, no location, no member details. Values are deliberately not translated, so a report read in an issue looks the same whatever language your phone is set to.
 
+   Tapping the **version value** seven times in quick succession (each within 2 seconds of the last) reveals a hidden prompt. The last three taps count down in a toast (*"3 more taps to reveal the matrix"*, then 2, then 1) so a member who is tapping deliberately can see it working. The prompt ignores taps outside it — seven quick taps mean your finger is still moving, and a stray tap should not close what you just asked for — but the **back button or back gesture** closes it, as does its launch button.
+
 There is no **Appearance** or **Notifications** group any more. Each was a row that opened a screen holding less than the App Settings screen it was opened from — one control and three respectively — so each was a tap and a back press spent reaching nothing new.
 
 **Report a Problem** lives on the **About** screen, not here. It used to sit at the bottom of this screen, where it opened the tracker with nothing attached — the useful action was two taps away at best, and the details it would have carried were on a different screen. It now sits alongside the facts it sends.

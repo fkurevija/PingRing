@@ -42,20 +42,46 @@ internal class VersionTapSequence {
     private var count = 0
     private var lastTapMillis: Long? = null
 
-    fun tap(nowMillis: Long): Boolean {
+    /**
+     * Records a tap at [nowMillis] and reports how many more are needed.
+     *
+     * The return value is exact because it is what the countdown toast
+     * announces - a count that is off by one would make the toast lie about
+     * when the next tap opens the prompt. Returns 0 exactly when this tap
+     * completed the sequence, which is the caller's signal to open the prompt;
+     * the internal count is reset at the same moment, so a following run
+     * starts from [REQUIRED_TAPS] again rather than reporting a sequence that
+     * has already fired.
+     */
+    fun tap(nowMillis: Long): Int {
         val lastTap = lastTapMillis
         if (lastTap == null || nowMillis - lastTap !in 0..MAX_GAP_MILLIS) count = 0
         lastTapMillis = nowMillis
         count++
-        if (count < REQUIRED_TAPS) return false
+        if (count < REQUIRED_TAPS) return REQUIRED_TAPS - count
         count = 0
         lastTapMillis = null
-        return true
+        return 0
     }
 
     companion object {
         const val REQUIRED_TAPS = 7
         const val MAX_GAP_MILLIS = 2_000L
+
+        /** How many taps at the end of the run get a countdown toast. */
+        const val COUNTDOWN_TAPS = 3
+
+        /**
+         * Whether a tap leaving [remaining] taps to go deserves a toast.
+         *
+         * Only the last three, falling 3-2-1 into the prompt. Seven toasts in
+         * one burst would be noise the user taps straight through, and an early
+         * count tells them nothing they can act on - but stopping at 3 would
+         * leave the prompt appearing with no warning after the silence, so the
+         * range starts where the numbers become a countdown rather than a
+         * length.
+         */
+        fun shouldAnnounceCountdown(remaining: Int): Boolean = remaining in 1..COUNTDOWN_TAPS
     }
 }
 

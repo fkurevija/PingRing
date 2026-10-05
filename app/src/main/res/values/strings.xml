@@ -2,6 +2,8 @@
     <string name="matrix_invitation">Would you like me to access the data supplier and connect you up to the matrix?</string>
     <string name="matrix_accept">You just made all that up...</string>
     <string name="matrix_exit">Return to About</string>
+    <!-- Countdown shown while tapping the version value. %1$d is taps left. -->
+    <string name="matrix_tap_countdown">%1$d more taps to reveal the matrix</string>
     <string name="app_name">PingRing</string>
     <string name="back">Back</string>
     <string name="cancel">Cancel</string>

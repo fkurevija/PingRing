@@ -6,6 +6,7 @@ import android.content.Context
 import android.os.Build
 import android.os.Vibrator
 import android.os.VibratorManager
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -37,7 +38,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.material3.Button
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -53,6 +54,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
 import com.fkurevija.pingring.R
 import com.fkurevija.pingring.data.BleRangePolicy
 import com.fkurevija.pingring.data.DiagnosticsFacts
@@ -127,7 +129,19 @@ fun AboutScreen(
         AboutBody(
             rows = rows,
             onVersionTap = {
-                if (versionTapSequence.tap(android.os.SystemClock.elapsedRealtime())) showMatrixPrompt = true
+                // The countdown is read off the sequence itself so the toast
+                // says exactly what is left; 0 means this tap completed the
+                // run and the prompt opens instead of counting.
+                val remaining = versionTapSequence.tap(android.os.SystemClock.elapsedRealtime())
+                if (remaining == 0) {
+                    showMatrixPrompt = true
+                } else if (VersionTapSequence.shouldAnnounceCountdown(remaining)) {
+                    Toast.makeText(
+                        context,
+                        context.getString(R.string.matrix_tap_countdown, remaining),
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                }
             },
             onCopy = {
                 copyReportToClipboard(context, facts)
@@ -146,9 +160,27 @@ fun AboutScreen(
     if (showMatrixPrompt) {
         AlertDialog(
             onDismissRequest = { showMatrixPrompt = false },
+            // Back (button or gesture) dismisses the prompt; a tap outside it
+            // does not. Seven taps land in a burst, so the finger is still
+            // moving when the dialog appears - taps that miss it used to close
+            // it instantly, which is the opposite of what a mis-tap should do
+            // to something the user just asked for.
+            properties = DialogProperties(
+                dismissOnBackPress = true,
+                dismissOnClickOutside = false,
+            ),
             text = { Text(stringResource(R.string.matrix_invitation)) },
             confirmButton = {
-                TextButton(onClick = { showMatrixPrompt = false; showMatrix = true }) {
+                // A filled rounded-rect, not a TextButton: as hypertext it read
+                // as a link inside a dialog that already has one job, and every
+                // other action button in the app carries a visible shape. Same
+                // 14.dp corners and 50.dp height as the buttons below, so the
+                // prompt's button and the About screen's agree.
+                Button(
+                    onClick = { showMatrixPrompt = false; showMatrix = true },
+                    modifier = Modifier.fillMaxWidth().height(50.dp),
+                    shape = RoundedCornerShape(14.dp),
+                ) {
                     Text(stringResource(R.string.matrix_accept))
                 }
             },
@@ -197,7 +229,13 @@ private fun AboutBody(
                             color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
                         )
                     }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Breathing room top and bottom: against the card's 14.dp
+                    // inner padding the rows read as one dense block without it,
+                    // and the divider sits flush against the text above.
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
                         Text(
                             text = stringResource(row.key.diagnosticLabelRes()),
                             style = MaterialTheme.typography.bodyMedium,

@@ -1,6 +1,8 @@
 package com.fkurevija.pingring
 
 import androidx.compose.material3.MaterialTheme
+import android.os.SystemClock
+import android.view.MotionEvent
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasText
@@ -11,6 +13,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.click
+import androidx.test.espresso.Espresso
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.fkurevija.pingring.data.DiagnosticsFacts
@@ -207,5 +210,56 @@ class AboutScreenInstrumentedTest {
             .performTouchInput { click(center) }
 
         composeRule.onNodeWithText("1.4 (7)").assertIsDisplayed()
+    }
+
+    @Test
+    fun thePromptSurvivesATapOutsideItButBackStillClosesIt() {
+        // Seven taps land in a burst, so the finger is still moving when the
+        // prompt appears: the next tap often misses the dialog and used to
+        // dismiss it, closing the thing the user had just asked for. Back
+        // (button or gesture) is the deliberate way out and must still work.
+        show()
+        repeat(7) { composeRule.onNodeWithText("1.4 (7)").performClick() }
+        val invitation = context.getString(R.string.matrix_invitation)
+        composeRule.onNodeWithText(invitation).assertIsDisplayed()
+
+        // A real injected tap above the dialog surface. Dispatching through
+        // the semantics tree would bypass the window-level outside-touch
+        // handling that dismissOnClickOutside controls, so the assertion
+        // would pass either way and prove nothing. 15% of the screen height
+        // sits below the status bar and well above an AlertDialog's surface,
+        // which never reaches that far up the screen.
+        val screen = context.resources.displayMetrics
+        injectTap(screen.widthPixels / 2f, screen.heightPixels * 0.15f)
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText(invitation).assertIsDisplayed()
+
+        Espresso.pressBack()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText(invitation).assertDoesNotExist()
+        composeRule.onNodeWithText("1.4 (7)").assertIsDisplayed()
+    }
+
+    /**
+     * Injects a tap at screen coordinates through the real input pipeline.
+     *
+     * MotionEvents rather than a semantics click because the behaviour under
+     * test lives in the dialog window, above the activity's view tree: only a
+     * touch the window manager routes itself can reach it.
+     */
+    private fun injectTap(x: Float, y: Float) {
+        val downTime = SystemClock.uptimeMillis()
+        val down = MotionEvent.obtain(downTime, downTime + 50, MotionEvent.ACTION_DOWN, x, y, 0)
+        val up = MotionEvent.obtain(downTime, downTime + 100, MotionEvent.ACTION_UP, x, y, 0)
+        try {
+            val uiAutomation = InstrumentationRegistry.getInstrumentation().uiAutomation
+            uiAutomation.injectInputEvent(down, true)
+            uiAutomation.injectInputEvent(up, true)
+        } finally {
+            down.recycle()
+            up.recycle()
+        }
     }
 }
