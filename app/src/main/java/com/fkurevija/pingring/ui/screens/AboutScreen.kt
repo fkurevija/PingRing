@@ -6,7 +6,6 @@ import android.content.Context
 import android.os.Build
 import android.os.Vibrator
 import android.os.VibratorManager
-import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -52,6 +51,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
@@ -106,6 +106,10 @@ fun AboutScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val rows = remember(facts) { DiagnosticsPolicy.rows(facts) }
+    // A plain remember, and the only reset the tap count has: leaving the
+    // About screen disposes this composition and drops the sequence with it.
+    // There is no timer inside VersionTapSequence, so a pause between taps
+    // never starts the count over.
     val versionTapSequence = remember { VersionTapSequence() }
     var showMatrixPrompt by rememberSaveable { mutableStateOf(false) }
     var showMatrix by rememberSaveable { mutableStateOf(false) }
@@ -129,18 +133,10 @@ fun AboutScreen(
         AboutBody(
             rows = rows,
             onVersionTap = {
-                // The countdown is read off the sequence itself so the toast
-                // says exactly what is left; 0 means this tap completed the
-                // run and the prompt opens instead of counting.
-                val remaining = versionTapSequence.tap(android.os.SystemClock.elapsedRealtime())
-                if (remaining == 0) {
+                // 0 means this tap completed the run and the prompt opens;
+                // anything else is just progress toward it, with no fanfare.
+                if (versionTapSequence.tap() == 0) {
                     showMatrixPrompt = true
-                } else if (VersionTapSequence.shouldAnnounceCountdown(remaining)) {
-                    Toast.makeText(
-                        context,
-                        context.getString(R.string.matrix_tap_countdown, remaining),
-                        Toast.LENGTH_SHORT,
-                    ).show()
                 }
             },
             onCopy = {
@@ -169,7 +165,13 @@ fun AboutScreen(
                 dismissOnBackPress = true,
                 dismissOnClickOutside = false,
             ),
-            text = { Text(stringResource(R.string.matrix_invitation)) },
+            text = {
+                Text(
+                    stringResource(R.string.matrix_invitation),
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            },
             confirmButton = {
                 // A filled rounded-rect, not a TextButton: as hypertext it read
                 // as a link inside a dialog that already has one job, and every

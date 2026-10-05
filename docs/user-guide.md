@@ -255,7 +255,7 @@ The gear icon on the home screen, before hosting or joining, and from PingRing S
 
    What is sent is only your build, your device and your capabilities: no username, no ring code, no location, no member details. Values are deliberately not translated, so a report read in an issue looks the same whatever language your phone is set to.
 
-   Tapping the **version value** seven times in quick succession (each within 2 seconds of the last) reveals a hidden prompt. The last three taps count down in a toast (*"3 more taps to reveal the matrix"*, then 2, then 1) so a member who is tapping deliberately can see it working. The prompt ignores taps outside it — seven quick taps mean your finger is still moving, and a stray tap should not close what you just asked for — but the **back button or back gesture** closes it, as does its launch button.
+   Tapping the **version value** seven times reveals a hidden prompt. There is no time limit between taps — a pause never resets the count, and it only starts over when you leave the About screen or once the prompt has opened. There is no countdown along the way; the prompt simply appears on the seventh tap. The prompt ignores taps outside it — seven quick taps mean your finger is still moving, and a stray tap should not close what you just asked for — but the **back button or back gesture** closes it, as does its launch button.
 
 There is no **Appearance** or **Notifications** group any more. Each was a row that opened a screen holding less than the App Settings screen it was opened from — one control and three respectively — so each was a tap and a back press spent reaching nothing new.
 
