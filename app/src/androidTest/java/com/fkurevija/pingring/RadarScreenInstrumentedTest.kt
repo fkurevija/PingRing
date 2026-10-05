@@ -235,7 +235,20 @@ class RadarScreenInstrumentedTest {
 
         // The code is the only way somebody else can join, and the count is what
         // tells a host the ring is filling up. Both are in the title.
-        composeRule.onNodeWithText("PingRing").assertIsDisplayed()
+        composeRule.onNodeWithText("Code: $eventId · 1/8 Members").assertIsDisplayed()
+    }
+
+    @Test
+    fun theRadarTitleIsTheRingNotTheAppName() {
+        showRadar()
+
+        // The app name used to sit above the code as the title's first line. It
+        // was the same word on every member's screen at the same time, so it spent
+        // the most valuable line on screen saying nothing. Asserted as absent
+        // rather than merely unasserted, because this is exactly the kind of
+        // heading that comes back with the next layout change.
+        composeRule.onNodeWithText("PingRing").assertDoesNotExist()
+        // And the line it displaced still carries the two things that matter.
         composeRule.onNodeWithText("Code: $eventId · 1/8 Members").assertIsDisplayed()
     }
 
@@ -324,7 +337,10 @@ class RadarScreenInstrumentedTest {
         composeRule.settle()
 
         assertEquals(0, left)
-        composeRule.onNodeWithText("PingRing").assertIsDisplayed()
+        // Still on the radar. The title used to be asserted via the app name,
+        // which is now gone from this screen; the event summary is both a better
+        // proxy for "still here" and something this screen is supposed to show.
+        composeRule.onNodeWithText("Code: $eventId · 1/8 Members").assertIsDisplayed()
     }
 
     @Test

@@ -487,13 +487,17 @@ fun RadarScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Text(stringResource(R.string.app_name), fontWeight = FontWeight.Bold)
-                        Text(
-                            stringResource(R.string.radar_event_summary, eventId, peers.size + 1, MAX_PARTICIPANTS),
-                            style = MaterialTheme.typography.labelMedium,
-                        )
-                    }
+                    // No app name here. Every member is looking at this screen
+                    // inside the same app, so "PingRing" told them nothing they
+                    // did not already know while pushing the code and the member
+                    // count down. What the title actually has to carry is the two
+                    // things that are unique to this moment: which ring this is,
+                    // and how full it is.
+                    Text(
+                        stringResource(R.string.radar_event_summary, eventId, peers.size + 1, MAX_PARTICIPANTS),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
                 },
                 navigationIcon = {
                     IconButton(onClick = { showEndConfirmation = true }) {

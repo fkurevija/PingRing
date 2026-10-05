@@ -73,6 +73,8 @@ Once the digits match and the host has approved you when required, you land on t
 
 The radar draws **one person at a time** — the member you are *tracking* — which is what keeps a full 8-member ring readable on a phone screen.
 
+The heading is the ring itself: **Code: 4C1A9B · 3/8 Members**. The app's own name is not repeated there — everyone reading this screen is already in the app, so the line is spent on which ring you are in and how full it is.
+
 **Reading the display**
 - The **needle** points at the tracked member, corrected for compass heading.
 - The **lit arc** on the ring widens as they approach — a sliver when far, the whole ring within arm's reach (about 1.5 m). Each doubling of distance gets an equal share of the arc.
