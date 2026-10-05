@@ -20,7 +20,11 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.fkurevija.pingring.data.Event
 import com.fkurevija.pingring.ui.screens.PingRingSettingsScreen
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Rule
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import org.junit.Test
 
 /**
@@ -41,21 +45,30 @@ class PingRingSettingsScreenInstrumentedTest {
     private fun showSettings(
         event: Event,
         isHost: Boolean,
-        // Defaulted so a test that only asserts what is on screen can pass a
-        // trailing lambda for the last parameter without having to name a
-        // save handler it never triggers.
-        onSave: (Event) -> Unit = {},
+        onEventChanged: (Event) -> Unit = {},
         onOpenAppSettings: () -> Unit = {},
     ) {
+        // The screen holds no state of its own: every switch reads straight from
+        // the `event` prop and reports changes upward. So the test has to model
+        // the round trip the app performs, handing back an updated event.
+        //
+        // Composing with a fixed event instead - which is what the staged
+        // Save/Cancel model allowed - would snap each switch straight back on the
+        // next recomposition and stop testing the behaviour at all. That a test
+        // had to change this way is itself evidence of what the removal bought.
+        var current by mutableStateOf(event)
         composeRule.setContent {
             MaterialTheme {
                 PingRingSettingsScreen(
-                    event = event,
+                    event = current,
                     uwbHardwareSupported = false,
                     isHost = isHost,
                     onBack = {},
                     onOpenAppSettings = onOpenAppSettings,
-                    onSave = onSave,
+                    onEventChanged = { changed ->
+                        current = changed
+                        onEventChanged(changed)
+                    },
                     onEndEvent = {},
                     onLeaveEvent = {},
                 )
@@ -110,38 +123,53 @@ class PingRingSettingsScreenInstrumentedTest {
     }
 
     @Test
-    fun turningOnPreventNewUsersClosesTheRingAndSaves() {
+    fun turningOnPreventNewUsersClosesTheRingImmediately() {
         val event = Event.create("4C1A9B")
-        var saved: Event? = null
+        var changed: Event? = null
         // Named rather than passed as a trailing lambda: a trailing lambda binds
         // to the *last* parameter, which here is the app-settings callback, not
-        // the save handler.
-        showSettings(event, isHost = true, onSave = { saved = it })
+        // the change handler.
+        showSettings(event, isHost = true, onEventChanged = { changed = it })
 
         composeRule.onNodeWithContentDescription(context.getString(R.string.prevent_new_users_joining))
             .performScrollTo().performClick().assertIsOn()
-        composeRule.onNodeWithText(context.getString(R.string.save_changes)).performClick()
 
         composeRule.runOnIdle {
+            // No Save press. The switch itself is the commit, which is what App
+            // Settings already did and what this screen now does too.
             // The switch reads "prevent", the stored field still reads "accepts".
             // If a later edit flips the field instead of the switch, this is the
             // assertion that catches the ring being left permanently open.
-            assertEquals(false, saved?.acceptsNewMembers)
-            assertEquals(event.id, saved?.id)
+            assertEquals(false, changed?.acceptsNewMembers)
+            assertEquals(event.id, changed?.id)
         }
+    }
+
+    @Test
+    fun thereIsNoSaveButtonAndNothingToCancel() {
+        showSettings(Event.create("4C1A9B"), isHost = true)
+
+        // The reason this change was made. App Settings commits as you touch each
+        // control; this screen had Cancel and Save, so pressing back after a
+        // change looked like cancelling it and silently discarded the change.
+        // Asserted absent: a settings bar creeping back is exactly the sort of
+        // thing that returns with the next layout change.
+        composeRule.onNodeWithText(context.getString(R.string.save_changes))
+            .assertDoesNotExist()
+        composeRule.onNodeWithText(context.getString(R.string.cancel))
+            .assertDoesNotExist()
     }
 
     @Test
     fun preventNewUsersAlreadyOnIsShownAsOnAndCanBeTurnedBackOff() {
         val event = Event.create("4C1A9B").copy(acceptsNewMembers = false)
-        var saved: Event? = null
-        showSettings(event, isHost = true, onSave = { saved = it })
+        var changed: Event? = null
+        showSettings(event, isHost = true, onEventChanged = { changed = it })
 
         composeRule.onNodeWithContentDescription(context.getString(R.string.prevent_new_users_joining))
             .performScrollTo().assertIsOn().performClick().assertIsOff()
-        composeRule.onNodeWithText(context.getString(R.string.save_changes)).performClick()
 
-        composeRule.runOnIdle { assertEquals(true, saved?.acceptsNewMembers) }
+        composeRule.runOnIdle { assertEquals(true, changed?.acceptsNewMembers) }
     }
 
     @Test
@@ -167,7 +195,7 @@ class PingRingSettingsScreenInstrumentedTest {
     @Test
     fun thereIsAWayThroughToTheAppSettings() {
         var opened = 0
-        showSettings(Event.create("4C1A9B"), isHost = true, onSave = {}, onOpenAppSettings = { opened++ })
+        showSettings(Event.create("4C1A9B"), isHost = true, onEventChanged = {}, onOpenAppSettings = { opened++ })
 
         // Exactly one, the button. This used to index [1] past a heading that
         // repeated the button's own label, so the count is what catches that
@@ -182,15 +210,18 @@ class PingRingSettingsScreenInstrumentedTest {
 
     @Test
     fun unsupportedUwbRowRemainsActionableWithoutEnablingRanging() {
-        var saved: Event? = null
-        showSettings(Event.create("4C1A9B"), isHost = true, onSave = { saved = it })
+        var changed: Event? = null
+        showSettings(Event.create("4C1A9B"), isHost = true, onEventChanged = { changed = it })
         composeRule.onNodeWithText(context.getString(R.string.uwb_no_hardware))
             .performScrollTo()
             .assertIsDisplayed()
             .assertHasClickAction()
             .performClick()
-        composeRule.onNodeWithText(context.getString(R.string.save_changes)).performClick()
-        composeRule.runOnIdle { assertEquals(false, saved?.useUwb) }
+        // The row asks for the permission it is missing; it does not turn ranging
+        // on as a side effect. Previously this was checked by pressing Save after
+        // the click, which was an accident of the old flow - the Save button was
+        // never what made the row safe to tap.
+        composeRule.runOnIdle { assertNull(changed) }
     }
 
     @Test

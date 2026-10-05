@@ -204,7 +204,11 @@ In English the two share the row on one line. In German or Canadian French the l
 
 ## PingRing Settings
 
-Reached from the host setup screen's **PingRing Settings** button — in the panel below your username — or from **Settings** in the radar's top bar. This is the only screen that owns the event switches — the host setup screen deliberately carries none, so there is only one copy of each. Switches apply when you press **Save Changes**.
+Reached from the host setup screen's **PingRing Settings** button — in the panel below your username — or from **Settings** in the radar's top bar. This is the only screen that owns the event switches — the host setup screen deliberately carries none, so there is only one copy of each.
+
+**Every switch takes effect the moment you touch it.** There is no **Save Changes** and no **Cancel** — the same as App Settings. Leaving is the back arrow. This used to be different, and it was a trap: a screen with a Cancel button beside a Save button makes pressing *back* look like cancelling, so a member who changed a setting and navigated away had no way to tell whether it had been kept. Nothing here needs undoing — if you flip the wrong switch, flip it back.
+
+Changes are broadcast to the other members' phones straight away, so a ring you close is closed for everybody as soon as you close it.
 
 It is deliberately short: two controls, a way out, and a link onwards.
 

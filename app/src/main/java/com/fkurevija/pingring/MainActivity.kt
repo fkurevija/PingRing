@@ -502,10 +502,16 @@ fun MainNavigation(
                             // settings returns to this screen rather than to Home
                             // or out of the app.
                             onOpenAppSettings = { backStack.add(AppSettingsKey) },
-                            onSave = {
+                            // Applied the moment a control is touched, and the
+                            // screen stays where it is. This used to pop the back
+                            // stack, which was right for a Save button and wrong
+                            // now: toggling two switches in a row would have
+                            // thrown the member back to the radar after the
+                            // first one. Leaving is the arrow's job, which is
+                            // also what makes the loss of Cancel honest.
+                            onEventChanged = {
                                 sessionManager.updateEvent(it)
                                 discoveryRepository.broadcastEventControl(it)
-                                backStack.popBack()
                             },
                             // Ending announces closure first so every member is
                             // told, then tears the session down and returns to

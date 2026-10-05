@@ -38,7 +38,6 @@ import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.TravelExplore
 import androidx.compose.material.icons.filled.Wifi
-import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -113,15 +112,41 @@ fun PingRingSettingsScreen(
      * to whichever PingRing screen sent the user here.
      */
     onOpenAppSettings: () -> Unit,
-    onSave: (Event) -> Unit,
+    /**
+     * Persists a change to the ring, and broadcasts it so the other members'
+     * phones see it.
+     *
+     * Called the moment a control is touched rather than from a Save button.
+     * App Settings already behaves this way, and having one settings screen
+     * commit on a button and the other commit on touch meant a member who
+     * toggled something here and navigated away with the back arrow silently
+     * discarded it - the single most surprising thing a settings screen can do.
+     */
+    onEventChanged: (Event) -> Unit,
     onEndEvent: () -> Unit,
     onLeaveEvent: () -> Unit,
 ) {
     val context = LocalContext.current
-    var acceptsNewMembers by remember(event) { mutableStateOf(event.acceptsNewMembers) }
     val uwbAvailability = rememberUwbAvailability(uwbHardwareSupported)
-    var useUwb by remember(event, uwbAvailability.isUsable) { mutableStateOf(event.useUwb && uwbAvailability.isUsable) }
     var showEndConfirmation by remember { mutableStateOf(false) }
+
+    /**
+     * Writes one setting through to the rest of the app.
+     *
+     * Defaults to the current value so a control that changes one field does not
+     * have to restate the other, and therefore cannot quietly reset it.
+     */
+    fun persist(acceptsNewMembers: Boolean = event.acceptsNewMembers, useUwb: Boolean = event.useUwb) {
+        onEventChanged(
+            event.copy(
+                acceptsNewMembers = acceptsNewMembers,
+                description = context.getString(
+                    if (acceptsNewMembers) R.string.pingring_event else R.string.closed
+                ),
+                useUwb = useUwb,
+            )
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -141,35 +166,12 @@ fun PingRingSettingsScreen(
                 }
             )
         },
-        bottomBar = {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                OutlinedButton(
-                    onClick = onBack,
-                    modifier = Modifier.weight(1f).height(50.dp),
-                    shape = RoundedCornerShape(14.dp)
-                ) {
-                    Text(stringResource(R.string.cancel))
-                }
-                Button(
-                    onClick = {
-                        onSave(event.copy(
-                            acceptsNewMembers = acceptsNewMembers,
-                            description = context.getString(if (acceptsNewMembers) R.string.pingring_event else R.string.closed),
-                            useUwb = useUwb,
-                        ))
-                    },
-                    modifier = Modifier.weight(1f).height(50.dp),
-                    shape = RoundedCornerShape(14.dp)
-                ) {
-                    Text(stringResource(R.string.save_changes))
-                }
-            }
-        }
+        // No bottom bar. It held Cancel and Save, and Cancel was the dangerous
+        // one: leaving by the arrow was not "cancel", it just looked like it,
+        // so a member who changed a setting and pressed back had no way to
+        // tell whether it had been kept. Every control here now takes effect
+        // when it is touched, so there is nothing left to cancel and nothing
+        // left to confirm.
     ) { padding ->
         Column(
             modifier = Modifier
@@ -254,8 +256,8 @@ fun PingRingSettingsScreen(
                         // [Event.acceptsNewMembers] so nothing on the wire changes;
                         // only the direction the control reads in is inverted.
                         Switch(
-                            checked = !acceptsNewMembers,
-                            onCheckedChange = { acceptsNewMembers = !it },
+                            checked = !event.acceptsNewMembers,
+                            onCheckedChange = { persist(acceptsNewMembers = !it) },
                             modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp).semantics {
                                 contentDescription = context.getString(R.string.prevent_new_users_joining)
                             },
@@ -277,11 +279,14 @@ fun PingRingSettingsScreen(
                             uwbPermissionGranted = uwbAvailability.permissionGranted,
                         )
                     }
-                    val selection = remember(capabilities, useUwb) {
+                    val selection = remember(capabilities, event.useUwb, uwbAvailability.isUsable) {
                         ConnectionMethodPolicy.chooseMethod(
                             capabilities = capabilities,
                             preferences = ConnectionMethodPolicy.Preferences(
-                                uwbRangingEnabled = useUwb,
+                                // The same gate the staged value used: a flag that
+                                // survived from a device which did have UWB must not
+                                // present as enabled here.
+                                uwbRangingEnabled = event.useUwb && uwbAvailability.isUsable,
                             ),
                         )
                     }
@@ -312,7 +317,7 @@ fun PingRingSettingsScreen(
                         Switch(
                             checked = selection.usesUwb,
                             enabled = capabilities.canRange,
-                            onCheckedChange = { useUwb = it },
+                            onCheckedChange = { persist(useUwb = it) },
                             modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp).semantics {
                                 contentDescription = context.getString(R.string.uwb)
                             },
