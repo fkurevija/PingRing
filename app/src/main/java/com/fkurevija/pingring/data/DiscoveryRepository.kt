@@ -595,6 +595,16 @@ class DiscoveryRepository(
     val beaconAlertSettings: StateFlow<BeaconAlertSettings> = _beaconAlertSettings.asStateFlow()
 
     /**
+     * Beacons this device has been told to stop alerting for.
+     *
+     * Read by [playBeaconAlert] and by the UI, never sent anywhere. It suppresses
+     * alerts only - a silenced beacon is still drawn, still counts as active and
+     * still ends when its sender stops it.
+     */
+    private val _silencedBeaconIds = MutableStateFlow<Set<String>>(emptySet())
+    val silencedBeaconIds: StateFlow<Set<String>> = _silencedBeaconIds.asStateFlow()
+
+    /**
      * Devices waiting on the host to approve them, oldest first.
      *
      * Exposed so the radar can show the host what is waiting without the screen
@@ -690,6 +700,11 @@ class DiscoveryRepository(
         controlScope.launch {
             appearanceSettings.beaconAlertSettings.collect { stored ->
                 _beaconAlertSettings.value = stored
+            }
+        }
+        controlScope.launch {
+            appearanceSettings.silencedBeaconIds.collect { stored ->
+                _silencedBeaconIds.value = stored
             }
         }
     }
@@ -1453,9 +1468,10 @@ class DiscoveryRepository(
                     updatePeerName(dto.senderPeerId, dto.senderName)
                     _activeBeacons.update { it + (dto.senderPeerId to info) }
                     // The recipient's alert honours THIS device's repeat setting, not
-                    // anything the sender chose - see BeaconAlertRepeat.
+                    // anything the sender chose - see BeaconAlertRepeat - and is
+                    // skipped entirely if the member silenced this beacon.
                     val patternEnum = BeaconVibrationPattern.fromName(dto.vibrationPattern)
-                    playBeaconAlert(patternEnum.pattern)
+                    playBeaconAlert(dto.id, patternEnum.pattern)
                 } else {
                     endBeacon(dto.senderPeerId)
                 }
@@ -1582,7 +1598,13 @@ class DiscoveryRepository(
      * anything already looping: a member who switches to "No Vibration" should
      * not be left with a buzz that started before they changed their mind.
      */
-    fun playBeaconAlert(pattern: LongArray) {
+    fun playBeaconAlert(beaconId: String, pattern: LongArray) {
+        if (!BeaconAlertPolicy.shouldAlert(beaconId, _silencedBeaconIds.value, pattern)) {
+            // A member who silences a repeating beacon must get silence now, not
+            // after the current buzz loop finishes.
+            stopVibration()
+            return
+        }
         val wave = BeaconAlertPolicy.waveformFor(pattern, _beaconAlertSettings.value)
         if (wave == null) {
             stopVibration()
@@ -1593,6 +1615,35 @@ class DiscoveryRepository(
             vibrator?.vibrate(effect)
         } catch (e: Exception) {
             Log.w(TAG, "Beacon alert playback failed", e)
+        }
+    }
+
+    /**
+     * Stop, or resume, alerting for one beacon.
+     *
+     * Silencing cancels anything currently sounding for that beacon, which is
+     * the whole point: the member is acting because their phone is buzzing now.
+     *
+     * The beacon itself is untouched. It stays in the transcript, stays on the
+     * radar and stays active, because muting an alert must never become a way
+     * of not being told something. Nothing here is sent to the sender or to
+     * anybody else.
+     */
+    fun setBeaconSilenced(beaconId: String, silenced: Boolean) {
+        val current = _silencedBeaconIds.value
+        _silencedBeaconIds.value =
+            if (silenced) current + beaconId else current - beaconId
+        appearanceSettings.setBeaconSilenced(beaconId, silenced)
+
+        if (silenced) {
+            // Only the silenced beacon's own loop is stopped. A repeating alert
+            // belongs to one beacon at a time on this device, so cancelling is
+            // safe here and is what the member asked for.
+            stopVibration()
+        } else {
+            _activeBeacons.value.values.firstOrNull { it.id == beaconId }?.let { beacon ->
+                playBeaconAlert(beacon.id, BeaconVibrationPattern.fromName(beacon.vibrationPattern).pattern)
+            }
         }
     }
 
@@ -1615,7 +1666,7 @@ class DiscoveryRepository(
             stopVibration()
         } else {
             _activeBeacons.value.values.firstOrNull()?.let { active ->
-                playBeaconAlert(BeaconVibrationPattern.fromName(active.vibrationPattern).pattern)
+                playBeaconAlert(active.id, BeaconVibrationPattern.fromName(active.vibrationPattern).pattern)
             }
         }
     }
@@ -1675,7 +1726,7 @@ class DiscoveryRepository(
         // beacon - which reads as the feature being broken on the one phone the
         // user is holding, and is why people reached for the Test Vibration
         // button to check whether the radio worked at all.
-        playBeaconAlert(BeaconVibrationPattern.fromName(vibrationPattern).pattern)
+        playBeaconAlert(beaconDto.id, BeaconVibrationPattern.fromName(vibrationPattern).pattern)
 
         nearbyConnectionsManager.broadcastBeacon(beaconDto)
     }

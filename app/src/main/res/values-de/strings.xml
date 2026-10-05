@@ -230,4 +230,7 @@
     <string name="beacon_alert_repeat_repeat">Wiederholen, bis gestoppt</string>
     <string name="beacon_alert_gap_label">Wiederholen alle</string>
     <string name="beacon_alert_gap_value">Alle %1$s Sekunden</string>
+    <string name="silence_beacon">Alarm für %1$s stummschalten</string>
+    <string name="unsilence_beacon">Alarm für %1$s wieder einschalten</string>
+    <string name="beacon_silenced_note">Alarm auf diesem Telefon stummgeschaltet. Das Signal wird weiterhin angezeigt.</string>
 </resources>

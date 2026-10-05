@@ -132,4 +132,25 @@ object BeaconAlertPolicy {
      */
     fun isSilent(pattern: LongArray): Boolean =
         pattern.isEmpty() || pattern.all { it == 0L }
+
+    /**
+     * Whether this beacon should alert on this device at all.
+     *
+     * Two independent reasons to say no: the member silenced this specific
+     * beacon, or the beacon asks for no vibration. Both are local decisions and
+     * neither is communicated to anybody.
+     *
+     * Silencing covers alerts ONLY. A silenced beacon is still drawn in the
+     * transcript, still tints the radar, still counts as active and still ends
+     * when the sender stops it. That boundary is the whole safety argument for
+     * the feature: a member who is tired of a beacon must not be able to make an
+     * emergency invisible to themselves, because the one case where muting is
+     * dangerous is exactly the case where the beacon is real. Muting changes
+     * what your phone *does*, never what it *shows you*.
+     */
+    fun shouldAlert(
+        beaconId: String,
+        silencedBeaconIds: Set<String>,
+        pattern: LongArray,
+    ): Boolean = beaconId !in silencedBeaconIds && !isSilent(pattern)
 }

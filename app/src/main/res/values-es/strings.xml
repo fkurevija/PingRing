@@ -230,4 +230,7 @@
     <string name="beacon_alert_repeat_repeat">Repetir hasta detener</string>
     <string name="beacon_alert_gap_label">Repetir cada</string>
     <string name="beacon_alert_gap_value">Cada %1$s segundos</string>
+    <string name="silence_beacon">Silenciar la alarma de %1$s</string>
+    <string name="unsilence_beacon">Volver a activar la alarma de %1$s</string>
+    <string name="beacon_silenced_note">Alarma silenciada en este teléfono. La baliza sigue mostrándose.</string>
 </resources>

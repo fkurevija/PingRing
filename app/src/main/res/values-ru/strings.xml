@@ -233,4 +233,7 @@
     <string name="beacon_alert_repeat_repeat">Повторять до отмены</string>
     <string name="beacon_alert_gap_label">Повтор каждые</string>
     <string name="beacon_alert_gap_value">Каждые %1$s секунд</string>
+    <string name="silence_beacon">Отключить звук маяка «%1$s»</string>
+    <string name="unsilence_beacon">Включить звук маяка «%1$s» снова</string>
+    <string name="beacon_silenced_note">Звук отключён на этом телефоне. Маяк по-прежнему отображается.</string>
 </resources>

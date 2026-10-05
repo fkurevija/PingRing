@@ -109,6 +109,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.filled.Campaign
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.People
@@ -404,6 +406,11 @@ fun RadarScreen(
     // in; the repository replaces it as soon as DataStore answers.
     val beaconAlertSettings by discoveryRepository?.beaconAlertSettings?.collectAsState()
         ?: remember { mutableStateOf(BeaconAlertSettings.DEFAULT) }
+
+    // Which beacons this device has muted. Local only: never sent to the sender
+    // or to any other member.
+    val silencedBeaconIds by discoveryRepository?.silencedBeaconIds?.collectAsState()
+        ?: remember { mutableStateOf(emptySet<String>()) }
     val haptic = LocalHapticFeedback.current
     // For the one toast on this screen, which has to fire from inside a click
     // handler rather than from a LaunchedEffect, so it needs a context captured
@@ -970,7 +977,13 @@ fun RadarScreen(
                                                     }
                                                 }
 
-                                                is ChatTimelineItem.Beacon -> ActiveBeaconEntry(entry.beacon)
+                                                is ChatTimelineItem.Beacon -> ActiveBeaconEntry(
+                    beacon = entry.beacon,
+                    silenced = entry.beacon.id in silencedBeaconIds,
+                    onToggleSilenced = { silenced ->
+                        discoveryRepository?.setBeaconSilenced(entry.beacon.id, silenced)
+                    },
+                )
                                             }
                                         }
                                     }
@@ -1289,9 +1302,18 @@ fun RadarScreen(
  * beacon's own colour rather than a 15% tint, and it has a square silhouette
  * where messages have a 14 dp bubble. Someone glancing at the chat should see
  * a beacon before they read a single word of it.
+ *
+ * Internal rather than private so a test can compose it directly, for the same
+ * reason [PeerList] is: reaching this through [RadarScreen] needs a
+ * repository, and the thing worth testing here is that silencing changes the
+ * alarm control WITHOUT removing the beacon from the transcript.
  */
 @Composable
-private fun ActiveBeaconEntry(beacon: BeaconInfo) {
+internal fun ActiveBeaconEntry(
+    beacon: BeaconInfo,
+    silenced: Boolean,
+    onToggleSilenced: (Boolean) -> Unit,
+) {
     val beaconColor = beacon.color
     Row(
         modifier = Modifier
@@ -1327,6 +1349,31 @@ private fun ActiveBeaconEntry(beacon: BeaconInfo) {
                 ),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            // Stated in words as well as shown by the icon, because the icon is
+            // the only signal on this row that changes and a member who has just
+            // silenced something needs to be able to confirm it took.
+            if (silenced) {
+                Text(
+                    stringResource(R.string.beacon_silenced_note),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        IconButton(
+            onClick = { onToggleSilenced(!silenced) },
+            modifier = Modifier.size(36.dp)
+        ) {
+            Icon(
+                if (silenced) Icons.Default.NotificationsOff else Icons.Default.Notifications,
+                // Names both the action and what it means, so the state is not
+                // carried by the icon shape alone.
+                contentDescription = stringResource(
+                    if (silenced) R.string.unsilence_beacon else R.string.silence_beacon,
+                    beacon.title,
+                ),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }

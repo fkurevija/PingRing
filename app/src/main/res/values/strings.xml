@@ -232,4 +232,7 @@
     <string name="beacon_alert_repeat_repeat">Repeat until stopped</string>
     <string name="beacon_alert_gap_label">Repeat every</string>
     <string name="beacon_alert_gap_value">Every %1$s seconds</string>
+    <string name="silence_beacon">Silence the alarm for %1$s</string>
+    <string name="unsilence_beacon">Turn the alarm back on for %1$s</string>
+    <string name="beacon_silenced_note">Alarm silenced on this phone. The beacon is still shown.</string>
 </resources>

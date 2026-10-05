@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.fkurevija.pingring.DeviceEnvironment
 import kotlinx.coroutines.CoroutineScope
@@ -95,6 +96,7 @@ private val notificationSoundEnabledKey = booleanPreferencesKey("notification_so
 private val notificationVibrationEnabledKey = booleanPreferencesKey("notification_vibration_enabled")
 private val beaconAlertRepeatKey = stringPreferencesKey("beacon_alert_repeat")
 private val beaconRepeatGapMillisKey = longPreferencesKey("beacon_repeat_gap_millis")
+private val silencedBeaconIdsKey = stringSetPreferencesKey("silenced_beacon_ids")
 private val lanDebugEnabledKey = booleanPreferencesKey("lan_debug_enabled")
 private val lanDebugHostKey = stringPreferencesKey("lan_debug_host")
 
@@ -275,6 +277,35 @@ class AppearanceSettingsRepository(private val context: Context) {
         scope.launch {
             context.appearanceDataStore.edit { preferences ->
                 preferences[notificationSoundEnabledKey] = enabled
+            }
+        }
+    }
+
+    /**
+     * Beacon ids this device has been told to stop alerting for.
+     *
+     * Ids, not senders. "Silence this beacon" is a statement about one alarm,
+     * and the next thing Ana raises is a different alarm that may matter more.
+     * Banning a sender instead would mean a member could silence a person, and
+     * the natural reading of "this one is annoying" is not "that person is
+     * annoying".
+     */
+    val silencedBeaconIds: Flow<Set<String>> = context.appearanceDataStore.data.map { preferences ->
+        preferences[silencedBeaconIdsKey] ?: emptySet()
+    }
+
+    /**
+     * Stop, or resume, alerting for one beacon.
+     *
+     * Additive on the way in and subtractive on the way out, so a write cannot
+     * race away a decision made elsewhere on another thread.
+     */
+    fun setBeaconSilenced(beaconId: String, silenced: Boolean) {
+        scope.launch {
+            context.appearanceDataStore.edit { preferences ->
+                val current = preferences[silencedBeaconIdsKey] ?: emptySet()
+                preferences[silencedBeaconIdsKey] =
+                    if (silenced) current + beaconId else current - beaconId
             }
         }
     }

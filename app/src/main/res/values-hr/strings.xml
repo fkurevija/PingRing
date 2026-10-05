@@ -231,4 +231,7 @@
     <string name="beacon_alert_repeat_repeat">Ponavljaj dok se ne zaustavi</string>
     <string name="beacon_alert_gap_label">Ponavljaj svakih</string>
     <string name="beacon_alert_gap_value">Svakih %1$s sekundi</string>
+    <string name="silence_beacon">Isključi zvuk alarma za %1$s</string>
+    <string name="unsilence_beacon">Ponovno uključi zvuk alarma za %1$s</string>
+    <string name="beacon_silenced_note">Zvuk alarma isključen na ovom telefonu. Signal se i dalje prikazuje.</string>
 </resources>

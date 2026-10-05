@@ -165,6 +165,15 @@ The button is painted in your chosen colour, with the label drawn for contrast a
 - A banner appears at the top of your radar — *"Your Beacon is Active: …"* — with **Stop**.
 - **Your own phone vibrates too**, with the chosen rhythm, at the moment you raise it — not only the phones that receive it.
 - A repeating alert **stops on its own** when the beacon ends or somebody stops it. Turning repetition back to **Once** mid-beacon silences it immediately rather than waiting for the current buzz to finish.
+
+### Silencing one beacon
+
+Each beacon in the transcript has a bell button beside it. Tapping it stops your phone buzzing and vibrating for **that beacon only**.
+
+- **The beacon is not hidden.** It stays in the transcript, stays coloured, still tints the radar, and still shows as active until whoever raised it stops it. A line appears under it saying the alarm is silenced. Muting changes what your phone *does* — never what it *shows you*, because the case where you would most want to mute something is the case where it is most likely to matter.
+- **It is per beacon, not per person.** Ana's next beacon is a different alarm and can buzz again. Nobody is muted, and the choice is never sent to them or to anybody else.
+- It applies to **your own** beacon too — useful when you have raised one and want your own phone to stop buzzing while it stays up for everyone else.
+- Tap the same button again to turn the alarm back on. It is remembered until the beacon ends.
 - On receivers' phones it lights up the radar rings and that member's pin, pulses, and appears as a banner.
 - In the chat it is pinned to the newest end while running, then moves back to where it was raised, in timestamp order among the surrounding messages.
 - Tapping **New Beacon** again lets you edit and **Update Beacon** without stopping it. **Stop Beacon** ends it.

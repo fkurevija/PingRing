@@ -171,4 +171,59 @@ class BeaconAlertPolicyTest {
         assertEquals(MIN_BEACON_REPEAT_GAP_MILLIS, wave?.timings?.last())
         assertEquals(0, wave?.repeatFromIndex)
     }
+
+    @Test
+    fun `a beacon nobody has silenced still alerts`() {
+        assertTrue(
+            BeaconAlertPolicy.shouldAlert("b1", emptySet(), steady)
+        )
+    }
+
+    @Test
+    fun `a silenced beacon stops alerting even when it is repeating`() {
+        // The combination that actually matters: silence has to beat the repeat
+        // setting, or muting a beacon would leave it buzzing forever.
+        assertEquals(
+            false,
+            BeaconAlertPolicy.shouldAlert("b1", setOf("b1"), steady)
+        )
+    }
+
+    @Test
+    fun `silencing one beacon leaves every other beacon alerting`() {
+        // Ids, not senders or titles. Ana raising a second, different beacon is a
+        // different alarm and may matter more than the first.
+        val silenced = setOf("b1")
+        assertEquals(false, BeaconAlertPolicy.shouldAlert("b1", silenced, steady))
+        assertEquals(true, BeaconAlertPolicy.shouldAlert("b2", silenced, steady))
+    }
+
+    @Test
+    fun `a beacon that asks for no vibration is silent whatever the silence list says`() {
+        // Two independent reasons to stay quiet; either is sufficient.
+        assertEquals(
+            false,
+            BeaconAlertPolicy.shouldAlert("b1", emptySet(), BeaconVibrationPattern.SILENT.pattern)
+        )
+        assertEquals(
+            false,
+            BeaconAlertPolicy.shouldAlert("b1", setOf("b1"), BeaconVibrationPattern.SILENT.pattern)
+        )
+    }
+
+    @Test
+    fun `unsilencing restores alerting for a beacon that is still running`() {
+        assertEquals(
+            true,
+            BeaconAlertPolicy.shouldAlert("b1", emptySet(), steady)
+        )
+    }
+
+    @Test
+    fun `no beacon id is confused with another`() {
+        // Blank and near-miss ids must not be treated as silenced. An accidental
+        // substring match would silence a beacon the member never muted, which is
+        // the dangerous direction for this feature.
+        assertEquals(true, BeaconAlertPolicy.shouldAlert("b1", setOf("b11", "xb1", ""), steady))
+    }
 }
