@@ -22,7 +22,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
-import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material3.Card
@@ -31,11 +30,9 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
@@ -88,16 +85,6 @@ fun AppSettingsScreen(
     notificationVibrationEnabled: Boolean,
     onNotificationVibrationEnabledChange: (Boolean) -> Unit,
     onOpenAccessibility: () -> Unit,
-    /**
-     * Opens the project's issue tracker in the browser.
-     *
-     * An ACTION_VIEW hand-off rather than anything in-app: PingRing sends
-     * nothing anywhere, and a report that had to be written into a form inside
-     * the app would either need a backend or would quietly assemble a half-filled
-     * draft nobody can send. Handing off to the browser keeps the app offline and
-     * still gets the user to somewhere they can actually file something.
-     */
-    onReportAProblem: () -> Unit,
     connectionRecoveryPromptEnabled: Boolean = true,
     connectionRecoveryPromptDelayMillis: Long = 120_000L,
     onConnectionRecoveryPromptEnabledChange: (Boolean) -> Unit = {},
@@ -409,31 +396,14 @@ fun AppSettingsScreen(
                     onClick = onOpenDeveloperOptions,
                 )
             }
-            // Last, and below a divider: it is not a setting, it is a way out of
-            // the app to somewhere the problem can actually be described. Putting
-            // it in the run of settings implied it was one more preference.
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            // Padding on the button rather than on the Column: spacedBy only
-            // separates children from each other, so the last one gets nothing
-            // below it and this sat flush against the bottom edge of the screen.
+            // Reporting a problem used to live here, as the last item below a
+            // divider. It moved to the About screen, which already holds every
+            // fact a report carries: a button here had to send someone to the
+            // tracker with nothing attached, so the useful action was two taps
+            // away at best and the diagnostics sat on a different screen.
             //
-            // Before the height, not after. Compose applies modifiers outside-in,
-            // so height-then-padding would squeeze 16dp out of the button's own
-            // contents while its border still ran to the screen edge; padding
-            // first puts the space outside the 50dp button entirely. 16dp matches
-            // the screen's horizontal inset, so the button now ends where
-            // everything above it does rather than at the boundary.
-            OutlinedButton(
-                onClick = onReportAProblem,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 16.dp)
-                    .height(50.dp)
-            ) {
-                Icon(Icons.Default.BugReport, contentDescription = null, modifier = Modifier.size(20.dp))
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.report_a_problem))
-            }
+            // What is left is a run of settings with no way out of the app at
+            // the bottom, which is the correct shape for this screen.
         }
     }
 }

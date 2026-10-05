@@ -249,11 +249,15 @@ The gear icon on the home screen, before hosting or joining, and from PingRing S
 5. **Join Timeout** — how long joining waits for the host before giving up (10–120 seconds; default 60). Set it low when the host is watching their screen and will answer within seconds; set it high when they are busy. **A wait under about 45 seconds can fail a join that was about to succeed**: the host still has their own window to notice your request and tap Allow, and if you give up first you will be told you could not reach anybody rather than that the host was still deciding. The default of 60 s avoids that.
 6. **Accessibility** — Reduce Motion, independent Proximity Haptics, the opt-in radar screen-reader summary, and throttled Spoken Radar Updates. Android font/display scaling is used rather than an app-specific text-size control.
 7. **Developer Options** — shown only in debug builds. It contains the LAN Debug Transport and relay host. See [Building & Testing](building.md) for how to use it.
-8. **About** — your build version, the device, and what this phone can do. **Copy report for bug report** puts the whole thing on the clipboard in one tap, ready to paste. It shows only your build, your device and your capabilities: no username, no ring code, no location, no member details. Values are deliberately not translated, so a report pasted into an issue reads the same whatever language your phone is set to.
+8. **About** — your build version, the device, and what this phone can do. Two buttons at the bottom hand that information to someone who can fix it, and both carry the same eleven values:
+   - **Copy report for bug report** puts the whole thing on the clipboard in one tap, for pasting into an email or a chat.
+   - **Report a Problem** opens the project's issue tracker in your browser with the report **already filled in** — nothing to copy, nothing to paste. The title carries your build and device so a report can be told apart without opening it.
+
+   What is sent is only your build, your device and your capabilities: no username, no ring code, no location, no member details. Values are deliberately not translated, so a report read in an issue looks the same whatever language your phone is set to.
 
 There is no **Appearance** or **Notifications** group any more. Each was a row that opened a screen holding less than the App Settings screen it was opened from — one control and three respectively — so each was a tap and a back press spent reaching nothing new.
 
-**Report a Problem** sits below a divider at the bottom. It opens the project's issue tracker in your browser — there is no in-app reporting, because PingRing has no server to send anything to.
+**Report a Problem** lives on the **About** screen, not here. It used to sit at the bottom of this screen, where it opened the tracker with nothing attached — the useful action was two taps away at best, and the details it would have carried were on a different screen. It now sits alongside the facts it sends.
 
 ---
 

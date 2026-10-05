@@ -14,6 +14,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.fkurevija.pingring.data.DiagnosticsFacts
 import com.fkurevija.pingring.ui.screens.AboutScreen
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -138,6 +139,42 @@ class AboutScreenInstrumentedTest {
                 composeRule.onAllNodes(hasText(fragment, substring = true))
                     .assertCountEquals(0)
             }
+    }
+
+    @Test
+    fun thereIsAWayToReportAProblemFromHere() {
+        // The button moved here from App Settings, and this is the assertion
+        // that says so. What is being protected is the path, not the pixel: a
+        // member on this screen must be able to file a report without first
+        // finding a second screen and copying anything by hand.
+        var reported = 0
+        composeRule.setContent {
+            MaterialTheme {
+                AboutScreen(facts = facts, onBack = {}, onReportAProblem = { reported++ })
+            }
+        }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText("Report a Problem").assertIsDisplayed().performClick()
+        composeRule.waitForIdle()
+
+        assertEquals(1, reported)
+    }
+
+    @Test
+    fun reportingIsOfferedBelowTheFactsRatherThanAboveThem() {
+        // Order matters: both actions carry the same eleven rows, so a member
+        // should read them before choosing. Asserted by position, because both
+        // labels are on screen at once and their mere presence proves nothing
+        // about which is meant to be pressed.
+        show()
+
+        val copyY = composeRule.onNodeWithText("Copy report for bug report")
+            .fetchSemanticsNode().boundsInRoot.top
+        val reportY = composeRule.onNodeWithText("Report a Problem")
+            .fetchSemanticsNode().boundsInRoot.top
+
+        assertTrue("report button should sit below the facts", reportY > copyY)
     }
 
     @Test

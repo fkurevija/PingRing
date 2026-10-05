@@ -66,7 +66,10 @@ import com.fkurevija.pingring.ui.navigation.RadarKey
 import com.fkurevija.pingring.ui.permissions.PermissionWrapper
 import com.fkurevija.pingring.ui.screens.AppSettingsScreen
 import com.fkurevija.pingring.ui.screens.AccessibilitySettingsScreen
+import com.fkurevija.pingring.data.BugReportPolicy
+import com.fkurevija.pingring.data.DiagnosticsPolicy
 import com.fkurevija.pingring.ui.screens.AboutScreen
+import com.fkurevija.pingring.ui.screens.diagnosticLabelRes
 import com.fkurevija.pingring.ui.screens.DeveloperSettingsScreen
 import com.fkurevija.pingring.ui.screens.rememberDiagnosticsFacts
 import com.fkurevija.pingring.ui.screens.ConnectionAuthenticationDialog
@@ -454,28 +457,6 @@ fun MainNavigation(
                         showDeveloperOptions = BuildConfig.DEBUG,
                         onOpenDeveloperOptions = { backStack.add(DeveloperSettingsKey) },
                         onOpenAbout = { backStack.add(AboutKey) },
-                        onReportAProblem = {
-                            // Handed to the browser rather than reported from
-                            // in-app: there is nowhere in PingRing to send it.
-                            // The URL is a constant, so there is nothing to fail
-                            // and nothing to test beyond "it starts an intent".
-                            //
-                            // Uses the application context rather than the composable's
-                            // own: an ACTION_VIEW hand-off has no business
-                            // holding an activity, and the destination context
-                            // is scoped to a screen that may not be on screen
-                            // when this callback runs.
-                            val issueUrl = Uri.parse(
-                                "https://github.com/fkurevija/PingRing/issues/new"
-                            )
-                            runCatching {
-                                appSettingsContext.startActivity(
-                                    Intent(Intent.ACTION_VIEW, issueUrl).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                )
-                            }.onFailure {
-                                Toast.makeText(appSettingsContext, R.string.report_a_problem_failed, Toast.LENGTH_LONG).show()
-                            }
-                        },
                         onBack = { backStack.popBack() }
                     )
                 }
@@ -488,17 +469,59 @@ fun MainNavigation(
                 }
 
                 is AboutKey -> {
+                    // Not `context`: inside this branch that name resolves to
+                    // Compose's `context` scope function rather than to the
+                    // activity context, and the failure reads as a confusing
+                    // "block expected" instead of a missing variable.
+                    val aboutContext = LocalContext.current.applicationContext
                     // Probed here rather than inside the screen so the screen
                     // needs no Context, package manager or vibrator to compose in
                     // a test - the same split PeerList and ActiveBeaconEntry use.
+                    val aboutFacts = rememberDiagnosticsFacts(
+                        isDebugBuild = BuildConfig.DEBUG,
+                        uwbSupported = discoveryRepository.isUwbSupported(),
+                        bluetoothEnabled = connectivityStatus.isBluetoothEnabled,
+                        wifiEnabled = connectivityStatus.isWifiEnabled,
+                    )
                     AboutScreen(
-                        facts = rememberDiagnosticsFacts(
-                            isDebugBuild = BuildConfig.DEBUG,
-                            uwbSupported = discoveryRepository.isUwbSupported(),
-                            bluetoothEnabled = connectivityStatus.isBluetoothEnabled,
-                            wifiEnabled = connectivityStatus.isWifiEnabled,
-                        ),
+                        facts = aboutFacts,
                         onBack = { backStack.popBack() },
+                        onReportAProblem = {
+                            // The report and the title are assembled here, from the
+                            // same facts the screen is showing, so the link cannot
+                            // describe a different device from the one on screen.
+                            //
+                            // The URL is a constant and the encoding is
+                            // BugReportPolicy's, both unit tested; all that is left
+                            // to go wrong here is starting an intent, which is the
+                            // one thing worth guarding because a device with no
+                            // browser at all would otherwise crash on tap.
+                            //
+                            // Uses the application context rather than the composable's own: an
+                            // ACTION_VIEW hand-off has no business holding an
+                            // activity, and the destination context is scoped to
+                            // a screen that may not be on screen when this
+                            // callback runs.
+                            val report = DiagnosticsPolicy.report(aboutFacts) { key ->
+                                aboutContext.getString(key.diagnosticLabelRes())
+                            }
+                            val version = aboutFacts.versionName
+                            val device = "${aboutFacts.deviceManufacturer} " +
+                                aboutFacts.deviceModel
+                            val issueUrl = Uri.parse(
+                                BugReportPolicy.issueUrl(
+                                    title = BugReportPolicy.titleFor(version, device.trim()),
+                                    body = report,
+                                )
+                            )
+                            runCatching {
+                                aboutContext.startActivity(
+                                    Intent(Intent.ACTION_VIEW, issueUrl).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                )
+                            }.onFailure {
+                                Toast.makeText(aboutContext, R.string.report_a_problem_failed, Toast.LENGTH_LONG).show()
+                            }
+                        },
                     )
                 }
 

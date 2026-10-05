@@ -58,7 +58,6 @@ class AppSettingsScreenInstrumentedTest {
                     notificationVibrationEnabled = notificationVibrationEnabled,
                     onNotificationVibrationEnabledChange = onNotificationVibrationEnabledChange,
                     onOpenAccessibility = onOpenAccessibility,
-                    onReportAProblem = {},
                     showDeveloperOptions = showDeveloperOptions,
                     onOpenDeveloperOptions = onOpenDeveloperOptions,
                     onOpenAbout = onOpenAbout,

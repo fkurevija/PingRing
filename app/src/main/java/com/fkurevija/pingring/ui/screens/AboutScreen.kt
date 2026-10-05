@@ -14,12 +14,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -75,6 +77,19 @@ import kotlinx.coroutines.launch
 fun AboutScreen(
     facts: DiagnosticsFacts,
     onBack: () -> Unit,
+    /**
+     * Opens a pre-filled report on the issue tracker.
+     *
+     * Takes no arguments: the report is built from [facts] here, so the button
+     * cannot be pressed in a state where the link and the rows on screen
+     * disagree. The caller only has to start the resulting URL.
+     *
+     * An ACTION_VIEW hand-off rather than anything in-app: PingRing sends
+     * nothing anywhere, and a report that had to be written into a form inside
+     * the app would either need a backend or would quietly assemble a
+     * half-filled draft nobody can send.
+     */
+    onReportAProblem: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
@@ -107,6 +122,7 @@ fun AboutScreen(
                     )
                 }
             },
+            onReportAProblem = onReportAProblem,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
@@ -121,6 +137,7 @@ fun AboutScreen(
 private fun AboutBody(
     rows: List<DiagnosticsPolicy.Row>,
     onCopy: () -> Unit,
+    onReportAProblem: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -152,7 +169,7 @@ private fun AboutBody(
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = stringResource(row.key.labelRes()),
+                            text = stringResource(row.key.diagnosticLabelRes()),
                             style = MaterialTheme.typography.bodyMedium,
                             modifier = Modifier.weight(1f),
                         )
@@ -180,6 +197,28 @@ private fun AboutBody(
             Text(stringResource(R.string.about_copy_report))
         }
 
+        // Below the copy button, not above it. Both do the same thing in the same
+        // place - hand this screen's contents to a triager - so they belong
+        // together at the end, after the facts they carry have been read.
+        //
+        // Both outlined, deliberately. They are two routes to one outcome rather
+        // than a primary action and a secondary one, and filling this one would
+        // imply a preference the screen has no basis for: a member who wants the
+        // text for an email is not doing anything less important.
+        OutlinedButton(
+            onClick = onReportAProblem,
+            modifier = Modifier.fillMaxWidth().height(50.dp),
+            shape = RoundedCornerShape(14.dp),
+        ) {
+            Icon(
+                Icons.Default.BugReport,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(stringResource(R.string.report_a_problem))
+        }
+
         Text(
             stringResource(R.string.about_privacy_note),
             style = MaterialTheme.typography.bodySmall,
@@ -188,8 +227,15 @@ private fun AboutBody(
     }
 }
 
-/** The localized label for a diagnostic row. */
-private fun Key.labelRes(): Int = when (this) {
+/**
+ * The localized label for a diagnostic row.
+ *
+ * Internal rather than private because MainActivity builds the report from the
+ * same key mapping when it assembles a bug-report link. Two copies of this
+ * `when` would be free to drift, and a drifted label would make the text in a
+ * filed issue disagree with the text on the screen it came from.
+ */
+internal fun Key.diagnosticLabelRes(): Int = when (this) {
     Key.APP_VERSION -> R.string.diag_app_version
     Key.BUILD_TYPE -> R.string.diag_build_type
     Key.APPLICATION_ID -> R.string.diag_application_id
@@ -211,7 +257,7 @@ private fun Key.labelRes(): Int = when (this) {
  * set to.
  */
 private fun copyReportToClipboard(context: Context, facts: DiagnosticsFacts) {
-    val report = DiagnosticsPolicy.report(facts) { key -> context.getString(key.labelRes()) }
+    val report = DiagnosticsPolicy.report(facts) { key -> context.getString(key.diagnosticLabelRes()) }
     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
     clipboard?.setPrimaryClip(ClipData.newPlainText("PingRing diagnostics", report))
 }
