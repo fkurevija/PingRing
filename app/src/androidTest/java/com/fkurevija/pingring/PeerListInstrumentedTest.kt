@@ -388,4 +388,45 @@ class PeerListInstrumentedTest {
         composeRule.onNodeWithText("Bluetooth is off. Enable it to discover nearby peers.")
             .assertDoesNotExist()
     }
+
+    @Test
+    fun wifiBeingOffIsCalledOutAsWhatIsLostRatherThanWhatIsBroken() {
+        // The wording is the feature. Being on mobile data is not a fault, and
+        // the app promises to work with no network at all - so this has to say
+        // what the member is losing, not that they cannot reach anybody.
+        show(connectivity = ConnectivityStatus(isBluetoothEnabled = true, isWifiEnabled = false))
+
+        composeRule.onNodeWithText(
+            "Wi-Fi is off, so PingRing is using Bluetooth only. " +
+                "Range is shorter and there is no Wi-Fi distance."
+        ).assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Recheck").assertExists()
+    }
+
+    @Test
+    fun aHealthyDeviceIsToldNothingAboutItsRadios() {
+        // A card that appears on a working phone is noise that teaches people to
+        // ignore cards.
+        show(connectivity = ConnectivityStatus(isBluetoothEnabled = true, isWifiEnabled = true))
+
+        composeRule.onNodeWithText(
+            "Wi-Fi is off, so PingRing is using Bluetooth only. " +
+                "Range is shorter and there is no Wi-Fi distance."
+        ).assertDoesNotExist()
+    }
+
+    @Test
+    fun aDeadBluetoothRadioHidesTheWifiNoticeRatherThanStackingTwoErrors() {
+        // Bluetooth is the blocking problem. Two error cards at the top of a
+        // member list reads as a broken app rather than one switch to flip.
+        show(connectivity = ConnectivityStatus(isBluetoothEnabled = false, isWifiEnabled = false))
+
+        composeRule.onNodeWithText(
+            "Bluetooth is off. Enable it to discover nearby peers."
+        ).assertIsDisplayed()
+        composeRule.onNodeWithText(
+            "Wi-Fi is off, so PingRing is using Bluetooth only. " +
+                "Range is shorter and there is no Wi-Fi distance."
+        ).assertDoesNotExist()
+    }
 }

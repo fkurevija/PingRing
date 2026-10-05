@@ -117,6 +117,8 @@ On a tablet the list is also a permanent pane beside the radar, so the icon ther
 
 Members are listed **nearest first**, by signal strength. The raw reading (dBm) is not shown — it is a number with no action attached to it, and two members in the same room routinely differ by 10 dB for reasons you cannot control. A member the app cannot hear at all is listed **last**, not first: a missing reading is missing information, not a measurement of distance. Members on the same signal keep a stable order (by name) so the list does not reshuffle while you read it.
 
+If a local radio problem is the reason you can see nobody, the list says so at the top rather than just staying empty. Those notices are worded as what you are *losing*, never as "you cannot reach anybody" — PingRing works with no network at all, and no radio state here stops it working.
+
 Each row shows a status dot (beacon colour if they have a beacon running, otherwise green when close and blue when not), the name, whether they are **Hot**, **Cold** or **Unknown**, and the distance. The dot is colour, so the word is there too for anyone who cannot separate green from blue. The host's radar shows pending join requests above the radar.
 
 The title carries the count, including you — **Members (1/8)** when you are alone. With nobody else present the sheet is simply empty.
@@ -274,7 +276,8 @@ Android still stops the work after a **force-stop**, a **process kill**, a **reb
 
 | What you see | What it means |
 | --- | --- |
-| "Bluetooth is off. Enable it to discover nearby peers." | Nothing can be discovered until Bluetooth is on. Tap the eye icon to recheck. |
+| "Bluetooth is off. Enable it to discover nearby peers." | Nothing can be discovered until Bluetooth is on. Tap the eye icon to recheck. This replaces any other radio notice: Bluetooth is the blocking problem, so the Wi-Fi note below is not shown until it is fixed. |
+| "Wi-Fi is off, so PingRing is using Bluetooth only. Range is shorter and there is no Wi-Fi distance." | Nearby Connections is limited to its Bluetooth transport. Everything still works — this is what you **lose**, not what is broken: range is shorter, and there is no Wi-Fi RTT distance. Turning Wi-Fi back on restores both. Being on mobile data is not the fault and is never reported as one; it is only ever a symptom of Wi-Fi being off. |
 | A nearby PingRing appears in the list | BLE discovery is only a hint. Confirm the Nearby digits; the host may still reject the request if the ring is closed or full. |
 | "Direction locked · 42°" | A UWB fix, with a bearing. The needle points that way. |
 | "BLE proximity mode" | No bearing for this peer — distance is inferred from signal strength, so only the ring tint changes. PingRing does not invent a direction. |

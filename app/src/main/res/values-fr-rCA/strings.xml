@@ -233,4 +233,5 @@
     <string name="silence_beacon">Couper l’alarme de %1$s</string>
     <string name="unsilence_beacon">Rétablir l’alarme de %1$s</string>
     <string name="beacon_silenced_note">Alarme coupée sur ce téléphone. La balise reste affichée.</string>
+    <string name="wifi_off_bluetooth_only">Le Wi-Fi est désactivé, PingRing utilise donc uniquement Bluetooth. La portée est réduite et il n’y a pas de distance Wi-Fi.</string>
 </resources>

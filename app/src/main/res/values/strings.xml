@@ -235,4 +235,5 @@
     <string name="silence_beacon">Silence the alarm for %1$s</string>
     <string name="unsilence_beacon">Turn the alarm back on for %1$s</string>
     <string name="beacon_silenced_note">Alarm silenced on this phone. The beacon is still shown.</string>
+    <string name="wifi_off_bluetooth_only">Wi-Fi is off, so PingRing is using Bluetooth only. Range is shorter and there is no Wi-Fi distance.</string>
 </resources>

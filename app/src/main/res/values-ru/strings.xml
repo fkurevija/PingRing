@@ -236,4 +236,5 @@
     <string name="silence_beacon">Отключить звук маяка «%1$s»</string>
     <string name="unsilence_beacon">Включить звук маяка «%1$s» снова</string>
     <string name="beacon_silenced_note">Звук отключён на этом телефоне. Маяк по-прежнему отображается.</string>
+    <string name="wifi_off_bluetooth_only">Wi-Fi выключен, поэтому PingRing использует только Bluetooth. Дальность меньше и нет расстояния по Wi-Fi.</string>
 </resources>

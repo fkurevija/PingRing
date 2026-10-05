@@ -233,4 +233,5 @@
     <string name="silence_beacon">Alarm für %1$s stummschalten</string>
     <string name="unsilence_beacon">Alarm für %1$s wieder einschalten</string>
     <string name="beacon_silenced_note">Alarm auf diesem Telefon stummgeschaltet. Das Signal wird weiterhin angezeigt.</string>
+    <string name="wifi_off_bluetooth_only">Wi-Fi ist ausgeschaltet, daher nutzt PingRing nur Bluetooth. Die Reichweite ist kürzer und es gibt keine Wi-Fi-Distanz.</string>
 </resources>

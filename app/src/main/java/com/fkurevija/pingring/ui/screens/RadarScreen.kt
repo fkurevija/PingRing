@@ -38,6 +38,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BluetoothDisabled
 import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.WifiOff
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.FlashOn
@@ -155,6 +156,8 @@ import com.fkurevija.pingring.data.ConnectionRecoveryPromptPolicy
 import com.fkurevija.pingring.data.ConnectivityStatus
 import com.fkurevija.pingring.data.DEFAULT_BEACON_TITLE
 import com.fkurevija.pingring.data.DiscoveryRepository
+import com.fkurevija.pingring.data.LocalRadioAdvicePolicy
+import com.fkurevija.pingring.data.LocalRadioAdvicePolicy.Advice
 import com.fkurevija.pingring.data.PeerListOrderPolicy
 import com.fkurevija.pingring.data.FocusPolicy
 import com.fkurevija.pingring.data.LastKnownPeerDirection
@@ -1295,6 +1298,51 @@ fun RadarScreen(
 }
 
 /**
+ * One local-radio notice, at the top of the member list.
+ *
+ * Every notice says what is *lost* rather than what is broken, because none of
+ * them stops the ring working - PingRing is meant to run with no network at all.
+ * See [LocalRadioAdvicePolicy] for why that constraint is load-bearing.
+ */
+@Composable
+private fun LocalRadioAdviceCard(
+    advice: Advice,
+    isError: Boolean,
+    onRecheck: () -> Unit,
+) {
+    val text = when (advice) {
+        Advice.BLUETOOTH_OFF -> stringResource(R.string.bluetooth_off_discovery)
+        Advice.WIFI_OFF -> stringResource(R.string.wifi_off_bluetooth_only)
+        Advice.BLE_IDENTITY_UNAVAILABLE -> stringResource(R.string.ble_identity_unavailable)
+    }
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = if (isError) {
+                MaterialTheme.colorScheme.errorContainer
+            } else {
+                MaterialTheme.colorScheme.surfaceVariant
+            }
+        ),
+        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+    ) {
+        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                when (advice) {
+                    Advice.WIFI_OFF -> Icons.Default.WifiOff
+                    else -> Icons.Default.BluetoothDisabled
+                },
+                contentDescription = null,
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(text, modifier = Modifier.weight(1f))
+            IconButton(onClick = onRecheck) {
+                Icon(Icons.Default.Visibility, contentDescription = stringResource(R.string.recheck))
+            }
+        }
+    }
+}
+
+/**
  * A live beacon, rendered inside the chat transcript.
  *
  * Built to be unmistakably not a chat bubble: it always spans the full width
@@ -1708,36 +1756,21 @@ internal fun PeerList(
     // list showed would make the list's ordering look arbitrary.
     val orderedPeers = remember(peers) { PeerListOrderPolicy.bySignalStrength(peers) }
 
+    // One policy decides which notices appear and in what order, rather than two
+    // inline conditions that could drift apart. The precedence it encodes - that
+    // a dead Bluetooth radio hides the rest - is not obvious from reading the
+    // markup, which is why it lives in a tested object.
+    val advice = remember(connectivity) { LocalRadioAdvicePolicy.adviceFor(connectivity) }
+
     Column(modifier.padding(bottom = 8.dp)) {
-        if (!connectivity.isBluetoothEnabled) {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
-            ) {
-                Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.BluetoothDisabled, contentDescription = null)
-                    Spacer(Modifier.width(8.dp))
-                    Text(stringResource(R.string.bluetooth_off_discovery))
-                    IconButton(onClick = { repository?.refreshConnectivityStatus() }) {
-                        Icon(Icons.Default.Visibility, contentDescription = stringResource(R.string.recheck))
-                    }
-                }
-            }
-        }
-        if (connectivity.isBluetoothEnabled && !connectivity.supportsBleIdentity) {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
-            ) {
-                Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.BluetoothDisabled, contentDescription = null)
-                    Spacer(Modifier.width(8.dp))
-                    Text(stringResource(R.string.ble_identity_unavailable), modifier = Modifier.weight(1f))
-                    IconButton(onClick = { repository?.refreshConnectivityStatus() }) {
-                        Icon(Icons.Default.Visibility, contentDescription = stringResource(R.string.recheck))
-                    }
-                }
-            }
+        advice.forEach { notice ->
+            LocalRadioAdviceCard(
+                advice = notice,
+                // The BLE-identity note is a capability statement, not a fault, so
+                // it does not get the alarming error container.
+                isError = notice != Advice.BLE_IDENTITY_UNAVAILABLE,
+                onRecheck = { repository?.refreshConnectivityStatus() },
+            )
         }
         Row(
             modifier = Modifier.fillMaxWidth(),
