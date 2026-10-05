@@ -234,4 +234,20 @@
     <string name="unsilence_beacon">Alarm für %1$s wieder einschalten</string>
     <string name="beacon_silenced_note">Alarm auf diesem Telefon stummgeschaltet. Das Signal wird weiterhin angezeigt.</string>
     <string name="wifi_off_bluetooth_only">Wi-Fi ist ausgeschaltet, daher nutzt PingRing nur Bluetooth. Die Reichweite ist kürzer und es gibt keine Wi-Fi-Distanz.</string>
+    <string name="about">Über</string>
+    <string name="about_description">Version und Geräteinformationen für Fehlerberichte.</string>
+    <string name="about_copy_report">Bericht für Fehlerbericht kopieren</string>
+    <string name="about_report_copied">Bericht in die Zwischenablage kopiert.</string>
+    <string name="about_privacy_note">Diese Ansicht zeigt nur Build, Gerät und Funktionen. Kein Benutzername, kein Ringcode, kein Standort, keine Mitgliederdaten.</string>
+    <string name="diag_app_version">App-Version</string>
+    <string name="diag_build_type">Build-Typ</string>
+    <string name="diag_application_id">Anwendungskennung</string>
+    <string name="diag_device">Gerät</string>
+    <string name="diag_android_version">Android-Version</string>
+    <string name="diag_build">Build</string>
+    <string name="diag_uwb_supported">UWB-Hardware</string>
+    <string name="diag_signed_ble_identity">Signierte BLE-Identität</string>
+    <string name="diag_bluetooth_enabled">Bluetooth aktiv</string>
+    <string name="diag_wifi_enabled">WLAN aktiv</string>
+    <string name="diag_vibrator">Vibrator</string>
 </resources>

@@ -115,6 +115,7 @@ fun AppSettingsScreen(
     onJoinWaitTimeoutChange: (Long) -> Unit = {},
     showDeveloperOptions: Boolean,
     onOpenDeveloperOptions: () -> Unit,
+    onOpenAbout: () -> Unit,
     onBack: () -> Unit,
 ) {
     val languages = listOf(
@@ -389,6 +390,16 @@ fun AppSettingsScreen(
                 title = stringResource(R.string.accessibility_title),
                 description = stringResource(R.string.accessibility_card_description),
                 onClick = onOpenAccessibility,
+            )
+            // Last in the run of settings, and ungated. Unlike Developer options
+            // this is not a debug affordance - it is the one place a user can
+            // find out what they are running, and a build number in a bug report
+            // is worth more than any diagnostic a triager could infer.
+            SettingsRow(
+                icon = { Text("i", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) },
+                title = stringResource(R.string.about),
+                description = stringResource(R.string.about_description),
+                onClick = onOpenAbout,
             )
             if (showDeveloperOptions) {
                 SettingsRow(

@@ -56,6 +56,7 @@ import com.fkurevija.pingring.data.SessionManager
 import com.fkurevija.pingring.data.ThemeMode
 import com.fkurevija.pingring.ui.navigation.AppSettingsKey
 import com.fkurevija.pingring.ui.navigation.AccessibilitySettingsKey
+import com.fkurevija.pingring.ui.navigation.AboutKey
 import com.fkurevija.pingring.ui.navigation.DeveloperSettingsKey
 import com.fkurevija.pingring.ui.navigation.PingRingJoinKey
 import com.fkurevija.pingring.ui.navigation.PingRingSettingsKey
@@ -65,7 +66,9 @@ import com.fkurevija.pingring.ui.navigation.RadarKey
 import com.fkurevija.pingring.ui.permissions.PermissionWrapper
 import com.fkurevija.pingring.ui.screens.AppSettingsScreen
 import com.fkurevija.pingring.ui.screens.AccessibilitySettingsScreen
+import com.fkurevija.pingring.ui.screens.AboutScreen
 import com.fkurevija.pingring.ui.screens.DeveloperSettingsScreen
+import com.fkurevija.pingring.ui.screens.rememberDiagnosticsFacts
 import com.fkurevija.pingring.ui.screens.ConnectionAuthenticationDialog
 import com.fkurevija.pingring.ui.screens.PingRingJoinScreen
 import com.fkurevija.pingring.ui.screens.PingRingSettingsScreen
@@ -73,6 +76,7 @@ import com.fkurevija.pingring.ui.screens.HomeScreen
 import com.fkurevija.pingring.ui.screens.HostSetupScreen
 import com.fkurevija.pingring.ui.screens.RadarScreen
 import com.fkurevija.pingring.ui.theme.PingRingTheme
+import com.fkurevija.pingring.data.ConnectivityStatus
 import com.fkurevija.pingring.data.DEFAULT_JOIN_WAIT_TIMEOUT_MILLIS
 import com.fkurevija.pingring.data.PingRingRuntime
 import java.util.UUID
@@ -196,6 +200,13 @@ fun MainNavigation(
             appearanceSettings.setChatBubbleColor(chatColorEventId, ChatBubblePalette.random())
         }
     }
+            // For the About screen's capability rows. Seeded to both radios
+            // on, so the report cannot claim a radio is off before the
+            // repository has said anything; a wrong No in a pasted bug report is
+            // worse than a late Yes.
+            val connectivityStatus by discoveryRepository.connectivityStatus.collectAsState(
+                initial = ConnectivityStatus(isBluetoothEnabled = true, isWifiEnabled = true)
+            )
     val radarScreenReaderSummaryEnabled by appearanceSettings.radarScreenReaderSummaryEnabled.collectAsState(initial = false)
     val reduceMotionEnabled by appearanceSettings.reduceMotionEnabled.collectAsState(initial = false)
     val proximityHapticsEnabled by appearanceSettings.proximityHapticsEnabled.collectAsState(initial = true)
@@ -442,6 +453,7 @@ fun MainNavigation(
                         onJoinWaitTimeoutChange = appearanceSettings::setJoinWaitTimeoutMillis,
                         showDeveloperOptions = BuildConfig.DEBUG,
                         onOpenDeveloperOptions = { backStack.add(DeveloperSettingsKey) },
+                        onOpenAbout = { backStack.add(AboutKey) },
                         onReportAProblem = {
                             // Handed to the browser rather than reported from
                             // in-app: there is nowhere in PingRing to send it.
@@ -471,6 +483,21 @@ fun MainNavigation(
                 is DeveloperSettingsKey -> {
                     DeveloperSettingsScreen(
                         appearanceSettings = appearanceSettings,
+                        onBack = { backStack.popBack() },
+                    )
+                }
+
+                is AboutKey -> {
+                    // Probed here rather than inside the screen so the screen
+                    // needs no Context, package manager or vibrator to compose in
+                    // a test - the same split PeerList and ActiveBeaconEntry use.
+                    AboutScreen(
+                        facts = rememberDiagnosticsFacts(
+                            isDebugBuild = BuildConfig.DEBUG,
+                            uwbSupported = discoveryRepository.isUwbSupported(),
+                            bluetoothEnabled = connectivityStatus.isBluetoothEnabled,
+                            wifiEnabled = connectivityStatus.isWifiEnabled,
+                        ),
                         onBack = { backStack.popBack() },
                     )
                 }

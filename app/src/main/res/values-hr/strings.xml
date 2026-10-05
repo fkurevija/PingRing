@@ -235,4 +235,20 @@
     <string name="unsilence_beacon">Ponovno uključi zvuk alarma za %1$s</string>
     <string name="beacon_silenced_note">Zvuk alarma isključen na ovom telefonu. Signal se i dalje prikazuje.</string>
     <string name="wifi_off_bluetooth_only">Wi-Fi je isključen, pa PingRing koristi samo Bluetooth. Doseg je kraći i nema Wi-Fi udaljenosti.</string>
+    <string name="about">O aplikaciji</string>
+    <string name="about_description">Verzija i podaci o uređaju za prijavu grešaka.</string>
+    <string name="about_copy_report">Kopiraj izvješće za prijavu greške</string>
+    <string name="about_report_copied">Izvješće kopirano u mehanizam za međuspremnik.</string>
+    <string name="about_privacy_note">Ovaj zaslon prikazuje samo tvoju verziju, uređaj i mogućnosti. Bez korisničkog imena, šifre događaja, lokacije ili podataka članova.</string>
+    <string name="diag_app_version">Verzija aplikacije</string>
+    <string name="diag_build_type">Vrsta builda</string>
+    <string name="diag_application_id">ID aplikacije</string>
+    <string name="diag_device">Uređaj</string>
+    <string name="diag_android_version">Verzija Androida</string>
+    <string name="diag_build">Build</string>
+    <string name="diag_uwb_supported">UWB hardver</string>
+    <string name="diag_signed_ble_identity">Potpisani BLE identitet</string>
+    <string name="diag_bluetooth_enabled">Bluetooth uključen</string>
+    <string name="diag_wifi_enabled">Wi-Fi uključen</string>
+    <string name="diag_vibrator">Vibracija</string>
 </resources>

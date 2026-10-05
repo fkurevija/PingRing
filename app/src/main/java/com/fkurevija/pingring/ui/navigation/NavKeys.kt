@@ -18,6 +18,14 @@ data object AppSettingsKey : NavKey
 @Serializable
 data object DeveloperSettingsKey : NavKey
 
+/**
+ * The About screen: build version and the device's capabilities.
+ *
+ * A key like every other destination rather than a flag on AppSettings, so the
+ * back stack behaves the way it does for Accessibility and Developer options.
+ */
+data object AboutKey : NavKey
+
 @Serializable
 data object AccessibilitySettingsKey : NavKey
 

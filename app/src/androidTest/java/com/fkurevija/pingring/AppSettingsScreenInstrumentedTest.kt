@@ -42,6 +42,7 @@ class AppSettingsScreenInstrumentedTest {
         onOpenAccessibility: () -> Unit = {},
         showDeveloperOptions: Boolean = false,
         onOpenDeveloperOptions: () -> Unit = {},
+        onOpenAbout: () -> Unit = {},
     ) {
         composeRule.setContent {
             MaterialTheme {
@@ -60,6 +61,7 @@ class AppSettingsScreenInstrumentedTest {
                     onReportAProblem = {},
                     showDeveloperOptions = showDeveloperOptions,
                     onOpenDeveloperOptions = onOpenDeveloperOptions,
+                    onOpenAbout = onOpenAbout,
                     onBack = {},
                 )
             }
@@ -212,6 +214,20 @@ class AppSettingsScreenInstrumentedTest {
         composeRule.onNodeWithText("Accessibility").performScrollTo().performClick()
 
         assertEquals("Accessibility must be reachable from App Settings", 1, opened)
+    }
+
+    @Test
+    fun aboutIsReachableAndIsNotADebugOnlyRow() {
+        // Ungated on purpose, and asserted as such: a build number is the one
+        // diagnostic a user can supply without understanding anything else, and
+        // hiding it in a release build would leave the majority of bug reports
+        // with nothing to identify the build.
+        var opened = 0
+        showSettings(showDeveloperOptions = false, onOpenAbout = { opened++ })
+
+        composeRule.onNodeWithText("About").performScrollTo().performClick()
+
+        assertEquals("About must be reachable from App Settings", 1, opened)
     }
 
     @Test
