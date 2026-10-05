@@ -139,6 +139,9 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.fkurevija.pingring.data.BeaconInfo
 import com.fkurevija.pingring.data.BeaconPreset
+import com.fkurevija.pingring.data.BeaconAlertPolicy
+import com.fkurevija.pingring.data.BeaconAlertRepeat
+import com.fkurevija.pingring.data.BeaconAlertSettings
 import com.fkurevija.pingring.data.BeaconVibrationPattern
 import com.fkurevija.pingring.data.ChatMessage
 import com.fkurevija.pingring.data.ChatBubbleColorPolicy
@@ -395,6 +398,12 @@ fun RadarScreen(
     val requestsToShow = pendingJoinRequests
     val localBeacon by discoveryRepository?.localBeacon?.collectAsState()
         ?: remember { mutableStateOf(null) }
+
+    // How this device wants to be alerted. Seeded to the stored default so the
+    // beacon sheet always shows a real choice rather than a spinner on the way
+    // in; the repository replaces it as soon as DataStore answers.
+    val beaconAlertSettings by discoveryRepository?.beaconAlertSettings?.collectAsState()
+        ?: remember { mutableStateOf(BeaconAlertSettings.DEFAULT) }
     val haptic = LocalHapticFeedback.current
     // For the one toast on this screen, which has to fire from inside a click
     // handler rather than from a LaunchedEffect, so it needs a context captured
@@ -1196,6 +1205,10 @@ fun RadarScreen(
                 if (showBeaconSheet) {
                     BeaconCustomizationDialog(
                         localBeacon = localBeacon,
+                        initialAlertSettings = beaconAlertSettings,
+                        onAlertSettingsChange = { updated ->
+                            discoveryRepository?.setBeaconAlertSettings(updated)
+                        },
                         onDismiss = { showBeaconSheet = false },
                         onActivate = { title, colorArgb, patternName ->
                             discoveryRepository?.activateBeacon(title, colorArgb, patternName, senderName)
@@ -2032,12 +2045,33 @@ internal fun ChatSettingsDialog(
 @Composable
 fun BeaconCustomizationDialog(
     localBeacon: BeaconInfo?,
+    /**
+     * This device's saved alert settings.
+     *
+     * Passed in rather than read from the repository so the dialog shows what the
+     * member last chose, and so it can be composed in a test without one.
+     */
+    initialAlertSettings: BeaconAlertSettings = BeaconAlertSettings.DEFAULT,
+    onAlertSettingsChange: (BeaconAlertSettings) -> Unit = {},
     onDismiss: () -> Unit,
     onActivate: (title: String, colorArgb: Long, patternName: String) -> Unit,
     onStop: () -> Unit,
     onTestVibrate: (LongArray) -> Unit
 ) {
     var isVibrationMenuExpanded by remember { mutableStateOf(false) }
+    var isRepeatMenuExpanded by remember { mutableStateOf(false) }
+    var repeatGapMenuExpanded by remember { mutableStateOf(false) }
+
+    // Seeded from the device's saved preference, not from the beacon: the rhythm
+    // belongs to whoever raised the beacon, but whether it repeats belongs to the
+    // person whose phone it is. Both are shown here so the member can see and
+    // change how their own alerts behave.
+    var alertSettings by remember { mutableStateOf(initialAlertSettings) }
+
+    // The gap only means anything when something is repeating, so it is hidden
+    // otherwise rather than shown greyed out - a control that does nothing yet
+    // still looks like a setting.
+    val gapOptions = remember { listOf(2_000L, 5_000L, 10_000L, 20_000L, 30_000L) }
     val context = LocalContext.current
     var selectedPreset by remember { mutableStateOf(BeaconPreset.entries.first()) }
     val initialPresetTitle = stringResource(selectedPreset.defaultTitleRes)
@@ -2181,6 +2215,109 @@ fun BeaconCustomizationDialog(
                     Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
                     Text(stringResource(R.string.test_vibration))
+                }
+
+                Text(
+                    stringResource(R.string.beacon_alert_repetition_label),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    stringResource(R.string.beacon_alert_repetition_explainer),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                ExposedDropdownMenuBox(
+                    expanded = isRepeatMenuExpanded,
+                    onExpandedChange = { isRepeatMenuExpanded = !isRepeatMenuExpanded }
+                ) {
+                    OutlinedTextField(
+                        value = stringResource(
+                            when (alertSettings.repeat) {
+                                BeaconAlertRepeat.ONCE -> R.string.beacon_alert_repeat_once
+                                BeaconAlertRepeat.REPEAT -> R.string.beacon_alert_repeat_repeat
+                            }
+                        ),
+                        onValueChange = {},
+                        readOnly = true,
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isRepeatMenuExpanded) },
+                        modifier = Modifier
+                            .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                            .fillMaxWidth()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = isRepeatMenuExpanded,
+                        onDismissRequest = { isRepeatMenuExpanded = false }
+                    ) {
+                        BeaconAlertRepeat.entries.forEach { option ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        stringResource(
+                                            when (option) {
+                                                BeaconAlertRepeat.ONCE -> R.string.beacon_alert_repeat_once
+                                                BeaconAlertRepeat.REPEAT -> R.string.beacon_alert_repeat_repeat
+                                            }
+                                        )
+                                    )
+                                },
+                                onClick = {
+                                    alertSettings = alertSettings.copy(repeat = option)
+                                    isRepeatMenuExpanded = false
+                                    onAlertSettingsChange(alertSettings.copy(repeat = option))
+                                }
+                            )
+                        }
+                    }
+                }
+
+                if (alertSettings.repeat == BeaconAlertRepeat.REPEAT) {
+                    Text(
+                        stringResource(R.string.beacon_alert_gap_label),
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    ExposedDropdownMenuBox(
+                        expanded = repeatGapMenuExpanded,
+                        onExpandedChange = { repeatGapMenuExpanded = !repeatGapMenuExpanded }
+                    ) {
+                        OutlinedTextField(
+                            value = stringResource(
+                                R.string.beacon_alert_gap_value,
+                                (alertSettings.repeatGapMillis / 1000.0).toInt().toString(),
+                            ),
+                            onValueChange = {},
+                            readOnly = true,
+                            trailingIcon = {
+                                ExposedDropdownMenuDefaults.TrailingIcon(expanded = repeatGapMenuExpanded)
+                            },
+                            modifier = Modifier
+                                .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                                .fillMaxWidth()
+                        )
+                        ExposedDropdownMenu(
+                            expanded = repeatGapMenuExpanded,
+                            onDismissRequest = { repeatGapMenuExpanded = false }
+                        ) {
+                            gapOptions.forEach { gap ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            stringResource(
+                                                R.string.beacon_alert_gap_value,
+                                                (gap / 1000.0).toInt().toString(),
+                                            )
+                                        )
+                                    },
+                                    onClick = {
+                                        alertSettings = alertSettings.copy(repeatGapMillis = gap)
+                                        repeatGapMenuExpanded = false
+                                        onAlertSettingsChange(alertSettings.copy(repeatGapMillis = gap))
+                                    }
+                                )
+                            }
+                        }
+                    }
                 }
 
                 }

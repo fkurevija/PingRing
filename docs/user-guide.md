@@ -154,8 +154,9 @@ Tap **New Beacon** on the radar (the button reads **My Beacon** while one of you
 1. **Select Preset** — ✨ Found Something, 📍 Regroup Here, ⚠️ Caution, 🚨 Emergency, ⚡ Custom. Picking one fills in the message, colour and rhythm; edit any of them afterwards.
 2. **Colour** — Red, Amber, Green, Cyan or Purple.
 3. **Vibration** — SOS / Urgent, Rapid Alert, Steady Pulse, Gentle Pulse, or No Vibration. **Test Vibration** plays the rhythm on your own phone first.
-4. **Beacon Message / Intent** — the text other people will read.
-5. **Activate Beacon**.
+4. **Alert repetition** — **Once** (the default) or **Repeat until stopped**. This is **your own setting on your own phone**, not part of the beacon: whoever raises a beacon chooses its rhythm, but how often your phone buzzes for it is yours to decide, and it applies to beacons from everyone including your own. When you choose Repeat, a **Repeat every** control appears to set the pause between buzzes (2, 5, 10, 20 or 30 seconds). The setting is saved immediately and applies to beacons already running. Choosing **No Vibration** as the rhythm stays silent whatever this is set to — repeating silence on a timer would only keep waking your phone.
+5. **Beacon Message / Intent** — the text other people will read.
+6. **Activate Beacon**.
 
 The button is painted in your chosen colour, with the label drawn for contrast against it.
 
@@ -163,6 +164,7 @@ The button is painted in your chosen colour, with the label drawn for contrast a
 
 - A banner appears at the top of your radar — *"Your Beacon is Active: …"* — with **Stop**.
 - **Your own phone vibrates too**, with the chosen rhythm, at the moment you raise it — not only the phones that receive it.
+- A repeating alert **stops on its own** when the beacon ends or somebody stops it. Turning repetition back to **Once** mid-beacon silences it immediately rather than waiting for the current buzz to finish.
 - On receivers' phones it lights up the radar rings and that member's pin, pulses, and appears as a banner.
 - In the chat it is pinned to the newest end while running, then moves back to where it was raised, in timestamp order among the surrounding messages.
 - Tapping **New Beacon** again lets you edit and **Update Beacon** without stopping it. **Stop Beacon** ends it.

@@ -93,6 +93,8 @@ private val connectionRecoveryPromptDelayKey = longPreferencesKey("connection_re
 private val joinWaitTimeoutMillisKey = longPreferencesKey("join_wait_timeout_millis")
 private val notificationSoundEnabledKey = booleanPreferencesKey("notification_sound_enabled")
 private val notificationVibrationEnabledKey = booleanPreferencesKey("notification_vibration_enabled")
+private val beaconAlertRepeatKey = stringPreferencesKey("beacon_alert_repeat")
+private val beaconRepeatGapMillisKey = longPreferencesKey("beacon_repeat_gap_millis")
 private val lanDebugEnabledKey = booleanPreferencesKey("lan_debug_enabled")
 private val lanDebugHostKey = stringPreferencesKey("lan_debug_host")
 
@@ -158,6 +160,30 @@ class AppearanceSettingsRepository(private val context: Context) {
     val notificationVibrationEnabled: Flow<Boolean> = context.appearanceDataStore.data.map { preferences ->
         preferences[notificationVibrationEnabledKey] ?: true
     }
+
+    /**
+     * Whether a beacon alert plays once or repeats, and how long the pause is.
+     *
+     * Per-device on purpose: it is not part of the beacon payload, because the
+     * member raising a beacon has no business deciding how often somebody else's
+     * phone buzzes. See [BeaconAlertRepeat].
+     *
+     * An unrecognised stored name falls back to ONCE rather than to REPEAT - if a
+     * future build adds a mode this one does not know, the safe reading is the
+     * quiet one.
+     */
+    val beaconAlertSettings: Flow<BeaconAlertSettings> =
+        context.appearanceDataStore.data.map { preferences ->
+            val repeat = BeaconAlertRepeat.entries
+                .firstOrNull { it.name == preferences[beaconAlertRepeatKey] }
+                ?: BeaconAlertRepeat.ONCE
+            BeaconAlertSettings(
+                repeat = repeat,
+                repeatGapMillis = normalizeBeaconRepeatGapMillis(
+                    preferences[beaconRepeatGapMillisKey] ?: DEFAULT_BEACON_REPEAT_GAP_MILLIS
+                ),
+            )
+        }
 
     fun setThemeMode(mode: ThemeMode) {
         scope.launch {
@@ -249,6 +275,22 @@ class AppearanceSettingsRepository(private val context: Context) {
         scope.launch {
             context.appearanceDataStore.edit { preferences ->
                 preferences[notificationSoundEnabledKey] = enabled
+            }
+        }
+    }
+
+    /**
+     * Save how this device alerts for beacons.
+     *
+     * Normalised on the way in as well as on the way out, so a value that reaches
+     * the store is always one the policy can use.
+     */
+    fun setBeaconAlertSettings(settings: BeaconAlertSettings) {
+        val normalized = settings.normalized()
+        scope.launch {
+            context.appearanceDataStore.edit { preferences ->
+                preferences[beaconAlertRepeatKey] = normalized.repeat.name
+                preferences[beaconRepeatGapMillisKey] = normalized.repeatGapMillis
             }
         }
     }

@@ -224,4 +224,10 @@
     <string name="report_a_problem_failed">Der Browser konnte nicht geöffnet werden</string>
     <string name="copy_pingring_code">PingRing-Code kopieren</string>
     <string name="pingring_code_copied">PingRing-Code kopiert</string>
+    <string name="beacon_alert_repetition_label">Wiederholung der Warnung</string>
+    <string name="beacon_alert_repetition_explainer">Deine eigene Wahl. Gilt für Beacons von allen, auch von dir selbst.</string>
+    <string name="beacon_alert_repeat_once">Einmal</string>
+    <string name="beacon_alert_repeat_repeat">Wiederholen, bis gestoppt</string>
+    <string name="beacon_alert_gap_label">Wiederholen alle</string>
+    <string name="beacon_alert_gap_value">Alle %1$s Sekunden</string>
 </resources>

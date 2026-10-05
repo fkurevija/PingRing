@@ -557,6 +557,11 @@ class DiscoveryRepository(
         val ending = _activeBeacons.value[peerId]
         _activeBeacons.update { it - peerId }
         if (ending == null) return
+        // Stop the alert before anything else. A repeating alert is the first
+        // beacon behaviour that can still be sounding when the beacon ends, and
+        // a phone that keeps buzzing after "Regroup" has been called has failed at
+        // the one job the alert had.
+        stopVibration()
         _endedBeacons.update { history ->
             // Keyed by beacon id so a repeated end for the same beacon - a peer
             // that disconnects while beaconing, then reconnects - appends a
@@ -572,6 +577,22 @@ class DiscoveryRepository(
     // Local Beacon state (null if not active)
     private val _localBeacon = MutableStateFlow<BeaconInfo?>(null)
     val localBeacon: StateFlow<BeaconInfo?> = _localBeacon.asStateFlow()
+
+    /**
+     * How this device alerts for beacons, seeded from the stored setting and
+     * then kept current.
+     *
+     * Held as a plain value rather than collected at each playback because
+     * `playBeaconAlert` is called from the beacon receive path, which is not a
+     * suspending context; reading a cached value there keeps the alert decision
+     * synchronous and identical on the sender's phone and on every recipient's.
+     *
+     * Seeded to the default rather than left null so the very first beacon in a
+     * fresh process alerts the way the member configured it last time, instead of
+     * waiting for a DataStore read that may not have landed yet.
+     */
+    private val _beaconAlertSettings = MutableStateFlow(BeaconAlertSettings.DEFAULT)
+    val beaconAlertSettings: StateFlow<BeaconAlertSettings> = _beaconAlertSettings.asStateFlow()
 
     /**
      * Devices waiting on the host to approve them, oldest first.
@@ -661,6 +682,17 @@ class DiscoveryRepository(
     private var signedAdvertisementRefreshJob: Job? = null
     private var bleScanner: BluetoothLeScanner? = null
     private val controlScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+
+    // Declared here rather than next to the flow above because it has to come
+    // after controlScope: Kotlin runs initialisers in declaration order, and this
+    // one launches on it.
+    init {
+        controlScope.launch {
+            appearanceSettings.beaconAlertSettings.collect { stored ->
+                _beaconAlertSettings.value = stored
+            }
+        }
+    }
     private var localBleIdentityKeyPair: java.security.KeyPair? = null
     private var localBleIdentityKey: BleIdentityKeyPayloadDto? = null
     private val bleIdentityKeys = java.util.concurrent.ConcurrentHashMap<String, BleIdentityKeyPayloadDto>()
@@ -1420,9 +1452,10 @@ class DiscoveryRepository(
                 if (dto.isActive) {
                     updatePeerName(dto.senderPeerId, dto.senderName)
                     _activeBeacons.update { it + (dto.senderPeerId to info) }
-                    // Trigger haptic vibration for this pattern on recipient device
+                    // The recipient's alert honours THIS device's repeat setting, not
+                    // anything the sender chose - see BeaconAlertRepeat.
                     val patternEnum = BeaconVibrationPattern.fromName(dto.vibrationPattern)
-                    playVibrationPattern(patternEnum.pattern)
+                    playBeaconAlert(patternEnum.pattern)
                 } else {
                     endBeacon(dto.senderPeerId)
                 }
@@ -1538,6 +1571,56 @@ class DiscoveryRepository(
         nearbyConnectionsManager.broadcastChatMessage(dto)
     }
 
+    /**
+     * Play [pattern] as a beacon alert under this device's alert settings.
+     *
+     * The settings are read from the flow's current value rather than passed in
+     * at each call site, because the two places a beacon is played - the sender's
+     * own phone and every recipient's - must not be able to disagree about it.
+     *
+     * A null result means the pattern asked for silence, and also cancels
+     * anything already looping: a member who switches to "No Vibration" should
+     * not be left with a buzz that started before they changed their mind.
+     */
+    fun playBeaconAlert(pattern: LongArray) {
+        val wave = BeaconAlertPolicy.waveformFor(pattern, _beaconAlertSettings.value)
+        if (wave == null) {
+            stopVibration()
+            return
+        }
+        try {
+            val effect = VibrationEffect.createWaveform(wave.timings, wave.repeatFromIndex)
+            vibrator?.vibrate(effect)
+        } catch (e: Exception) {
+            Log.w(TAG, "Beacon alert playback failed", e)
+        }
+    }
+
+    /**
+     * Change how this device alerts for beacons, and persist it.
+     *
+     * Also re-evaluates whatever is currently sounding: a member who turns
+     * Repeat on mid-beacon should start repeating, and one who turns it off
+     * should get silence immediately rather than waiting for the buzz to finish
+     * on its own.
+     */
+    fun setBeaconAlertSettings(settings: BeaconAlertSettings) {
+        val normalized = settings.normalized()
+        _beaconAlertSettings.value = normalized
+        appearanceSettings.setBeaconAlertSettings(normalized)
+
+        // Silence is immediate. Not cancelling here would leave a looping alert
+        // running under the settings that were just replaced.
+        if (normalized.repeat == BeaconAlertRepeat.ONCE) {
+            stopVibration()
+        } else {
+            _activeBeacons.value.values.firstOrNull()?.let { active ->
+                playBeaconAlert(BeaconVibrationPattern.fromName(active.vibrationPattern).pattern)
+            }
+        }
+    }
+
+    /** Kept for the Test Vibration button, which must not obey the repeat setting. */
     fun playVibrationPattern(pattern: LongArray) {
         if (pattern.isEmpty() || (pattern.size == 1 && pattern[0] == 0L)) return
         try {
@@ -1592,7 +1675,7 @@ class DiscoveryRepository(
         // beacon - which reads as the feature being broken on the one phone the
         // user is holding, and is why people reached for the Test Vibration
         // button to check whether the radio worked at all.
-        playVibrationPattern(BeaconVibrationPattern.fromName(vibrationPattern).pattern)
+        playBeaconAlert(BeaconVibrationPattern.fromName(vibrationPattern).pattern)
 
         nearbyConnectionsManager.broadcastBeacon(beaconDto)
     }

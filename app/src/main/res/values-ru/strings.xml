@@ -227,4 +227,10 @@
     <string name="report_a_problem_failed">Не удалось открыть браузер</string>
     <string name="copy_pingring_code">Копировать код PingRing</string>
     <string name="pingring_code_copied">Код PingRing скопирован</string>
+    <string name="beacon_alert_repetition_label">Повтор оповещения</string>
+    <string name="beacon_alert_repetition_explainer">Ваш выбор. Применяется к маякам от всех, включая ваши собственные.</string>
+    <string name="beacon_alert_repeat_once">Один раз</string>
+    <string name="beacon_alert_repeat_repeat">Повторять до отмены</string>
+    <string name="beacon_alert_gap_label">Повтор каждые</string>
+    <string name="beacon_alert_gap_value">Каждые %1$s секунд</string>
 </resources>
