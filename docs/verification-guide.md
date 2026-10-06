@@ -144,6 +144,8 @@ These are implementation windows for the tested build, not guarantees of radio d
 
 **Analysis:** Fit `RSSI = A - 10n log10(distance)` using measured distance. Compare fitted A/n with the shipped defaults (-59 dBm and 2.2); report median absolute error, large outliers, and conditions. A repeatable large bias is a calibration finding, not evidence that more smoothing will fix it.
 
+**Future calibration evaluation (not an in-app feature):** Collect repeated readings at 1 m, 3 m, and 5 m in the target room with consistent phone placement. Fit A/n using RSSI versus `log10(distance)` and validate on a separate set of known-distance measurements. Record device pair, room, orientation, fitted parameters, and error distribution; repeat after changing these conditions. Compare filtering candidates using the same recorded traces, checking movement lag as well as stationary jitter. The current 1-second moving average is the baseline, not a sub-metre accuracy guarantee. Fixed-anchor trilateration and BLE AoA need separate hardware/setup evaluation; see [tracking measurement quality proposals](roadmap.md#tracking-measurement-quality-documented-proposals-not-implemented).
+
 ## V05 - LAN Relay Teardown
 
 **Needs:** PC plus two clients on a trusted development LAN; see [LAN setup](building.md#-lan-debug-transport-emulator--physical-device).

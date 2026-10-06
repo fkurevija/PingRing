@@ -59,6 +59,17 @@ These are verified limits of the public Android APIs or deliberate non-goals, no
 
 ## Planned engineering and product work
 
+### Tracking measurement quality (documented proposals, not implemented)
+
+- **Signal filtering already exists.** Each peer has an independent 1-second moving average of RSSI in dBm before the distance conversion. The short window favours movement responsiveness; sparse reports may leave only one sample in the window. Filtering reduces transient variation but cannot remove multipath, body obstruction, or calibration bias. Kalman or time-aware exponential filtering could be evaluated against recorded movement/noise traces, but neither is implemented or assumed to be more accurate without comparison.
+- **On-site A/n calibration is needed for better RSSI estimates.** Production BLE distance still uses generic `A = -59 dBm` at 1 m and `n = 2.2`. A future calibration workflow should collect repeated readings at known distances such as 1 m, 3 m, and 5 m in the actual room, fit `RSSI = A - 10n log10(distance)`, validate the fit, and retain profiles for the measured device pair and environment. Evaluate on separate measurements before accepting a profile; one room or phone pairing is not a universal calibration. The LAN Wi-Fi proxy's first-sample 1 m baseline only normalizes a debug link; it does not fit production BLE A/n or the path-loss exponent. See [V04](verification-guide.md#v04---rssi-distance-accuracy).
+- **Fixed-anchor 2D positioning requires a separate setup.** Trilateration needs at least three stationary, non-collinear anchors with known coordinates in a shared frame, calibrated range estimates, and sufficiently fresh observations of the same tracked device. Moving ring members or one phone's Wi-Fi RSSI copied to several debug peers are not independent fixed-anchor measurements. A future implementation needs anchor configuration, coordinate/measurement exchange, uncertainty-aware solving, and explicit rejection of stale or poorly conditioned geometry. No fixed-anchor positioning is implemented, and RSSI trilateration alone does not promise sub-metre accuracy.
+- **Use measured ranging for tighter accuracy requirements.** PingRing already supports and prefers fresh UWB measurements over RSSI estimates when compatible hardware and a session are available. Sub-metre indoor requirements must be validated on the actual devices and placements, not promised from filtering or fitted RSSI. BLE Angle of Arrival (AoA) is not implemented; it requires compatible direction-finding hardware, typically antenna-array locators, and a supported measurement interface. It cannot be enabled by deriving a bearing from ordinary phone RSSI.
+
+These proposals are recorded for future evaluation only; no new calibration, filter, anchor workflow, or AoA support is being added.
+
+### Other engineering and product work
+
 - **Move the platform probes out of `RangingSourcePolicy`, `BleRangePolicy` and `RadarAccessibilityPolicy`.** These three mix a function that needs a live framework object (`probeWifiRtt`, `supportsExtendedAdvertising`, `describeLocalized`) into the same class as the pure rules that decide something. Their rules are unit tested — `RangingSourcePolicy` is the best-covered class in the project — but the probe's lines are unreachable from a JVM, so no per-class coverage floor on unit data can ever be met by that shape. The three are excluded from the gate for this reason, which is an acknowledgement, not a fix. Every other policy in `data` already separates its probe beside `DiagnosticsProbe`; following that convention would let all three back under the floor. **Why now:** the gate is live, and each of these is a place a new branch can be added with nothing to catch it.
 - **Set an emoji alongside your username.** Optional, unset by default, and deliberately not built. Usernames are the only identity carried in chat and in the SAS comparison; an emoji would be a second, loosely-authenticated identity field hanging off a name that is already shown everywhere. If it is added, two decisions come first — whether it travels in the same signed payload as the name, and whether it is restricted to a small fixed set the way chat bubble colours are, so two phones cannot render the same member differently.
 - **Decide product direction for the brand and in-app help.** The palette is provisional, and help placement/content has no offline product decision yet.
@@ -66,5 +77,4 @@ These are verified limits of the public Android APIs or deliberate non-goals, no
 ---
 
 [← Back to README](../README.md)
-
 
