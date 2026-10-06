@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -1811,15 +1812,14 @@ internal fun PeerList(
             )
             Spacer(Modifier.height(8.dp))
         }
-        // No empty-state text. With nobody else in the ring the sheet would say
-        // something about ephemeral IDs and about peers appearing later, which
-        // is two sentences of explanation about a thing nobody asked about -
-        // and it sat where a list of members should be, so a host opening the
-        // list to see who was there was told what the list would have said if
-        // there were anyone in it. The title already carries the count
-        // ("Members (1/8)"), which is the part that is actually informative.
+        // The list of members, or an empty-state message if nobody else has
+        // joined. The empty state fills the remaining height so the sheet can
+        // be "pulled up" even when empty, answering the host's gesture with a
+        // real surface instead of a tiny sliver at the bottom.
         if (peers.isNotEmpty()) {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 items(orderedPeers, key = { it.peerId }) { peer ->
                     val peerBeacon = activeBeacons[peer.peerId]
                     val isFocused = peer.peerId == focusedPeerId
@@ -1914,6 +1914,19 @@ internal fun PeerList(
                         }
                     }
                 }
+            }
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 180.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = stringResource(R.string.no_members_yet),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
