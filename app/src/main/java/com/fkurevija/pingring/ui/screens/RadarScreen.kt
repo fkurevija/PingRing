@@ -1441,7 +1441,7 @@ internal fun ActiveBeaconEntry(
 }
 
 @Composable
-private fun RadarContent(
+internal fun RadarContent(
     peer: RadarPeerUpdate?,
     hasPeers: Boolean,
     beacon: BeaconInfo?,
@@ -1498,10 +1498,16 @@ private fun RadarContent(
 
         Spacer(Modifier.height(verticalBuffer))
         if (hasPeers && (peer != null)) {
+            val distanceLabel = peer.distance?.let {
+                if (peer.distanceSource == com.fkurevija.pingring.data.RangingSourcePolicy.RangingSource.GNSS) {
+                    stringResource(R.string.distance_with_uncertainty, it, peer.distanceAccuracyMeters ?: 0f)
+                } else stringResource(R.string.distance_away, it)
+            } ?: stringResource(R.string.proximity_signal, proximityLabel)
             Text(
-                peer.name,
+                stringResource(R.string.tracked_peer_distance, peer.name, distanceLabel),
                 style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
             )
             Spacer(Modifier.height(16.dp))
         }
@@ -1525,38 +1531,13 @@ private fun RadarContent(
             spokenUpdateText = spokenUpdateText,
             // Sized from the available width rather than fixed. The caller used
             // to pin this column to 260.dp while the ring inside it was also
-            // 260.dp, so the name above and the distance readout below had
+            // 260.dp, so the name and distance heading above had
             // nowhere to go: the Column overflowed and the ring was clipped top
             // and bottom. Deriving the diameter from the width leaves room for
             // the surrounding text and still fits a narrow phone.
             modifier = Modifier.size(radarDiameter)
         )
-        // The same buffer below the ring as above it. When a peer is tracked the
-        // distance readout follows in this space instead, which keeps the ring
-        // itself optically centred between the two.
         Spacer(Modifier.height(verticalBuffer))
-        if (peer != null) {
-            Text(
-                peer.distance?.let {
-                    if (peer.distanceSource == com.fkurevija.pingring.data.RangingSourcePolicy.RangingSource.GNSS) {
-                        stringResource(R.string.distance_with_uncertainty, it, peer.distanceAccuracyMeters ?: 0f)
-                    } else stringResource(R.string.distance_away, it)
-                }
-                    ?: stringResource(R.string.proximity_signal, proximityLabel),
-                style = MaterialTheme.typography.headlineSmall,
-                color = ringColor,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                if (peer.meshOnlyPresence) stringResource(R.string.mesh_presence_no_range)
-                else if (peer.distanceSource == com.fkurevija.pingring.data.RangingSourcePolicy.RangingSource.GNSS) stringResource(R.string.gnss_distance_estimate)
-                else if (peer.distanceSource == com.fkurevija.pingring.data.RangingSourcePolicy.RangingSource.WIFI_RTT) stringResource(R.string.wifi_rtt_distance_mode)
-                else if (peer.azimuth != null) stringResource(R.string.direction_locked, peer.azimuth.toInt())
-                else stringResource(R.string.ble_proximity_mode),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
         }
     }
 }

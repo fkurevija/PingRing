@@ -147,6 +147,7 @@
     <string name="proximity_cold">Cold</string>
     <string name="proximity_unknown">Unknown</string>
     <string name="distance_away">%1$.1f m away</string>
+    <string name="tracked_peer_distance">%1$s - %2$s</string>
     <string name="proximity_signal">%1$s signal</string>
     <string name="direction_locked">Direction locked · %1$d°</string>
     <string name="ble_proximity_mode">BLE proximity mode</string>

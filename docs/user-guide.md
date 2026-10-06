@@ -78,9 +78,9 @@ The heading is the ring itself: **Code: 4C1A9B · 3/8 Members**. The app's own n
 **Reading the display**
 - The **needle** points at the tracked member, corrected for compass heading.
 - The **lit arc** on the ring widens as they approach — a sliver when far, the whole ring within arm's reach (about 1.5 m). Each doubling of distance gets an equal share of the arc.
-- The **distance readout** under the ring is sub-metre on UWB hardware. Without a fresh UWB bearing, the ring stays plain and only the signed BLE signal-strength tint may change — PingRing does not infer direction from RSSI.
+- The **tracked member's heading** above the ring combines their name and distance, for example **Guest - 1.5 m away**. The readout is sub-metre on UWB hardware; when distance is unavailable, the heading shows signal status instead. Connection-mode labels are not shown on the radar. Without a fresh UWB bearing, the ring stays plain and only the signed BLE signal-strength tint may change — PingRing does not infer direction from RSSI.
 - A member seen only through a mesh relay is labeled **Present via mesh · range unavailable**. The app does not reuse another phone's RSSI or UWB measurement as your own.
-- Compatible phones can show **Wi-Fi RTT · distance only** without an access point. Both phones need available Wi-Fi Aware/RTT support; no directional needle is inferred.
+- Compatible phones can measure **Wi-Fi RTT distance** without an access point. Both phones need available Wi-Fi Aware/RTT support; no directional needle is inferred.
 - GPS coordinates are always shared while a PingRing is running: rounded to about 10 m and published every ten seconds. The radar labels GPS distance as an estimate with uncertainty; it does not trigger close-range haptics. Stale or inaccurate fixes are discarded. This is not a switch, because a guest could not see whether the host had turned it on — two phones could quietly disagree about whether the feature was live. Sharing coordinates does expose them to admitted members and relays.
 - A peer that has not been heard from for **15 seconds** is swept off the radar unless its focused UWB session is being retained during a transport gap.
 - If the tracked member walks out of transport range, UWB ranging is held open for up to **45 seconds** (or **20 seconds** when radio load is high), so walking back can reconnect instantly.
@@ -304,6 +304,5 @@ Android still stops the work after a **force-stop**, a **process kill**, a **reb
 </div>
 
 [← Back to README](../README.md)
-
 
 
