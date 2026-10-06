@@ -2,6 +2,7 @@ package com.fkurevija.pingring.ui.screens
 import com.fkurevija.pingring.data.TextInputPolicy
 import com.fkurevija.pingring.data.RadarFeedbackPolicy
 import com.fkurevija.pingring.data.RadarAnnouncementPolicy
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -10,6 +11,11 @@ import com.fkurevija.pingring.ui.accessibility.rememberAccessibilityEnvironment
 import androidx.compose.ui.window.DialogProperties
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.pointerInput
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -84,6 +90,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.setValue
@@ -125,6 +132,7 @@ import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.pluralStringResource
@@ -462,14 +470,6 @@ fun RadarScreen(
                 delay(5_000L)
                 lastKnownClockMillis = System.currentTimeMillis()
             }
-        }
-    }
-
-    // Proximity feedback follows the tracked member, not whoever happens to be
-    // closest, so it is a haptic about the person the user is actually watching.
-    LaunchedEffect(focusedPeer?.peerId, focusedPeer?.distance, focusedPeer?.distanceSource, proximityHapticsEnabled) {
-        if (RadarFeedbackPolicy.proximityHaptic(proximityHapticsEnabled, focusedPeer?.distance, focusedPeer?.distanceSource)) {
-            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
         }
     }
 
@@ -2148,6 +2148,7 @@ fun BeaconCustomizationDialog(
     onTestVibrate: (LongArray) -> Unit
 ) {
     var isVibrationMenuExpanded by remember { mutableStateOf(false) }
+    val haptic = LocalHapticFeedback.current
 
     // The gap only means anything when something is repeating, so it is hidden
     // otherwise rather than shown greyed out - a control that does nothing yet
@@ -2226,16 +2227,47 @@ fun BeaconCustomizationDialog(
                                     .horizontalScroll(rememberScrollState()),
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
+                                var customLongPressed by remember { mutableStateOf(false) }
                                 BeaconPreset.entries.forEach { preset ->
+                                    val isCustom = preset == BeaconPreset.CUSTOM
+                                    val coroutineScope = rememberCoroutineScope()
                                     FilterChip(
                                         selected = selectedPreset == preset,
                                         onClick = {
                                             selectedPreset = preset
-                                            title = context.getString(preset.defaultTitleRes)
-                                            selectedColor = preset.defaultColorArgb
-                                            selectedPattern = preset.defaultPattern
+                                            if (isCustom && customLongPressed) {
+                                                customLongPressed = false
+                                            } else {
+                                                title = context.getString(preset.defaultTitleRes)
+                                                selectedColor = preset.defaultColorArgb
+                                                selectedPattern = preset.defaultPattern
+                                            }
                                             isVibrationMenuExpanded = false
                                         },
+                                        modifier = if (isCustom) {
+                                            Modifier.pointerInput(Unit) {
+                                                awaitPointerEventScope {
+                                                    while (true) {
+                                                        val event = awaitPointerEvent()
+                                                        if (event.type == PointerEventType.Press) {
+                                                            val job = coroutineScope.launch {
+                                                                delay(3000L)
+                                                                customLongPressed = true
+                                                                selectedPreset = preset
+                                                                title = "Gondor calls for aid!"
+                                                                selectedColor = 0xFFFF9100L
+                                                                selectedPattern = BeaconVibrationPattern.RAPID_ALERT
+                                                                isVibrationMenuExpanded = false
+                                                            }
+                                                            do {
+                                                                val nextEvent = awaitPointerEvent()
+                                                            } while (nextEvent.type != PointerEventType.Release && nextEvent.type != PointerEventType.Exit)
+                                                            job.cancel()
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        } else Modifier,
                                         label = { Text(stringResource(preset.labelRes, preset.iconEmoji)) }
                                     )
                                 }
@@ -2389,6 +2421,7 @@ fun BeaconCustomizationDialog(
         confirmButton = {
             Button(
                 onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     onActivate(
                         title.ifBlank { context.getString(R.string.active_beacon_title) },
                         selectedColor,
@@ -2407,6 +2440,7 @@ fun BeaconCustomizationDialog(
                 if (localBeacon != null) {
                     TextButton(
                         onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             onStop()
                             onDismiss()
                         },
