@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -195,6 +196,7 @@ fun AppSettingsScreen(
                     readOnly = true,
                     label = { Text(stringResource(R.string.theme_mode)) },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = themeMenuExpanded) },
+                    shape = RoundedCornerShape(14.dp),
                     modifier = Modifier.fillMaxWidth().menuAnchor(),
                 )
                 ExposedDropdownMenu(
@@ -223,6 +225,7 @@ fun AppSettingsScreen(
                     readOnly = true,
                     label = { Text(stringResource(R.string.language)) },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = languageMenuExpanded) },
+                    shape = RoundedCornerShape(14.dp),
                     modifier = Modifier.fillMaxWidth().menuAnchor(),
                 )
                 ExposedDropdownMenu(

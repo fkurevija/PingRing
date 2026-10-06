@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Wifi
@@ -105,6 +106,7 @@ fun DeveloperSettingsScreen(
                     label = { Text(stringResource(R.string.relay_host)) },
                     supportingText = { Text(stringResource(R.string.relay_host_help)) },
                     singleLine = true,
+                    shape = RoundedCornerShape(14.dp),
                     modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
                 )
             }
