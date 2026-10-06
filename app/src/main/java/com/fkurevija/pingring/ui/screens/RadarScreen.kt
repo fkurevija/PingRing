@@ -67,16 +67,19 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.Slider
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MenuAnchorType
+import kotlin.math.roundToInt
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -2154,8 +2157,6 @@ fun BeaconCustomizationDialog(
     onTestVibrate: (LongArray) -> Unit
 ) {
     var isVibrationMenuExpanded by remember { mutableStateOf(false) }
-    var isRepeatMenuExpanded by remember { mutableStateOf(false) }
-    var repeatGapMenuExpanded by remember { mutableStateOf(false) }
 
     // Seeded from the device's saved preference, not from the beacon: the rhythm
     // belongs to whoever raised the beacon, but whether it repeats belongs to the
@@ -2406,6 +2407,28 @@ fun BeaconCustomizationDialog(
                     ),
                     modifier = Modifier.fillMaxWidth()
                 ) {
+                    val repeatSteps = remember {
+                        listOf(
+                            Pair(BeaconAlertRepeat.ONCE, 5_000L),
+                            Pair(BeaconAlertRepeat.REPEAT, 5_000L),
+                            Pair(BeaconAlertRepeat.REPEAT, 10_000L),
+                            Pair(BeaconAlertRepeat.REPEAT, 15_000L),
+                            Pair(BeaconAlertRepeat.REPEAT, 20_000L),
+                            Pair(BeaconAlertRepeat.REPEAT, 30_000L),
+                        )
+                    }
+                    val initialRepeatIndex = remember(initialAlertSettings) {
+                        if (initialAlertSettings.repeat == BeaconAlertRepeat.ONCE) {
+                            0
+                        } else {
+                            val gap = initialAlertSettings.repeatGapMillis
+                            repeatSteps.indexOfFirst { it.first == BeaconAlertRepeat.REPEAT && it.second == gap }
+                                .takeIf { it >= 0 } ?: (repeatSteps.size - 1)
+                        }
+                    }
+                    var repeatSliderDraft by remember { mutableFloatStateOf(initialRepeatIndex.toFloat()) }
+                    val currentRepeatIndex = repeatSliderDraft.roundToInt().coerceIn(0, repeatSteps.size - 1)
+
                     Column(
                         modifier = Modifier.fillMaxWidth().padding(14.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -2421,102 +2444,35 @@ fun BeaconCustomizationDialog(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        ExposedDropdownMenuBox(
-                            expanded = isRepeatMenuExpanded,
-                            onExpandedChange = { isRepeatMenuExpanded = !isRepeatMenuExpanded }
-                        ) {
-                            OutlinedTextField(
-                                value = stringResource(
-                                    when (alertSettings.repeat) {
-                                        BeaconAlertRepeat.ONCE -> R.string.beacon_alert_repeat_once
-                                        BeaconAlertRepeat.REPEAT -> R.string.beacon_alert_repeat_repeat
-                                    }
-                                ),
-                                onValueChange = {},
-                                readOnly = true,
-                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isRepeatMenuExpanded) },
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier
-                                    .menuAnchor(MenuAnchorType.PrimaryNotEditable)
-                                    .fillMaxWidth()
-                            )
-                            ExposedDropdownMenu(
-                                expanded = isRepeatMenuExpanded,
-                                onDismissRequest = { isRepeatMenuExpanded = false }
-                            ) {
-                                BeaconAlertRepeat.entries.forEach { option ->
-                                    DropdownMenuItem(
-                                        text = {
-                                            Text(
-                                                stringResource(
-                                                    when (option) {
-                                                        BeaconAlertRepeat.ONCE -> R.string.beacon_alert_repeat_once
-                                                        BeaconAlertRepeat.REPEAT -> R.string.beacon_alert_repeat_repeat
-                                                    }
-                                                )
-                                            )
-                                        },
-                                        onClick = {
-                                            alertSettings = alertSettings.copy(repeat = option)
-                                            isRepeatMenuExpanded = false
-                                            onAlertSettingsChange(alertSettings.copy(repeat = option))
-                                        }
-                                    )
-                                }
-                            }
-                        }
 
-                        if (alertSettings.repeat == BeaconAlertRepeat.REPEAT) {
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                stringResource(R.string.beacon_alert_gap_label),
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary,
-                            )
-                            ExposedDropdownMenuBox(
-                                expanded = repeatGapMenuExpanded,
-                                onExpandedChange = { repeatGapMenuExpanded = !repeatGapMenuExpanded }
-                            ) {
-                                OutlinedTextField(
-                                    value = stringResource(
-                                        R.string.beacon_alert_gap_value,
-                                        (alertSettings.repeatGapMillis / 1000.0).toInt().toString(),
-                                    ),
-                                    onValueChange = {},
-                                    readOnly = true,
-                                    trailingIcon = {
-                                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = repeatGapMenuExpanded)
-                                    },
-                                    shape = RoundedCornerShape(12.dp),
-                                    modifier = Modifier
-                                        .menuAnchor(MenuAnchorType.PrimaryNotEditable)
-                                        .fillMaxWidth()
-                                )
-                                ExposedDropdownMenu(
-                                    expanded = repeatGapMenuExpanded,
-                                    onDismissRequest = { repeatGapMenuExpanded = false }
-                                ) {
-                                    gapOptions.forEach { gap ->
-                                        DropdownMenuItem(
-                                            text = {
-                                                Text(
-                                                    stringResource(
-                                                        R.string.beacon_alert_gap_value,
-                                                        (gap / 1000.0).toInt().toString(),
-                                                    )
-                                                )
-                                            },
-                                            onClick = {
-                                                alertSettings = alertSettings.copy(repeatGapMillis = gap)
-                                                repeatGapMenuExpanded = false
-                                                onAlertSettingsChange(alertSettings.copy(repeatGapMillis = gap))
-                                            }
-                                        )
-                                    }
+                        Text(
+                            text = when (currentRepeatIndex) {
+                                0 -> stringResource(R.string.beacon_alert_repeat_once)
+                                repeatSteps.size - 1 -> stringResource(R.string.beacon_alert_repeat_repeat)
+                                else -> {
+                                    val seconds = repeatSteps[currentRepeatIndex].second / 1000L
+                                    stringResource(R.string.beacon_alert_gap_value, seconds.toString())
                                 }
-                            }
-                        }
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+
+                        Slider(
+                            value = repeatSliderDraft,
+                            onValueChange = { repeatSliderDraft = it },
+                            onValueChangeFinished = {
+                                val idx = repeatSliderDraft.roundToInt().coerceIn(0, repeatSteps.size - 1)
+                                val (repeatMode, gap) = repeatSteps[idx]
+                                alertSettings = BeaconAlertSettings(repeat = repeatMode, repeatGapMillis = gap)
+                                onAlertSettingsChange(alertSettings)
+                            },
+                            valueRange = 0f..(repeatSteps.size - 1).toFloat(),
+                            steps = repeatSteps.size - 2,
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     }
                 }
             }
