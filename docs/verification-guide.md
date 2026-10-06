@@ -154,6 +154,10 @@ These are implementation windows for the tested build, not guarantees of radio d
 
 **Evidence:** Relay console output, client state before/after, actual grace setting and timestamps. Run `python tools/test_lan_debug_relay.py` separately as the automated baseline; it does not replace these real socket/process checks.
 
+**Join regression:** Join by typed code with a saved guest username. The host's approval card must retain that username when repeated join proofs arrive, never replacing it with the routing ID. Approve once and verify the guest's name on the host's radar. Deny a fresh attempt and verify exactly one failure toast on the guest. Back during a pending join must cancel silently; an unanswered attempt must still show one failure toast at the configured timeout.
+
+**Wi-Fi RSSI proxy:** With the physical phone connected to Wi-Fi, admit an emulator peer and move the phone relative to its access point. On the phone, the connected peer's dBm and RSSI-derived distance must respond to the phone's Wi-Fi signal, without changing its username. Repeat with the phone as guest and as host. Pending/rejected peers must not appear through sampling. Disable Wi-Fi and confirm a diagnostic warning and no fabricated random samples; reconnect and confirm sampling resumes. Inject a scripted report and verify automatic samples no longer overwrite that peer. This is a local debug proxy, not a measurement of the emulator-to-phone link.
+
 ## V06 - Discovery, Approval And Capacity
 
 **Needs:** H/A, plus sufficient devices or a harness for capacity testing.

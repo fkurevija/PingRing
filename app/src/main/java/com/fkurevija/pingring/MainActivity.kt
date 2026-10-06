@@ -35,7 +35,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeout
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.runtime.NavKey
@@ -364,6 +363,19 @@ fun MainNavigation(
                         isConnecting = false
                     }
 
+                    LaunchedEffect(Unit) {
+                        discoveryRepository.eventClosed.collect {
+                            if (isConnecting) {
+                                cancelJoin()
+                                Toast.makeText(
+                                    context,
+                                    context.getString(R.string.join_failed),
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        }
+                    }
+
                     PingRingJoinScreen(
                         savedUsername = savedUsername,
                         existingMembers = sessionState.friends.map { it.name },
@@ -396,13 +408,7 @@ fun MainNavigation(
                                             "PingRingJoin",
                                             "Joining $eventCode, giving up after ${joinWaitMillis}ms",
                                         )
-                                        val connected = runCatching {
-                                            withTimeout(joinWaitMillis) {
-                                                sessionManager.sessionState
-                                                    .map { it.friends }
-                                                    .first { it.isNotEmpty() }
-                                            }
-                                        }.isSuccess || sessionManager.sessionState.value.friends.isNotEmpty()
+                                        val connected = sessionManager.awaitConnectedPeer(joinWaitMillis)
 
                                         if (connected) {
                                             isConnecting = false

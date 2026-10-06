@@ -613,6 +613,7 @@ class DiscoveryRepository(
      */
     /** Devices waiting to be let in, oldest first. */
     val pendingJoinRequests get() = nearbyConnectionsManager.pendingJoinRequests
+    val eventClosed get() = nearbyConnectionsManager.eventClosed
 
     /** Lets a held join request in. */
     fun approveJoinRequest(endpointId: String) = nearbyConnectionsManager.approveJoinRequest(endpointId)
@@ -1259,6 +1260,12 @@ class DiscoveryRepository(
             }
         }
 
+        repositoryScope?.launch {
+            nearbyConnectionsManager.peerNames.collect { (peerId, name) ->
+                updatePeerName(peerId, name)
+            }
+        }
+
         // Register newly connected peers and deliver the host's current chat history.
         repositoryScope?.launch {
             nearbyConnectionsManager.connectionEstablished.collect { peerId ->
@@ -1412,8 +1419,8 @@ class DiscoveryRepository(
             }
         }
 
-        // Debug-only: scripted ranges from tools/mock_radar.py, forwarded by the
-        // LAN debug relay. The emulator has no UWB or BLE radio, so without
+        // Debug-only: scripted ranges from tools/mock_radar.py or local Wi-Fi
+        // RSSI proxies on physical devices. The emulator has no UWB or BLE radio, so without
         // these the radar would have no distance to draw and the only thing
         // testable between two devices would be chat and beacons.
         repositoryScope?.launch {

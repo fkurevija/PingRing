@@ -1,8 +1,13 @@
 package com.fkurevija.pingring.data
 
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import android.net.wifi.WifiInfo
 import android.net.wifi.WifiManager
+import android.os.Build
 import android.util.Log
+import com.fkurevija.pingring.DeviceEnvironment
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -22,6 +27,7 @@ import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.net.Socket
 import java.net.SocketException
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
@@ -36,7 +42,7 @@ import java.util.concurrent.atomic.AtomicInteger
  * Mimics NearbyConnectionsManager join and host approval rules:
  * - Code joins require host approval via [pendingJoinRequests].
  * - QR code joins carrying the valid [InviteSecret] are auto-admitted.
- * - Samples physical device Wi-Fi RSSI to mock realistic radar ranging.
+ * - Uses physical device Wi-Fi RSSI as a local proxy for admitted peers.
  */
 class LanDebugConnectionsManager(
     private val host: String,
@@ -63,6 +69,7 @@ class LanDebugConnectionsManager(
     override val receivedChatColourClaim: SharedFlow<ChatColourClaimPayloadDto> get() = events.receivedChatColourClaim
     override val receivedEventControl: SharedFlow<EventControlPayloadDto> get() = events.receivedEventControl
     override val receivedMockRanging: SharedFlow<MockRangingDto> get() = events.receivedMockRanging
+    override val peerNames: SharedFlow<Pair<String, String>> get() = events.peerNames
 
     override var acceptsNewMembers: Boolean = true
     override var inviteSecretProvider: (() -> String?)? = null
@@ -72,13 +79,14 @@ class LanDebugConnectionsManager(
     override val pendingJoinRequests: StateFlow<List<PendingJoinRequest>> = _pendingJoinRequests.asStateFlow()
     override val pendingAuthentications: StateFlow<List<ConnectionAuthenticationRequest>> = MutableStateFlow(emptyList())
 
-    private val authorizedPeers = mutableSetOf<String>()
+    private val authorizedPeers = ConcurrentHashMap.newKeySet<String>()
+    private val scriptedRangingPeers = ConcurrentHashMap.newKeySet<String>()
     private val pendingJoinProofs = mutableMapOf<String, JoinProofPayloadDto>()
 
     override fun approveJoinRequest(endpointId: String) {
         Log.i(TAG, "Host approved join request for $endpointId")
         _pendingJoinRequests.update { current -> current.filterNot { it.endpointId == endpointId } }
-        pendingJoinProofs.remove(endpointId)
+        pendingJoinProofs.remove(endpointId)?.guestName?.let { events.onPeerName(endpointId, it) }
         authorizedPeers.add(endpointId)
         val secret = inviteSecretProvider?.invoke()
         if (secret != null) {
@@ -190,12 +198,8 @@ class LanDebugConnectionsManager(
                     flushPendingEnvelopes()
 
                     if (localRole == RelayEnvelope.ROLE_MEMBER) {
-                        val proof = JoinProofPayloadDto(
-                            eventCode = localEventId,
-                            inviteSecret = inviteSecretProvider?.invoke(),
-                            guestName = userNameProvider?.invoke()
-                        )
-                        sendPayload(null, proof)
+                        delay(300L)
+                        sendLocalJoinProof(null)
                     }
                     startRssiSampling(myGeneration)
 
@@ -254,6 +258,9 @@ class LanDebugConnectionsManager(
         runCatching { socket?.close() }
         socket = null
         writer = null
+        authorizedPeers.clear()
+        scriptedRangingPeers.clear()
+        wifiRssiUnavailable = false
     }
 
     private fun handleLine(line: String) {
@@ -263,11 +270,7 @@ class LanDebugConnectionsManager(
                 val senderId = envelope.senderPeerId ?: return
                 Log.i(TAG, "Peer joined relay: $senderId")
                 if (localRole == RelayEnvelope.ROLE_MEMBER) {
-                    val proof = JoinProofPayloadDto(
-                        eventCode = localEventId,
-                        inviteSecret = inviteSecretProvider?.invoke()
-                    )
-                    sendPayload(senderId, proof)
+                    sendLocalJoinProof(senderId)
                 } else if (localRole == RelayEnvelope.ROLE_HOST && senderId in authorizedPeers) {
                     events.onPeerConnected(senderId)
                 }
@@ -276,6 +279,7 @@ class LanDebugConnectionsManager(
                 val senderId = envelope.senderPeerId ?: return
                 Log.i(TAG, "Peer left relay: $senderId")
                 authorizedPeers.remove(senderId)
+                scriptedRangingPeers.remove(senderId)
                 _pendingJoinRequests.update { current -> current.filterNot { it.endpointId == senderId } }
                 pendingJoinProofs.remove(senderId)
                 events.onPeerDisconnected(senderId)
@@ -295,6 +299,17 @@ class LanDebugConnectionsManager(
                 }
             }
         }
+    }
+
+    private fun sendLocalJoinProof(targetPeerId: String?) {
+        sendPayload(
+            targetPeerId,
+            JoinProofPayloadDto(
+                eventCode = localEventId,
+                inviteSecret = inviteSecretProvider?.invoke(),
+                guestName = userNameProvider?.invoke(),
+            ),
+        )
     }
 
     private fun deliver(envelope: RelayEnvelope, fallbackSenderId: String): Boolean {
@@ -328,6 +343,7 @@ class LanDebugConnectionsManager(
             true
         }
         is DecodedPayload.MockRanging -> {
+            scriptedRangingPeers.add(payload.report.peerId)
             events.onMockRanging(payload.report)
             true
         }
@@ -375,6 +391,7 @@ class LanDebugConnectionsManager(
             JoinRequestDecision.Admit -> {
                 Log.i(TAG, "Auto-admitting $senderPeerId (valid QR invite secret)")
                 authorizedPeers.add(senderPeerId)
+                proof.guestName?.let { events.onPeerName(senderPeerId, it) }
                 val secret = inviteSecretProvider?.invoke()
                 if (secret != null) {
                     sendPayload(senderPeerId, InviteSecretPayloadDto(localEventId, localPeerId, secret))
@@ -383,12 +400,15 @@ class LanDebugConnectionsManager(
             }
             JoinRequestDecision.AwaitApproval -> {
                 Log.i(TAG, "Holding join request from $senderPeerId for host approval")
-                pendingJoinProofs[senderPeerId] = proof
-                val requestName = proof.guestName.takeIf { !it.isNullOrBlank() } ?: senderPeerId.ifBlank { "Guest device" }
+                val previousProof = pendingJoinProofs[senderPeerId]
+                val guestName = proof.guestName?.takeIf { it.isNotBlank() }
+                    ?: previousProof?.guestName?.takeIf { it.isNotBlank() }
+                pendingJoinProofs[senderPeerId] = proof.copy(guestName = guestName)
+                val previousRequest = _pendingJoinRequests.value.firstOrNull { it.endpointId == senderPeerId }
                 val request = PendingJoinRequest(
                     endpointId = senderPeerId,
-                    deviceName = requestName,
-                    requestedAtMillis = System.currentTimeMillis()
+                    deviceName = guestName ?: "Guest device",
+                    requestedAtMillis = previousRequest?.requestedAtMillis ?: System.currentTimeMillis()
                 )
                 _pendingJoinRequests.update { current ->
                     (current.filterNot { it.endpointId == senderPeerId } + request)
@@ -411,31 +431,54 @@ class LanDebugConnectionsManager(
 
     private fun startRssiSampling(myGeneration: Int) {
         rssiJob?.cancel()
+        if (context == null || DeviceEnvironment.isEmulator()) return
         rssiJob = scope.launch {
             while (isActive && connectionGeneration.get() == myGeneration) {
                 delay(2_500L)
                 if (socket?.isConnected == true && localPeerId.isNotBlank() && localEventId.isNotBlank()) {
-                    val wifiRssi = measureWifiRssi()
-                    sendPayload(null, MockRangingDto(peerId = localPeerId, rssi = wifiRssi))
+                    publishWifiRssi(measureWifiRssi())
                 }
             }
         }
     }
 
-    private var simulatedRssi = -65
+    private var wifiRssiUnavailable = false
 
-    private fun measureWifiRssi(): Int {
-        val ctx = context
-        if (ctx != null) {
-            val wifiManager = ctx.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
-            val infoRssi = wifiManager?.connectionInfo?.rssi
-            if (infoRssi != null && infoRssi in -100..-20) {
-                return infoRssi
+    internal fun publishWifiRssi(rssi: Int?) {
+        if (rssi == null || rssi !in -100..-20) {
+            if (!wifiRssiUnavailable) {
+                Log.w(TAG, "Wi-Fi RSSI unavailable; local peer mock sampling paused (no random fallback)")
+                wifiRssiUnavailable = true
             }
+            return
         }
-        simulatedRssi += (Math.random() * 8 - 4).toInt()
-        simulatedRssi = simulatedRssi.coerceIn(-85, -50)
-        return simulatedRssi
+        if (wifiRssiUnavailable) {
+            Log.i(TAG, "Wi-Fi RSSI available again; resuming local peer mock sampling")
+            wifiRssiUnavailable = false
+        }
+        authorizedPeers.filterNot { it == localPeerId || it in scriptedRangingPeers }.forEach { peerId ->
+            events.onMockRanging(MockRangingDto(peerId = peerId, rssi = rssi))
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun measureWifiRssi(): Int? {
+        val ctx = context?.applicationContext ?: return null
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val connectivity = ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+                val network = connectivity?.activeNetwork ?: return null
+                val capabilities = connectivity.getNetworkCapabilities(network) ?: return null
+                if (!capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) return null
+                (capabilities.transportInfo as? WifiInfo)?.rssi
+            } else {
+                val wifi = ctx.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+                wifi?.connectionInfo?.rssi
+            }
+        } catch (e: SecurityException) {
+            Log.w(TAG, "Wi-Fi RSSI access denied; check Wi-Fi and location permissions", e)
+            null
+        }
     }
 
     private fun sendEnvelope(envelope: RelayEnvelope, onComplete: (() -> Unit)? = null) {

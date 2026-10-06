@@ -287,6 +287,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
     override val receivedChatColourClaim: SharedFlow<ChatColourClaimPayloadDto>
         get() = events.receivedChatColourClaim
     override val receivedEventControl: SharedFlow<EventControlPayloadDto> get() = events.receivedEventControl
+    override val peerNames: SharedFlow<Pair<String, String>> get() = events.peerNames
 
     /**
      * Never emitted: Nearby Connections has no way of being told a distance that
@@ -970,6 +971,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
         }
         if (!authorizedEndpoints.add(endpointId)) return
         val peerId = endpointToPeerId[endpointId]?.ifBlank { null } ?: endpointId
+        pendingJoinProofs.remove(endpointId)?.guestName?.let { events.onPeerName(peerId, it) }
         events.onPeerConnected(peerId)
     }
 
@@ -1356,11 +1358,13 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
     private fun receiveJoinProof(proof: JoinProofPayloadDto, endpointId: String): Boolean {
         if (!isLocalHost || proof.eventCode != localEventId) return false
         if (endpointId !in acceptedEndpoints || endpointId !in incomingEndpoints) return false
+        if (endpointId in authorizedEndpoints) return true
+        val guestName = proof.guestName?.takeIf { it.isNotBlank() }
+            ?: pendingJoinProofs[endpointId]?.guestName?.takeIf { it.isNotBlank() }
+        pendingJoinProofs[endpointId] = proof.copy(guestName = guestName)
         if (endpointId !in connectedEndpoints.values) {
-            pendingJoinProofs[endpointId] = proof
             return true
         }
-        if (endpointId in authorizedEndpoints) return true
 
         val expectedSecret = inviteSecretProvider?.invoke() ?: return false
         val hasValidInvite = proof.inviteSecret == expectedSecret &&
@@ -1387,13 +1391,11 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
         }
 
         pendingInviteProofEndpoints.add(endpointId)
-        val guestName = pendingJoinProofs[endpointId]?.guestName
-        val peerName = endpointToPeerId[endpointId].orEmpty()
-        val deviceName = guestName.takeIf { !it.isNullOrBlank() } ?: peerName.ifBlank { "Unknown device" }
+        val previousRequest = _pendingJoinRequests.value.firstOrNull { it.endpointId == endpointId }
         val request = PendingJoinRequest(
             endpointId = endpointId,
-            deviceName = deviceName,
-            requestedAtMillis = System.currentTimeMillis(),
+            deviceName = guestName ?: "Guest device",
+            requestedAtMillis = previousRequest?.requestedAtMillis ?: System.currentTimeMillis(),
         )
         _pendingJoinRequests.update { current ->
             (current.filterNot { it.endpointId == endpointId } + request)

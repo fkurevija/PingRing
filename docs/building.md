@@ -102,6 +102,8 @@ Nearby Connections cannot bridge an emulator to a physical device, since the emu
 
 Nothing connects to the relay until a device actually hosts or joins, so an idle relay showing no clients is expected rather than a fault.
 
+**Live Wi-Fi RSSI proxy:** On a physical device, LAN debug mode samples that phone's Wi-Fi signal every 2.5 seconds and applies it locally to each admitted host/guest's radar entry. Walk the phone toward or away from the Wi-Fi access point to exercise the RSSI smoothing, hot/cold indication, and estimated distance. This measures the phone-to-access-point link, **not peer-to-peer distance**; multiple peers receive the same proxy reading. The readings are not broadcast to other clients, and emulators do not generate automatic samples. Missing/invalid Wi-Fi RSSI pauses sampling with a diagnostic warning, never random values. A peer driven by `mock_radar.py` is excluded from automatic sampling until that peer disconnects or the LAN session stops, so live samples cannot overwrite scripted ranging.
+
 **A join that sits on "connecting" is nearly always the tunnel, not the app.** The phone reaches `127.0.0.1:8942` only through `adb reverse`, so check in this order:
 
 - `adb devices` lists the phone at all. A wireless-attached phone drops off adb on its own, and **the tunnel goes with it** — `adb reverse` is per-connection, so reconnecting (`adb connect <ip:port>`, the address `adb mdns services` reports) is not enough; re-run `adb reverse tcp:8942 tcp:8942` afterwards.
@@ -209,5 +211,4 @@ Preview-only unless `--create`, matching `tag_release.py`. Needs the GitHub CLI 
 ---
 
 [← Back to README](../README.md)
-
 

@@ -3,6 +3,8 @@ package com.fkurevija.pingring.data
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.UUID
 
 class SessionManager(
@@ -38,6 +40,12 @@ class SessionManager(
         coordinationRepository.hostEvent(event, peerId.value)
         // Hosting currently uses the same local BLE mesh as joining.
     }
+
+    /** Only a timeout is a failed wait; caller cancellation must propagate. */
+    suspend fun awaitConnectedPeer(timeoutMillis: Long): Boolean =
+        withTimeoutOrNull(timeoutMillis) {
+            sessionState.first { it.friends.isNotEmpty() }
+        } != null || sessionState.value.friends.isNotEmpty()
 
     fun updateEvent(event: Event) {
         coordinationRepository.updateEvent(event)

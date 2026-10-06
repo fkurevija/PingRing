@@ -170,8 +170,20 @@ internal class TransportEvents(private val tag: String) : PayloadSink {
     )
     val receivedMockRanging: SharedFlow<MockRangingDto> = _receivedMockRanging.asSharedFlow()
 
+    private val _peerNames = MutableSharedFlow<Pair<String, String>>(
+        extraBufferCapacity = 16,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+    val peerNames: SharedFlow<Pair<String, String>> = _peerNames.asSharedFlow()
+
     fun onPeerConnected(peerId: String) {
         _connectionEstablished.tryEmit(peerId)
+    }
+
+    fun onPeerName(peerId: String, name: String) {
+        if (peerId.isNotBlank() && name.isNotBlank()) {
+            _peerNames.tryEmit(peerId to name)
+        }
     }
 
     fun setPendingAuthentications(requests: List<ConnectionAuthenticationRequest>) {

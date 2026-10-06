@@ -4,6 +4,10 @@ import com.fkurevija.pingring.data.ChatMessage
 import com.fkurevija.pingring.data.Event
 import com.fkurevija.pingring.data.Friend
 import com.fkurevija.pingring.data.SessionManager
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.async
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -12,6 +16,49 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SessionManagerTest {
+    @Test
+    fun aCancelledJoinDoesNotFallThroughToASecondFailureNotification() = runTest {
+        val sessionManager = SessionManager()
+        sessionManager.joinEvent(event("joining"))
+        var failures = 0
+        var completedWaits = 0
+        val join = launch(start = CoroutineStart.UNDISPATCHED) {
+            val connected = sessionManager.awaitConnectedPeer(60_000L)
+            completedWaits++
+            if (!connected) failures++
+        }
+
+        join.cancel()
+        sessionManager.leaveEvent()
+        failures++ // The rejection handler's notification.
+        join.join()
+
+        assertEquals(0, completedWaits)
+        assertEquals(1, failures)
+    }
+
+    @Test
+    fun anUnansweredJoinTimesOutAsAFailure() = runTest {
+        val sessionManager = SessionManager()
+        sessionManager.joinEvent(event("joining"))
+
+        assertFalse(sessionManager.awaitConnectedPeer(10_000L))
+    }
+
+    @Test
+    fun anAdmittedJoinCompletesSuccessfully() = runTest {
+        val sessionManager = SessionManager()
+        sessionManager.joinEvent(event("joining"))
+        val result = async(start = CoroutineStart.UNDISPATCHED) {
+            sessionManager.awaitConnectedPeer(60_000L)
+        }
+
+        sessionManager.updateFriends(listOf(Friend("host", "Host", 1L)))
+
+        assertTrue(result.await())
+        assertTrue(sessionManager.awaitConnectedPeer(60_000L))
+    }
+
     @Test
     fun joiningAnotherPingRingWhileActiveIsRejected() {
         val sessionManager = SessionManager()

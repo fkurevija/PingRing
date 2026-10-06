@@ -30,15 +30,15 @@ interface NearbyTransport {
     val receivedPeerRanging: SharedFlow<PeerRangingPayloadDto>
     val receivedChatColourClaim: SharedFlow<ChatColourClaimPayloadDto>
     val receivedEventControl: SharedFlow<EventControlPayloadDto>
+    val peerNames: SharedFlow<Pair<String, String>>
 
     /**
-     * Debug-only: scripted range reports for a peer, as produced by
-     * tools/mock_radar.py.
+     * Debug-only: scripted range reports from tools/mock_radar.py and local
+     * physical-device Wi-Fi RSSI proxies for admitted peers.
      *
      * Real devices never send these, so [NearbyConnectionsManager] never
-     * emits any; only the LAN debug transport can deliver them, and only
-     * while its relay is being fed a script. Anything consuming this flow must
-     * therefore be a debug-only path as well.
+     * emits any; only the LAN debug transport can deliver them. Anything
+     * consuming this flow must therefore be a debug-only path as well.
      */
     val receivedMockRanging: SharedFlow<MockRangingDto>
 
@@ -51,9 +51,8 @@ interface NearbyTransport {
      * Devices asking to join, oldest first, for the host to act on.
      *
      * Only ever non-empty on a host, and only while it is holding a request
-     * open. The LAN debug transport never emits any: a debug relay has no
-     * admission handshake to interrupt, and inventing one would make the two
-     * transports behave differently for no reason.
+     * open. Both transports hold code-only joins for approval; a valid QR
+     * invitation bypasses the approval card.
      */
     val pendingJoinRequests: StateFlow<List<PendingJoinRequest>>
     val pendingAuthentications: StateFlow<List<ConnectionAuthenticationRequest>>
