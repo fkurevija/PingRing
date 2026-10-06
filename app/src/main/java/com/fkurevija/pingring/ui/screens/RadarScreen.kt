@@ -2174,17 +2174,11 @@ fun BeaconCustomizationDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        // Plain title like every other dialog: the beacon's colour already
+        // shows on the swatches and the confirm button, and a title icon
+        // tinted to the current pick is decoration that moves with state.
         title = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    Icons.Default.Campaign,
-                    contentDescription = null,
-                    tint = Color(selectedColor),
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(if (localBeacon != null) R.string.update_active_beacon else R.string.create_beacon))
-            }
+            Text(stringResource(if (localBeacon != null) R.string.update_active_beacon else R.string.create_beacon))
         },
         text = {
             Column(
@@ -2266,6 +2260,9 @@ fun BeaconCustomizationDialog(
                                 ),
                             contentAlignment = Alignment.Center
                         ) {
+                            // Ring-only selection, exactly like the chat settings
+                            // swatches: the border width carries the state and the
+                            // screen reader carries the name, so no tick is needed.
                             Box(
                                 Modifier
                                     .size(36.dp)
@@ -2275,22 +2272,7 @@ fun BeaconCustomizationDialog(
                                         color = if (isSelected) MaterialTheme.colorScheme.onSurface else Color.Transparent,
                                         shape = CircleShape,
                                     ),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                // The tick stays inside the ring: the ring alone
-                                // is how chat settings mark a selected swatch,
-                                // but on a fully coloured circle it is easier to
-                                // miss, and the tick also gives the selection a
-                                // shape difference beyond the border width.
-                                if (isSelected) {
-                                    Icon(
-                                        Icons.Default.Check,
-                                        contentDescription = null,
-                                        tint = Color.White,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                            }
+                            )
                         }
                     }
                 }
@@ -2455,10 +2437,9 @@ fun BeaconCustomizationDialog(
                         selectedPattern.name,
                     )
                     onDismiss()
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(selectedColor))
+                }
             ) {
-                Text(stringResource(if (localBeacon != null) R.string.update_beacon else R.string.activate_beacon), color = Color.White)
+                Text(stringResource(if (localBeacon != null) R.string.update_beacon else R.string.activate_beacon))
             }
         },
         dismissButton = {

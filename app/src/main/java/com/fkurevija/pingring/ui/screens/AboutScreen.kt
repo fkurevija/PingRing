@@ -49,6 +49,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -235,7 +236,16 @@ private fun AboutBody(
                     // inner padding the rows read as one dense block without it,
                     // and the divider sits flush against the text above.
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .let {
+                                if (row.key == Key.APP_VERSION) {
+                                    it.clickable(role = Role.Button, onClick = onVersionTap)
+                                } else {
+                                    it
+                                }
+                            }
+                            .padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
@@ -251,9 +261,6 @@ private fun AboutBody(
                             text = row.value,
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.SemiBold,
-                            modifier = if (row.key == Key.APP_VERSION) {
-                                Modifier.clickable(role = Role.Button, onClickLabel = stringResource(R.string.diag_app_version), onClick = onVersionTap)
-                            } else Modifier,
                         )
                     }
                 }
