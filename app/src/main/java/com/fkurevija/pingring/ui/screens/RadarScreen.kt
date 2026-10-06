@@ -169,6 +169,7 @@ import com.fkurevija.pingring.data.RadarPeerUpdate
 import com.fkurevija.pingring.data.SessionState
 import com.fkurevija.pingring.R
 import kotlinx.coroutines.delay
+import java.util.Locale
 import kotlin.math.cos
 import kotlin.math.atan2
 import kotlin.math.sin
@@ -2174,259 +2175,323 @@ fun BeaconCustomizationDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        // Plain title like every other dialog: the beacon's colour already
-        // shows on the swatches and the confirm button, and a title icon
-        // tinted to the current pick is decoration that moves with state.
+        shape = RoundedCornerShape(24.dp),
         title = {
-            Text(stringResource(if (localBeacon != null) R.string.update_active_beacon else R.string.create_beacon))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.Campaign,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    stringResource(if (localBeacon != null) R.string.update_active_beacon else R.string.create_beacon),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            }
         },
         text = {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                Text(
-                    stringResource(R.string.select_preset),
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    BeaconPreset.entries.forEach { preset ->
-                        FilterChip(
-                            selected = selectedPreset == preset,
-                            onClick = {
-                                selectedPreset = preset
-                                title = context.getString(preset.defaultTitleRes)
-                                selectedColor = preset.defaultColorArgb
-                                selectedPattern = preset.defaultPattern
-                                isVibrationMenuExpanded = false // Close menu on selection
-                            },
-                            label = { Text(stringResource(preset.labelRes, preset.iconEmoji)) }
-                        )
-                    }
-                }
-
-                OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = TextInputPolicy.sanitizeBeaconTitle(it) },
-                    label = { Text(stringResource(R.string.beacon_message_intent)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(
-                        capitalization = KeyboardCapitalization.Sentences
-                    )
-                )
-
-                Text(
-                    stringResource(R.string.beacon_color),
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .selectableGroup(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    colorPalette.forEach { colorArgb ->
-                        val isSelected = selectedColor == colorArgb
-                        // Announced as "Set beacon color to #RRGGBB" and marked
-                        // selected, exactly like the chat settings swatches: a
-                        // colour circle drawn with .clickable tells a screen
-                        // reader nothing, so TalkBack users would sweep five
-                        // unlabelled items and never learn which one is picked.
-                        val description = stringResource(
-                            R.string.set_beacon_color_to,
-                            String.format(java.util.Locale.ROOT, "#%06X", colorArgb and 0xFFFFFFL),
-                        )
-                        Box(
-                            modifier = Modifier
-                                .size(48.dp)
-                                .semantics { contentDescription = description }
-                                .selectable(
-                                    selected = isSelected,
-                                    role = Role.RadioButton,
-                                    onClick = { selectedColor = colorArgb },
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            // Ring-only selection, exactly like the chat settings
-                            // swatches: the border width carries the state and the
-                            // screen reader carries the name, so no tick is needed.
-                            Box(
-                                Modifier
-                                    .size(36.dp)
-                                    .background(Color(colorArgb), CircleShape)
-                                    .border(
-                                        width = if (isSelected) 3.dp else 0.dp,
-                                        color = if (isSelected) MaterialTheme.colorScheme.onSurface else Color.Transparent,
-                                        shape = CircleShape,
-                                    ),
-                            )
-                        }
-                    }
-                }
-
-                Text(
-                    stringResource(R.string.vibration_rhythm_intensity),
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-                ExposedDropdownMenuBox(
-                    expanded = isVibrationMenuExpanded,
-                    onExpandedChange = { isVibrationMenuExpanded = !isVibrationMenuExpanded }
-                ) {
-                    OutlinedTextField(
-                        value = stringResource(selectedPattern.labelRes),
-                        onValueChange = {},
-                        readOnly = true,
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isVibrationMenuExpanded) },
-                        modifier = Modifier
-                            .menuAnchor(MenuAnchorType.PrimaryNotEditable)
-                            .fillMaxWidth()
-                    )
-                    ExposedDropdownMenu(
-                        expanded = isVibrationMenuExpanded,
-                        onDismissRequest = { isVibrationMenuExpanded = false }
-                    ) {
-                        BeaconVibrationPattern.entries.forEach { pattern ->
-                            DropdownMenuItem(
-                                text = { Text(stringResource(pattern.labelRes)) },
-                                onClick = {
-                                    selectedPattern = pattern
-                                    isVibrationMenuExpanded = false
-                                }
-                            )
-                        }
-                    }
-                }
-
-                OutlinedButton(
-                    onClick = { onTestVibrate(selectedPattern.pattern) },
+                // Section 1: Presets & Intent
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                    ),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text(stringResource(R.string.test_vibration))
-                }
-
-                Text(
-                    stringResource(R.string.beacon_alert_repetition_label),
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-                Text(
-                    stringResource(R.string.beacon_alert_repetition_explainer),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                ExposedDropdownMenuBox(
-                    expanded = isRepeatMenuExpanded,
-                    onExpandedChange = { isRepeatMenuExpanded = !isRepeatMenuExpanded }
-                ) {
-                    OutlinedTextField(
-                        value = stringResource(
-                            when (alertSettings.repeat) {
-                                BeaconAlertRepeat.ONCE -> R.string.beacon_alert_repeat_once
-                                BeaconAlertRepeat.REPEAT -> R.string.beacon_alert_repeat_repeat
-                            }
-                        ),
-                        onValueChange = {},
-                        readOnly = true,
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isRepeatMenuExpanded) },
-                        modifier = Modifier
-                            .menuAnchor(MenuAnchorType.PrimaryNotEditable)
-                            .fillMaxWidth()
-                    )
-                    ExposedDropdownMenu(
-                        expanded = isRepeatMenuExpanded,
-                        onDismissRequest = { isRepeatMenuExpanded = false }
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        BeaconAlertRepeat.entries.forEach { option ->
-                            DropdownMenuItem(
-                                text = {
-                                    Text(
-                                        stringResource(
-                                            when (option) {
-                                                BeaconAlertRepeat.ONCE -> R.string.beacon_alert_repeat_once
-                                                BeaconAlertRepeat.REPEAT -> R.string.beacon_alert_repeat_repeat
-                                            }
-                                        )
-                                    )
-                                },
-                                onClick = {
-                                    alertSettings = alertSettings.copy(repeat = option)
-                                    isRepeatMenuExpanded = false
-                                    onAlertSettingsChange(alertSettings.copy(repeat = option))
-                                }
-                            )
-                        }
-                    }
-                }
-
-                if (alertSettings.repeat == BeaconAlertRepeat.REPEAT) {
-                    Text(
-                        stringResource(R.string.beacon_alert_gap_label),
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                    ExposedDropdownMenuBox(
-                        expanded = repeatGapMenuExpanded,
-                        onExpandedChange = { repeatGapMenuExpanded = !repeatGapMenuExpanded }
-                    ) {
-                        OutlinedTextField(
-                            value = stringResource(
-                                R.string.beacon_alert_gap_value,
-                                (alertSettings.repeatGapMillis / 1000.0).toInt().toString(),
-                            ),
-                            onValueChange = {},
-                            readOnly = true,
-                            trailingIcon = {
-                                ExposedDropdownMenuDefaults.TrailingIcon(expanded = repeatGapMenuExpanded)
-                            },
-                            modifier = Modifier
-                                .menuAnchor(MenuAnchorType.PrimaryNotEditable)
-                                .fillMaxWidth()
+                        Text(
+                            stringResource(R.string.select_preset),
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
                         )
-                        ExposedDropdownMenu(
-                            expanded = repeatGapMenuExpanded,
-                            onDismissRequest = { repeatGapMenuExpanded = false }
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            gapOptions.forEach { gap ->
-                                DropdownMenuItem(
-                                    text = {
-                                        Text(
-                                            stringResource(
-                                                R.string.beacon_alert_gap_value,
-                                                (gap / 1000.0).toInt().toString(),
-                                            )
-                                        )
-                                    },
+                            BeaconPreset.entries.forEach { preset ->
+                                FilterChip(
+                                    selected = selectedPreset == preset,
                                     onClick = {
-                                        alertSettings = alertSettings.copy(repeatGapMillis = gap)
-                                        repeatGapMenuExpanded = false
-                                        onAlertSettingsChange(alertSettings.copy(repeatGapMillis = gap))
-                                    }
+                                        selectedPreset = preset
+                                        title = context.getString(preset.defaultTitleRes)
+                                        selectedColor = preset.defaultColorArgb
+                                        selectedPattern = preset.defaultPattern
+                                        isVibrationMenuExpanded = false
+                                    },
+                                    label = { Text(stringResource(preset.labelRes, preset.iconEmoji)) }
                                 )
                             }
                         }
+
+                        OutlinedTextField(
+                            value = title,
+                            onValueChange = { title = TextInputPolicy.sanitizeBeaconTitle(it) },
+                            label = { Text(stringResource(R.string.beacon_message_intent)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp),
+                            keyboardOptions = KeyboardOptions(
+                                capitalization = KeyboardCapitalization.Sentences
+                            )
+                        )
                     }
                 }
 
+                // Section 2: Color Palette
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text(
+                            stringResource(R.string.beacon_color),
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .selectableGroup(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            colorPalette.forEach { colorArgb ->
+                                val isSelected = selectedColor == colorArgb
+                                val description = stringResource(
+                                    R.string.set_beacon_color_to,
+                                    String.format(Locale.ROOT, "#%06X", colorArgb and 0xFFFFFFL),
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .size(44.dp)
+                                        .semantics { contentDescription = description }
+                                        .selectable(
+                                            selected = isSelected,
+                                            role = Role.RadioButton,
+                                            onClick = { selectedColor = colorArgb },
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Box(
+                                        Modifier
+                                            .size(36.dp)
+                                            .background(Color(colorArgb), CircleShape)
+                                            .border(
+                                                width = if (isSelected) 3.dp else 0.dp,
+                                                color = if (isSelected) MaterialTheme.colorScheme.onSurface else Color.Transparent,
+                                                shape = CircleShape,
+                                            ),
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
+
+                // Section 3: Vibration & Testing
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text(
+                            stringResource(R.string.vibration_rhythm_intensity),
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        ExposedDropdownMenuBox(
+                            expanded = isVibrationMenuExpanded,
+                            onExpandedChange = { isVibrationMenuExpanded = !isVibrationMenuExpanded }
+                        ) {
+                            OutlinedTextField(
+                                value = stringResource(selectedPattern.labelRes),
+                                onValueChange = {},
+                                readOnly = true,
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isVibrationMenuExpanded) },
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier
+                                    .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                                    .fillMaxWidth()
+                            )
+                            ExposedDropdownMenu(
+                                expanded = isVibrationMenuExpanded,
+                                onDismissRequest = { isVibrationMenuExpanded = false }
+                            ) {
+                                BeaconVibrationPattern.entries.forEach { pattern ->
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(pattern.labelRes)) },
+                                        onClick = {
+                                            selectedPattern = pattern
+                                            isVibrationMenuExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        OutlinedButton(
+                            onClick = { onTestVibrate(selectedPattern.pattern) },
+                            modifier = Modifier.fillMaxWidth().height(46.dp),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text(stringResource(R.string.test_vibration))
+                        }
+                    }
+                }
+
+                // Section 4: Alert Repetition
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text(
+                            stringResource(R.string.beacon_alert_repetition_label),
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        Text(
+                            stringResource(R.string.beacon_alert_repetition_explainer),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        ExposedDropdownMenuBox(
+                            expanded = isRepeatMenuExpanded,
+                            onExpandedChange = { isRepeatMenuExpanded = !isRepeatMenuExpanded }
+                        ) {
+                            OutlinedTextField(
+                                value = stringResource(
+                                    when (alertSettings.repeat) {
+                                        BeaconAlertRepeat.ONCE -> R.string.beacon_alert_repeat_once
+                                        BeaconAlertRepeat.REPEAT -> R.string.beacon_alert_repeat_repeat
+                                    }
+                                ),
+                                onValueChange = {},
+                                readOnly = true,
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isRepeatMenuExpanded) },
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier
+                                    .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                                    .fillMaxWidth()
+                            )
+                            ExposedDropdownMenu(
+                                expanded = isRepeatMenuExpanded,
+                                onDismissRequest = { isRepeatMenuExpanded = false }
+                            ) {
+                                BeaconAlertRepeat.entries.forEach { option ->
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                stringResource(
+                                                    when (option) {
+                                                        BeaconAlertRepeat.ONCE -> R.string.beacon_alert_repeat_once
+                                                        BeaconAlertRepeat.REPEAT -> R.string.beacon_alert_repeat_repeat
+                                                    }
+                                                )
+                                            )
+                                        },
+                                        onClick = {
+                                            alertSettings = alertSettings.copy(repeat = option)
+                                            isRepeatMenuExpanded = false
+                                            onAlertSettingsChange(alertSettings.copy(repeat = option))
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        if (alertSettings.repeat == BeaconAlertRepeat.REPEAT) {
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                stringResource(R.string.beacon_alert_gap_label),
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                            ExposedDropdownMenuBox(
+                                expanded = repeatGapMenuExpanded,
+                                onExpandedChange = { repeatGapMenuExpanded = !repeatGapMenuExpanded }
+                            ) {
+                                OutlinedTextField(
+                                    value = stringResource(
+                                        R.string.beacon_alert_gap_value,
+                                        (alertSettings.repeatGapMillis / 1000.0).toInt().toString(),
+                                    ),
+                                    onValueChange = {},
+                                    readOnly = true,
+                                    trailingIcon = {
+                                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = repeatGapMenuExpanded)
+                                    },
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier
+                                        .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                                        .fillMaxWidth()
+                                )
+                                ExposedDropdownMenu(
+                                    expanded = repeatGapMenuExpanded,
+                                    onDismissRequest = { repeatGapMenuExpanded = false }
+                                ) {
+                                    gapOptions.forEach { gap ->
+                                        DropdownMenuItem(
+                                            text = {
+                                                Text(
+                                                    stringResource(
+                                                        R.string.beacon_alert_gap_value,
+                                                        (gap / 1000.0).toInt().toString(),
+                                                    )
+                                                )
+                                            },
+                                            onClick = {
+                                                alertSettings = alertSettings.copy(repeatGapMillis = gap)
+                                                repeatGapMenuExpanded = false
+                                                onAlertSettingsChange(alertSettings.copy(repeatGapMillis = gap))
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         },
         confirmButton = {
             Button(
@@ -2437,13 +2502,15 @@ fun BeaconCustomizationDialog(
                         selectedPattern.name,
                     )
                     onDismiss()
-                }
+                },
+                modifier = Modifier.height(48.dp),
+                shape = RoundedCornerShape(14.dp)
             ) {
-                Text(stringResource(if (localBeacon != null) R.string.update_beacon else R.string.activate_beacon))
+                Text(stringResource(if (localBeacon != null) R.string.update_beacon else R.string.activate_beacon), fontWeight = FontWeight.SemiBold)
             }
         },
         dismissButton = {
-            Row {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (localBeacon != null) {
                     TextButton(
                         onClick = {
@@ -2452,7 +2519,7 @@ fun BeaconCustomizationDialog(
                         },
                         colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                     ) {
-                        Text(stringResource(R.string.stop_beacon))
+                        Text(stringResource(R.string.stop_beacon), fontWeight = FontWeight.SemiBold)
                     }
                 }
                 TextButton(onClick = onDismiss) {
