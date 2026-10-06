@@ -68,6 +68,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.DropdownMenuItem
@@ -150,6 +152,7 @@ import com.fkurevija.pingring.data.BeaconPreset
 import com.fkurevija.pingring.data.BeaconAlertPolicy
 import com.fkurevija.pingring.data.BeaconAlertRepeat
 import com.fkurevija.pingring.data.BeaconAlertSettings
+import com.fkurevija.pingring.data.BEACON_REPEAT_DURATION_UNTIL_STOPPED
 import com.fkurevija.pingring.data.BeaconVibrationPattern
 import com.fkurevija.pingring.data.ChatMessage
 import com.fkurevija.pingring.data.ChatBubbleColorPolicy
@@ -2407,72 +2410,116 @@ fun BeaconCustomizationDialog(
                     ),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    val repeatSteps = remember {
-                        listOf(
-                            Pair(BeaconAlertRepeat.ONCE, 5_000L),
-                            Pair(BeaconAlertRepeat.REPEAT, 5_000L),
-                            Pair(BeaconAlertRepeat.REPEAT, 10_000L),
-                            Pair(BeaconAlertRepeat.REPEAT, 15_000L),
-                            Pair(BeaconAlertRepeat.REPEAT, 20_000L),
-                            Pair(BeaconAlertRepeat.REPEAT, 30_000L),
-                        )
+                    var repeatEnabled by remember(initialAlertSettings) {
+                        mutableStateOf(initialAlertSettings.repeat == BeaconAlertRepeat.REPEAT)
                     }
-                    val initialRepeatIndex = remember(initialAlertSettings) {
-                        if (initialAlertSettings.repeat == BeaconAlertRepeat.ONCE) {
-                            0
-                        } else {
-                            val gap = initialAlertSettings.repeatGapMillis
-                            repeatSteps.indexOfFirst { it.first == BeaconAlertRepeat.REPEAT && it.second == gap }
-                                .takeIf { it >= 0 } ?: (repeatSteps.size - 1)
-                        }
+
+                    // Duration slider state (30s to 300s (5m), where max value means Until stopped)
+                    val initialDurationSec = if (initialAlertSettings.repeatDurationMillis == BEACON_REPEAT_DURATION_UNTIL_STOPPED) {
+                        300f
+                    } else {
+                        (initialAlertSettings.repeatDurationMillis / 1000f).coerceIn(30f, 300f)
                     }
-                    var repeatSliderDraft by remember { mutableFloatStateOf(initialRepeatIndex.toFloat()) }
-                    val currentRepeatIndex = repeatSliderDraft.roundToInt().coerceIn(0, repeatSteps.size - 1)
+                    var durationDraft by remember(initialAlertSettings) { mutableFloatStateOf(initialDurationSec) }
+
+                    // Frequency slider state (1s to 30s)
+                    val initialGapSec = (initialAlertSettings.repeatGapMillis / 1000f).coerceIn(1f, 30f)
+                    var frequencyDraft by remember(initialAlertSettings) { mutableFloatStateOf(initialGapSec) }
 
                     Column(
                         modifier = Modifier.fillMaxWidth().padding(14.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Text(
-                            stringResource(R.string.beacon_alert_repetition_label),
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                        Text(
-                            stringResource(R.string.beacon_alert_repetition_explainer),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-
-                        Text(
-                            text = when (currentRepeatIndex) {
-                                0 -> stringResource(R.string.beacon_alert_repeat_once)
-                                repeatSteps.size - 1 -> stringResource(R.string.beacon_alert_repeat_repeat)
-                                else -> {
-                                    val seconds = repeatSteps[currentRepeatIndex].second / 1000L
-                                    stringResource(R.string.beacon_alert_gap_value, seconds.toString())
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    stringResource(R.string.beacon_alert_repetition_label),
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                                Text(
+                                    stringResource(R.string.beacon_alert_repetition_explainer),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            Switch(
+                                checked = repeatEnabled,
+                                onCheckedChange = { checked ->
+                                    repeatEnabled = checked
+                                    val newRepeat = if (checked) BeaconAlertRepeat.REPEAT else BeaconAlertRepeat.ONCE
+                                    val durSec = durationDraft.roundToInt()
+                                    val newDuration = if (durSec >= 300) BEACON_REPEAT_DURATION_UNTIL_STOPPED else (durSec * 1000L)
+                                    val newGap = (frequencyDraft.roundToInt().coerceAtLeast(1) * 1000L)
+                                    alertSettings = BeaconAlertSettings(repeat = newRepeat, repeatGapMillis = newGap, repeatDurationMillis = newDuration)
+                                    onAlertSettingsChange(alertSettings)
                                 }
-                            },
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.padding(top = 4.dp)
-                        )
+                            )
+                        }
 
-                        Slider(
-                            value = repeatSliderDraft,
-                            onValueChange = { repeatSliderDraft = it },
-                            onValueChangeFinished = {
-                                val idx = repeatSliderDraft.roundToInt().coerceIn(0, repeatSteps.size - 1)
-                                val (repeatMode, gap) = repeatSteps[idx]
-                                alertSettings = BeaconAlertSettings(repeat = repeatMode, repeatGapMillis = gap)
-                                onAlertSettingsChange(alertSettings)
-                            },
-                            valueRange = 0f..(repeatSteps.size - 1).toFloat(),
-                            steps = repeatSteps.size - 2,
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                        if (repeatEnabled) {
+                            HorizontalDivider(
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                                modifier = Modifier.padding(vertical = 4.dp)
+                            )
+
+                            // Duration Slider
+                            val currentDurationSec = durationDraft.roundToInt()
+                            val isUntilStopped = currentDurationSec >= 300
+                            Text(
+                                text = if (isUntilStopped) {
+                                    "Duration: Until stopped"
+                                } else {
+                                    "Duration: ${currentDurationSec}s"
+                                },
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                            Slider(
+                                value = durationDraft,
+                                onValueChange = { durationDraft = it },
+                                onValueChangeFinished = {
+                                    val sec = durationDraft.roundToInt()
+                                    val dur = if (sec >= 300) BEACON_REPEAT_DURATION_UNTIL_STOPPED else (sec * 1000L)
+                                    alertSettings = alertSettings.copy(repeatDurationMillis = dur)
+                                    onAlertSettingsChange(alertSettings)
+                                },
+                                valueRange = 30f..300f,
+                                steps = 8,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+
+                            Spacer(Modifier.height(4.dp))
+
+                            // Frequency Slider
+                            val currentFreqSec = frequencyDraft.roundToInt()
+                            Text(
+                                text = "Frequency: Every ${currentFreqSec}s",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                            Slider(
+                                value = frequencyDraft,
+                                onValueChange = { frequencyDraft = it },
+                                onValueChangeFinished = {
+                                    val sec = frequencyDraft.roundToInt().coerceAtLeast(1)
+                                    val gap = sec * 1000L
+                                    alertSettings = alertSettings.copy(repeatGapMillis = gap)
+                                    onAlertSettingsChange(alertSettings)
+                                },
+                                valueRange = 1f..30f,
+                                steps = 28,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
                     }
                 }
             }

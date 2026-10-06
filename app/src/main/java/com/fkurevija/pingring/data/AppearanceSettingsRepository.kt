@@ -96,6 +96,7 @@ private val notificationSoundEnabledKey = booleanPreferencesKey("notification_so
 private val notificationVibrationEnabledKey = booleanPreferencesKey("notification_vibration_enabled")
 private val beaconAlertRepeatKey = stringPreferencesKey("beacon_alert_repeat")
 private val beaconRepeatGapMillisKey = longPreferencesKey("beacon_repeat_gap_millis")
+private val beaconRepeatDurationMillisKey = longPreferencesKey("beacon_repeat_duration_millis")
 private val silencedBeaconIdsKey = stringSetPreferencesKey("silenced_beacon_ids")
 private val lanDebugEnabledKey = booleanPreferencesKey("lan_debug_enabled")
 private val lanDebugHostKey = stringPreferencesKey("lan_debug_host")
@@ -183,6 +184,9 @@ class AppearanceSettingsRepository(private val context: Context) {
                 repeat = repeat,
                 repeatGapMillis = normalizeBeaconRepeatGapMillis(
                     preferences[beaconRepeatGapMillisKey] ?: DEFAULT_BEACON_REPEAT_GAP_MILLIS
+                ),
+                repeatDurationMillis = normalizeBeaconRepeatDurationMillis(
+                    preferences[beaconRepeatDurationMillisKey] ?: DEFAULT_BEACON_REPEAT_DURATION_MILLIS
                 ),
             )
         }
@@ -322,6 +326,7 @@ class AppearanceSettingsRepository(private val context: Context) {
             context.appearanceDataStore.edit { preferences ->
                 preferences[beaconAlertRepeatKey] = normalized.repeat.name
                 preferences[beaconRepeatGapMillisKey] = normalized.repeatGapMillis
+                preferences[beaconRepeatDurationMillisKey] = normalized.repeatDurationMillis
             }
         }
     }

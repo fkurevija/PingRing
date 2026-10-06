@@ -13,8 +13,18 @@ const val DEFAULT_BEACON_REPEAT_GAP_MILLIS = 5_000L
 const val MIN_BEACON_REPEAT_GAP_MILLIS = 1_000L
 const val MAX_BEACON_REPEAT_GAP_MILLIS = 30_000L
 
+const val DEFAULT_BEACON_REPEAT_DURATION_MILLIS = 60_000L
+const val MIN_BEACON_REPEAT_DURATION_MILLIS = 30_000L
+const val MAX_BEACON_REPEAT_DURATION_MILLIS = 300_000L
+const val BEACON_REPEAT_DURATION_UNTIL_STOPPED = Long.MAX_VALUE
+
 internal fun normalizeBeaconRepeatGapMillis(gapMillis: Long): Long =
     gapMillis.coerceIn(MIN_BEACON_REPEAT_GAP_MILLIS, MAX_BEACON_REPEAT_GAP_MILLIS)
+
+internal fun normalizeBeaconRepeatDurationMillis(durationMillis: Long): Long {
+    if (durationMillis == BEACON_REPEAT_DURATION_UNTIL_STOPPED) return BEACON_REPEAT_DURATION_UNTIL_STOPPED
+    return durationMillis.coerceIn(MIN_BEACON_REPEAT_DURATION_MILLIS, MAX_BEACON_REPEAT_DURATION_MILLIS)
+}
 
 /**
  * Whether a beacon alert plays once or keeps going.
@@ -50,13 +60,17 @@ enum class BeaconAlertRepeat {
 data class BeaconAlertSettings(
     val repeat: BeaconAlertRepeat = BeaconAlertRepeat.ONCE,
     val repeatGapMillis: Long = DEFAULT_BEACON_REPEAT_GAP_MILLIS,
+    val repeatDurationMillis: Long = DEFAULT_BEACON_REPEAT_DURATION_MILLIS,
 ) {
-    /** This with the gap forced into the allowed range. */
+    /** This with the gap and duration forced into allowed ranges. */
     fun normalized(): BeaconAlertSettings =
-        copy(repeatGapMillis = normalizeBeaconRepeatGapMillis(repeatGapMillis))
+        copy(
+            repeatGapMillis = normalizeBeaconRepeatGapMillis(repeatGapMillis),
+            repeatDurationMillis = normalizeBeaconRepeatDurationMillis(repeatDurationMillis),
+        )
 
     companion object {
-        /** No repeating, at the default gap. What every install starts with. */
+        /** No repeating, at the default gap and duration. What every install starts with. */
         val DEFAULT = BeaconAlertSettings()
     }
 }

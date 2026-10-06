@@ -1598,6 +1598,8 @@ class DiscoveryRepository(
      * anything already looping: a member who switches to "No Vibration" should
      * not be left with a buzz that started before they changed their mind.
      */
+    private var beaconStopJob: Job? = null
+
     fun playBeaconAlert(beaconId: String, pattern: LongArray) {
         if (!BeaconAlertPolicy.shouldAlert(beaconId, _silencedBeaconIds.value, pattern)) {
             // A member who silences a repeating beacon must get silence now, not
@@ -1605,7 +1607,8 @@ class DiscoveryRepository(
             stopVibration()
             return
         }
-        val wave = BeaconAlertPolicy.waveformFor(pattern, _beaconAlertSettings.value)
+        val settings = _beaconAlertSettings.value
+        val wave = BeaconAlertPolicy.waveformFor(pattern, settings)
         if (wave == null) {
             stopVibration()
             return
@@ -1613,6 +1616,14 @@ class DiscoveryRepository(
         try {
             val effect = VibrationEffect.createWaveform(wave.timings, wave.repeatFromIndex)
             vibrator?.vibrate(effect)
+
+            beaconStopJob?.cancel()
+            if (settings.repeat == BeaconAlertRepeat.REPEAT && settings.repeatDurationMillis != BEACON_REPEAT_DURATION_UNTIL_STOPPED) {
+                beaconStopJob = controlScope.launch {
+                    delay(settings.repeatDurationMillis)
+                    stopVibration()
+                }
+            }
         } catch (e: Exception) {
             Log.w(TAG, "Beacon alert playback failed", e)
         }
@@ -1683,6 +1694,7 @@ class DiscoveryRepository(
     }
 
     fun stopVibration() {
+        beaconStopJob?.cancel()
         try {
             vibrator?.cancel()
         } catch (e: Exception) {
