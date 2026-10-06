@@ -2205,7 +2205,7 @@ class DiscoveryRepository(
 
         // A UWB measurement is real ranging, so it always wins over an RSSI
         // guess. Only peers that have never been ranged fall back to the
-        // estimate, which is a rolling average over the last couple of seconds
+        // estimate, which is a rolling average over the last second
         // of adverts - the curve is applied to the mean, not to each reading,
         // so one reflected packet cannot move the readout.
         val nowMillis = System.currentTimeMillis()

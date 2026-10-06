@@ -437,7 +437,7 @@ class LanDebugConnectionsManager(
         if (context == null || DeviceEnvironment.isEmulator()) return
         rssiJob = scope.launch {
             while (isActive && connectionGeneration.get() == myGeneration) {
-                delay(2_500L)
+                delay(RSSI_SAMPLE_INTERVAL_MILLIS)
                 if (socket?.isConnected == true && localPeerId.isNotBlank() && localEventId.isNotBlank()) {
                     publishWifiRssi(measureWifiRssi())
                 }
@@ -629,6 +629,7 @@ class LanDebugConnectionsManager(
 
     companion object {
         const val DEFAULT_PORT = 8942
+        internal const val RSSI_SAMPLE_INTERVAL_MILLIS = 1_000L
         private const val RECONNECT_DELAY_MILLIS = 2000L
         private const val HEARTBEAT_INTERVAL_MILLIS = 10000L
     }

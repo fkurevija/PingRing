@@ -27,6 +27,11 @@ import java.util.concurrent.TimeUnit
 class LanDebugConnectionsManagerTest {
 
     @Test
+    fun wifiPollingIntervalIsOneSecond() {
+        assertEquals(1_000L, LanDebugConnectionsManager.RSSI_SAMPLE_INTERVAL_MILLIS)
+    }
+
+    @Test
     fun testPendingJoinRequestsCollection() {
         val manager = LanDebugConnectionsManager("127.0.0.1")
         assertEquals(0, manager.pendingJoinRequests.value.size)
