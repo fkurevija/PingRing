@@ -49,6 +49,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -77,6 +78,10 @@ import androidx.compose.ui.unit.dp
 import com.fkurevija.pingring.data.ConnectionMethodPolicy
 import com.fkurevija.pingring.data.ConnectionMethodPolicy.Unavailable
 import com.fkurevija.pingring.data.Event
+import com.fkurevija.pingring.data.BeaconAlertSettings
+import com.fkurevija.pingring.data.BeaconAlertRepeat
+import com.fkurevija.pingring.data.BEACON_REPEAT_DURATION_UNTIL_STOPPED
+import kotlin.math.roundToInt
 import com.fkurevija.pingring.data.ChatBubblePalette
 import com.fkurevija.pingring.data.MAX_PARTICIPANTS
 import com.fkurevija.pingring.R
@@ -102,6 +107,8 @@ fun PingRingSettingsScreen(
     event: Event,
     uwbHardwareSupported: Boolean,
     isHost: Boolean,
+    beaconAlertSettings: BeaconAlertSettings = BeaconAlertSettings.DEFAULT,
+    onBeaconAlertSettingsChange: (BeaconAlertSettings) -> Unit = {},
     onBack: () -> Unit,
     /**
      * Opens the app's own settings.
@@ -336,6 +343,119 @@ fun PingRingSettingsScreen(
             // No heading above the button: it is already labelled "App Settings",
             // and repeating those words two lines up said the same thing twice.
             // The button is the whole card, so the card needs no name of its own.
+            // Beacon Repetition Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                )
+            ) {
+                var repeatEnabled by remember(beaconAlertSettings) {
+                    mutableStateOf(beaconAlertSettings.repeat == BeaconAlertRepeat.REPEAT)
+                }
+
+                val initialDurationSec = if (beaconAlertSettings.repeatDurationMillis == BEACON_REPEAT_DURATION_UNTIL_STOPPED) {
+                    300f
+                } else {
+                    (beaconAlertSettings.repeatDurationMillis / 1000f).coerceIn(30f, 300f)
+                }
+                var durationDraft by remember(beaconAlertSettings) { mutableFloatStateOf(initialDurationSec) }
+
+                val initialGapSec = (((beaconAlertSettings.repeatGapMillis / 1000f) / 5f).roundToInt() * 5f).coerceIn(5f, 30f)
+                var frequencyDraft by remember(beaconAlertSettings) { mutableFloatStateOf(initialGapSec) }
+
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                stringResource(R.string.beacon_alert_repetition_label),
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Text(
+                                stringResource(R.string.beacon_alert_repetition_explainer),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        Switch(
+                            checked = repeatEnabled,
+                            onCheckedChange = { checked ->
+                                repeatEnabled = checked
+                                val newRepeat = if (checked) BeaconAlertRepeat.REPEAT else BeaconAlertRepeat.ONCE
+                                val durSec = durationDraft.roundToInt()
+                                val newDuration = if (durSec >= 300) BEACON_REPEAT_DURATION_UNTIL_STOPPED else (durSec * 1000L)
+                                val newGap = (((frequencyDraft / 5f).roundToInt() * 5).coerceIn(5, 30) * 1000L)
+                                onBeaconAlertSettingsChange(BeaconAlertSettings(repeat = newRepeat, repeatGapMillis = newGap, repeatDurationMillis = newDuration))
+                            }
+                        )
+                    }
+
+                    if (repeatEnabled) {
+                        HorizontalDivider(
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        )
+
+                        val currentDurationSec = durationDraft.roundToInt()
+                        val isUntilStopped = currentDurationSec >= 300
+                        Text(
+                            text = if (isUntilStopped) {
+                                "Duration: Until stopped"
+                            } else {
+                                "Duration: ${currentDurationSec}s"
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Slider(
+                            value = durationDraft,
+                            onValueChange = { durationDraft = it },
+                            onValueChangeFinished = {
+                                val sec = durationDraft.roundToInt()
+                                val dur = if (sec >= 300) BEACON_REPEAT_DURATION_UNTIL_STOPPED else (sec * 1000L)
+                                onBeaconAlertSettingsChange(beaconAlertSettings.copy(repeatDurationMillis = dur))
+                            },
+                            valueRange = 30f..300f,
+                            steps = 8,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        Spacer(Modifier.height(4.dp))
+
+                        val currentFreqSec = ((frequencyDraft / 5f).roundToInt() * 5).coerceIn(5, 30)
+                        Text(
+                            text = "Frequency: Every ${currentFreqSec}s",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Slider(
+                            value = frequencyDraft,
+                            onValueChange = { frequencyDraft = it },
+                            onValueChangeFinished = {
+                                val sec = ((frequencyDraft / 5f).roundToInt() * 5).coerceIn(5, 30)
+                                val gap = sec * 1000L
+                                onBeaconAlertSettingsChange(beaconAlertSettings.copy(repeatGapMillis = gap))
+                            },
+                            valueRange = 5f..30f,
+                            steps = 4,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            }
+
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(18.dp),

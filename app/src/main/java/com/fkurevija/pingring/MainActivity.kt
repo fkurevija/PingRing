@@ -544,10 +544,13 @@ fun MainNavigation(
                     val event = sessionState.currentEvent
                     if (event != null && event.id == key.eventId) {
                         val isHost = sessionState.isHost
+                        val beaconAlertSettings by discoveryRepository.beaconAlertSettings.collectAsState()
                         PingRingSettingsScreen(
                             event = event,
                             uwbHardwareSupported = discoveryRepository.isUwbSupported(),
                             isHost = isHost,
+                            beaconAlertSettings = beaconAlertSettings,
+                            onBeaconAlertSettingsChange = discoveryRepository::setBeaconAlertSettings,
                             onBack = { backStack.popBack() },
                             // Pushed onto the same stack, so backing out of app
                             // settings returns to this screen rather than to Home
