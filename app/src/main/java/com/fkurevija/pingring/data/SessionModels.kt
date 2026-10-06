@@ -225,6 +225,7 @@ data class MeshLinkAuthenticationPayloadDto(
 data class JoinProofPayloadDto(
     val eventCode: String,
     val inviteSecret: String?,
+    val guestName: String? = null,
 )
 
 @Serializable

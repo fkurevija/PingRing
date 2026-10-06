@@ -66,6 +66,7 @@ class LanDebugConnectionsManager(
 
     override var acceptsNewMembers: Boolean = true
     override var inviteSecretProvider: (() -> String?)? = null
+    override var userNameProvider: (() -> String?)? = null
 
     private val _pendingJoinRequests = MutableStateFlow<List<PendingJoinRequest>>(emptyList())
     override val pendingJoinRequests: StateFlow<List<PendingJoinRequest>> = _pendingJoinRequests.asStateFlow()
@@ -191,7 +192,8 @@ class LanDebugConnectionsManager(
                     if (localRole == RelayEnvelope.ROLE_MEMBER) {
                         val proof = JoinProofPayloadDto(
                             eventCode = localEventId,
-                            inviteSecret = inviteSecretProvider?.invoke()
+                            inviteSecret = inviteSecretProvider?.invoke(),
+                            guestName = userNameProvider?.invoke()
                         )
                         sendPayload(null, proof)
                     }
@@ -382,9 +384,10 @@ class LanDebugConnectionsManager(
             JoinRequestDecision.AwaitApproval -> {
                 Log.i(TAG, "Holding join request from $senderPeerId for host approval")
                 pendingJoinProofs[senderPeerId] = proof
+                val requestName = proof.guestName.takeIf { !it.isNullOrBlank() } ?: senderPeerId.ifBlank { "Guest device" }
                 val request = PendingJoinRequest(
                     endpointId = senderPeerId,
-                    deviceName = senderPeerId.ifBlank { "Guest device" },
+                    deviceName = requestName,
                     requestedAtMillis = System.currentTimeMillis()
                 )
                 _pendingJoinRequests.update { current ->
@@ -419,15 +422,20 @@ class LanDebugConnectionsManager(
         }
     }
 
+    private var simulatedRssi = -65
+
     private fun measureWifiRssi(): Int {
-        val ctx = context ?: return -65
-        val wifiManager = ctx.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
-        val infoRssi = wifiManager?.connectionInfo?.rssi
-        return if (infoRssi != null && infoRssi in -100..-20) {
-            infoRssi
-        } else {
-            -65
+        val ctx = context
+        if (ctx != null) {
+            val wifiManager = ctx.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+            val infoRssi = wifiManager?.connectionInfo?.rssi
+            if (infoRssi != null && infoRssi in -100..-20) {
+                return infoRssi
+            }
         }
+        simulatedRssi += (Math.random() * 8 - 4).toInt()
+        simulatedRssi = simulatedRssi.coerceIn(-85, -50)
+        return simulatedRssi
     }
 
     private fun sendEnvelope(envelope: RelayEnvelope, onComplete: (() -> Unit)? = null) {

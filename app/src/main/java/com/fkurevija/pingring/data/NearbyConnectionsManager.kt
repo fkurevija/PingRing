@@ -322,6 +322,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
      */
     var hostPeerIdProvider: (() -> String?)? = null
     override var inviteSecretProvider: (() -> String?)? = null
+    override var userNameProvider: (() -> String?)? = null
     var meshIdentityKeyProvider: ((String) -> BleIdentityKeyPayloadDto?)? = null
     var meshPrivateKeyProvider: (() -> java.security.PrivateKey?)? = null
 
@@ -1063,7 +1064,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
                     val eventCode = localEventId ?: return
                     sendPayloadToEndpoint(
                         endpointId,
-                        JoinProofPayloadDto(eventCode, inviteSecretProvider?.invoke()),
+                        JoinProofPayloadDto(eventCode, inviteSecretProvider?.invoke(), userNameProvider?.invoke()),
                     )
                 } else {
                     authorizeEndpoint(endpointId)
@@ -1386,9 +1387,12 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
         }
 
         pendingInviteProofEndpoints.add(endpointId)
+        val guestName = pendingJoinProofs[endpointId]?.guestName
+        val peerName = endpointToPeerId[endpointId].orEmpty()
+        val deviceName = guestName.takeIf { !it.isNullOrBlank() } ?: peerName.ifBlank { "Unknown device" }
         val request = PendingJoinRequest(
             endpointId = endpointId,
-            deviceName = endpointToPeerId[endpointId].orEmpty().ifBlank { "Unknown device" },
+            deviceName = deviceName,
             requestedAtMillis = System.currentTimeMillis(),
         )
         _pendingJoinRequests.update { current ->

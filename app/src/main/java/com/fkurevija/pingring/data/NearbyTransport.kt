@@ -45,6 +45,7 @@ interface NearbyTransport {
     /** The host's standing answer to devices asking to join. */
     var acceptsNewMembers: Boolean
     var inviteSecretProvider: (() -> String?)?
+    var userNameProvider: (() -> String?)?
 
     /**
      * Devices asking to join, oldest first, for the host to act on.

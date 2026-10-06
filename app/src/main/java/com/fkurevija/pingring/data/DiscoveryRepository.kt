@@ -1012,6 +1012,9 @@ class DiscoveryRepository(
             nearbyConnectionsManager.inviteSecretProvider = {
                 sessionManager.sessionState.value.currentEvent?.inviteSecret
             }
+            nearbyConnectionsManager.userNameProvider = {
+                sessionManager.sessionState.value.userName
+            }
             (nearbyConnectionsManager as? NearbyConnectionsManager)?.meshIdentityKeyProvider = { peerId ->
                 bleIdentityKeys[peerId]
             }
