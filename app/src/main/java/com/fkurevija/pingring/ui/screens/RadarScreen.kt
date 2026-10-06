@@ -90,6 +90,7 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -2210,8 +2211,7 @@ fun BeaconCustomizationDialog(
         text = {
             Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
+                    .fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 // Section 1: Presets & Intent
@@ -2232,25 +2232,38 @@ fun BeaconCustomizationDialog(
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary,
                         )
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            BeaconPreset.entries.forEach { preset ->
-                                FilterChip(
-                                    selected = selectedPreset == preset,
-                                    onClick = {
-                                        selectedPreset = preset
-                                        title = context.getString(preset.defaultTitleRes)
-                                        selectedColor = preset.defaultColorArgb
-                                        selectedPattern = preset.defaultPattern
-                                        isVibrationMenuExpanded = false
-                                    },
-                                    label = { Text(stringResource(preset.labelRes, preset.iconEmoji)) }
-                                )
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                BeaconPreset.entries.forEach { preset ->
+                                    FilterChip(
+                                        selected = selectedPreset == preset,
+                                        onClick = {
+                                            selectedPreset = preset
+                                            title = context.getString(preset.defaultTitleRes)
+                                            selectedColor = preset.defaultColorArgb
+                                            selectedPattern = preset.defaultPattern
+                                            isVibrationMenuExpanded = false
+                                        },
+                                        label = { Text(stringResource(preset.labelRes, preset.iconEmoji)) }
+                                    )
+                                }
                             }
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.CenterEnd)
+                                    .width(20.dp)
+                                    .height(36.dp)
+                                    .background(
+                                        Brush.horizontalGradient(
+                                            colors = listOf(Color.Transparent, MaterialTheme.colorScheme.surfaceVariant)
+                                        )
+                                    )
+                            )
                         }
 
                         OutlinedTextField(
