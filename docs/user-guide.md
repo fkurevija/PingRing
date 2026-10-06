@@ -120,7 +120,7 @@ Members are listed **nearest first**, by signal strength. The raw reading (dBm) 
 
 If a local radio problem is the reason you can see nobody, the list says so at the top rather than just staying empty. Those notices are worded as what you are *losing*, never as "you cannot reach anybody" — PingRing works with no network at all, and no radio state here stops it working.
 
-Each row shows a status dot (beacon colour if they have a beacon running, otherwise green when close and blue when not), the name, whether they are **Hot**, **Cold** or **Unknown**, and the distance. The dot is colour, so the word is there too for anyone who cannot separate green from blue. The host's radar shows pending join requests above the radar.
+Each row shows a status dot (beacon colour if they have a beacon running, otherwise green when close and blue when not), the name, whether they are **Hot**, **Cold** or **Unknown**, and the distance. The dot is colour, so the word is there too for anyone who cannot separate green from blue. Pending join requests overlay the top of the host's radar or setup screen without moving the existing content. Long request queues scroll within the card.
 
 The title carries the count, including you — **Members (1/8)** when you are alone. With nobody else present the sheet is simply empty.
 

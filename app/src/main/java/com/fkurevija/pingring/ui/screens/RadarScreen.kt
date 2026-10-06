@@ -125,13 +125,11 @@ import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.People
-import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
@@ -590,7 +588,12 @@ fun RadarScreen(
         // itself and the two can never disagree about what leaving means.
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp)) {
+        JoinRequestOverlay(
+            requests = if (isHost) requestsToShow else emptyList(),
+            onApprove = onApproveJoinRequest,
+            onDeny = onDenyJoinRequest,
+            modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp),
+        ) {
             coordinationError?.let { message ->
                 Card(
                     colors = CardDefaults.cardColors(
@@ -669,55 +672,6 @@ fun RadarScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.weight(1f),
                         )
-                    }
-                }
-            }
-
-            // Devices waiting to be let in. Above the radar: a request is
-            // a question being asked of the host right now, and a live beacon is
-            // a statement already made. Approving is the accept that opens the
-            // guest's payload channel, so it happens here and nowhere else.
-            if (isHost && requestsToShow.isNotEmpty()) {
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.tertiaryContainer
-                    ),
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
-                        Text(
-                            pluralStringResource(R.plurals.join_request_count, requestsToShow.size, requestsToShow.size),
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        requestsToShow.forEach { request ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    Icons.Default.PersonAdd,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onTertiaryContainer,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(Modifier.width(8.dp))
-                                Text(
-                                    request.deviceName,
-                                    modifier = Modifier.weight(1f),
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                                TextButton(onClick = { onDenyJoinRequest(request.endpointId) }) {
-                                    Text(stringResource(R.string.deny))
-                                }
-                                Spacer(Modifier.width(4.dp))
-                                Button(onClick = { onApproveJoinRequest(request.endpointId) }) {
-                                    Text(stringResource(R.string.allow))
-                                }
-                            }
-                        }
                     }
                 }
             }

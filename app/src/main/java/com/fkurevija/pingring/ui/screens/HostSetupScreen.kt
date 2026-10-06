@@ -6,7 +6,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,9 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Sensors
 import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material3.Button
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -56,7 +53,6 @@ import com.fkurevija.pingring.data.TextInputPolicy
 import com.fkurevija.pingring.data.DiscoveryRepository
 import com.fkurevija.pingring.data.PendingJoinRequest
 import com.fkurevija.pingring.R
-import androidx.compose.ui.res.pluralStringResource
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -126,54 +122,18 @@ fun HostSetupScreen(
         // read a code out to somebody should be looking at the same shape they
         // will see a minute later when they scan it.
         //
-        // The scroll stays as a guard, not as a habit. Everything here fits a
-        // phone with room to spare, so nothing scrolls in the resting state and
-        // anEmptyUsernameErrorAndThePrimaryActionBothFitWithoutScrolling says
-        // so. What it is for is the one thing here that grows at runtime: the
-        // queue of people waiting to be admitted, each a full row with Allow
-        // and Deny on it. Clip those and nobody can get into the ring, so the
-        // page gives way before the approvals do.
-        Column(
+        // The form and approval queue scroll independently on small screens.
+        JoinRequestOverlay(
+            requests = pendingJoinRequests,
+            onApprove = onApproveJoinRequest,
+            onDeny = onDenyJoinRequest,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(20.dp)
-                .verticalScroll(rememberScrollState()),
+                .padding(20.dp),
+            contentModifier = Modifier.verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            if (pendingJoinRequests.isNotEmpty()) {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer),
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                ) {
-                    Column(Modifier.fillMaxWidth().padding(12.dp)) {
-                        Text(
-                            pluralStringResource(R.plurals.join_request_count, pendingJoinRequests.size, pendingJoinRequests.size),
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        pendingJoinRequests.forEach { request ->
-                            Row(
-                                Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Icon(Icons.Default.PersonAdd, contentDescription = null, modifier = Modifier.size(20.dp))
-                                Spacer(Modifier.width(8.dp))
-                                Text(request.deviceName, Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
-                                TextButton(onClick = { onDenyJoinRequest(request.endpointId) }) {
-                                    Text(stringResource(R.string.deny))
-                                }
-                                Button(onClick = { onApproveJoinRequest(request.endpointId) }) {
-                                    Text(stringResource(R.string.allow))
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
             // Spacers, not spacedBy: the join screen sets its rhythm with
             // explicit ones and matching it here is the point of this layout.
             Spacer(Modifier.height(16.dp))
@@ -353,4 +313,3 @@ fun HostSetupScreen(
         }
     }
 }
-

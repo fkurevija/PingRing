@@ -2,6 +2,7 @@ package com.fkurevija.pingring
 
 import android.content.Context
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
@@ -68,6 +69,7 @@ class HostSetupScreenInstrumentedTest {
         savedUsername: String = "Alex",
         onOpenSettings: () -> Unit = {},
         pendingJoinRequests: List<PendingJoinRequest> = emptyList(),
+        pendingJoinRequestsProvider: () -> List<PendingJoinRequest> = { pendingJoinRequests },
         onApproveJoinRequest: (String) -> Unit = {},
         onDenyJoinRequest: (String) -> Unit = {},
     ) {
@@ -91,12 +93,43 @@ class HostSetupScreenInstrumentedTest {
                     onSaveUsername = {},
                     onView = {},
                     onOpenSettings = onOpenSettings,
-                    pendingJoinRequests = pendingJoinRequests,
+                    pendingJoinRequests = pendingJoinRequestsProvider(),
                     onApproveJoinRequest = onApproveJoinRequest,
                     onDenyJoinRequest = onDenyJoinRequest,
                 )
             }
         }
+    }
+
+    @Test
+    fun joinRequestsOverlayWithoutMovingTheHostForm() {
+        val requests = mutableStateOf(emptyList<PendingJoinRequest>())
+        show(pendingJoinRequestsProvider = { requests.value })
+        val before = composeRule.onNodeWithText("Scan to Join").getUnclippedBoundsInRoot()
+
+        composeRule.runOnIdle {
+            requests.value = listOf(PendingJoinRequest("endpoint-1", "Ana", 1L))
+        }
+        composeRule.onNodeWithText("Ana").assertIsDisplayed()
+        assertEquals(before, composeRule.onNodeWithText("Scan to Join").getUnclippedBoundsInRoot())
+
+        composeRule.runOnIdle { requests.value = emptyList() }
+        composeRule.onNodeWithText("Ana").assertDoesNotExist()
+        assertEquals(before, composeRule.onNodeWithText("Scan to Join").getUnclippedBoundsInRoot())
+    }
+
+    @Test
+    fun longJoinQueuesScrollWithoutMovingTheHostForm() {
+        var approved: String? = null
+        show(
+            pendingJoinRequests = (1..20).map { PendingJoinRequest("endpoint-$it", "Guest $it", 1L) },
+            onApproveJoinRequest = { approved = it },
+        )
+        val before = composeRule.onNodeWithText("Launch Radar").getUnclippedBoundsInRoot()
+        composeRule.onNodeWithText("Guest 20").performScrollTo().assertIsDisplayed()
+        composeRule.onAllNodesWithText("Allow")[19].performClick()
+        assertEquals("endpoint-20", approved)
+        assertEquals(before, composeRule.onNodeWithText("Launch Radar").getUnclippedBoundsInRoot())
     }
 
     @Test

@@ -115,6 +115,8 @@ Nothing connects to the relay until a device actually hosts or joins, so an idle
 
 The Developer Options card holding this toggle appears only in debug builds, and only while the device looks set up for development (ADB over USB/Wi-Fi, USB attached, or an emulator). It stays visible while the transport is on so it can always be switched back off.
 
+**Known background-testing limitation with wireless ADB:** A phone's wireless debugging connection can drop while PingRing is backgrounded or the phone is sleeping. This also removes its `adb reverse` relay tunnel, even if PingRing's foreground service remains running. If that phone is the host and its relay socket stays disconnected for more than the current **5-second host reconnect grace**, the relay closes the event and guests return to Home. This can look like Android stopped the host app in the background, but the relay deliberately treats prolonged host connection loss as event closure. Use USB ADB for more stable background testing. After a wireless drop, reconnect ADB, restore `adb reverse tcp:8942 tcp:8942` for the phone, then host and join a new PingRing if the relay already closed the old one. This is a LAN debug relay limitation, not evidence of production Nearby Connections background behavior.
+
 **Debug only** — excluded from release builds, and not a substitute for testing on real hardware over Nearby Connections.
 
 ### 📡 Scripted Distance (Testing the Radar Remotely)

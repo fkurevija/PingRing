@@ -113,6 +113,7 @@ class RadarScreenInstrumentedTest {
         lastKnownPeerDirections: List<LastKnownPeerDirection> = emptyList(),
         isTopDestination: Boolean = true,
         pendingJoinRequests: List<PendingJoinRequest> = emptyList(),
+        pendingJoinRequestsProvider: () -> List<PendingJoinRequest> = { pendingJoinRequests },
         onApproveJoinRequest: (String) -> Unit = {},
         onDenyJoinRequest: (String) -> Unit = {},
         onEventSettings: () -> Unit = {},
@@ -146,7 +147,7 @@ class RadarScreenInstrumentedTest {
                 hostConnectionLostAtMillis = hostConnectionLostAtMillis,
                 lastKnownPeerDirections = lastKnownPeerDirections,
                 isTopDestination = isTopDestination,
-                pendingJoinRequests = pendingJoinRequests,
+                pendingJoinRequests = pendingJoinRequestsProvider(),
                 onApproveJoinRequest = onApproveJoinRequest,
                 onDenyJoinRequest = onDenyJoinRequest,
                 onEventSettings = onEventSettings,
@@ -154,6 +155,26 @@ class RadarScreenInstrumentedTest {
                 onEndEvent = onEndEvent,
             )
         }
+    }
+
+    @Test
+    fun joinRequestsOverlayWithoutMovingRadarContent() {
+        val requests = mutableStateOf(emptyList<PendingJoinRequest>())
+        showRadar(isHost = true, pendingJoinRequestsProvider = { requests.value })
+        val before = composeRule.onNodeWithText("Beacons").getUnclippedBoundsInRoot()
+
+        composeRule.runOnIdle {
+            requests.value = listOf(PendingJoinRequest("endpoint-1", "Ana", 1L))
+        }
+        composeRule.settle()
+
+        composeRule.onNodeWithText("Ana").assertIsDisplayed()
+        assertEquals(before, composeRule.onNodeWithText("Beacons").getUnclippedBoundsInRoot())
+
+        composeRule.runOnIdle { requests.value = emptyList() }
+        composeRule.settle()
+        composeRule.onNodeWithText("Ana").assertDoesNotExist()
+        assertEquals(before, composeRule.onNodeWithText("Beacons").getUnclippedBoundsInRoot())
     }
 
     @Test
