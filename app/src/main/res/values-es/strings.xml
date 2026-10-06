@@ -192,12 +192,14 @@
     <string name="update_beacon">Actualizar baliza</string>
     <string name="activate_beacon">Activar baliza</string>
     <string name="stop_beacon">Detener baliza</string>
+    <string name="preset_gondor_calls_for_aid">%1$s Gondor Calls For Aid!</string>
     <string name="preset_found">%1$s Algo encontrado</string>
     <string name="preset_regroup">%1$s Reunirse aquí</string>
     <string name="preset_caution">%1$s Precaución</string>
     <string name="preset_emergency">%1$s Emergencia</string>
     <string name="preset_custom">%1$s Personalizada</string>
     <string name="preset_found_title">¡Algo encontrado!</string>
+    <string name="preset_gondor_calls_for_aid_title">Gondor Calls For Aid!</string>
     <string name="preset_regroup_title">Reunirse en mi ubicación</string>
     <string name="preset_caution_title">Precaución</string>
     <string name="preset_emergency_title">¡Emergencia!</string>

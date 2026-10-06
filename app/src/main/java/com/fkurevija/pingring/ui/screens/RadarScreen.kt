@@ -11,11 +11,7 @@ import com.fkurevija.pingring.ui.accessibility.rememberAccessibilityEnvironment
 import androidx.compose.ui.window.DialogProperties
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.ui.input.pointer.PointerEventType
-import androidx.compose.ui.input.pointer.pointerInput
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -90,7 +86,6 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.setValue
@@ -2227,47 +2222,16 @@ fun BeaconCustomizationDialog(
                                     .horizontalScroll(rememberScrollState()),
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                var customLongPressed by remember { mutableStateOf(false) }
                                 BeaconPreset.entries.forEach { preset ->
-                                    val isCustom = preset == BeaconPreset.CUSTOM
-                                    val coroutineScope = rememberCoroutineScope()
                                     FilterChip(
                                         selected = selectedPreset == preset,
                                         onClick = {
                                             selectedPreset = preset
-                                            if (isCustom && customLongPressed) {
-                                                customLongPressed = false
-                                            } else {
-                                                title = context.getString(preset.defaultTitleRes)
-                                                selectedColor = preset.defaultColorArgb
-                                                selectedPattern = preset.defaultPattern
-                                            }
+                                            title = context.getString(preset.defaultTitleRes)
+                                            selectedColor = preset.defaultColorArgb
+                                            selectedPattern = preset.defaultPattern
                                             isVibrationMenuExpanded = false
                                         },
-                                        modifier = if (isCustom) {
-                                            Modifier.pointerInput(Unit) {
-                                                awaitPointerEventScope {
-                                                    while (true) {
-                                                        val event = awaitPointerEvent()
-                                                        if (event.type == PointerEventType.Press) {
-                                                            val job = coroutineScope.launch {
-                                                                delay(3000L)
-                                                                customLongPressed = true
-                                                                selectedPreset = preset
-                                                                title = "Gondor calls for aid!"
-                                                                selectedColor = 0xFFFF9100L
-                                                                selectedPattern = BeaconVibrationPattern.RAPID_ALERT
-                                                                isVibrationMenuExpanded = false
-                                                            }
-                                                            do {
-                                                                val nextEvent = awaitPointerEvent()
-                                                            } while (nextEvent.type != PointerEventType.Release && nextEvent.type != PointerEventType.Exit)
-                                                            job.cancel()
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        } else Modifier,
                                         label = { Text(stringResource(preset.labelRes, preset.iconEmoji)) }
                                     )
                                 }
@@ -2468,6 +2432,7 @@ private val BeaconVibrationPattern.labelRes: Int
 
 private val BeaconPreset.labelRes: Int
     get() = when (this) {
+        BeaconPreset.GONDOR_CALLS_FOR_AID -> R.string.preset_gondor_calls_for_aid
         BeaconPreset.FOUND -> R.string.preset_found
         BeaconPreset.REGROUP -> R.string.preset_regroup
         BeaconPreset.CAUTION -> R.string.preset_caution
@@ -2477,6 +2442,7 @@ private val BeaconPreset.labelRes: Int
 
 private val BeaconPreset.defaultTitleRes: Int
     get() = when (this) {
+        BeaconPreset.GONDOR_CALLS_FOR_AID -> R.string.preset_gondor_calls_for_aid_title
         BeaconPreset.FOUND -> R.string.preset_found_title
         BeaconPreset.REGROUP -> R.string.preset_regroup_title
         BeaconPreset.CAUTION -> R.string.preset_caution_title

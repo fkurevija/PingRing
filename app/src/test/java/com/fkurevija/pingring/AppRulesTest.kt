@@ -121,11 +121,11 @@ class AppRulesTest {
     }
 
     @Test
-    fun emergencyIsNotTheDefaultFirstPresetAndCustomSitsLast() {
-        // The emergency preset is important, but it should not dominate the first
-        // slot in the picker because people open the sheet to choose a routine cue,
-        // not to send a distress signal by default. The custom preset is a tool
-        // for editing a beacon rather than a common action, so it belongs at the end.
+    fun gondorIsFirstPresetAndCustomSitsLast() {
+        // Gondor is the first quick choice; custom remains an editing tool at the end.
+        assertEquals(BeaconPreset.GONDOR_CALLS_FOR_AID, BeaconPreset.entries.first())
+        assertEquals(0xFFFF9100L, BeaconPreset.GONDOR_CALLS_FOR_AID.defaultColorArgb)
+        assertEquals(BeaconVibrationPattern.RAPID_ALERT, BeaconPreset.GONDOR_CALLS_FOR_AID.defaultPattern)
         assertNotEquals(BeaconPreset.SOS, BeaconPreset.entries.first())
         assertTrue("SOS is kept away from the first slot", BeaconPreset.entries.indexOf(BeaconPreset.SOS) > 0)
         assertEquals(BeaconPreset.CUSTOM, BeaconPreset.entries.last())

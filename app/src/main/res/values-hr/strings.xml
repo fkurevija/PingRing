@@ -193,12 +193,14 @@
     <string name="update_beacon">Ažuriraj signal</string>
     <string name="activate_beacon">Aktiviraj signal</string>
     <string name="stop_beacon">Zaustavi signal</string>
+    <string name="preset_gondor_calls_for_aid">%1$s Gondor Calls For Aid!</string>
     <string name="preset_found">%1$s Nešto je pronađeno</string>
     <string name="preset_regroup">%1$s Okupimo se ovdje</string>
     <string name="preset_caution">%1$s Oprez</string>
     <string name="preset_emergency">%1$s Hitno</string>
     <string name="preset_custom">%1$s Prilagođeno</string>
     <string name="preset_found_title">Nešto je pronađeno!</string>
+    <string name="preset_gondor_calls_for_aid_title">Gondor Calls For Aid!</string>
     <string name="preset_regroup_title">Okupimo se na mojoj lokaciji</string>
     <string name="preset_caution_title">Oprez</string>
     <string name="preset_emergency_title">Hitno!</string>

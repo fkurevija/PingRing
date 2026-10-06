@@ -192,12 +192,14 @@
     <string name="update_beacon">Signal aktualisieren</string>
     <string name="activate_beacon">Signal aktivieren</string>
     <string name="stop_beacon">Signal stoppen</string>
+    <string name="preset_gondor_calls_for_aid">%1$s Gondor Calls For Aid!</string>
     <string name="preset_found">%1$s Etwas gefunden</string>
     <string name="preset_regroup">%1$s Hier treffen</string>
     <string name="preset_caution">%1$s Vorsicht</string>
     <string name="preset_emergency">%1$s Notfall</string>
     <string name="preset_custom">%1$s Benutzerdefiniert</string>
     <string name="preset_found_title">Etwas gefunden!</string>
+    <string name="preset_gondor_calls_for_aid_title">Gondor Calls For Aid!</string>
     <string name="preset_regroup_title">An meinem Standort treffen</string>
     <string name="preset_caution_title">Vorsicht</string>
     <string name="preset_emergency_title">Notfall!</string>
