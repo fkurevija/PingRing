@@ -6,6 +6,7 @@ import com.fkurevija.pingring.data.InviteSecret
 import com.fkurevija.pingring.data.JoinProofPayloadDto
 import com.fkurevija.pingring.data.InviteSecretPayloadDto
 import com.fkurevija.pingring.data.MockRangingDto
+import com.fkurevija.pingring.data.RssiSmoother
 import com.fkurevija.pingring.data.RelayCodec
 import com.fkurevija.pingring.data.RelayEnvelope
 import kotlinx.coroutines.CoroutineStart
@@ -113,7 +114,7 @@ class LanDebugConnectionsManagerTest {
         manager.publishWifiRssi(-73)
         testScheduler.runCurrent()
 
-        assertEquals(listOf(MockRangingDto(peerId = GUEST_ID, rssi = -73)), reports)
+        assertEquals(listOf(MockRangingDto(peerId = GUEST_ID, rssi = -59)), reports)
     }
 
     @Test
@@ -124,7 +125,7 @@ class LanDebugConnectionsManagerTest {
 
         manager.publishWifiRssi(-81)
 
-        assertEquals(MockRangingDto(peerId = "host-id", rssi = -81), report.await())
+        assertEquals(MockRangingDto(peerId = "host-id", rssi = -59), report.await())
     }
 
     @Test
@@ -143,7 +144,7 @@ class LanDebugConnectionsManagerTest {
         testScheduler.runCurrent()
 
         assertEquals(
-            setOf(MockRangingDto(peerId = GUEST_ID, rssi = -72), MockRangingDto(peerId = "second-id", rssi = -72)),
+            setOf(MockRangingDto(peerId = GUEST_ID, rssi = -59), MockRangingDto(peerId = "second-id", rssi = -59)),
             reports.toSet(),
         )
         assertEquals(2, reports.size)
@@ -164,7 +165,7 @@ class LanDebugConnectionsManagerTest {
         assertTrue(reports.isEmpty())
         manager.publishWifiRssi(-65)
         testScheduler.runCurrent()
-        assertEquals(listOf(MockRangingDto(peerId = GUEST_ID, rssi = -65)), reports)
+        assertEquals(listOf(MockRangingDto(peerId = GUEST_ID, rssi = -59)), reports)
     }
 
     @Test
@@ -200,12 +201,54 @@ class LanDebugConnectionsManagerTest {
         manager.approveJoinRequest(GUEST_ID)
         manager.publishWifiRssi(-61)
         testScheduler.runCurrent()
-        assertEquals(MockRangingDto(peerId = GUEST_ID, rssi = -61), reports.last())
+        assertEquals(MockRangingDto(peerId = GUEST_ID, rssi = -59), reports.last())
 
         manager.stopAll()
         manager.publishWifiRssi(-62)
         testScheduler.runCurrent()
         assertEquals(2, reports.size)
+    }
+
+    @Test
+    fun strongWifiStartsAtOneMeterAndDistanceChangesAsSignalWeakens() = runTest {
+        val manager = manager(RelayEnvelope.ROLE_HOST)
+        deliverProof(manager, JoinProofPayloadDto(EVENT_ID, null, "Ana"))
+        manager.approveJoinRequest(GUEST_ID)
+        val reports = mutableListOf<MockRangingDto>()
+        backgroundScope.launch(start = CoroutineStart.UNDISPATCHED) {
+            manager.receivedMockRanging.toList(reports)
+        }
+
+        for (rssi in listOf(-41, null, -127, -47, -52, -41, -35)) {
+            manager.publishWifiRssi(rssi)
+            testScheduler.runCurrent()
+        }
+
+        assertEquals(listOf(-59, -65, -70, -59, -53), reports.map { it.rssi })
+        val smoother = RssiSmoother()
+        val distances = reports.mapIndexed { index, report ->
+            requireNotNull(smoother.add(requireNotNull(report.rssi), index * 2_500L))
+        }
+        assertEquals(1f, distances[0], 0.01f)
+        assertTrue(distances[1] > 1.8f)
+        assertTrue(distances[2] > 3.1f)
+        assertEquals(1f, distances[3], 0.01f)
+        assertTrue(distances[4] in 0.5f..0.6f)
+        assertTrue(reports.all { it.distance == null && it.azimuth == null && it.name == null })
+
+        handleLine(manager, RelayEnvelope(type = RelayEnvelope.PEER_LEFT, senderPeerId = GUEST_ID))
+        deliverProof(manager, JoinProofPayloadDto(EVENT_ID, null, "Ana"))
+        manager.approveJoinRequest(GUEST_ID)
+        manager.publishWifiRssi(-52)
+        testScheduler.runCurrent()
+        assertEquals(-59, reports.last().rssi)
+
+        manager.stopAll()
+        deliverProof(manager, JoinProofPayloadDto(EVENT_ID, null, "Ana"))
+        manager.approveJoinRequest(GUEST_ID)
+        manager.publishWifiRssi(-35)
+        testScheduler.runCurrent()
+        assertEquals(-59, reports.last().rssi)
     }
 
     private fun assertProof(sent: LinkedBlockingQueue<String>, target: String?, secret: String) {

@@ -253,4 +253,6 @@
     <string name="diag_bluetooth_enabled">Bluetooth aktiv</string>
     <string name="diag_wifi_enabled">WLAN aktiv</string>
     <string name="diag_vibrator">Vibrator</string>
+    <string name="gps_direction_estimate">Geschätzte GPS-Richtung · ±%1$d°</string>
+    <string name="radar_gps_direction">Geschätzte GPS-Richtung %1$d Grad, Unsicherheit %2$d Grad.</string>
 </resources>

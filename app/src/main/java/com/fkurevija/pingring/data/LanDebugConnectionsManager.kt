@@ -81,6 +81,7 @@ class LanDebugConnectionsManager(
 
     private val authorizedPeers = ConcurrentHashMap.newKeySet<String>()
     private val scriptedRangingPeers = ConcurrentHashMap.newKeySet<String>()
+    private val wifiRssiBaselines = ConcurrentHashMap<String, Int>()
     private val pendingJoinProofs = mutableMapOf<String, JoinProofPayloadDto>()
 
     override fun approveJoinRequest(endpointId: String) {
@@ -260,6 +261,7 @@ class LanDebugConnectionsManager(
         writer = null
         authorizedPeers.clear()
         scriptedRangingPeers.clear()
+        wifiRssiBaselines.clear()
         wifiRssiUnavailable = false
     }
 
@@ -280,6 +282,7 @@ class LanDebugConnectionsManager(
                 Log.i(TAG, "Peer left relay: $senderId")
                 authorizedPeers.remove(senderId)
                 scriptedRangingPeers.remove(senderId)
+                wifiRssiBaselines.remove(senderId)
                 _pendingJoinRequests.update { current -> current.filterNot { it.endpointId == senderId } }
                 pendingJoinProofs.remove(senderId)
                 events.onPeerDisconnected(senderId)
@@ -457,7 +460,13 @@ class LanDebugConnectionsManager(
             wifiRssiUnavailable = false
         }
         authorizedPeers.filterNot { it == localPeerId || it in scriptedRangingPeers }.forEach { peerId ->
-            events.onMockRanging(MockRangingDto(peerId = peerId, rssi = rssi))
+            val baseline = wifiRssiBaselines.getOrPut(peerId) {
+                Log.i(TAG, "Calibrating Wi-Fi proxy for $peerId at 1 m with $rssi dBm")
+                rssi
+            }
+            // Normalize Wi-Fi's stronger transmit power to the BLE curve's 1 m reference.
+            val mockRssi = RssiDistanceEstimator.RSSI_AT_ONE_METER.toInt() + rssi - baseline
+            events.onMockRanging(MockRangingDto(peerId = peerId, rssi = mockRssi))
         }
     }
 

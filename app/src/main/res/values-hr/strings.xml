@@ -254,4 +254,6 @@
     <string name="diag_bluetooth_enabled">Bluetooth uključen</string>
     <string name="diag_wifi_enabled">Wi-Fi uključen</string>
     <string name="diag_vibrator">Vibracija</string>
+    <string name="gps_direction_estimate">Procijenjeni GPS smjer · ±%1$d°</string>
+    <string name="radar_gps_direction">Procijenjeni GPS smjer %1$d stupnjeva, nesigurnost %2$d stupnjeva.</string>
 </resources>

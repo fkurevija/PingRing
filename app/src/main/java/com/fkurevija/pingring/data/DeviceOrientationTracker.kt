@@ -5,6 +5,9 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
+import android.os.SystemClock
+import android.view.Surface
+import android.view.WindowManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -28,6 +31,10 @@ import kotlin.math.sin
 class DeviceOrientationTracker(context: Context) : SensorEventListener {
 
     private val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
+    private val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as? WindowManager
+    @Volatile private var headingAccuracy = SensorManager.SENSOR_STATUS_UNRELIABLE
+    @Volatile private var headingUpdatedAtMillis: Long? = null
+    @Volatile private var magneticUpdatedAtMillis: Long? = null
 
     private val _deviceHeading = MutableStateFlow(0f)
     val deviceHeading: StateFlow<Float> = _deviceHeading.asStateFlow()
@@ -41,8 +48,8 @@ class DeviceOrientationTracker(context: Context) : SensorEventListener {
     private val rotationMatrix = FloatArray(9).apply { this[0] = 1f; this[4] = 1f; this[8] = 1f }
     private val geomagneticValues = FloatArray(3)
     private val gravityValues = FloatArray(3)
-    private var hasRotationVector = false
-    private var registered = false
+    @Volatile private var hasRotationVector = false
+    @Volatile private var registered = false
 
     // The sensors fire far faster than the radar can usefully redraw, and each
     // update rewrites every peer, so the world vectors are recomputed at a rate a
@@ -71,6 +78,9 @@ class DeviceOrientationTracker(context: Context) : SensorEventListener {
         sensorManager?.unregisterListener(this)
         hasRotationVector = false
         registered = false
+        headingUpdatedAtMillis = null
+        magneticUpdatedAtMillis = null
+        onWorldVectorsChanged?.invoke()
     }
 
     fun pause() = unregister()
@@ -81,11 +91,14 @@ class DeviceOrientationTracker(context: Context) : SensorEventListener {
         val ev = event ?: return
         when (ev.sensor.type) {
             Sensor.TYPE_ROTATION_VECTOR -> {
+                headingAccuracy = ev.accuracy
                 SensorManager.getRotationMatrixFromVector(rotationMatrix, ev.values)
                 hasRotationVector = true
                 publishOrientation()
             }
             Sensor.TYPE_MAGNETIC_FIELD -> {
+                headingAccuracy = ev.accuracy
+                magneticUpdatedAtMillis = SystemClock.elapsedRealtime()
                 System.arraycopy(ev.values, 0, geomagneticValues, 0, 3)
                 if (!hasRotationVector) computeRotationMatrixFallback()
             }
@@ -96,7 +109,12 @@ class DeviceOrientationTracker(context: Context) : SensorEventListener {
         }
     }
 
-    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
+    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
+        if (sensor?.type == Sensor.TYPE_ROTATION_VECTOR || sensor?.type == Sensor.TYPE_MAGNETIC_FIELD) {
+            headingAccuracy = accuracy
+            onWorldVectorsChanged?.invoke()
+        }
+    }
 
     private fun computeRotationMatrixFallback() {
         if (SensorManager.getRotationMatrix(rotationMatrix, null, gravityValues, geomagneticValues)) {
@@ -105,8 +123,34 @@ class DeviceOrientationTracker(context: Context) : SensorEventListener {
     }
 
     private fun publishOrientation() {
+        headingUpdatedAtMillis = SystemClock.elapsedRealtime()
         publishHeading()
         publishWorldVectors()
+    }
+
+    @Suppress("DEPRECATION")
+    fun reliableScreenHeading(): Float? {
+        val updatedAt = headingUpdatedAtMillis ?: return null
+        if (!registered || headingAccuracy < SensorManager.SENSOR_STATUS_ACCURACY_MEDIUM ||
+            SystemClock.elapsedRealtime() - updatedAt !in 0..2_000L
+        ) return null
+        if (!hasRotationVector && magneticUpdatedAtMillis?.let {
+                SystemClock.elapsedRealtime() - it in 0..2_000L
+            } != true
+        ) return null
+        val (x, y) = when (windowManager?.defaultDisplay?.rotation) {
+            Surface.ROTATION_90 -> SensorManager.AXIS_Y to SensorManager.AXIS_MINUS_X
+            Surface.ROTATION_180 -> SensorManager.AXIS_MINUS_X to SensorManager.AXIS_MINUS_Y
+            Surface.ROTATION_270 -> SensorManager.AXIS_MINUS_Y to SensorManager.AXIS_X
+            else -> SensorManager.AXIS_X to SensorManager.AXIS_Y
+        }
+        val screenMatrix = FloatArray(9)
+        if (!SensorManager.remapCoordinateSystem(rotationMatrix, x, y, screenMatrix)) return null
+        // The screen's top edge needs a horizontal projection to define its heading.
+        if (screenMatrix[1] * screenMatrix[1] + screenMatrix[4] * screenMatrix[4] < 0.0625f) return null
+        val orientation = FloatArray(3)
+        SensorManager.getOrientation(screenMatrix, orientation)
+        return Math.toDegrees(orientation[0].toDouble()).toFloat().takeIf { it.isFinite() }
     }
 
     private fun publishHeading() {

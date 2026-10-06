@@ -104,6 +104,8 @@ Nothing connects to the relay until a device actually hosts or joins, so an idle
 
 **Live Wi-Fi RSSI proxy:** On a physical device, LAN debug mode samples that phone's Wi-Fi signal every 2.5 seconds and applies it locally to each admitted host/guest's radar entry. Walk the phone toward or away from the Wi-Fi access point to exercise the RSSI smoothing, hot/cold indication, and estimated distance. This measures the phone-to-access-point link, **not peer-to-peer distance**; multiple peers receive the same proxy reading. The readings are not broadcast to other clients, and emulators do not generate automatic samples. Missing/invalid Wi-Fi RSSI pauses sampling with a diagnostic warning, never random values. A peer driven by `mock_radar.py` is excluded from automatic sampling until that peer disconnects or the LAN session stops, so live samples cannot overwrite scripted ranging.
 
+**Calibration:** Stand approximately **1 metre from the access point when the peer is admitted**, and stay there until the first sample arrives. That first valid reading becomes the peer's 1 m baseline. Subsequent Wi-Fi dBm changes are normalized to the BLE estimator's 1 m reference, so a strong Wi-Fi link does not constantly clamp the mock distance to 0.3 m. For example, a baseline of -41 dBm displays 1 m; a later -52 dBm displays approximately 3.16 m. The mock RSSI is normalized, not the raw Wi-Fi dBm. Calibration resets when the peer leaves or the LAN session stops; temporarily unavailable Wi-Fi does not reset it. These are approximate test distances using the existing path-loss curve, not calibrated Wi-Fi ranging. RSSI supplies **no bearing**: use scripted azimuth reports to test direction rendering, or a real directional ranging source to test physical direction tracking.
+
 **A join that sits on "connecting" is nearly always the tunnel, not the app.** The phone reaches `127.0.0.1:8942` only through `adb reverse`, so check in this order:
 
 - `adb devices` lists the phone at all. A wireless-attached phone drops off adb on its own, and **the tunnel goes with it** — `adb reverse` is per-connection, so reconnecting (`adb connect <ip:port>`, the address `adb mdns services` reports) is not enough; re-run `adb reverse tcp:8942 tcp:8942` afterwards.
@@ -211,4 +213,3 @@ Preview-only unless `--create`, matching `tag_release.py`. Needs the GitHub CLI 
 ---
 
 [← Back to README](../README.md)
-

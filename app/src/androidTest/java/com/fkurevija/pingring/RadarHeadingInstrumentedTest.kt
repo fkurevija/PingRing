@@ -3,9 +3,11 @@ package com.fkurevija.pingring
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.test.platform.app.InstrumentationRegistry
 import com.fkurevija.pingring.data.RadarPeerUpdate
 import com.fkurevija.pingring.data.RangingSourcePolicy
+import com.fkurevija.pingring.data.EstimatedRadarDirection
 import com.fkurevija.pingring.ui.screens.RadarContent
 import org.junit.Rule
 import org.junit.Test
@@ -29,13 +31,13 @@ class RadarHeadingInstrumentedTest {
         lastSeen = 0L,
     )
 
-    private fun showPeer(value: RadarPeerUpdate?) {
+    private fun showPeer(value: RadarPeerUpdate?, accessibility: Boolean = false) {
         composeRule.setScreen {
             RadarContent(
                 peer = value,
                 hasPeers = value != null,
                 beacon = null,
-                radarScreenReaderSummaryEnabled = false,
+                radarScreenReaderSummaryEnabled = accessibility,
                 reduceMotion = true,
                 spokenUpdateText = null,
                 modifier = Modifier,
@@ -89,5 +91,22 @@ class RadarHeadingInstrumentedTest {
         showPeer(null)
         composeRule.onNodeWithText("Guest", substring = true).assertDoesNotExist()
         composeRule.onNodeWithText(context.getString(R.string.ble_proximity_mode)).assertDoesNotExist()
+    }
+
+    @Test
+    fun supplementalGpsDirectionIsLabelledAndSpokenWithoutChangingDistance() {
+        showPeer(peer.copy(estimatedDirection = EstimatedRadarDirection(90f, 25f)), accessibility = true)
+        assertHeading(context.getString(R.string.distance_away, 1.5f))
+        composeRule.onNodeWithText(context.getString(R.string.gps_direction_estimate, 25)).assertIsDisplayed()
+        composeRule.onNodeWithContentDescription(
+            context.getString(R.string.radar_gps_direction, 90, 25), substring = true,
+        ).assertIsDisplayed()
+    }
+
+    @Test
+    fun aMeasuredBearingDoesNotShowAGpsEstimateLabel() {
+        showPeer(peer.copy(azimuth = 45f, estimatedDirection = EstimatedRadarDirection(90f, 25f)))
+        composeRule.onNodeWithText(context.getString(R.string.gps_direction_estimate, 25)).assertDoesNotExist()
+        assertHeading(context.getString(R.string.distance_away, 1.5f))
     }
 }

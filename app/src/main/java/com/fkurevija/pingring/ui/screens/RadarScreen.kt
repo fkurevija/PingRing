@@ -485,7 +485,8 @@ fun RadarScreen(
             resources = context.resources,
             peerName = focusedPeer?.name,
             distanceMeters = focusedPeer?.distance,
-            azimuthDegrees = focusedPeer?.azimuth,
+            azimuthDegrees = focusedPeer?.radarAzimuth,
+            directionUncertaintyDegrees = focusedPeer?.displayedEstimatedDirection?.uncertaintyDegrees,
             proximityLabel = focusedPeer?.proximity?.let { proximity ->
                 context.getString(when (proximity) {
                     "Hot" -> R.string.proximity_hot
@@ -1463,18 +1464,28 @@ internal fun RadarContent(
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center
             )
+            peer.displayedEstimatedDirection?.let { estimate ->
+                Text(
+                    stringResource(R.string.gps_direction_estimate, kotlin.math.ceil(estimate.uncertaintyDegrees).toInt()),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+            }
             Spacer(Modifier.height(16.dp))
         }
         ProximityRing(
             color = ringColor,
-            arrowDegrees = peer?.azimuth,
+            arrowDegrees = peer?.radarAzimuth,
+            directionUncertaintyDegrees = peer?.displayedEstimatedDirection?.uncertaintyDegrees,
             distanceMeters = peer?.distance,
             beacon = beacon,
             accessibilityDescription = RadarAccessibilityPolicy.describeLocalized(
                 resources = resources,
                 peerName = peer?.name,
                 distanceMeters = peer?.distance,
-                azimuthDegrees = peer?.azimuth,
+                azimuthDegrees = peer?.radarAzimuth,
+                directionUncertaintyDegrees = peer?.displayedEstimatedDirection?.uncertaintyDegrees,
                 proximityLabel = peer?.let { proximityLabel },
                 beaconTitle = beacon?.title,
                 distanceIsEstimate = peer?.distanceSource == com.fkurevija.pingring.data.RangingSourcePolicy.RangingSource.GNSS,
@@ -1525,6 +1536,7 @@ internal fun rememberBeaconPulse(reduceMotion: Boolean, active: Boolean): Pair<F
 private fun ProximityRing(
     color: Color,
     arrowDegrees: Float?,
+    directionUncertaintyDegrees: Float?,
     distanceMeters: Float?,
     beacon: BeaconInfo?,
     accessibilityDescription: String,
@@ -1600,18 +1612,23 @@ private fun ProximityRing(
             // rather than as "no direction known". An unlit ring is the honest
             // state: no bearing means there is nothing to point at.
             val segment = RadarDirectionPolicy.segment(arrowDegrees, distanceMeters)
+            val directionColor = if (directionUncertaintyDegrees != null) color.copy(alpha = 0.6f) else color
             if (segment != null) {
                 if (segment.isFullyLit) {
                     // Within arms reach: the whole ring is lit rather than a
                     // 360-degree round-capped arc, which would render as a
                     // heavy blob at the seam. radius given explicitly for the
                     // same reason as the base ring.
-                    drawCircle(color, radius = ringRadius, style = Stroke(stroke))
+                    drawCircle(directionColor, radius = ringRadius, style = Stroke(stroke))
                 } else {
                     drawArc(
-                        color = color,
-                        startAngle = segment.startAngleDegrees,
-                        sweepAngle = segment.sweepAngleDegrees,
+                        color = directionColor,
+                        startAngle = if (directionUncertaintyDegrees != null) {
+                            (arrowDegrees ?: 0f) - 90f - maxOf(segment.halfAngleDegrees, directionUncertaintyDegrees)
+                        } else segment.startAngleDegrees,
+                        sweepAngle = if (directionUncertaintyDegrees != null) {
+                            2f * maxOf(segment.halfAngleDegrees, directionUncertaintyDegrees)
+                        } else segment.sweepAngleDegrees,
                         useCenter = false,
                         // Inscribed in the ring's own square. An oval's centre
                         // is its top-left plus half its size, so passing
@@ -1641,7 +1658,7 @@ private fun ProximityRing(
             // own geometry for the same reason.
             val needleRotation = RadarDirectionPolicy.needleRotationDegrees(arrowDegrees) ?: 0f
             val hasBearing = arrowDegrees != null && arrowDegrees.isFinite()
-            val needleColor = if (hasBearing) color else color.copy(alpha = 0.45f)
+            val needleColor = if (hasBearing) directionColor else color.copy(alpha = 0.45f)
             val radians = Math.toRadians(needleRotation.toDouble())
             val needleTip = Offset(
                 x = center.x + (sin(radians) * ring.needleLengthPx).toFloat(),

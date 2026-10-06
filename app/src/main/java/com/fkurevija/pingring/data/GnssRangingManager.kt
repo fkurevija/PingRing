@@ -19,7 +19,7 @@ internal class GnssRangingManager(
     private val handler = Handler(Looper.getMainLooper())
     private val manager = context.getSystemService(LocationManager::class.java)
     @Volatile private var latestLocation: Location? = null
-    private var enabled = false
+    @Volatile private var enabled = false
     private var listening = false
     private val listener = object : LocationListener {
         override fun onLocationChanged(location: Location) {
@@ -73,6 +73,9 @@ internal class GnssRangingManager(
     }
 
     fun currentFix(): GnssFixDto? {
+        if (!enabled || ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) !=
+            PackageManager.PERMISSION_GRANTED
+        ) return null
         val location = latestLocation ?: return null
         if (!location.hasAccuracy()) return null
         val ageMillis = (SystemClock.elapsedRealtimeNanos() - location.elapsedRealtimeNanos) / 1_000_000L

@@ -256,4 +256,6 @@
     <string name="diag_bluetooth_enabled">Bluetooth включён</string>
     <string name="diag_wifi_enabled">Wi-Fi включён</string>
     <string name="diag_vibrator">Вибрация</string>
+    <string name="gps_direction_estimate">Оценка направления по GPS · ±%1$d°</string>
+    <string name="radar_gps_direction">Оценка направления по GPS: %1$d градусов, погрешность %2$d градусов.</string>
 </resources>

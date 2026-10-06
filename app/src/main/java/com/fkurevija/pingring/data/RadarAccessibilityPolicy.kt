@@ -15,6 +15,7 @@ object RadarAccessibilityPolicy {
         beaconTitle: String?,
         distanceIsEstimate: Boolean = false,
         distanceAccuracyMeters: Float? = null,
+        directionUncertaintyDegrees: Float? = null,
     ): String {
         if (peerName.isNullOrBlank()) return resources.getString(R.string.radar_no_tracked_member)
 
@@ -33,7 +34,11 @@ object RadarAccessibilityPolicy {
             ?: resources.getString(R.string.radar_distance_unavailable)
         val direction = azimuthDegrees
             ?.takeIf { it.isFinite() }
-            ?.let { resources.getString(R.string.radar_direction_degrees, it.toInt()) }
+            ?.let {
+                if (directionUncertaintyDegrees != null) resources.getString(
+                    R.string.radar_gps_direction, it.toInt(), kotlin.math.ceil(directionUncertaintyDegrees).toInt(),
+                ) else resources.getString(R.string.radar_direction_degrees, it.toInt())
+            }
             ?: resources.getString(R.string.radar_direction_unavailable)
         val beacon = beaconTitle?.takeIf { it.isNotBlank() }
             ?.let { resources.getString(R.string.radar_active_beacon, it) }
@@ -49,6 +54,7 @@ object RadarAccessibilityPolicy {
         beaconTitle: String?,
         distanceIsEstimate: Boolean = false,
         distanceAccuracyMeters: Float? = null,
+        directionUncertaintyDegrees: Float? = null,
     ): String {
         if (peerName.isNullOrBlank()) return "Radar. No tracked member. Direction unavailable."
 
@@ -65,7 +71,11 @@ object RadarAccessibilityPolicy {
             ?: "Distance unavailable."
         val direction = azimuthDegrees
             ?.takeIf { it.isFinite() }
-            ?.let { "Direction ${it.toInt()} degrees." }
+            ?.let {
+                if (directionUncertaintyDegrees != null) {
+                    "Estimated GPS direction ${it.toInt()} degrees, uncertainty ${kotlin.math.ceil(directionUncertaintyDegrees).toInt()} degrees."
+                } else "Direction ${it.toInt()} degrees."
+            }
             ?: "Direction unavailable."
         val beacon = beaconTitle?.takeIf { it.isNotBlank() }?.let { " Active beacon: $it." }.orEmpty()
         return "Radar for $peerName. $distance $direction$beacon"

@@ -59,6 +59,7 @@ data class RadarPeerUpdate(
     val distanceAccuracyMeters: Float? = null,
     val lastAdditionalRangingAtMillis: Long? = null,
     val directionIsLastKnown: Boolean = false,
+    val estimatedDirection: EstimatedRadarDirection? = null,
     /**
      * When this peer reported that it joined the event, in epoch millis.
      *
@@ -79,7 +80,12 @@ data class RadarPeerUpdate(
      * that agrees" are different states and the radar shows them differently.
      */
     val rangingConfidence: RangingConfidence? = null
-)
+) {
+    val displayedEstimatedDirection: EstimatedRadarDirection?
+        get() = estimatedDirection?.takeIf { azimuth?.isFinite() != true || directionIsLastKnown }
+    val radarAzimuth: Float?
+        get() = displayedEstimatedDirection?.azimuthDegrees ?: azimuth
+}
 
 data class LastKnownPeerDirection(
     val peerId: String,
@@ -2233,6 +2239,9 @@ class DiscoveryRepository(
             distanceSource = if (hasUwbFix || hasAdditionalFix) existing?.distanceSource else RangingSourcePolicy.RangingSource.BLE_RSSI,
             distanceAccuracyMeters = existing?.distanceAccuracyMeters.takeIf { hasUwbFix || hasAdditionalFix },
             lastAdditionalRangingAtMillis = existing?.lastAdditionalRangingAtMillis.takeIf { hasAdditionalFix },
+            lastUwbMeasurementAtMillis = existing?.lastUwbMeasurementAtMillis,
+            directionIsLastKnown = existing?.directionIsLastKnown ?: false,
+            estimatedDirection = existing?.estimatedDirection,
             // Cross-checked only once a UWB fix exists to check against. Before
             // that there is a single source and the answer is UNKNOWN, which the
             // radar shows as an estimate rather than as a confirmed distance.
@@ -2354,7 +2363,9 @@ private fun removePeer(peerId: String, preserveLastKnownDirection: Boolean = tru
             lastUwbMeasurementAtMillis = existing?.lastUwbMeasurementAtMillis,
             // when the peer joined, and clearing it here would drop a member to
             // the bottom of the arrival order every time its connection blipped.
-            joinedAtMillis = existing?.joinedAtMillis
+            joinedAtMillis = existing?.joinedAtMillis,
+            directionIsLastKnown = existing?.directionIsLastKnown ?: false,
+            estimatedDirection = existing?.estimatedDirection,
         )
         _peerUpdates.update { current -> current + (peerId to updated) }
         _lastKnownPeerDirections.update { current -> current.filterNot { it.peerId == peerId } }
@@ -2470,6 +2481,16 @@ private fun removePeer(peerId: String, preserveLastKnownDirection: Boolean = tru
      */
     private fun refreshPeerWorldDirections() {
         val nowMillis = System.currentTimeMillis()
+        val localFix = if (sessionManager.sessionState.value.currentEvent?.useGnss == true) {
+            gnssRanging.currentFix()
+        } else null
+        val heading = orientationTracker.reliableScreenHeading()
+        val elapsedNow = android.os.SystemClock.elapsedRealtime()
+        val declination = localFix?.let {
+            android.hardware.GeomagneticField(
+                it.latitude.toFloat(), it.longitude.toFloat(), 0f, nowMillis,
+            ).declination
+        } ?: 0f
         _peerUpdates.value.values
             .filter { peer ->
                 val measuredAt = peer.lastUwbMeasurementAtMillis
@@ -2481,20 +2502,26 @@ private fun removePeer(peerId: String, preserveLastKnownDirection: Boolean = tru
         _peerUpdates.update { current ->
             current.mapValues { (_, peer) ->
                 val measuredAt = peer.lastUwbMeasurementAtMillis
+                val remoteFix = peerGnssFixes[peer.peerId]?.let { (fix, receivedAt) ->
+                    fix.copy(ageMillis = fix.ageMillis + elapsedNow - receivedAt)
+                }
+                val withEstimate = GnssDirectionPolicy.supplement(
+                    peer, localFix, remoteFix, heading, declination, nowMillis,
+                )
                 when {
-                    peer.directionIsLastKnown -> peer
+                    peer.directionIsLastKnown -> withEstimate
                     measuredAt != null && UwbRetentionPolicy.isDirectionLastKnown(measuredAt, nowMillis) ->
-                        peer.copy(directionIsLastKnown = true)
+                        withEstimate.copy(directionIsLastKnown = true)
                     peer.azimuth != null -> {
                         val (worldX, worldY, worldZ) =
                             orientationTracker.toWorldDirection(peer.azimuth, peer.elevation)
-                        peer.copy(
+                        withEstimate.copy(
                             worldDirectionX = worldX,
                             worldDirectionY = worldY,
                             worldDirectionZ = worldZ,
                         )
                     }
-                    else -> peer
+                    else -> withEstimate
                 }
             }
         }
@@ -2941,6 +2968,7 @@ private fun removePeer(peerId: String, preserveLastKnownDirection: Boolean = tru
     private val MAX_LOCAL_RADAR_GNSS_DISTANCE_METERS = 100f
 
     private fun updateGnssDistances() {
+        refreshPeerWorldDirections()
         if (sessionManager.sessionState.value.currentEvent?.useGnss != true) return
         val local = gnssRanging.currentFix() ?: return
         val now = android.os.SystemClock.elapsedRealtime()

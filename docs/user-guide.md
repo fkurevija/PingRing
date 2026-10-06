@@ -82,6 +82,7 @@ The heading is the ring itself: **Code: 4C1A9B · 3/8 Members**. The app's own n
 - A member seen only through a mesh relay is labeled **Present via mesh · range unavailable**. The app does not reuse another phone's RSSI or UWB measurement as your own.
 - Compatible phones can measure **Wi-Fi RTT distance** without an access point. Both phones need available Wi-Fi Aware/RTT support; no directional needle is inferred.
 - GPS coordinates are always shared while a PingRing is running: rounded to about 10 m and published every ten seconds. The radar labels GPS distance as an estimate with uncertainty; it does not trigger close-range haptics. Stale or inaccurate fixes are discarded. This is not a switch, because a guest could not see whether the host had turned it on — two phones could quietly disagree about whether the feature was live. Sharing coordinates does expose them to admitted members and relays.
+- **Supplementary GPS direction** can fill a missing bearing without changing the selected distance measurement. It uses both members' recent GPS positions and the phone's fused compass/rotation-vector orientation, with magnetic-north correction. A softer arrow and **Estimated GPS direction · ±N°** label distinguish it from a measured bearing. Fresh measured bearings always win. Both fixes must be at most ten seconds old, within the radar's 100 m range, and support an estimated angular uncertainty no greater than 30° after including position/quantization error and a 10° heading allowance. Poor/stale compass readings or positions too close to distinguish suppress the estimate. This is mainly an outdoor, larger-separation aid, not an indoor metre-scale substitute for UWB. RSSI still supplies proximity; it is not used to invent a bearing or reduce GPS uncertainty.
 - A peer that has not been heard from for **15 seconds** is swept off the radar unless its focused UWB session is being retained during a transport gap.
 - If the tracked member walks out of transport range, UWB ranging is held open for up to **45 seconds** (or **20 seconds** when radio load is high), so walking back can reconnect instantly.
 - After **2 seconds** without a UWB fix, the radar can show a faded **last known direction** for up to **2 minutes**. It includes the age of the measurement; the person may have moved. BLE RSSI alone never supplies a direction.
@@ -304,4 +305,3 @@ Android still stops the work after a **force-stop**, a **process kill**, a **reb
 </div>
 
 [← Back to README](../README.md)
-
