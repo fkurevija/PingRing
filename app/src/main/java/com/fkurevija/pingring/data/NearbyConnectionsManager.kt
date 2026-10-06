@@ -321,7 +321,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
      * a guest's UWB ranging offer to it.
      */
     var hostPeerIdProvider: (() -> String?)? = null
-    var inviteSecretProvider: (() -> String?)? = null
+    override var inviteSecretProvider: (() -> String?)? = null
     var meshIdentityKeyProvider: ((String) -> BleIdentityKeyPayloadDto?)? = null
     var meshPrivateKeyProvider: (() -> java.security.PrivateKey?)? = null
 

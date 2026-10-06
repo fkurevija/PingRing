@@ -1009,7 +1009,7 @@ class DiscoveryRepository(
             (nearbyConnectionsManager as? NearbyConnectionsManager)?.hostPeerIdProvider = {
                 sessionManager.sessionState.value.currentEvent?.hostPeerId
             }
-            (nearbyConnectionsManager as? NearbyConnectionsManager)?.inviteSecretProvider = {
+            nearbyConnectionsManager.inviteSecretProvider = {
                 sessionManager.sessionState.value.currentEvent?.inviteSecret
             }
             (nearbyConnectionsManager as? NearbyConnectionsManager)?.meshIdentityKeyProvider = { peerId ->
@@ -2928,6 +2928,8 @@ private fun removePeer(peerId: String, preserveLastKnownDirection: Boolean = tru
             System.currentTimeMillis() - it in 0..2_000L
         } == true
 
+    private val MAX_LOCAL_RADAR_GNSS_DISTANCE_METERS = 100f
+
     private fun updateGnssDistances() {
         if (sessionManager.sessionState.value.currentEvent?.useGnss != true) return
         val local = gnssRanging.currentFix() ?: return
@@ -2937,13 +2939,21 @@ private fun removePeer(peerId: String, preserveLastKnownDirection: Boolean = tru
             if (!GnssPolicy.isUsable(remote)) {
                 peerGnssFixes.remove(peerId, entry)
             } else {
-                updateAdditionalDistance(
-                    peerId,
-                    GnssPolicy.separationMeters(local, remote),
-                    local.accuracyMeters + remote.accuracyMeters,
-                    RangingSourcePolicy.RangingSource.GNSS,
-                    measurementAgeMillis = maxOf(local.ageMillis, remote.ageMillis),
-                )
+                val separation = GnssPolicy.separationMeters(local, remote)
+                if (separation <= MAX_LOCAL_RADAR_GNSS_DISTANCE_METERS) {
+                    updateAdditionalDistance(
+                        peerId,
+                        separation,
+                        local.accuracyMeters + remote.accuracyMeters,
+                        RangingSourcePolicy.RangingSource.GNSS,
+                        measurementAgeMillis = maxOf(local.ageMillis, remote.ageMillis),
+                    )
+                } else {
+                    val existing = _peerUpdates.value[peerId]
+                    if (existing?.distanceSource == RangingSourcePolicy.RangingSource.GNSS) {
+                        clearAdditionalDistances(RangingSourcePolicy.RangingSource.GNSS)
+                    }
+                }
             }
         }
     }

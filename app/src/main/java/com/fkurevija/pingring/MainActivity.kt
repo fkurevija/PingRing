@@ -103,7 +103,7 @@ class MainActivity : AppCompatActivity() {
             val lanDebugHost by appearanceSettings.lanDebugHost.collectAsState(initial = "10.0.2.2")
             val nearbyConnectionsManager: NearbyTransport = remember(context, lanDebugEnabled, lanDebugHost) {
                 if (BuildConfig.DEBUG && lanDebugEnabled) {
-                    LanDebugConnectionsManager(host = lanDebugHost)
+                    LanDebugConnectionsManager(host = lanDebugHost, context = context)
                 } else {
                     NearbyConnectionsManager(context)
                 }
