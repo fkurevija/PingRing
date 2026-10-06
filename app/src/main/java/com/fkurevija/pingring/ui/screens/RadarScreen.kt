@@ -7,6 +7,7 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.LiveRegionMode
 import com.fkurevija.pingring.ui.accessibility.rememberAccessibilityEnvironment
 
+import androidx.compose.ui.window.DialogProperties
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
@@ -2187,7 +2188,8 @@ fun BeaconCustomizationDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+        properties = DialogProperties(usePlatformDefaultWidth = false),
         shape = RoundedCornerShape(24.dp),
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
