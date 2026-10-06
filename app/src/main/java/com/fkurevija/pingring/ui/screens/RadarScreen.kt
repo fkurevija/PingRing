@@ -522,11 +522,23 @@ fun RadarScreen(
                     // count down. What the title actually has to carry is the two
                     // things that are unique to this moment: which ring this is,
                     // and how full it is.
-                    Text(
-                        stringResource(R.string.radar_event_summary, eventId, peers.size + 1, MAX_PARTICIPANTS),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                        Text(
+                            text = "Code: $eventId",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        val isFull = (peers.size + 1) >= MAX_PARTICIPANTS
+                        Text(
+                            text = stringResource(
+                                if (isFull) R.string.member_count_full else R.string.member_count,
+                                peers.size + 1,
+                                MAX_PARTICIPANTS
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 },
                 navigationIcon = {
                     IconButton(onClick = { showEndConfirmation = true }) {

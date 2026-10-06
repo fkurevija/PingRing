@@ -21,6 +21,7 @@ import androidx.compose.ui.test.printToString
 import androidx.compose.ui.unit.dp
 import androidx.test.espresso.Espresso
 import com.fkurevija.pingring.data.ChatBubblePalette
+import com.fkurevija.pingring.data.MAX_PARTICIPANTS
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -250,7 +251,8 @@ class RadarScreenInstrumentedTest {
 
         // The code is the only way somebody else can join, and the count is what
         // tells a host the ring is filling up. Both are in the title.
-        composeRule.onNodeWithText("Code: $eventId · 1/8 Members").assertIsDisplayed()
+        composeRule.onNodeWithText("Code: $eventId").assertIsDisplayed()
+        composeRule.onNodeWithText(context.getString(R.string.member_count, 1, MAX_PARTICIPANTS)).assertIsDisplayed()
     }
 
     @Test
@@ -264,7 +266,8 @@ class RadarScreenInstrumentedTest {
         // heading that comes back with the next layout change.
         composeRule.onNodeWithText("PingRing").assertDoesNotExist()
         // And the line it displaced still carries the two things that matter.
-        composeRule.onNodeWithText("Code: $eventId · 1/8 Members").assertIsDisplayed()
+        composeRule.onNodeWithText("Code: $eventId").assertIsDisplayed()
+        composeRule.onNodeWithText(context.getString(R.string.member_count, 1, MAX_PARTICIPANTS)).assertIsDisplayed()
     }
 
     @Test
@@ -424,7 +427,8 @@ class RadarScreenInstrumentedTest {
         // Still on the radar. The title used to be asserted via the app name,
         // which is now gone from this screen; the event summary is both a better
         // proxy for "still here" and something this screen is supposed to show.
-        composeRule.onNodeWithText("Code: $eventId · 1/8 Members").assertIsDisplayed()
+        composeRule.onNodeWithText("Code: $eventId").assertIsDisplayed()
+        composeRule.onNodeWithText(context.getString(R.string.member_count, 1, MAX_PARTICIPANTS)).assertIsDisplayed()
     }
 
     @Test
