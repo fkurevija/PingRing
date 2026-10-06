@@ -127,6 +127,7 @@
     <string name="type_message">Écrire un message…</string>
     <string name="send">Envoyer</string>
     <string name="my_beacon">Ma balise</string>
+    <string name="beacons">Balises</string>
     <string name="new_beacon">Nouvelle balise</string>
     <string name="close">Fermer</string>
     <string name="radar_no_tracked_member">Radar. Aucun membre suivi. Direction indisponible.</string>

@@ -151,7 +151,7 @@ A beacon is a loud, coloured, vibrating "come here" signal that every member's p
 
 ### Raising one
 
-Tap **New Beacon** on the radar (the button reads **My Beacon** while one of yours is running). In the sheet:
+Tap **Beacons** on the radar to create a beacon. While your own beacon is active, this button becomes **Stop** and ends it immediately without opening the sheet. It returns to **Beacons** when your beacon stops or ends; another member's beacon does not change your button. In the sheet:
 
 1. **Select Preset** — ✨ Found Something, 📍 Regroup Here, ⚠️ Caution, 🚨 Emergency, ⚡ Custom. Picking one fills in the message, colour and rhythm; edit any of them afterwards.
 2. **Colour** — Red, Amber, Green, Cyan or Purple.
@@ -164,7 +164,7 @@ The button is painted in your chosen colour, with the label drawn for contrast a
 
 ### While it runs
 
-- A banner appears at the top of your radar — *"Your Beacon is Active: …"* — with **Stop**.
+- The **Beacons** button becomes **Stop**, coloured with your beacon's selected colour. There is no separate radar banner.
 - **Your own phone vibrates too**, with the chosen rhythm, at the moment you raise it — not only the phones that receive it.
 - A repeating alert **stops on its own** when the beacon ends or somebody stops it. Turning repetition back to **Once** mid-beacon silences it immediately rather than waiting for the current buzz to finish.
 
@@ -176,9 +176,9 @@ Each beacon in the transcript has a bell button beside it. Tapping it stops your
 - **It is per beacon, not per person.** Ana's next beacon is a different alarm and can buzz again. Nobody is muted, and the choice is never sent to them or to anybody else.
 - It applies to **your own** beacon too — useful when you have raised one and want your own phone to stop buzzing while it stays up for everyone else.
 - Tap the same button again to turn the alarm back on. It is remembered until the beacon ends.
-- On receivers' phones it lights up the radar rings and that member's pin, pulses, and appears as a banner.
+- On receivers' phones it lights up the radar rings and that member's pin, pulses, and appears in the chat transcript.
 - In the chat it is pinned to the newest end while running, then moves back to where it was raised, in timestamp order among the surrounding messages.
-- Tapping **New Beacon** again lets you edit and **Update Beacon** without stopping it. **Stop Beacon** ends it.
+- Tap **Stop** on your radar to end your beacon. Tap **Beacons** afterward to create another one.
 
 ---
 
@@ -304,5 +304,4 @@ Android still stops the work after a **force-stop**, a **process kill**, a **reb
 </div>
 
 [← Back to README](../README.md)
-
 

@@ -189,7 +189,7 @@ import kotlin.math.sin
 /**
  * The colour this beacon is sent in.
  *
- * Every surface that shows a beacon - the banner, the button that sets it, the
+ * Every surface that shows a beacon - the button that stops it, the
  * ring, the chat entry, the peer's row - takes its colour from here, so they
  * cannot drift apart and leave one of them showing a colour the sender never
  * chose.
@@ -672,7 +672,7 @@ fun RadarScreen(
                 }
             }
 
-            // Devices waiting to be let in. Above the beacon banner: a request is
+            // Devices waiting to be let in. Above the radar: a request is
             // a question being asked of the host right now, and a live beacon is
             // a statement already made. Approving is the accept that opens the
             // guest's payload channel, so it happens here and nowhere else.
@@ -721,57 +721,6 @@ fun RadarScreen(
                 }
             }
 
-            // Local Active Beacon Banner
-            localBeacon?.let { beacon ->
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = beacon.color.copy(alpha = 0.15f)
-                    ),
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                            Icon(
-                                Icons.Default.Campaign,
-                                contentDescription = null,
-                                tint = beacon.color,
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Column {
-                                Text(
-                                    stringResource(R.string.your_beacon_is_active, beacon.title),
-                                    fontWeight = FontWeight.Bold,
-                                    color = beacon.color
-                                )
-                                Text(
-                                    stringResource(R.string.calling_nearby_peers),
-                                    style = MaterialTheme.typography.bodySmall
-                                )
-                            }
-                        }
-                        // Outlined, and in the beacon's own colour rather than the
-                        // theme's error colour: the banner is the beacon, and a
-                        // red button sitting in the middle of a green beacon
-                        // reads as a different kind of warning entirely. The
-                        // border is what keeps it unmistakably a button.
-                        OutlinedButton(
-                            onClick = { discoveryRepository?.cancelLocalBeacon() },
-                            shape = RoundedCornerShape(8.dp),
-                            border = BorderStroke(1.dp, beacon.color),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = beacon.color)
-                        ) {
-                            Text(stringResource(R.string.stop))
-                        }
-                    }
-                }
-            }
-
             BoxWithConstraints(modifier = Modifier.fillMaxWidth().weight(1f)) {
                 val wide = maxWidth >= 600.dp
                 if (wide) {
@@ -815,8 +764,8 @@ fun RadarScreen(
                     // beacon is broadcast to the ring, so the transcript has to
                     // read the same on every device, and the sender is as much a
                     // member of the ring as anyone else: a beacon you set appears
-                    // in your own chat too. The sender keeps its banner above the
-                    // radar as well, which is where the Stop control lives.
+                    // in your own chat too. The sender's beacon action button
+                    // becomes Stop while their beacon is active.
                     //
                     // Newest first, because the list is reversed: what reads as the
                     // end of the conversation is the bottom of the screen, which
@@ -1107,33 +1056,12 @@ fun RadarScreen(
                                         textAlign = TextAlign.Center,
                                     )
                                 }
-                                // The label and the icon are coloured for the
-                                // beacon they sit on rather than left at the
-                                // theme's on-primary, which is dark grey and only
-                                // happens to work on some beacon colours. The
-                                // colour is the user's own pick, so only its
-                                // contrast can say what reads on top of it.
-                                //
-                                // Read once, so the colour the button is painted
-                                // and the one its label is drawn for cannot come
-                                // from two different beacons.
-                                Button(
-                                    onClick = { showBeaconSheet = true },
+                                BeaconActionButton(
+                                    localBeacon = localBeacon,
+                                    onOpen = { showBeaconSheet = true },
+                                    onStop = { discoveryRepository?.cancelLocalBeacon() },
                                     modifier = Modifier.weight(1f),
-                                    colors = localBeacon?.let { beacon ->
-                                        ButtonDefaults.buttonColors(
-                                            containerColor = beacon.color,
-                                            contentColor = beacon.color.readableOnIt()
-                                        )
-                                    } ?: ButtonDefaults.buttonColors()
-                                ) {
-                                    Icon(Icons.Default.Campaign, contentDescription = null, modifier = Modifier.size(18.dp))
-                                    Spacer(Modifier.width(6.dp))
-                                    Text(
-                                        stringResource(if (localBeacon != null) R.string.my_beacon else R.string.new_beacon),
-                                        textAlign = TextAlign.Center,
-                                    )
-                                }
+                                )
                             }
                         }
 
@@ -1441,6 +1369,33 @@ internal fun ActiveBeaconEntry(
 }
 
 @Composable
+internal fun BeaconActionButton(
+    localBeacon: BeaconInfo?,
+    onOpen: () -> Unit,
+    onStop: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val activeBeacon = localBeacon?.takeIf { it.isActive }
+    Button(
+        onClick = if (activeBeacon != null) onStop else onOpen,
+        modifier = modifier,
+        colors = activeBeacon?.let { beacon ->
+            ButtonDefaults.buttonColors(
+                containerColor = beacon.color,
+                contentColor = beacon.color.readableOnIt(),
+            )
+        } ?: ButtonDefaults.buttonColors(),
+    ) {
+        Icon(Icons.Default.Campaign, contentDescription = null, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(6.dp))
+        Text(
+            stringResource(if (activeBeacon != null) R.string.stop else R.string.beacons),
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
+@Composable
 internal fun RadarContent(
     peer: RadarPeerUpdate?,
     hasPeers: Boolean,
@@ -1491,9 +1446,8 @@ internal fun RadarContent(
 
         Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         // The beacon's title used to be repeated here in a chip above the ring.
-        // A beacon is already named in the banner when it is your own and in the
-        // chat entry for every beacon, and the ring itself is tinted, so the chip
-        // was a third copy of the same words sitting on top of the other two.
+        // A beacon is already named in its chat entry and the ring is tinted,
+        // so another chip above the ring would repeat the same information.
         // A remote peer's beacon is still legible: the ring carries its colour.
 
         Spacer(Modifier.height(verticalBuffer))

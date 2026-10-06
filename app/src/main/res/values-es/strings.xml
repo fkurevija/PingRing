@@ -127,6 +127,7 @@
     <string name="type_message">Escribe un mensaje…</string>
     <string name="send">Enviar</string>
     <string name="my_beacon">Mi baliza</string>
+    <string name="beacons">Balizas</string>
     <string name="new_beacon">Nueva baliza</string>
     <string name="close">Cerrar</string>
     <string name="radar_no_tracked_member">Radar. No hay ningún miembro seguido. Dirección no disponible.</string>

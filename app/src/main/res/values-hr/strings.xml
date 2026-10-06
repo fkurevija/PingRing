@@ -128,6 +128,7 @@
     <string name="type_message">Napiši poruku…</string>
     <string name="send">Pošalji</string>
     <string name="my_beacon">Moj signal</string>
+    <string name="beacons">Signali</string>
     <string name="new_beacon">Novi signal</string>
     <string name="close">Zatvori</string>
     <string name="radar_no_tracked_member">Radar. Nema praćene osobe. Smjer nije dostupan.</string>

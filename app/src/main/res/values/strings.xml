@@ -133,6 +133,7 @@
     <string name="type_message">Type a message…</string>
     <string name="send">Send</string>
     <string name="my_beacon">My Beacon</string>
+    <string name="beacons">Beacons</string>
     <string name="new_beacon">New Beacon</string>
     <string name="close">Close</string>
     <string name="radar_no_tracked_member">Radar. No tracked member. Direction unavailable.</string>

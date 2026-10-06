@@ -127,6 +127,7 @@
     <string name="type_message">Nachricht eingeben…</string>
     <string name="send">Senden</string>
     <string name="my_beacon">Mein Signal</string>
+    <string name="beacons">Signale</string>
     <string name="new_beacon">Neues Signal</string>
     <string name="close">Schließen</string>
     <string name="radar_no_tracked_member">Radar. Kein Mitglied wird verfolgt. Richtung nicht verfügbar.</string>

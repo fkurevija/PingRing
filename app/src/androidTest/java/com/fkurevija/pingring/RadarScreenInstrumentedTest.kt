@@ -525,7 +525,7 @@ class RadarScreenInstrumentedTest {
 
         // How a member signals without typing, and how they change how their
         // messages look - all three have to be present before anybody joins.
-        composeRule.onNodeWithText("New Beacon").assertIsDisplayed()
+        composeRule.onNodeWithText(context.getString(R.string.beacons)).assertIsDisplayed()
         composeRule.onNodeWithText("Chat Settings").assertIsDisplayed()
     }
 
@@ -556,14 +556,14 @@ class RadarScreenInstrumentedTest {
     fun theBeaconScreenOpens() {
         showRadar()
 
-        composeRule.onNodeWithText("New Beacon").performClick()
+        composeRule.onNodeWithText(context.getString(R.string.beacons)).performClick()
         composeRule.settle()
 
         composeRule.onNodeWithText("Select Preset").assertIsDisplayed()
     }
 
     @Test
-    fun chatSettingsAndNewBeaconShareOneRowWithChatSettingsOnTheLeft() {
+    fun chatSettingsAndBeaconsShareOneRowWithChatSettingsOnTheLeft() {
         // The position is the point. Chat settings used to live on the PingRing
         // settings screen - two destinations and a chat's length away from the
         // chat they change - and it then sat stacked above the beacon button with
@@ -577,16 +577,16 @@ class RadarScreenInstrumentedTest {
         composeRule.settle()
 
         val chatBounds = composeRule.onNodeWithText("Chat Settings").getUnclippedBoundsInRoot()
-        val beaconBounds = composeRule.onNodeWithText("New Beacon").getUnclippedBoundsInRoot()
+        val beaconBounds = composeRule.onNodeWithText(context.getString(R.string.beacons)).getUnclippedBoundsInRoot()
 
         assertTrue(
-            "Chat Settings should sit left of New Beacon, was " +
+            "Chat Settings should sit left of Beacons, was " +
                 "chat=${chatBounds.left} beacon=${beaconBounds.left}",
             chatBounds.left < beaconBounds.left,
         )
         // Same row rather than stacked: the two vertical spans have to overlap.
         assertTrue(
-            "Chat Settings and New Beacon should share one row, was " +
+            "Chat Settings and Beacons should share one row, was " +
                 "chat=${chatBounds.top}-${chatBounds.bottom} " +
                 "beacon=${beaconBounds.top}-${beaconBounds.bottom}",
             chatBounds.top < beaconBounds.bottom && beaconBounds.top < chatBounds.bottom,
