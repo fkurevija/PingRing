@@ -11,6 +11,7 @@ import com.fkurevija.pingring.data.isBleIdentityKeySenderAuthorized
 import com.fkurevija.pingring.data.isMemberDepartureSenderAuthorized
 import com.fkurevija.pingring.data.isMemberDepartureOriginAuthorized
 import com.fkurevija.pingring.data.isWithinSasPromptRateLimit
+import com.fkurevija.pingring.data.hasDuplicatePeerConnection
 import com.fkurevija.pingring.data.expiredAuthenticationRequests
 import org.junit.Assert.assertEquals
 import com.fkurevija.pingring.data.joinRequiresHostApproval
@@ -111,6 +112,42 @@ class NearbyAdmissionPolicyTest {
         assertTrue(isWithinSasPromptRateLimit((0 until 11).map { now - it }, now))
         assertFalse(isWithinSasPromptRateLimit((0 until 12).map { now - it }, now))
         assertTrue(isWithinSasPromptRateLimit(listOf(now - SAS_PROMPT_WINDOW_MILLIS), now))
+    }
+
+    @Test
+    fun duplicateEndpointForAnActiveOrPendingPeerIsRejected() {
+        assertTrue(
+            hasDuplicatePeerConnection(
+                peerId = "peer-a",
+                endpointId = "endpoint-2",
+                endpointByPeerId = mapOf("peer-a" to "endpoint-1"),
+                pendingEndpointsByPeerId = emptyMap(),
+            ),
+        )
+        assertTrue(
+            hasDuplicatePeerConnection(
+                peerId = "peer-a",
+                endpointId = "endpoint-2",
+                endpointByPeerId = emptyMap(),
+                pendingEndpointsByPeerId = mapOf("peer-a" to "endpoint-1"),
+            ),
+        )
+        assertFalse(
+            hasDuplicatePeerConnection(
+                peerId = "peer-a",
+                endpointId = "endpoint-1",
+                endpointByPeerId = mapOf("peer-a" to "endpoint-1"),
+                pendingEndpointsByPeerId = emptyMap(),
+            ),
+        )
+        assertTrue(
+            hasDuplicatePeerConnection(
+                peerId = "peer-a",
+                endpointId = "endpoint-2",
+                endpointByPeerId = mapOf("peer-a" to "endpoint-2"),
+                pendingEndpointsByPeerId = mapOf("peer-a" to "endpoint-1"),
+            ),
+        )
     }
 
     @Test

@@ -40,6 +40,14 @@ const val MAX_SAS_PROMPTS_PER_WINDOW = 12
 internal fun isWithinSasPromptRateLimit(recentAttempts: List<Long>, nowMillis: Long): Boolean =
     recentAttempts.count { nowMillis - it < SAS_PROMPT_WINDOW_MILLIS } < MAX_SAS_PROMPTS_PER_WINDOW
 
+internal fun hasDuplicatePeerConnection(
+    peerId: String,
+    endpointId: String,
+    endpointByPeerId: Map<String, String>,
+    pendingEndpointsByPeerId: Map<String, String>,
+): Boolean = listOfNotNull(endpointByPeerId[peerId], pendingEndpointsByPeerId[peerId])
+    .any { it != endpointId }
+
 /**
  * Whether this particular join has to be put to the host.
  *
@@ -348,6 +356,26 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
         events.pendingAuthentications
     private val authenticationRequests = linkedMapOf<String, ConnectionAuthenticationRequest>()
     private val sasPromptTimes = mutableListOf<Long>()
+
+    private fun hasOtherEndpointForPeer(peerId: String, endpointId: String): Boolean {
+        val pendingPeerEndpoints = buildMap {
+            authenticationRequests.values
+                .filter { it.endpointId != endpointId && it.deviceName.isNotBlank() }
+                .forEach { put(it.deviceName, it.endpointId) }
+            _pendingJoinRequests.value.forEach { request ->
+                if (request.endpointId != endpointId) {
+                    endpointToPeerId[request.endpointId]?.let { put(it, request.endpointId) }
+                }
+            }
+        }
+        return hasDuplicatePeerConnection(
+            peerId = peerId,
+            endpointId = endpointId,
+            endpointByPeerId = connectedEndpoints,
+            pendingEndpointsByPeerId = pendingPeerEndpoints,
+        )
+    }
+
     private fun acceptJoinControlChannel(request: ConnectionAuthenticationRequest) {
         val endpointId = request.endpointId
         endpointToPeerId[endpointId] = request.deviceName
@@ -1071,6 +1099,11 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
                 return
             }
             val remotePeerId = remoteIdentity.peerId
+            if (remotePeerId != localPeerId && hasOtherEndpointForPeer(remotePeerId, endpointId)) {
+                Log.w(TAG, "Rejecting duplicate connection endpoint for peer $remotePeerId")
+                connectionsClient.rejectConnection(endpointId)
+                return
+            }
             if (remotePeerId != localPeerId && meshIdentityKeyProvider?.invoke(remotePeerId) != null) {
                 endpointToPeerId[endpointId] = remotePeerId
                 meshHandshakeEndpoints.add(endpointId)
@@ -1132,6 +1165,20 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
                 // onConnectionInitiated is unaffected.
                 acceptWithPayloadCallback(endpointId, "connection established")
                 val peerId = endpointToPeerId[endpointId]?.ifBlank { null } ?: endpointId
+                if (isLocalHost && endpointId in incomingEndpoints &&
+                    hasOtherEndpointForPeer(peerId, endpointId)
+                ) {
+                    Log.w(TAG, "Rejecting duplicate connection result for peer $peerId")
+                    authenticationRequests.remove(endpointId)
+                    events.removePendingAuthentication(endpointId)
+                    incomingEndpoints.remove(endpointId)
+                    pendingJoinProofs.remove(endpointId)
+                    pendingInviteProofEndpoints.remove(endpointId)
+                    acceptedEndpoints.remove(endpointId)
+                    endpointToPeerId.remove(endpointId)
+                    connectionsClient.disconnectFromEndpoint(endpointId)
+                    return
+                }
                 connectedEndpoints[peerId] = endpointId
                 connectedEndpoints[endpointId] = endpointId
                 if (endpointId in meshHandshakeEndpoints) {
@@ -1190,7 +1237,9 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
             val peerId = endpointToPeerId.remove(endpointId)
             liveKeyControl.invalidate(endpointId, peerId)
             if (peerId != null) {
-                connectedEndpoints.remove(peerId)
+                if (connectedEndpoints[peerId] == endpointId) {
+                    connectedEndpoints.remove(peerId)
+                }
             }
             connectedEndpoints.remove(endpointId)
             authorizedEndpoints.remove(endpointId)
@@ -1455,6 +1504,21 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
         if (!isLocalHost || proof.eventCode != localEventId) return false
         if (endpointId !in acceptedEndpoints || endpointId !in incomingEndpoints) return false
         if (endpointId in authorizedEndpoints) return true
+        val peerId = endpointToPeerId[endpointId] ?: return false
+        val activeEndpoint = connectedEndpoints[peerId]
+        if (activeEndpoint != null && activeEndpoint != endpointId) {
+            Log.w(TAG, "Rejecting duplicate join proof from already-connected peer $peerId")
+            refuseJoinControlChannel(endpointId)
+            return true
+        }
+        val otherPendingEndpoint = _pendingJoinRequests.value.firstOrNull { request ->
+            request.endpointId != endpointId && endpointToPeerId[request.endpointId] == peerId
+        }?.endpointId
+        if (otherPendingEndpoint != null) {
+            Log.w(TAG, "Rejecting duplicate join proof from peer $peerId with another request pending")
+            refuseJoinControlChannel(endpointId)
+            return true
+        }
         val guestName = proof.guestName?.takeIf { it.isNotBlank() }
             ?: pendingJoinProofs[endpointId]?.guestName?.takeIf { it.isNotBlank() }
         pendingJoinProofs[endpointId] = proof.copy(guestName = guestName)
