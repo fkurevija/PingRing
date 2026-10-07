@@ -21,17 +21,8 @@ permissions:
   contents: write
 
 concurrency:
-  # Runs for the same ref queue rather than cancelling each other. Pushing
-  # several commits should leave a build for each, and a cancelled run leaves a
-  # hole exactly where the history is hardest to read: "green on 1234, red on
-  # 5678" is the fact worth having, and cancelling discards it.
-  #
-  # The group is still doing real work, though: it caps concurrency per ref, so
-  # five rapid pushes queue instead of running five emulators and builds at once
-  # and starving each other. Nothing is blocked on these results, so waiting
-  # costs nothing that a cancelled run would have saved.
   group: build-apk-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build-apk:
@@ -109,8 +100,10 @@ jobs:
       # The unit tests ran nowhere before this step existed: the job only ever
       # called `assembleDebug`, so a red test could not stop a build. It runs
       # before the APK is assembled so a regression fails the run before anything
-      # is published, rather than after.
+      # is published, rather than after. Master pushes follow a PR that already
+      # ran these checks, so they build/publish without repeating the tests.
       - name: Run JVM unit tests
+        if: ${{ github.event_name != 'push' || github.ref != 'refs/heads/master' }}
         run: ./gradlew test --stacktrace
 
       # The coverage report is uploaded as an artifact rather than gating the
@@ -118,9 +111,11 @@ jobs:
       # would fail every run for a reason nobody can act on; the floor belongs in
       # the build, and the detail belongs in the report.
       - name: Generate unit test coverage report
+        if: ${{ github.event_name != 'push' || github.ref != 'refs/heads/master' }}
         run: ./gradlew jacocoTestReport --stacktrace
 
       - name: Upload coverage report
+        if: ${{ github.event_name != 'push' || github.ref != 'refs/heads/master' }}
         uses: actions/upload-artifact@v4
         with:
           name: unit-test-coverage
@@ -130,7 +125,7 @@ jobs:
       # Rendered into the run summary so the number is visible without opening an
       # artifact. A report nobody reads is a report that decays.
       - name: Summarise unit test coverage
-        if: always()
+        if: ${{ always() && (github.event_name != 'push' || github.ref != 'refs/heads/master') }}
         run: |
           python3 tools/coverage_summary.py \
             app/build/reports/jacoco/jacocoTestReport/jacocoTestReport.xml \

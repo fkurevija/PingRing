@@ -14,39 +14,14 @@ name: Instrumented Tests
 # a 45-minute job that pushed a superseded commit the moment the next push
 # arrived.
 #
-# So it ran for tagged `v*` releases only, on the reasoning that paying 45 minutes
-# on every push bought little. That turned out to be the wrong trade: the whole
-# point of this workflow is that the fast job cannot see the UI, so gating it
-# behind tags meant a UI regression sat on master for however long it took to
-# decide to release, caught by nobody. It now runs on every push and every PR.
-#
-# The cost is paid back two ways. A failure is non-blocking (`continue-on-error`),
-# so a red UI test never stops an APK from being built and published - the failure
-# is surfaced in the summary and the artifacts instead of blocking a merge. And
-# runs for the same ref queue rather than cancelling each other (see
-# `concurrency` below), so a burst of commits costs wall-clock time instead of
-# emulators: one at a time, every commit still gets a verdict.
-#
-# Queuing rather than cancelling is a deliberate choice over the usual one. The
-# tempting optimisation is to cancel superseded runs, since nobody installs the
-# build of a commit that has already been superseded. But the intermediate runs
-# are the diagnostic: when something breaks, what matters is knowing which commit
-# did it, and a cancelled run is a gap in exactly that history. It is cheap here
-# because nothing is blocked on the outcome.
-#
-# The consequence to be aware of: because failures do not block, this workflow's
-# green tick means "the suite ran to completion", not "the suite passed". The
-# step summary says which it was, on every run.
+# Emulator runs are expensive and should not consume minutes on every PR or
+# master push. Run them for versioned releases or on demand; the fast JVM tests
+# remain part of the APK workflow's PR checks.
 
 on:
   push:
-    branches:
-      - master
     tags:
       - 'v*'
-  pull_request:
-    branches:
-      - master
   workflow_dispatch:
 
 # `contents: write` is needed only so the last step can push COVERAGE.md to the
@@ -58,18 +33,8 @@ permissions:
   contents: write
 
 concurrency:
-  # Runs for the same ref queue up rather than cancelling each other, which is
-  # the point: pushing several commits in a row should leave a result for each
-  # one. Cancelling would discard the intermediate runs, and those are exactly
-  # the runs that say which commit broke something - "it was fine on 1234, red
-  # on 5678" is the useful fact, and cancelling throws it away.
-  #
-  # The group is still worth having because it caps concurrency per ref: without
-  # it, five rapid pushes would boot five emulators at once and slow every one of
-  # them down. Queued runs are much cheaper than parallel ones, and here the
-  # waiting is free because nothing is blocked on the result.
   group: instrumented-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   connected-tests:
