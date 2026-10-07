@@ -142,13 +142,14 @@ class AppSettingsScreenInstrumentedTest {
     }
 
     @Test
-    fun thereIsNoAppearanceOrNotificationsGroupRowLeftBehind() {
-        // Guards the removal itself. If either heading comes back as a row, the
-        // settings are behind a tap again and these fail.
+    fun thereIsNoAppearanceGroupRowLeftBehind() {
+        // Guards the removal itself. If the heading comes back as a sub-menu row, the
+        // settings are behind a tap again and this fails.
         showSettings()
 
         composeRule.onNodeWithText("Appearance").assertDoesNotExist()
-        composeRule.onNodeWithText("Notifications").assertDoesNotExist()
+        composeRule.onNodeWithText("Notifications").assertIsDisplayed()
+        composeRule.onNodeWithText("Connection").assertIsDisplayed()
     }
 
     @Test

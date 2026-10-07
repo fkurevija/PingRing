@@ -32,6 +32,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -256,46 +257,137 @@ fun AppSettingsScreen(
             // Notifications screen: a group heading plus a submenu to reach three
             // switches is a tap and a back press spent on nothing, and the App
             // Settings screen then held links to settings instead of settings.
-            SettingsSwitchRow(
-                icon = { Icon(Icons.Default.Notifications, contentDescription = null) },
-                title = stringResource(R.string.chat_push_notifications),
-                description = stringResource(R.string.chat_push_notifications_description),
-                checked = chatNotificationsEnabled,
-                onCheckedChange = onChatNotificationsEnabledChange,
-            )
-            SettingsSwitchRow(
-                icon = { Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = null) },
-                title = stringResource(R.string.notification_sound),
-                description = stringResource(R.string.notification_sound_description),
-                checked = notificationSoundEnabled,
-                onCheckedChange = onNotificationSoundEnabledChange,
-            )
-            SettingsSwitchRow(
-                icon = { Icon(Icons.Default.Vibration, contentDescription = null) },
-                title = stringResource(R.string.notification_vibration),
-                // Says the device cannot do it rather than showing a switch that
-                // silently does nothing.
-                description = stringResource(
-                    if (hasVibrator) R.string.notification_vibration_description else R.string.not_supported_on_device
-                ),
-                checked = notificationVibrationEnabled && hasVibrator,
-                enabled = hasVibrator,
-                onCheckedChange = onNotificationVibrationEnabledChange,
-            )
-            SettingsSwitchRow(
-                icon = { Icon(Icons.Default.Lock, contentDescription = null) },
-                title = stringResource(R.string.nearby_digit_comparison_title),
-                description = stringResource(R.string.nearby_digit_comparison_description),
-                checked = nearbyDigitComparisonEnabled,
-                onCheckedChange = onNearbyDigitComparisonEnabledChange,
-            )
+            // Notifications tile grouping
             Card(
                 modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp),
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
                 ),
             ) {
                 Column(Modifier.fillMaxWidth().padding(16.dp)) {
+                    Text(
+                        stringResource(R.string.notifications),
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Notifications, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(stringResource(R.string.chat_push_notifications), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                            Text(stringResource(R.string.chat_push_notifications_description), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Switch(
+                            checked = chatNotificationsEnabled,
+                            onCheckedChange = onChatNotificationsEnabledChange,
+                            modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp).semantics {
+                                contentDescription = context.getString(R.string.chat_push_notifications)
+                            }
+                        )
+                    }
+
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(stringResource(R.string.notification_sound), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                            Text(stringResource(R.string.notification_sound_description), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Switch(
+                            checked = notificationSoundEnabled,
+                            onCheckedChange = onNotificationSoundEnabledChange,
+                            modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp).semantics {
+                                contentDescription = context.getString(R.string.notification_sound)
+                            }
+                        )
+                    }
+
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .then(
+                                if (hasVibrator) Modifier else Modifier.clickable {
+                                    Toast.makeText(context, context.getString(R.string.not_supported_on_device), Toast.LENGTH_SHORT).show()
+                                }
+                            ),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Vibration, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(stringResource(R.string.notification_vibration), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                stringResource(
+                                    if (hasVibrator) R.string.notification_vibration_description else R.string.not_supported_on_device
+                                ),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = notificationVibrationEnabled && hasVibrator,
+                            enabled = hasVibrator,
+                            onCheckedChange = onNotificationVibrationEnabledChange,
+                            modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp).semantics {
+                                contentDescription = context.getString(R.string.notification_vibration)
+                            }
+                        )
+                    }
+                }
+            }
+
+            // Connection tile grouping
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                ),
+            ) {
+                Column(Modifier.fillMaxWidth().padding(16.dp)) {
+                    Text(
+                        stringResource(R.string.connection),
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(stringResource(R.string.nearby_digit_comparison_title), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                            Text(stringResource(R.string.nearby_digit_comparison_description), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Switch(
+                            checked = nearbyDigitComparisonEnabled,
+                            onCheckedChange = onNearbyDigitComparisonEnabledChange,
+                            modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp).semantics {
+                                contentDescription = context.getString(R.string.nearby_digit_comparison_title)
+                            }
+                        )
+                    }
+
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text(
@@ -313,7 +405,7 @@ fun AppSettingsScreen(
                         Switch(
                             checked = connectionRecoveryPromptEnabled,
                             onCheckedChange = onConnectionRecoveryPromptEnabledChange,
-                            modifier = Modifier.semantics { contentDescription = recoveryLabel },
+                            modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp).semantics { contentDescription = recoveryLabel },
                         )
                     }
                     if (connectionRecoveryPromptEnabled) {
@@ -333,18 +425,9 @@ fun AppSettingsScreen(
                             steps = 8,
                         )
                     }
-                }
-            }
-            // Directly after the recovery card: both are about how long the app
-            // waits before deciding something has gone wrong, so they read
-            // together as a pair rather than as two unrelated preferences.
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
-                ),
-            ) {
-                Column(Modifier.fillMaxWidth().padding(16.dp)) {
+
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
                     Text(
                         stringResource(R.string.join_wait_title),
                         style = MaterialTheme.typography.titleSmall,
@@ -356,11 +439,6 @@ fun AppSettingsScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Text(
-                        // Seconds, not minutes: the whole range is one to three
-                        // minutes, so minutes would read "1 min" for both 60s and
-                        // 75s and "2 min" for both 90s and 105s - which is the
-                        // difference between the setting appearing to do nothing
-                        // and a slider that is working.
                         stringResource(
                             R.string.join_wait_delay,
                             joinWaitDraft.roundToInt(),
@@ -375,15 +453,8 @@ fun AppSettingsScreen(
                         onValueChangeFinished = {
                             onJoinWaitTimeoutChange(joinWaitDraft.roundToInt() * 1_000L)
                         },
-                        // 5s stops across 10-120s. 5 rather than 15 because the
-                        // bottom of the range is now a genuine choice rather than a
-                        // floor derived from another constant, and a coarse step
-                        // there would put most of the useful values out of reach:
-                        // 10, 25, 40 leaves nothing between "give up at once" and
-                        // "wait half a minute".
                         valueRange = MIN_JOIN_WAIT_TIMEOUT_MILLIS / 1_000f..
                             MAX_JOIN_WAIT_TIMEOUT_MILLIS / 1_000f,
-                        // 23 stops between two inclusive endpoints: 110/5 - 1.
                         steps = 21,
                     )
                 }
@@ -460,61 +531,7 @@ private fun SettingsRow(
     }
 }
 
-/**
- * One switch in the settings list, shaped like [SettingsRow] on purpose.
- *
- * A row you flip and a row that opens something are the same kind of thing to
- * the person scrolling past, and the earlier screen mixed three different row
- * shapes so nothing lined up. The switch keeps a 48dp minimum so it is a
- * reachable target and is labelled for a screen reader by its own title, not by
- * a position in the list.
- */
-@Composable
-private fun SettingsSwitchRow(
-    icon: @Composable () -> Unit,
-    title: String,
-    description: String,
-    checked: Boolean,
-    enabled: Boolean = true,
-    onCheckedChange: (Boolean) -> Unit,
-) {
-    val context = LocalContext.current
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            // Only when disabled, so that an enabled row does not advertise a
-            // tap that goes nowhere. A switch the device cannot honour stays
-            // visible and explains itself on tap rather than greying out, which
-            // reads as a broken app rather than as an honest limit.
-            .then(
-                if (enabled) Modifier else Modifier.clickable {
-                    Toast.makeText(context, description, Toast.LENGTH_SHORT).show()
-                }
-            ),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
-    ) {
-        Row(
-            Modifier.fillMaxWidth().padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            icon()
-            Spacer(Modifier.width(16.dp))
-            Column(Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Spacer(Modifier.width(16.dp))
-            Switch(
-                checked = checked,
-                enabled = enabled,
-                onCheckedChange = onCheckedChange,
-                modifier = Modifier
-                    .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
-                    .semantics { contentDescription = title },
-            )
-        }
-    }
-}
+
 
 private val ThemeMode.labelRes: Int
     get() = when (this) {
