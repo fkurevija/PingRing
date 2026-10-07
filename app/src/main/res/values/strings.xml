@@ -237,6 +237,7 @@
     <!-- Shown as an accessibility action on the code, and as the confirmation. -->
     <string name="copy_pingring_code">Copy PingRing Code</string>
     <string name="pingring_code_copied">PingRing Code copied</string>
+    <string name="beacon_configuration">Beacon Configuration</string>
     <string name="beacon_alert_repetition_label">Beacon Repetition</string>
     <string name="beacon_alert_repetition_explainer">Your own choice. It applies to beacons from everyone, including your own.</string>
     <string name="beacon_alert_repeat_once">Once</string>

@@ -228,6 +228,7 @@
     <string name="report_a_problem_failed">Impossible d’ouvrir le navigateur</string>
     <string name="copy_pingring_code">Copier le code PingRing</string>
     <string name="pingring_code_copied">Code PingRing copié</string>
+    <string name="beacon_configuration">Configuration de balise</string>
     <string name="beacon_alert_repetition_label">Répétition de l’alerte</string>
     <string name="beacon_alert_repetition_explainer">Votre choix. S’applique aux balises de tout le monde, y compris les vôtres.</string>
     <string name="beacon_alert_repeat_once">Une fois</string>

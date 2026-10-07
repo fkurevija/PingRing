@@ -229,6 +229,7 @@
     <string name="report_a_problem_failed">Nije moguće otvoriti preglednik</string>
     <string name="copy_pingring_code">Kopiraj PingRing kod</string>
     <string name="pingring_code_copied">PingRing kod kopiran</string>
+    <string name="beacon_configuration">Konfiguracija signala</string>
     <string name="beacon_alert_repetition_label">Ponavljanje upozorenja</string>
     <string name="beacon_alert_repetition_explainer">Tvoj izbor. Primjenjuje se na sva svjetla, uključujući tvoja.</string>
     <string name="beacon_alert_repeat_once">Jednom</string>
