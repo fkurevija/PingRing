@@ -92,9 +92,9 @@ The heading is the ring itself: **Code: 4C1A9B · 3/8 Members**. The app's own n
 
 Use the **Tracking** dropdown, or the button on a member's row. Both set the same thing, and both are always available.
 
-- With nothing chosen, the choice is automatic: a **guest follows the host**; the **host follows whoever joined first**. It is role-based rather than nearest, because "nearest" changes underneath you as people move. Members announce when they arrived, so "first" is genuine arrival — not whoever the host happened to hear first, which is often the person standing closest.
-- Tap a member's row button to track them; the row is marked **TRACKING** and the card is highlighted.
-- Tap the tracked row again, or pick **Automatic**, to go back to the default.
+- A member is selected automatically as soon as another member becomes available: a **guest defaults to the host**; the **host defaults to the first available joiner**. The selected member's name appears in the tracking picker and their row is marked **TRACKING** and highlighted.
+- Tap anywhere on another member's row, or choose them in the tracking picker, to change who you track. There are no separate row selection buttons or dash placeholders for unavailable distance.
+- Tapping the tracked row keeps it selected; tracking cannot be cleared while another member is available. If the selected member becomes unavailable, another available member is selected automatically. With nobody else available, there is no target until a member arrives.
 - Tracking changes what the radar draws and what UWB ranges. **You still receive every message**, no matter who you are tracking.
 - Changing who you track never affects who is in the ring. Repointing the radar moves one ranging session between members, and the one losing it can briefly fall out of contact; it stays in the member list regardless, shown with its distance unavailable.
 

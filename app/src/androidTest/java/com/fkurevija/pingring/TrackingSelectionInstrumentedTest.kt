@@ -1,0 +1,83 @@
+package com.fkurevija.pingring
+
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
+import com.fkurevija.pingring.data.DiscoveryRepository
+import com.fkurevija.pingring.data.Event
+import com.fkurevija.pingring.data.LanDebugConnectionsManager
+import com.fkurevija.pingring.data.NearbyTransport
+import com.fkurevija.pingring.data.SessionManager
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
+import org.junit.Assert.assertEquals
+import org.junit.Test
+
+class TrackingSelectionInstrumentedTest {
+    private class TestTransport : NearbyTransport by LanDebugConnectionsManager("127.0.0.1") {
+        override val connectionEstablished = MutableSharedFlow<String>(extraBufferCapacity = 8)
+        override val peerDisconnected = MutableSharedFlow<String>(extraBufferCapacity = 8)
+
+        override fun startAdvertising(
+            eventId: String,
+            localPeerId: String,
+            useWifiDirect: Boolean,
+            useHotspot: Boolean,
+        ) = Unit
+
+        override fun startDiscovery(eventId: String, localPeerId: String) = Unit
+    }
+
+    @Test
+    fun hostAutomaticallySelectsAndCannotClearTrackingWhileMembersRemain() = runBlocking<Unit> {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val session = SessionManager()
+        session.hostEvent(Event.create(id = "FOCUS1", hostPeerId = session.peerId.value, useUwb = false))
+        val transport = TestTransport()
+        val repository = DiscoveryRepository(context, session, transport)
+        try {
+            repository.startDiscovery()
+            withTimeout(5_000L) { transport.connectionEstablished.subscriptionCount.first { it > 0 } }
+            transport.connectionEstablished.emit("first")
+            withTimeout(5_000L) { repository.focusedPeerId.first { it == "first" } }
+            transport.connectionEstablished.emit("second")
+            withTimeout(5_000L) { repository.peerUpdates.first { it.size == 2 } }
+            assertEquals("first", repository.focusedPeerId.value)
+
+            repository.setFocusedPeer("second")
+            assertEquals("second", repository.focusedPeerId.value)
+            repository.setFocusedPeer("second")
+            repository.setFocusedPeer(session.peerId.value)
+            repository.setFocusedPeer("unavailable")
+            assertEquals("second", repository.focusedPeerId.value)
+
+            transport.peerDisconnected.emit("second")
+            withTimeout(5_000L) { repository.focusedPeerId.first { it == "first" } }
+            transport.peerDisconnected.emit("first")
+            withTimeout(5_000L) { repository.focusedPeerId.first { it == null } }
+            transport.connectionEstablished.emit("new-member")
+            withTimeout(5_000L) { repository.focusedPeerId.first { it == "new-member" } }
+        } finally {
+            repository.stopDiscovery()
+        }
+    }
+
+    @Test
+    fun guestSelectsHostOnConnectionBeforeAnyRangingMeasurement() = runBlocking<Unit> {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val session = SessionManager()
+        session.joinEvent(Event.create(id = "FOCUS2", hostPeerId = "host", useUwb = false))
+        val transport = TestTransport()
+        val repository = DiscoveryRepository(context, session, transport)
+        try {
+            repository.startDiscovery()
+            withTimeout(5_000L) { transport.connectionEstablished.subscriptionCount.first { it > 0 } }
+            transport.connectionEstablished.emit("host")
+            withTimeout(5_000L) { repository.focusedPeerId.first { it == "host" } }
+            assertEquals("host", repository.resolveFocusedPeer())
+        } finally {
+            repository.stopDiscovery()
+        }
+    }
+}

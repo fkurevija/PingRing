@@ -21,14 +21,6 @@ package com.fkurevija.pingring.data
 object FocusPolicy {
 
     /**
-     * The member currently being tracked, or null for "auto", which means the
-     * role-based default rather than the nearest peer. Null-as-auto rather than
-     * a sentinel id so it survives a peer leaving and rejoining with a new
-     * ephemeral id.
-     */
-    const val AUTO = "auto"
-
-    /**
      * Resolves the member the radar displays and the UWB radio ranges.
      *
      * Rules, in order:
@@ -37,6 +29,8 @@ object FocusPolicy {
      *    than leaving the radar pointed at nobody.
      *  - Otherwise a guest falls back to the host, and the host to the member
      *    that has been in the ring longest.
+     *  - Null is only possible when no other member is available. The repository
+     *    publishes the resolved default as the selection when a member arrives.
      *
      * The fallbacks are role-based rather than distance-based on purpose. A
      * guest's job in a ring is to follow the host and a host's is to watch

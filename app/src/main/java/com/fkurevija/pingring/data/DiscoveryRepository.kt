@@ -891,20 +891,26 @@ class DiscoveryRepository(
         chatColourRequests.remove(colorArgb)?.invoke(claim.granted)
     }
 
-    fun setFocusedPeer(peerId: String?) {
+    fun setFocusedPeer(peerId: String) {
+        if (peerId == sessionManager.peerId.value || peerId !in _peerUpdates.value) {
+            Log.w(TAG, "Cannot track an unavailable or local member")
+            return
+        }
         _focusedPeerId.value = peerId
-        Log.i(TAG, "Radar focus set to ${peerId ?: "auto (nearest)"}")
+        Log.i(TAG, "Radar focus set to $peerId")
         onFocusChanged()
     }
 
     /**
      * Resolves the focused member, or null when there is nobody to focus on.
      */
-    fun resolveFocusedPeer(): String? {
+    fun resolveFocusedPeer(): String? = resolveFocusedPeer(_focusedPeerId.value)
+
+    private fun resolveFocusedPeer(selectedPeerId: String?): String? {
         val state = sessionManager.sessionState.value
         val event = state.currentEvent ?: return null
         return FocusPolicy.resolveFocus(
-            selectedPeerId = _focusedPeerId.value,
+            selectedPeerId = selectedPeerId,
             // The map is insertion-ordered, so this is discovery order. It is
             // only the tie-break now: a peer that reported when it joined is
             // ranked ahead of one that did not.
@@ -1008,6 +1014,13 @@ class DiscoveryRepository(
         }
         repositoryScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
         refreshConnectivityStatus()
+
+        repositoryScope?.launch {
+            _peerUpdates
+                .map { peers -> peers.mapValues { (_, peer) -> peer.joinedAtMillis } }
+                .distinctUntilChanged()
+                .collect { onFocusChanged() }
+        }
 
         // 1. Start Nearby Connections
         if (event != null) {
@@ -2566,6 +2579,8 @@ private fun removePeer(peerId: String, preserveLastKnownDirection: Boolean = tru
      * through the member list should not open and abandon a session per tap.
      */
     private fun onFocusChanged() {
+        _focusedPeerId.update { selectedPeerId -> resolveFocusedPeer(selectedPeerId) }
+        val focusedPeerId = _focusedPeerId.value
         val manager = uwbManager ?: return
         val scope = repositoryScope ?: return
         val state = sessionManager.sessionState.value
@@ -2573,7 +2588,7 @@ private fun removePeer(peerId: String, preserveLastKnownDirection: Boolean = tru
         if (!event.useUwb) return
 
         val target = FocusPolicy.rangingTarget(
-            focusPeerId = resolveFocusedPeer(),
+            focusPeerId = focusedPeerId,
             hostPeerId = event.hostPeerId,
             // Retained peers count as ranging candidates: their transport is
             // down but their UWB session is deliberately still open, and

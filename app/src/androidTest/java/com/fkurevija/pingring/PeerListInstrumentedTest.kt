@@ -8,6 +8,8 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.isSelectable
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -79,7 +81,7 @@ class PeerListInstrumentedTest {
         connectivity: ConnectivityStatus = ConnectivityStatus(true, true),
         activeBeacons: Map<String, BeaconInfo> = emptyMap(),
         focusedPeerId: String? = null,
-        onFocusPeer: (String?) -> Unit = {},
+        onFocusPeer: (String) -> Unit = {},
     ) {
         composeRule.setContent {
             MaterialTheme {
@@ -158,12 +160,11 @@ class PeerListInstrumentedTest {
     }
 
     @Test
-    fun aMemberWithNoDistanceSaysSoRatherThanGuessing() {
-        // A BLE sighting with no UWB fix has no distance. Rendering 0.0 m, or
-        // silently reusing a stale number, would be worse than a dash.
+    fun aMemberWithNoDistanceHasNoDashOrFabricatedDistance() {
         show(peers = listOf(peer(name = "Ana", distance = null)))
 
-        composeRule.onNodeWithText("—").assertIsDisplayed()
+        composeRule.onNodeWithText("—").assertDoesNotExist()
+        composeRule.onNodeWithText("0.0 m").assertDoesNotExist()
     }
 
     @Test
@@ -243,16 +244,13 @@ class PeerListInstrumentedTest {
             onFocusPeer = { focused = it },
         )
 
-        composeRule.onNodeWithContentDescription("Track Ana").performClick()
+        composeRule.onNode(hasText("Ana") and isSelectable()).performClick()
 
         assertEquals("peer-1", focused)
     }
 
     @Test
-    fun trackingTheTrackedMemberAgainReturnsToAuto() {
-        // The choice has to be reversible without leaving the screen, which is
-        // why tapping the tracked row clears the selection rather than doing
-        // nothing at all.
+    fun tappingTheTrackedMemberKeepsItSelected() {
         var focused: String? = "peer-1"
         show(
             peers = listOf(peer(id = "peer-1", name = "Ana")),
@@ -260,9 +258,10 @@ class PeerListInstrumentedTest {
             onFocusPeer = { focused = it },
         )
 
-        composeRule.onNodeWithContentDescription("Stop tracking Ana").performClick()
+        composeRule.onNode(hasText("Ana") and isSelectable()).assertIsSelected().performClick()
 
-        assertEquals(null, focused)
+        assertEquals("peer-1", focused)
+        composeRule.onNodeWithContentDescription("Stop tracking Ana").assertDoesNotExist()
     }
 
     @Test
@@ -280,12 +279,11 @@ class PeerListInstrumentedTest {
     }
 
     @Test
-    fun thePickerFallsBackToAutomaticWithoutAnExplicitChoice() {
-        // Nothing chosen means the policy decides, and the control must not
-        // claim a member is tracked when it does not know which.
-        show(peers = listOf(peer(id = "peer-1", name = "Ana")))
+    fun thePickerDoesNotOfferAutomaticOrClearingTracking() {
+        show(peers = listOf(peer(id = "peer-1", name = "Ana")), focusedPeerId = "peer-1")
 
-        composeRule.onNodeWithText("Automatic").assertIsDisplayed()
+        composeRule.onNodeWithText("Tracking").performClick()
+        composeRule.onNodeWithText("Automatic").assertDoesNotExist()
     }
 
     @Test
@@ -328,17 +326,16 @@ class PeerListInstrumentedTest {
     }
 
     @Test
-    fun theRowButtonAndThePickerAgree() {
-        // Two controls set the same value, so they must never disagree about
-        // whether it can be set. Previously the picker could be locked while the
-        // row button was not.
+    fun theRowSelectsAnotherMemberWithoutASeparateButton() {
         var focused: String? = null
         show(
-            peers = listOf(peer(id = "peer-1", name = "Ana")),
+            peers = listOf(peer(id = "peer-1", name = "Ana"), peer(id = "peer-2", name = "Bo")),
+            focusedPeerId = "peer-2",
             onFocusPeer = { focused = it },
         )
 
-        composeRule.onNodeWithContentDescription("Track Ana").performClick()
+        composeRule.onNodeWithContentDescription("Track Ana").assertDoesNotExist()
+        composeRule.onNode(hasText("Ana") and isSelectable()).performClick()
         composeRule.waitForIdle()
 
         assertEquals("peer-1", focused)

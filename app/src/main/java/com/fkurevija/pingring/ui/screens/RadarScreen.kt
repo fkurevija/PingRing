@@ -46,7 +46,6 @@ import androidx.compose.material.icons.filled.WifiOff
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.FlashOn
-import androidx.compose.material.icons.filled.GpsFixed
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.Star
@@ -695,7 +694,7 @@ fun RadarScreen(
                             connectivity,
                             discoveryRepository,
                             activeBeacons,
-                            focusedPeerId = focusSelection,
+                            focusedPeerId = focusedPeer?.peerId,
                             onFocusPeer = { discoveryRepository?.setFocusedPeer(it) },
                             modifier = Modifier.width(paneWidth)
                         )
@@ -1160,7 +1159,7 @@ fun RadarScreen(
                             connectivity = connectivity,
                             repository = discoveryRepository,
                             activeBeacons = activeBeacons,
-                            focusedPeerId = focusSelection,
+                            focusedPeerId = focusedPeer?.peerId,
                             onFocusPeer = { discoveryRepository?.setFocusedPeer(it) },
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                         )
@@ -1666,7 +1665,7 @@ internal fun PeerList(
     repository: DiscoveryRepository?,
     activeBeacons: Map<String, BeaconInfo>,
     focusedPeerId: String?,
-    onFocusPeer: (String?) -> Unit,
+    onFocusPeer: (String) -> Unit,
     modifier: Modifier
 ) {
     // Nearest first, everywhere in this sheet. The rows below and the tracking
@@ -1704,13 +1703,7 @@ internal fun PeerList(
                 fontWeight = FontWeight.Bold
             )
         }
-        // The one member being tracked, as a control rather than only as a
-    // highlight on a row. The per-row buttons below can already set this, but
-    // they cannot show what is currently tracked without reading the list, and
-    // they give no way back to the automatic choice once something has been
-    // picked. Always available: choosing who to follow is the local user's own
-    // decision, and the host no longer owns it.
-    if (peers.isNotEmpty()) {
+        if (peers.isNotEmpty()) {
             TrackedMemberPicker(
                 peers = orderedPeers,
                 trackedPeerId = focusedPeerId,
@@ -1724,13 +1717,18 @@ internal fun PeerList(
         // real surface instead of a tiny sliver at the bottom.
         if (peers.isNotEmpty()) {
             LazyColumn(
+                modifier = Modifier.selectableGroup(),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(orderedPeers, key = { it.peerId }) { peer ->
                     val peerBeacon = activeBeacons[peer.peerId]
                     val isFocused = peer.peerId == focusedPeerId
                     Card(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().selectable(
+                            selected = isFocused,
+                            role = Role.RadioButton,
+                            onClick = { onFocusPeer(peer.peerId) },
+                        ),
                         colors = when {
                             peerBeacon != null ->
                                 CardDefaults.cardColors(containerColor = peerBeacon.color.copy(alpha = 0.12f))
@@ -1792,29 +1790,10 @@ internal fun PeerList(
                                 }
                                 Text(proximityLabel, style = MaterialTheme.typography.bodySmall)
                             }
-                            Text(peer.distance?.let { stringResource(R.string.distance_meters, it) } ?: stringResource(R.string.no_distance), fontWeight = FontWeight.Bold)
-                            Spacer(Modifier.width(8.dp))
-                            // Tapping the row makes this the one member the
-                            // radar draws and the UWB session ranges. Tapping
-                            // the tracked member again returns to auto, so the
-                            // choice is always reversible without leaving the
-                            // screen.
-                            IconButton(
-                                onClick = { onFocusPeer(if (isFocused) null else peer.peerId) },
-                                modifier = Modifier.size(36.dp)
-                            ) {
-                                Icon(
-                                    if (isFocused) Icons.Default.MyLocation else Icons.Default.GpsFixed,
-                                    contentDescription = stringResource(
-                                        if (isFocused) R.string.stop_tracking_member else R.string.track_member,
-                                        peer.name,
-                                    ),
-                                    tint = if (isFocused) {
-                                        MaterialTheme.colorScheme.primary
-                                    } else {
-                                        MaterialTheme.colorScheme.onSurfaceVariant
-                                    },
-                                    modifier = Modifier.size(20.dp)
+                            peer.distance?.let { distance ->
+                                Text(
+                                    stringResource(R.string.distance_meters, distance),
+                                    fontWeight = FontWeight.Bold,
                                 )
                             }
                         }
@@ -1840,32 +1819,19 @@ internal fun PeerList(
 /**
  * Names the one member currently being tracked, and lets it be changed.
  *
- * A dropdown rather than another row button because the tracked member is a
- * property of the whole radar, not of a row: the radar draws this person, the
- * UWB session spends itself on them, and proximity haptics fire for them. The
- * per-row buttons in [PeerList] set the same value, and both stay in place -
- * this one answers "who am I following right now" without counting badges down
- * a scrolling list, and offers a way back to the automatic choice.
- *
- * Every member is always selectable. This control used to go read-only on a
- * guest when the host had turned on "track host", which left the radar pointed
- * at somebody with nothing on screen to explain why.
+ * The dropdown and selectable rows share the same concrete selection.
+ * Neither offers a way to stop tracking while other members are available.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun TrackedMemberPicker(
     peers: List<RadarPeerUpdate>,
     trackedPeerId: String?,
-    onSelect: (String?) -> Unit,
+    onSelect: (String) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
     val trackedName = peers.firstOrNull { it.peerId == trackedPeerId }?.name
-    val label = when {
-        trackedName != null -> trackedName
-        // No explicit choice: whatever FocusPolicy resolved is being tracked,
-        // which is not necessarily in this list.
-        else -> stringResource(R.string.automatic)
-    }
+    val label = trackedName.orEmpty()
 
     ExposedDropdownMenuBox(
         expanded = expanded,
@@ -1886,17 +1852,6 @@ internal fun TrackedMemberPicker(
             expanded = expanded,
             onDismissRequest = { expanded = false }
         ) {
-            // Back to the automatic choice. Needed because picking somebody is
-            // one-way otherwise: the row buttons clear a selection, but this
-            // control is how the choice is inspected, so it has to be where it
-            // can also be undone.
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.automatic)) },
-                onClick = {
-                    onSelect(null)
-                    expanded = false
-                }
-            )
             peers.forEach { peer ->
                 DropdownMenuItem(
                     text = { Text(peer.name) },
