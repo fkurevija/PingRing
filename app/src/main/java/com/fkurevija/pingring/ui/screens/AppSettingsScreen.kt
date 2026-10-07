@@ -163,21 +163,21 @@ fun AppSettingsScreen(
                 onClick = onOpenConnection,
             )
             SettingsRow(
-                icon = { Text("A", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) },
+                icon = { Text("A", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary) },
                 title = stringResource(R.string.accessibility_title),
                 description = stringResource(R.string.accessibility_card_description),
                 onClick = onOpenAccessibility,
             )
             if (showDeveloperOptions) {
                 SettingsRow(
-                    icon = { Text("</>", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) },
+                    icon = { Text("</>", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary) },
                     title = stringResource(R.string.developer_options),
                     description = stringResource(R.string.lan_debug_transport),
                     onClick = onOpenDeveloperOptions,
                 )
             }
             SettingsRow(
-                icon = { Text("i", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) },
+                icon = { Text("i", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary) },
                 title = stringResource(R.string.about),
                 description = stringResource(R.string.about_description),
                 onClick = onOpenAbout,
