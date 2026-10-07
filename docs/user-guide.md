@@ -45,7 +45,7 @@ There are exactly two ways in, and both start with you:
 
 - **Join by QR** proves possession of the invitation secret. Because that QR code is rendered on your device, showing it *is* you offering the ring — a guest who scans it is admitted without a further decision from you.
 - **Join by typed code** only locates the event, so it proves nothing about who is asking. These joins are put to you: a card overlays the top of the radar or host setup screen — *"N devices want to join"* — with their username and **Allow** / **Deny**. Unanswered requests are refused after **45 seconds**.
-- The **Verify Nearby connections** switch in App Settings is off by default. Turn it on to require both devices to compare and confirm the six-digit Nearby code before connecting; turn it off to bypass that step. This applies to new Nearby connections, not the LAN debug relay. Approval cards and QR-secret admission remain in effect. Names and discovery hints alone do not prove identity.
+- The **Verify Nearby connections** switch in App Settings is off by default. Turn it on to require both devices to compare and confirm the six-digit Nearby code before connecting; turn it off to bypass that step. This applies only to new Nearby connections; LAN debug does not use the digit comparison. Approval cards and QR-secret admission remain in effect. Names and discovery hints alone do not prove identity.
 
 > **Prevent New Users From Joining**, in PingRing Settings, closes the ring to arrivals mid-event: further requests are refused and the radar's QR button is hidden until you turn it back off. This is your only standing control over the whole ring — there is no per-join switch.
 
