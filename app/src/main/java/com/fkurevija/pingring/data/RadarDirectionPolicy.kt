@@ -9,9 +9,8 @@ import kotlin.math.pow
  * at the tracked member, whose width encodes how close they are.
  *
  * A thin sliver means far away; the arc widens as they approach and is fully lit
- * once they are within arms reach. The needle in the middle of the radar points
- * the same way, so direction and closeness are read from one glance at the same
- * place.
+ * once they are within arms reach. The arc itself carries both direction and
+ * closeness.
  *
  * Distance is interpolated logarithmically rather than linearly. UWB distances
  * span roughly 0.1 m to 30 m, and a linear map spends almost its whole range on
@@ -39,28 +38,28 @@ object RadarDirectionPolicy {
     /** Half-angle of the sliver at maximum range: 4 degrees, a visible tick. */
     const val MIN_HALF_ANGLE_DEGREES = 4f
 
-    /** Half of the full circle: the arc's width when the member is in reach. */
-    const val FULL_HALF_ANGLE_DEGREES = 180f
+    /** Broadest directional segment; leave a gap so its bearing remains visible. */
+    const val MAX_HALF_ANGLE_DEGREES = 120f
 
     /**
      * Half-angle of the lit arc for a member [distanceMeters] away.
      *
-     * Returns [FULL_HALF_ANGLE_DEGREES] at or under arms reach and
+     * Returns [MAX_HALF_ANGLE_DEGREES] at or under arms reach and
      * [MIN_HALF_ANGLE_DEGREES] at or beyond [MAX_USEFUL_RANGE_METERS]. A null or
      * non-positive distance is treated as "in reach" rather than rejected: a
      * member standing next to you has no meaningful distance to report, and
      * showing them as far away would be the more misleading answer.
      */
     fun halfAngleDegrees(distanceMeters: Float?): Float {
-        val distance = distanceMeters ?: return FULL_HALF_ANGLE_DEGREES
+        val distance = distanceMeters ?: return MAX_HALF_ANGLE_DEGREES
         // Infinity is not "no reading" - it is an absurdly large one, and it has
         // to clamp to the sliver like any other far distance. Checking
         // isFinite() alongside the null case would return the fully-lit value
         // for it, which is exactly backwards: the worst possible reading would
         // render as somebody standing in your arms. NaN is the ambiguous one
         // and is treated as no reading.
-        if (distance.isNaN()) return FULL_HALF_ANGLE_DEGREES
-        if (distance <= ARMS_REACH_METERS) return FULL_HALF_ANGLE_DEGREES
+        if (distance.isNaN()) return MAX_HALF_ANGLE_DEGREES
+        if (distance <= ARMS_REACH_METERS) return MAX_HALF_ANGLE_DEGREES
         // The >= comparison catches +Infinity too, so it needs no special case.
         if (distance >= MAX_USEFUL_RANGE_METERS) return MIN_HALF_ANGLE_DEGREES
 
@@ -73,7 +72,7 @@ object RadarDirectionPolicy {
         // Interpolate from full circle down to the sliver. t = 0 at arms reach
         // (full) and t = 1 at max range (thinnest), so the scale is inverted.
         return MIN_HALF_ANGLE_DEGREES +
-            (FULL_HALF_ANGLE_DEGREES - MIN_HALF_ANGLE_DEGREES) * (1f - t)
+            (MAX_HALF_ANGLE_DEGREES - MIN_HALF_ANGLE_DEGREES) * (1f - t)
     }
 
     /**
@@ -103,30 +102,11 @@ object RadarDirectionPolicy {
      *
      * The ring is the app's own circle rather than a chart axis, so the band is
      * drawn thick: 8% of the canvas reads as a band from arm's length and still
-     * leaves the middle free for the hub. A fraction rather than a dp value, so
+     * leaves the middle free. A fraction rather than a dp value, so
      * it scales with the radar instead of sinking into it on a tablet and
      * swallowing it on a small phone.
      */
     const val RING_STROKE_FRACTION = 0.08f
-
-    /**
-     * The hub's radius as a fraction of the ring's radius.
-     *
-     * The hub was a hardcoded 74.dp Box, which is the defect this replaces. The
-     * radar's diameter is derived from the available width and ranges from
-     * 160.dp to 320.dp, so one fixed size cannot serve it: at the small end the
-     * hub's diameter matched the ring's entire radius and swallowed the middle
-     * of the radar, taking the needle's base with it, while at the large end it
-     * shrank to a speck. As a fraction it is 25% of the radius at every size,
-     * which is what the 74.dp box measured on a phone.
-     */
-    const val HUB_RADIUS_FRACTION = 0.25f
-
-    /** The needle's thickness as a fraction of the ring's stroke. */
-    const val NEEDLE_STROKE_FRACTION = 0.22f
-
-    /** The dot on the needle's tip, as a fraction of the ring's stroke. */
-    const val NEEDLE_TIP_RADIUS_FRACTION = 0.26f
 
     /**
      * The circle the ring is drawn on, inside a [canvasWidthPx] by
@@ -157,27 +137,12 @@ object RadarDirectionPolicy {
         )
     }
 
-    /**
-     * The needle's rotation, in degrees, for a member at [azimuthDegrees].
-     *
-     * Zero points up, matching the radar's twelve o'clock convention, and the
-     * value is wrapped so a bearing of 359 degrees does not spin the needle the
-     * long way round.
-     */
-    fun needleRotationDegrees(azimuthDegrees: Float?): Float? {
-        if (azimuthDegrees == null || !azimuthDegrees.isFinite()) return null
-        return ((azimuthDegrees % 360f) + 360f) % 360f
-    }
-
     /** The lit arc: where it starts, how far it sweeps, and its half-width. */
     data class Segment(
         val startAngleDegrees: Float,
         val sweepAngleDegrees: Float,
         val halfAngleDegrees: Float,
-    ) {
-        /** True when the member is close enough for the whole ring to be lit. */
-        val isFullyLit: Boolean get() = halfAngleDegrees >= FULL_HALF_ANGLE_DEGREES
-    }
+    )
 
     /**
      * The ring's stroke, its radius, and the square an arc on it is inscribed
@@ -192,38 +157,5 @@ object RadarDirectionPolicy {
     ) {
         /** The side of the square bounding oval an arc of the ring is drawn in. */
         val arcSizePx: Float get() = radiusPx * 2f
-
-        /**
-         * The hub's radius: the disc drawn over the middle of the ring.
-         *
-         * Derived from [radiusPx] rather than fixed, so the hub keeps the same
-         * share of the radar at every size.
-         */
-        val hubRadiusPx: Float get() = radiusPx * HUB_RADIUS_FRACTION
-
-        /**
-         * How far the needle reaches from the centre.
-         *
-         * Stops half a stroke short of [radiusPx] so the tip dot sits on the
-         * ring's centre line and inside its band, rather than poking through the
-         * outer edge of the stroke.
-         */
-        val needleLengthPx: Float get() = radiusPx - strokePx / 2f
-
-        /**
-         * Where the needle starts, as a distance from the centre.
-         *
-         * At the edge of the hub, so the hub reads as the pivot the needle turns
-         * on rather than as the first thing the needle drew. Following the hub
-         * rather than a fixed fraction means the two cannot drift apart when the
-         * radar is resized.
-         */
-        val needleBaseRadiusPx: Float get() = hubRadiusPx
-
-        /** The needle's line thickness. */
-        val needleStrokePx: Float get() = strokePx * NEEDLE_STROKE_FRACTION
-
-        /** The radius of the dot on the needle's tip. */
-        val needleTipRadiusPx: Float get() = strokePx * NEEDLE_TIP_RADIUS_FRACTION
     }
 }

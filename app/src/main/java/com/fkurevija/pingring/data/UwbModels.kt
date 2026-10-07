@@ -58,7 +58,7 @@ data class UwbRangingOfferDto(
  *
  * The field names match the real report (`RangingResult.RangingResultPosition`
  * has distance/azimuth/elevation too) and the units are the same: metres and
- * degrees. [name] is optional: when set it also renames the pin, which is how
+ * degrees. [name] is optional: when set it also renames the peer label, which is how
  * you can tell two scripted peers apart on the radar.
  */
 @JsonClass(generateAdapter = true)

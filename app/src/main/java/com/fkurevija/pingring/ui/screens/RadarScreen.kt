@@ -140,6 +140,7 @@ import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -180,9 +181,7 @@ import com.fkurevija.pingring.data.SessionState
 import com.fkurevija.pingring.R
 import kotlinx.coroutines.delay
 import java.util.Locale
-import kotlin.math.cos
 import kotlin.math.atan2
-import kotlin.math.sin
 
 /**
  * The colour this beacon is sent in.
@@ -1414,31 +1413,17 @@ internal fun RadarContent(
         // A remote peer's beacon is still legible: the ring carries its colour.
 
         Spacer(Modifier.height(verticalBuffer))
-        if (hasPeers && (peer != null)) {
-            val distanceLabel = peer.distance?.let {
-                stringResource(R.string.distance_away, it)
-            } ?: stringResource(R.string.proximity_signal, proximityLabel)
-            Text(
-                stringResource(R.string.tracked_peer_distance, peer.name, distanceLabel),
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center
-            )
-            peer.displayedEstimatedDirection?.let { estimate ->
-                Text(
-                    stringResource(R.string.gps_direction_estimate, kotlin.math.ceil(estimate.uncertaintyDegrees).toInt()),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                )
-            }
-            Spacer(Modifier.height(16.dp))
-        }
         ProximityRing(
             color = ringColor,
             arrowDegrees = peer?.radarAzimuth,
             directionUncertaintyDegrees = peer?.displayedEstimatedDirection?.uncertaintyDegrees,
             distanceMeters = peer?.distance,
+            trackedPeerName = peer?.takeIf { hasPeers }?.name,
+            trackedPeerDistance = peer?.takeIf { hasPeers }?.let {
+                it.distance?.let { distance ->
+                    stringResource(R.string.distance_away, distance)
+                } ?: stringResource(R.string.proximity_signal, proximityLabel)
+            },
             beacon = beacon,
             accessibilityDescription = RadarAccessibilityPolicy.describeLocalized(
                 resources = resources,
@@ -1498,6 +1483,8 @@ private fun ProximityRing(
     arrowDegrees: Float?,
     directionUncertaintyDegrees: Float?,
     distanceMeters: Float?,
+    trackedPeerName: String?,
+    trackedPeerDistance: String?,
     beacon: BeaconInfo?,
     accessibilityDescription: String,
     accessibilityEnabled: Boolean,
@@ -1544,7 +1531,6 @@ private fun ProximityRing(
             val ring = RadarDirectionPolicy.ringGeometry(size.width, size.height)
             val stroke = ring.strokePx
             val ringRadius = ring.radiusPx
-            val center = Offset(size.width / 2, size.height / 2)
 
             // Pulsing beacon wave if active. The animated radius is clamped to
             // the drawable extent: the wave still grows as it fades, but it
@@ -1583,82 +1569,47 @@ private fun ProximityRing(
             val segment = RadarDirectionPolicy.segment(arrowDegrees, distanceMeters)
             val directionColor = if (directionUncertaintyDegrees != null) color.copy(alpha = 0.6f) else color
             if (segment != null) {
-                if (segment.isFullyLit) {
-                    // Within arms reach: the whole ring is lit rather than a
-                    // 360-degree round-capped arc, which would render as a
-                    // heavy blob at the seam. radius given explicitly for the
-                    // same reason as the base ring.
-                    drawCircle(directionColor, radius = ringRadius, style = Stroke(stroke))
-                } else {
-                    drawArc(
-                        color = directionColor,
-                        startAngle = if (directionUncertaintyDegrees != null) {
-                            (arrowDegrees ?: 0f) - 90f - maxOf(segment.halfAngleDegrees, directionUncertaintyDegrees)
-                        } else segment.startAngleDegrees,
-                        sweepAngle = if (directionUncertaintyDegrees != null) {
-                            2f * maxOf(segment.halfAngleDegrees, directionUncertaintyDegrees)
-                        } else segment.sweepAngleDegrees,
-                        useCenter = false,
-                        // Inscribed in the ring's own square. An oval's centre
-                        // is its top-left plus half its size, so passing
-                        // (ringRadius, ringRadius) - as this did, and as the
-                        // canvas-sized default would have too - puts the arc's
-                        // centre at the canvas' bottom-right corner region
-                        // instead of its middle: the highlight landed beside
-                        // the ring and was clipped by the canvas edge.
-                        topLeft = Offset(ring.topLeftXPx, ring.topLeftYPx),
-                        size = Size(ring.arcSizePx, ring.arcSizePx),
-                        style = Stroke(stroke, cap = StrokeCap.Round)
-                    )
-                }
+                drawArc(
+                    color = directionColor,
+                    startAngle = segment.startAngleDegrees,
+                    sweepAngle = segment.sweepAngleDegrees,
+                    useCenter = false,
+                    // Inscribed in the ring's own square. An oval's centre
+                    // is its top-left plus half its size, so passing
+                    // (ringRadius, ringRadius) - as this did, and as the
+                    // canvas-sized default would have too - puts the arc's
+                    // centre at the canvas' bottom-right corner region
+                    // instead of its middle: the highlight landed beside
+                    // the ring and was clipped by the canvas edge.
+                    topLeft = Offset(ring.topLeftXPx, ring.topLeftYPx),
+                    size = Size(ring.arcSizePx, ring.arcSizePx),
+                    style = Stroke(stroke, cap = StrokeCap.Round)
+                )
             }
 
-            // The needle always points somewhere. With no bearing - nobody
-            // joined, no member selected, or the member is tracked by RSSI
-            // alone - it rests pointing straight up rather than vanishing, so
-            // the radar reads as idle-and-ready rather than broken. A missing
-            // bearing is not a bearing of north, so it is drawn dimmed to show
-            // it is resting rather than pointing at someone.
-            //
-            // Drawn here rather than as a fixed-size child Box: the ring is
-            // sized from the available width, so a hardcoded 104.dp needle
-            // spanned only a third of it on a phone and was swallowed entirely
-            // by the hub in the middle. Every length below comes off the ring's
-            // own geometry for the same reason.
-            val needleRotation = RadarDirectionPolicy.needleRotationDegrees(arrowDegrees) ?: 0f
-            val hasBearing = arrowDegrees != null && arrowDegrees.isFinite()
-            val needleColor = if (hasBearing) directionColor else color.copy(alpha = 0.45f)
-            val radians = Math.toRadians(needleRotation.toDouble())
-            val needleTip = Offset(
-                x = center.x + (sin(radians) * ring.needleLengthPx).toFloat(),
-                y = center.y - (cos(radians) * ring.needleLengthPx).toFloat(),
-            )
-            // Starts at the edge of the hub rather than the very centre, so the
-            // hub dot reads as the pivot and not as part of the needle.
-            val needleBase = Offset(
-                x = center.x + (sin(radians) * ring.needleBaseRadiusPx).toFloat(),
-                y = center.y - (cos(radians) * ring.needleBaseRadiusPx).toFloat(),
-            )
-            drawLine(
-                color = needleColor,
-                start = needleBase,
-                end = needleTip,
-                strokeWidth = ring.needleStrokePx,
-                cap = StrokeCap.Round,
-            )
-            drawCircle(needleColor, ring.needleTipRadiusPx, needleTip)
-
-            // The hub, drawn last so it sits over the needle's base.
-            //
-            // Previously a 74.dp Box layered over the Canvas. A fixed size cannot
-            // work here: the radar's diameter ranges from 160.dp to 320.dp with
-            // the available width, and at the small end a 74.dp hub was as wide
-            // as the ring's radius, hiding the middle of the radar. As a fraction
-            // of the ring it holds its proportion at every size.
-            drawCircle(
-                color = color.copy(alpha = if (beacon != null) .30f else .14f),
-                radius = ring.hubRadiusPx,
-            )
+        }
+        if (trackedPeerName != null && trackedPeerDistance != null) {
+            Column(
+                modifier = Modifier.fillMaxWidth(0.62f),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Text(
+                    text = trackedPeerName,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = trackedPeerDistance,
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }

@@ -8,8 +8,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The radar's directional geometry: where the needle points and how wide the lit
- * arc is.
+ * The radar's directional geometry and how wide the lit arc is.
  *
  * The properties that matter are that the arc is *monotonic* in distance - a
  * further member must never show a wider arc - and that it never degenerates
@@ -18,14 +17,14 @@ import org.junit.Test
 class RadarDirectionPolicyTest {
 
     @Test
-    fun `within arms reach the ring is fully lit`() {
+    fun `within arms reach the directional segment is broad but not a full ring`() {
         assertEquals(
-            RadarDirectionPolicy.FULL_HALF_ANGLE_DEGREES,
+            RadarDirectionPolicy.MAX_HALF_ANGLE_DEGREES,
             RadarDirectionPolicy.halfAngleDegrees(1.0f),
             0.001f
         )
         assertEquals(
-            RadarDirectionPolicy.FULL_HALF_ANGLE_DEGREES,
+            RadarDirectionPolicy.MAX_HALF_ANGLE_DEGREES,
             RadarDirectionPolicy.halfAngleDegrees(RadarDirectionPolicy.ARMS_REACH_METERS),
             0.001f
         )
@@ -82,18 +81,18 @@ class RadarDirectionPolicyTest {
         // and the member is almost certainly right there. The <= comparison
         // catches these along with 0.
         assertEquals(
-            RadarDirectionPolicy.FULL_HALF_ANGLE_DEGREES,
+            RadarDirectionPolicy.MAX_HALF_ANGLE_DEGREES,
             RadarDirectionPolicy.halfAngleDegrees(0f),
             0.001f
         )
         assertEquals(
-            RadarDirectionPolicy.FULL_HALF_ANGLE_DEGREES,
+            RadarDirectionPolicy.MAX_HALF_ANGLE_DEGREES,
             RadarDirectionPolicy.halfAngleDegrees(-5f),
             0.001f
         )
         // Negative infinity is the same case, taken to its limit.
         assertEquals(
-            RadarDirectionPolicy.FULL_HALF_ANGLE_DEGREES,
+            RadarDirectionPolicy.MAX_HALF_ANGLE_DEGREES,
             RadarDirectionPolicy.halfAngleDegrees(Float.NEGATIVE_INFINITY),
             0.001f
         )
@@ -104,7 +103,7 @@ class RadarDirectionPolicyTest {
         // NaN is genuinely ambiguous, so it is not a distance and must not be
         // treated as an extremely close one.
         assertEquals(
-            RadarDirectionPolicy.FULL_HALF_ANGLE_DEGREES,
+            RadarDirectionPolicy.MAX_HALF_ANGLE_DEGREES,
             RadarDirectionPolicy.halfAngleDegrees(Float.NaN),
             0.001f
         )
@@ -115,7 +114,7 @@ class RadarDirectionPolicyTest {
         // Standing next to someone with no reported distance should not make
         // them look far away; that would be the more misleading reading.
         assertEquals(
-            RadarDirectionPolicy.FULL_HALF_ANGLE_DEGREES,
+            RadarDirectionPolicy.MAX_HALF_ANGLE_DEGREES,
             RadarDirectionPolicy.halfAngleDegrees(null),
             0.001f
         )
@@ -124,7 +123,6 @@ class RadarDirectionPolicyTest {
     @Test
     fun `no azimuth means no segment, rather than a made-up bearing`() {
         assertNull(RadarDirectionPolicy.segment(null, 3f))
-        assertNull(RadarDirectionPolicy.needleRotationDegrees(null))
     }
 
     @Test
@@ -137,21 +135,6 @@ class RadarDirectionPolicyTest {
     }
 
     @Test
-    fun `the needle points where the bearing says`() {
-        assertEquals(90f, RadarDirectionPolicy.needleRotationDegrees(90f)!!, 0.001f)
-        assertEquals(180f, RadarDirectionPolicy.needleRotationDegrees(180f)!!, 0.001f)
-    }
-
-    @Test
-    fun `bearings wrap instead of spinning the long way round`() {
-        // 359 degrees is 1 degree past north, not -359 degrees, which would
-        // animate the needle almost all the way around.
-        assertEquals(359f, RadarDirectionPolicy.needleRotationDegrees(359f)!!, 0.001f)
-        assertEquals(10f, RadarDirectionPolicy.needleRotationDegrees(370f)!!, 0.001f)
-        assertEquals(350f, RadarDirectionPolicy.needleRotationDegrees(-10f)!!, 0.001f)
-    }
-
-    @Test
     fun `a negative bearing produces a valid segment`() {
         val segment = RadarDirectionPolicy.segment(-90f, 5f)
         assertNotNull(segment)
@@ -159,9 +142,9 @@ class RadarDirectionPolicyTest {
     }
 
     @Test
-    fun `a close member is flagged as fully lit`() {
-        assertTrue(RadarDirectionPolicy.segment(0f, 1f)!!.isFullyLit)
-        assertTrue(!RadarDirectionPolicy.segment(0f, 25f)!!.isFullyLit)
+    fun `a close member retains a directional gap in the ring highlight`() {
+        assertTrue(RadarDirectionPolicy.segment(0f, 1f)!!.sweepAngleDegrees < 360f)
+        assertTrue(RadarDirectionPolicy.segment(0f, 1f)!!.sweepAngleDegrees > RadarDirectionPolicy.segment(0f, 25f)!!.sweepAngleDegrees)
     }
 
     @Test
@@ -195,62 +178,6 @@ class RadarDirectionPolicyTest {
         val ring = RadarDirectionPolicy.ringGeometry(300f, 500f)
         assertEquals(150f, ring.radiusPx + ring.strokePx / 2f, 0.001f)
         assertEquals(300f * RadarDirectionPolicy.RING_STROKE_FRACTION, ring.strokePx, 0.001f)
-    }
-
-    @Test
-    fun `the hub keeps its share of the radar at every size`() {
-        // The regression this guards: the hub was a hardcoded 74.dp Box over a
-        // ring whose diameter ranges from 160.dp to 320.dp. At the small end it
-        // was as wide as the ring's radius and swallowed the middle of the
-        // radar. As a fraction of the radius it has to hold at both extremes.
-        for (side in floatArrayOf(160f, 240f, 320f, 900f)) {
-            val ring = RadarDirectionPolicy.ringGeometry(side, side)
-            assertEquals(
-                "hub drifted at ${side}px",
-                ring.radiusPx * RadarDirectionPolicy.HUB_RADIUS_FRACTION,
-                ring.hubRadiusPx,
-                0.001f
-            )
-            // And it must leave the ring's inner edge clear, which is the whole
-            // point of not being a fixed size.
-            assertTrue(
-                "hub covered the ring at ${side}px",
-                ring.hubRadiusPx < ring.radiusPx - ring.strokePx / 2f
-            )
-        }
-    }
-
-    @Test
-    fun `the needle starts at the hub and stops on the ring`() {
-        // Both ends of the needle are tied to the ring's own geometry, so
-        // resizing the radar cannot leave the base floating in the middle of the
-        // hub or the tip poking out past the band.
-        for (side in floatArrayOf(160f, 240f, 320f, 900f)) {
-            val ring = RadarDirectionPolicy.ringGeometry(side, side)
-            assertEquals("base drifted at ${side}px", ring.hubRadiusPx, ring.needleBaseRadiusPx, 0.001f)
-            assertEquals(
-                "tip drifted at ${side}px",
-                ring.radiusPx - ring.strokePx / 2f,
-                ring.needleLengthPx,
-                0.001f
-            )
-            // The tip plus its dot still lands inside the ring's band.
-            assertTrue(
-                "tip escaped the ring at ${side}px",
-                ring.needleLengthPx + ring.needleTipRadiusPx <= ring.radiusPx + ring.strokePx / 2f
-            )
-        }
-    }
-
-    @Test
-    fun `the needle and hub scale with the ring rather than staying fixed`() {
-        val small = RadarDirectionPolicy.ringGeometry(160f, 160f)
-        val large = RadarDirectionPolicy.ringGeometry(320f, 320f)
-        // Doubling the radar must double every part drawn inside it.
-        assertEquals(small.hubRadiusPx * 2f, large.hubRadiusPx, 0.001f)
-        assertEquals(small.needleLengthPx * 2f, large.needleLengthPx, 0.001f)
-        assertEquals(small.needleStrokePx * 2f, large.needleStrokePx, 0.001f)
-        assertEquals(small.needleTipRadiusPx * 2f, large.needleTipRadiusPx, 0.001f)
     }
 
     @Test

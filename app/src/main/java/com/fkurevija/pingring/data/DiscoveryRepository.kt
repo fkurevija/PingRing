@@ -726,6 +726,8 @@ class DiscoveryRepository(
     private val latestBleAdvertisementSequences = java.util.concurrent.ConcurrentHashMap<String, Long>()
     private val additionalRangingSequences = java.util.concurrent.ConcurrentHashMap<String, Long>()
     private val peerGnssFixes = java.util.concurrent.ConcurrentHashMap<String, Pair<GnssFixDto, Long>>()
+    private val wifiRssiAnchorDistances = java.util.concurrent.ConcurrentHashMap<String, Float>()
+    private val wifiRssiAnchors = java.util.concurrent.ConcurrentHashMap<String, WifiAnchorDirectionPolicy.Anchor>()
     private val localRangingSequence = java.util.concurrent.atomic.AtomicLong(0L)
     private val gnssRanging = GnssRangingManager(context) { fix ->
         publishPeerRanging(gnssFix = fix)
@@ -1062,9 +1064,16 @@ class DiscoveryRepository(
             wifiRttRanging.start(event.id)
         }
         repositoryScope?.launch {
-            sessionManager.sessionState.map { it.currentEvent?.useGnss == true }.distinctUntilChanged().collect { enabled ->
-                gnssRanging.setEnabled(enabled)
-                if (!enabled) {
+            sessionManager.sessionState.map { state ->
+                val currentEvent = state.currentEvent
+                (currentEvent?.useGnss == true) to
+                    (currentEvent != null && nearbyConnectionsManager is LanDebugConnectionsManager)
+            }.distinctUntilChanged().collect { (useGnss, useLanWifiAnchor) ->
+                gnssRanging.setEnabled(
+                    useGnss || useLanWifiAnchor ||
+                        wifiRssiAnchorDistances.isNotEmpty() || wifiRssiAnchors.isNotEmpty()
+                )
+                if (!useGnss) {
                     peerGnssFixes.clear()
                     clearAdditionalDistances(RangingSourcePolicy.RangingSource.GNSS)
                 }
@@ -1107,6 +1116,7 @@ class DiscoveryRepository(
                     }
                     .map { it.peerId }
                 expiredPeerIds.forEach(::rememberLastKnownPeerDirection)
+                expiredPeerIds.forEach(::removeWifiAnchor)
                 connectedPeerIds.removeAll(expiredPeerIds.toSet())
                 expiredPeerIds.forEach(peerUwbAddresses::remove)
                 val state = sessionManager.sessionState.value
@@ -1530,6 +1540,8 @@ class DiscoveryRepository(
 
     fun stopDiscovery() {
         gnssRanging.setEnabled(false)
+        wifiRssiAnchorDistances.clear()
+        wifiRssiAnchors.clear()
         wifiRttRanging.stop()
         peerGnssFixes.clear()
         additionalRangingSequences.clear()
@@ -2395,12 +2407,25 @@ private fun removePeer(peerId: String, preserveLastKnownDirection: Boolean = tru
         lastUwbMeasurementAt.remove(peerId)
         retainedRangingPeerIds.remove(peerId)
         peerUwbAddresses.remove(peerId)
+        removeWifiAnchor(peerId)
         // The display label is keyed to the member rather than to their
         // proximity, so it survives a drop. Forgetting it renumbered a member who
         // had merely stepped out of range, which is how two people ended up shown
         // under different numbers depending on who had dropped out of contact.
         // Nothing else consults it for a peer that is not present, so keeping it
         // costs nothing while a member is away.
+    }
+
+    private fun removeWifiAnchor(peerId: String) {
+        wifiRssiAnchorDistances.remove(peerId)
+        wifiRssiAnchors.remove(peerId)
+        val event = sessionManager.sessionState.value.currentEvent
+        val localLanSession = event != null && nearbyConnectionsManager is LanDebugConnectionsManager
+        if (wifiRssiAnchorDistances.isEmpty() && wifiRssiAnchors.isEmpty() &&
+            event?.useGnss != true && !localLanSession
+        ) {
+            gnssRanging.setEnabled(false)
+        }
     }
 
     private fun addConnectedPeer(peerId: String) {
@@ -2549,9 +2574,13 @@ private fun removePeer(peerId: String, preserveLastKnownDirection: Boolean = tru
      */
     private fun refreshPeerWorldDirections() {
         val nowMillis = System.currentTimeMillis()
-        val localFix = if (sessionManager.sessionState.value.currentEvent?.useGnss == true) {
-            gnssRanging.currentFix()
-        } else null
+        val event = sessionManager.sessionState.value.currentEvent
+        val hasLocalWifiAnchors = wifiRssiAnchorDistances.isNotEmpty() || wifiRssiAnchors.isNotEmpty()
+        val localFix = when {
+            hasLocalWifiAnchors -> gnssRanging.currentLocalFix()
+            event?.useGnss == true -> gnssRanging.currentFix()
+            else -> null
+        }
         val heading = orientationTracker.reliableScreenHeading()
         val elapsedNow = android.os.SystemClock.elapsedRealtime()
         val declination = localFix?.let {
@@ -2559,6 +2588,19 @@ private fun removePeer(peerId: String, preserveLastKnownDirection: Boolean = tru
                 it.latitude.toFloat(), it.longitude.toFloat(), 0f, nowMillis,
             ).declination
         } ?: 0f
+        if (localFix != null && heading != null) {
+            wifiRssiAnchorDistances.entries.toList().forEach { (peerId, distance) ->
+                val anchor = WifiAnchorDirectionPolicy.createAnchor(
+                    fix = localFix,
+                    magneticHeadingDegrees = heading,
+                    declinationDegrees = declination,
+                    distanceMeters = distance,
+                )
+                if (anchor != null && wifiRssiAnchors.putIfAbsent(peerId, anchor) == null) {
+                    wifiRssiAnchorDistances.remove(peerId, distance)
+                }
+            }
+        }
         _peerUpdates.value.values
             .filter { peer ->
                 val measuredAt = peer.lastUwbMeasurementAtMillis
@@ -2573,9 +2615,18 @@ private fun removePeer(peerId: String, preserveLastKnownDirection: Boolean = tru
                 val remoteFix = peerGnssFixes[peer.peerId]?.let { (fix, receivedAt) ->
                     fix.copy(ageMillis = fix.ageMillis + elapsedNow - receivedAt)
                 }
-                val withEstimate = GnssDirectionPolicy.supplement(
-                    peer, localFix, remoteFix, heading, declination, nowMillis,
-                )
+                val wifiAnchor = wifiRssiAnchors[peer.peerId]
+                val withEstimate = if (wifiAnchor != null) {
+                    peer.copy(
+                        estimatedDirection = localFix?.let {
+                            WifiAnchorDirectionPolicy.estimate(it, wifiAnchor, heading, declination)
+                        }
+                    )
+                } else {
+                    GnssDirectionPolicy.supplement(
+                        peer, localFix, remoteFix, heading, declination, nowMillis,
+                    )
+                }
                 when {
                     peer.directionIsLastKnown -> withEstimate
                     measuredAt != null && UwbRetentionPolicy.isDirectionLastKnown(measuredAt, nowMillis) ->
@@ -3213,6 +3264,13 @@ private fun removePeer(peerId: String, preserveLastKnownDirection: Boolean = tru
 
         _peerUpdates.update { current ->
             current + (peerId to updated)
+        }
+        if (dto.rssi != null && !isRangingFix && !wifiRssiAnchors.containsKey(peerId)) {
+            val initialDistance = (rssiEstimate ?: existing?.distance)
+                ?.takeIf { it.isFinite() && it > 0f }
+            if (initialDistance != null) {
+                wifiRssiAnchorDistances.putIfAbsent(peerId, initialDistance)
+            }
         }
         syncFriend(updated)
         refreshPeerWorldDirections()

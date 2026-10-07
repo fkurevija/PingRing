@@ -72,13 +72,20 @@ internal class GnssRangingManager(
         }
     }
 
-    fun currentFix(): GnssFixDto? {
+    /**
+     * Fine-grained fix for calculations that stay on this device. In contrast
+     * to [currentFix], this is never quantized or transmitted.
+     */
+    fun currentLocalFix(): GnssFixDto? {
         if (!enabled || ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) !=
             PackageManager.PERMISSION_GRANTED
         ) return null
         val location = latestLocation ?: return null
         if (!location.hasAccuracy()) return null
         val ageMillis = (SystemClock.elapsedRealtimeNanos() - location.elapsedRealtimeNanos) / 1_000_000L
-        return GnssPolicy.quantize(GnssFixDto(location.latitude, location.longitude, location.accuracy, ageMillis))
+        return GnssFixDto(location.latitude, location.longitude, location.accuracy, ageMillis)
     }
+
+    fun currentFix(): GnssFixDto? =
+        currentLocalFix()?.let(GnssPolicy::quantize)
 }
