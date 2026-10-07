@@ -1508,6 +1508,10 @@ private fun ProximityRing(
     modifier: Modifier
 ) {
     val (beaconPulseRadius, beaconPulseAlpha) = rememberBeaconPulse(reduceMotion, beacon != null)
+    val drawColor = rememberUpdatedState(color)
+    val drawBearing = rememberUpdatedState(arrowDegrees)
+    val drawDirectionUncertainty = rememberUpdatedState(directionUncertaintyDegrees)
+    val drawDistance = rememberUpdatedState(distanceMeters)
     Box(modifier, contentAlignment = Alignment.Center) {
         spokenUpdateText?.let { announcement ->
             Box(Modifier.size(1.dp).semantics {
@@ -1530,6 +1534,11 @@ private fun ProximityRing(
                 // overlay across the app bar.
                 .clipToBounds()
         ) {
+            val color = drawColor.value
+            val arrowDegrees = drawBearing.value
+            val directionUncertaintyDegrees = drawDirectionUncertainty.value
+            val distanceMeters = drawDistance.value
+
             // One source of truth for the ring's stroke, radius and origin. The
             // lit arc below is inscribed in the very same square, so the two
             // cannot drift apart. Half the stroke is inset from the canvas edge
