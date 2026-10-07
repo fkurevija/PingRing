@@ -311,6 +311,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
     private val pendingInviteProofEndpoints = mutableSetOf<String>()
     private val pendingJoinProofs = mutableMapOf<String, JoinProofPayloadDto>()
     private var authenticatedHostEndpoint: String? = null
+    private var discoveredHostPeerId: String? = null
     private var localEventId: String? = null
     private var isLocalHost: Boolean = false
 
@@ -528,7 +529,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
         val strategy = Strategy.P2P_CLUSTER
         Log.i(TAG, "Starting P2P_CLUSTER mesh for $serviceId as $localPeerId (host=$isHost)")
         connectionsClient.startAdvertising(
-            localPeerId,
+            NearbyDiscoveryIdentity.encode(localPeerId, isHost),
             serviceId,
             connectionLifecycleCallback,
             AdvertisingOptions.Builder().setStrategy(strategy).build(),
@@ -594,7 +595,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
             }
             return
         }
-        val hostPeerId = hostPeerIdProvider?.invoke()
+        val hostPeerId = hostPeerIdProvider?.invoke() ?: discoveredHostPeerId
         val alreadyAdmitted = registeredIdentity != null
         if (!MeshRoutingPolicy.shouldConnectToDiscoveredPeer(
                 localPeerId = localPeerId,
@@ -659,6 +660,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
         meshAuthenticationTimeouts.values.forEach(handler::removeCallbacks)
         meshAuthenticationTimeouts.clear()
         authenticatedHostEndpoint = null
+        discoveredHostPeerId = null
         localEventId = null
         // Held requests die with the endpoints holding them; leaving them would
         // greet the next event with approvals the host never gave.
@@ -993,14 +995,20 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
 
     private val connectionLifecycleCallback = object : ConnectionLifecycleCallback() {
         override fun onConnectionInitiated(endpointId: String, info: ConnectionInfo) {
-            val remotePeerId = info.endpointName
+            val remoteIdentity = NearbyDiscoveryIdentity.decode(info.endpointName)
+            if (remoteIdentity == null) {
+                Log.w(TAG, "Rejecting Nearby endpoint with an invalid discovery identity")
+                connectionsClient.rejectConnection(endpointId)
+                return
+            }
+            val remotePeerId = remoteIdentity.peerId
             if (remotePeerId != localPeerId && meshIdentityKeyProvider?.invoke(remotePeerId) != null) {
                 endpointToPeerId[endpointId] = remotePeerId
                 meshHandshakeEndpoints.add(endpointId)
                 acceptWithPayloadCallback(endpointId, "registered mesh member")
                 return
             }
-            if (!isLocalHost && remotePeerId != hostPeerIdProvider?.invoke()) {
+            if (!isLocalHost && remotePeerId != (hostPeerIdProvider?.invoke() ?: discoveredHostPeerId)) {
                 connectionsClient.rejectConnection(endpointId)
                 return
             }
@@ -1023,7 +1031,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
             )
             authenticationRequests[endpointId] = ConnectionAuthenticationRequest(
                 endpointId = endpointId,
-                deviceName = info.endpointName,
+                deviceName = remotePeerId,
                 authenticationDigits = info.authenticationDigits,
                 isIncoming = isIncoming,
             )
@@ -1139,7 +1147,19 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
             // the peer ids used everywhere else (the host peer id learned from
             // the BLE advertisement, say) - so anything addressed to that peer
             // by id, such as the chat history replayed on join, is dropped.
-            val peerId = info.endpointName
+            val identity = NearbyDiscoveryIdentity.decode(info.endpointName)
+            if (identity == null) {
+                Log.w(TAG, "Ignoring Nearby endpoint with an invalid discovery identity")
+                return
+            }
+            val peerId = identity.peerId
+            discoveredHostPeerId = NearbyDiscoveryIdentity.hostCandidate(
+                knownHostPeerId = hostPeerIdProvider?.invoke(),
+                discoveredHostPeerId = discoveredHostPeerId,
+                identity = identity,
+                localPeerId = localPeerId,
+                isLocalHost = isLocalHost,
+            )
             endpointToPeerId.putIfAbsent(endpointId, peerId)
             discoveredEndpointsByPeerId[peerId] = endpointId
             connectToPeer(peerId)

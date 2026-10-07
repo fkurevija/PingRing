@@ -23,7 +23,7 @@ graph TD
 ```
 
 ### Protocol Flow
-1. **Discovery and admission**: Members advertise and discover with `P2P_CLUSTER`. A new member must join the host directly; only the host admits members.
+1. **Discovery and admission**: Members advertise and discover with `P2P_CLUSTER`. Hosts include a role hint in their Nearby endpoint name so a new guest can find the host without receiving a separate BLE advertisement. This hint is not authentication: Nearby digit comparison and QR proof or host approval still gate admission. A new member must join the host directly; only the host admits members. Both phones need the updated build for the Nearby-only host hint; older hosts still rely on the BLE discovery hint.
 2. **Mesh link proof**: Already-admitted members authenticate each new link with a fresh nonce signed by their registered per-event key, without another SAS prompt.
 3. **Data routing**: Signed-origin envelopes carry radar presence, chat, beacons, UWB coordination, and host controls. Relays suppress duplicate IDs, forward at most seven hops, and hold failed-route traffic in a bounded in-memory queue until a route returns or the Ring ends.
 4. **Presence versus proximity**: A five-second signed heartbeat can show a member as present through the mesh. It carries no RSSI, range, or bearing; those remain local BLE/UWB measurements.
