@@ -674,7 +674,7 @@ class LanDebugConnectionsManager(
 
     companion object {
         const val DEFAULT_PORT = 8942
-        internal const val RSSI_SAMPLE_INTERVAL_MILLIS = 1_000L
+        internal const val RSSI_SAMPLE_INTERVAL_MILLIS = 250L
         private const val RECONNECT_DELAY_MILLIS = 2000L
         private const val HEARTBEAT_INTERVAL_MILLIS = 10000L
     }

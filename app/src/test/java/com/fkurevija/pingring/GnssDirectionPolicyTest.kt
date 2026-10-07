@@ -85,7 +85,14 @@ class GnssDirectionPolicyTest {
     @Test
     fun aDistanceOnlyUwbReadingIsPreservedWhenGpsAddsDirection() {
         val supplemented = GnssDirectionPolicy.supplement(peer, local, east, 0f, 0f, 1_001L)
-        assertEquals(peer, supplemented.copy(estimatedDirection = null))
+        assertEquals(
+            peer,
+            supplemented.copy(
+                estimatedDirection = null,
+                estimatedDirectionUpdatedAtMillis = null,
+                estimatedDirectionIsLastKnown = false,
+            ),
+        )
         assertEquals(90f, supplemented.radarAzimuth!!, 0.01f)
         assertEquals(2f, supplemented.distance)
         assertEquals(RangingSourcePolicy.RangingSource.UWB, supplemented.distanceSource)
@@ -98,7 +105,36 @@ class GnssDirectionPolicyTest {
         assertEquals(measured, updated)
         assertEquals(45f, updated.radarAzimuth)
         val supplemented = GnssDirectionPolicy.supplement(peer, local, east, 0f, 0f, 1_001L)
-        assertEquals(peer, GnssDirectionPolicy.supplement(supplemented, null, east, 0f, 0f, 1_001L))
+        assertEquals(peer, GnssDirectionPolicy.supplement(supplemented, null, east, 0f, 0f, 31_002L))
+    }
+
+    @Test
+    fun aGnssBearingIsKeptAsLastKnownUntilItsThirtySecondFadeExpires() {
+        val initial = GnssDirectionPolicy.supplement(peer, local, east, 0f, 0f, 1_001L)
+        val retained = GnssDirectionPolicy.supplement(initial, null, null, null, 0f, 10_000L)
+        assertEquals(initial.estimatedDirection, retained.estimatedDirection)
+        assertEquals(1_001L, retained.estimatedDirectionUpdatedAtMillis)
+        assertTrue(retained.estimatedDirectionIsLastKnown)
+
+        val expired = GnssDirectionPolicy.supplement(retained, null, null, null, 0f, 31_002L)
+        assertNull(expired.estimatedDirection)
+        assertNull(expired.estimatedDirectionUpdatedAtMillis)
+        assertFalse(expired.estimatedDirectionIsLastKnown)
+    }
+
+    @Test
+    fun freshMeasuredBearingReplacesAndClearsTheLastKnownGnssEstimate() {
+        val initial = GnssDirectionPolicy.supplement(peer, local, east, 0f, 0f, 1_001L)
+        val measured = initial.copy(
+            azimuth = 45f,
+            directionIsLastKnown = false,
+            lastUwbMeasurementAtMillis = 5_000L,
+        )
+        val updated = GnssDirectionPolicy.supplement(measured, null, null, null, 0f, 5_001L)
+        assertEquals(45f, updated.radarAzimuth)
+        assertNull(updated.estimatedDirection)
+        assertNull(updated.estimatedDirectionUpdatedAtMillis)
+        assertFalse(updated.estimatedDirectionIsLastKnown)
     }
 
     @Test
@@ -107,7 +143,14 @@ class GnssDirectionPolicyTest {
             val original = peer.copy(distanceSource = source, lastUwbMeasurementAtMillis = null)
             val supplemented = GnssDirectionPolicy.supplement(original, local, east, 0f, 0f, 1_001L)
             assertNotNull(supplemented.estimatedDirection)
-            assertEquals(original, supplemented.copy(estimatedDirection = null))
+            assertEquals(
+                original,
+                supplemented.copy(
+                    estimatedDirection = null,
+                    estimatedDirectionUpdatedAtMillis = null,
+                    estimatedDirectionIsLastKnown = false,
+                ),
+            )
         }
     }
 

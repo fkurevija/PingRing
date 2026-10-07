@@ -41,6 +41,13 @@ object RadarDirectionPolicy {
     /** Broadest directional segment; leave a gap so its bearing remains visible. */
     const val MAX_HALF_ANGLE_DEGREES = 120f
 
+    /** Duration over which a last-known bearing fades back to a neutral ring. */
+    const val LAST_KNOWN_DIRECTION_FADE_MILLIS = 30_000L
+
+    fun lastKnownDirectionAlpha(ageMillis: Long): Float =
+        (1f - ageMillis.coerceAtLeast(0L).toFloat() / LAST_KNOWN_DIRECTION_FADE_MILLIS)
+            .coerceIn(0f, 1f)
+
     /**
      * Half-angle of the lit arc for a member [distanceMeters] away.
      *

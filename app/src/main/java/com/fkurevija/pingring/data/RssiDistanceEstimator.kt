@@ -64,8 +64,8 @@ object RssiDistanceEstimator {
 
     /**
      * How far back a reading still counts toward the smoothed RSSI, in
-     * milliseconds. A one-second window reduces movement lag while still
-     * averaging nearby samples to damp individual reflected packets.
+     * milliseconds. A half-second window reduces movement lag while still
+     * averaging several fast LAN samples to damp individual reflected packets.
      *
      * A window rather than an exponential moving average, because an EMA
      * weighted per *sample* has a time constant that depends on how often the
@@ -74,7 +74,7 @@ object RssiDistanceEstimator {
      * second, and the app cannot see the advertising interval - it only gets
      * the reports that actually arrive.
      */
-    const val SMOOTHING_WINDOW_MILLIS = 1_000L
+    const val SMOOTHING_WINDOW_MILLIS = 500L
 
     /**
      * Single-sample RSSI -> distance estimate, or `null` when the reading is

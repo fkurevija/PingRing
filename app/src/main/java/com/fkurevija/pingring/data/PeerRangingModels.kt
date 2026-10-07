@@ -18,7 +18,7 @@ data class PeerRangingPayloadDto(
 )
 
 internal object GnssPolicy {
-    const val UPDATE_INTERVAL_MILLIS = 10_000L
+    const val UPDATE_INTERVAL_MILLIS = 3_000L
     const val MAX_FIX_AGE_MILLIS = 30_000L
     const val QUANTIZATION_METERS = 10.0
     const val MAX_ACCURACY_METERS = 50f

@@ -142,6 +142,15 @@ class RadarDirectionPolicyTest {
     }
 
     @Test
+    fun `last known direction fades linearly and expires after thirty seconds`() {
+        assertEquals(1f, RadarDirectionPolicy.lastKnownDirectionAlpha(0L), 0.001f)
+        assertEquals(0.5f, RadarDirectionPolicy.lastKnownDirectionAlpha(15_000L), 0.001f)
+        assertEquals(0f, RadarDirectionPolicy.lastKnownDirectionAlpha(30_000L), 0.001f)
+        assertEquals(0f, RadarDirectionPolicy.lastKnownDirectionAlpha(40_000L), 0.001f)
+        assertEquals(1f, RadarDirectionPolicy.lastKnownDirectionAlpha(-1L), 0.001f)
+    }
+
+    @Test
     fun `a close member retains a directional gap in the ring highlight`() {
         assertTrue(RadarDirectionPolicy.segment(0f, 1f)!!.sweepAngleDegrees < 360f)
         assertTrue(RadarDirectionPolicy.segment(0f, 1f)!!.sweepAngleDegrees > RadarDirectionPolicy.segment(0f, 25f)!!.sweepAngleDegrees)

@@ -114,15 +114,15 @@ class RssiDistanceEstimatorTest {
     }
 
     @Test
-    fun defaultWindowIncludesOneSecondButDropsOlderReadings() {
-        assertEquals(1_000L, RssiDistanceEstimator.SMOOTHING_WINDOW_MILLIS)
+    fun defaultWindowIncludesHalfSecondButDropsOlderReadings() {
+        assertEquals(500L, RssiDistanceEstimator.SMOOTHING_WINDOW_MILLIS)
         val smoother = RssiSmoother()
         smoother.add(-60, 0L)
-        smoother.add(-80, 1_000L)
-        assertEquals(-70f, smoother.smoothedRssi(1_000L)!!, 0.001f)
-        assertEquals(-80f, smoother.smoothedRssi(1_001L)!!, 0.001f)
-        assertEquals(RssiDistanceEstimator.estimate(-80)!!, smoother.distance(1_001L)!!, 0.001f)
-        assertNull(smoother.distance(2_001L))
+        smoother.add(-80, 500L)
+        assertEquals(-70f, smoother.smoothedRssi(500L)!!, 0.001f)
+        assertEquals(-80f, smoother.smoothedRssi(501L)!!, 0.001f)
+        assertEquals(RssiDistanceEstimator.estimate(-80)!!, smoother.distance(501L)!!, 0.001f)
+        assertNull(smoother.distance(1_001L))
     }
 
     @Test

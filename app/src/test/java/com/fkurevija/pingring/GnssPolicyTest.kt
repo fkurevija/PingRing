@@ -13,7 +13,7 @@ class GnssPolicyTest {
         val quantized = GnssPolicy.quantize(fix)!!
         assertTrue(GnssPolicy.separationMeters(fix, quantized) < 8f)
         assertEquals(13f, quantized.accuracyMeters)
-        assertEquals(10_000L, GnssPolicy.UPDATE_INTERVAL_MILLIS)
+        assertEquals(3_000L, GnssPolicy.UPDATE_INTERVAL_MILLIS)
         assertTrue(GnssPolicy.isUsable(GnssPolicy.quantize(fix.copy(accuracyMeters = 50f))!!))
     }
 

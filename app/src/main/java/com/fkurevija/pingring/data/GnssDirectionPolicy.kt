@@ -10,6 +10,7 @@ data class EstimatedRadarDirection(val azimuthDegrees: Float, val uncertaintyDeg
 
 internal object GnssDirectionPolicy {
     const val MAX_DIRECTION_AGE_MILLIS = 10_000L
+    const val LAST_KNOWN_DIRECTION_MILLIS = 30_000L
     const val MAX_DIRECTION_DISTANCE_METERS = 100f
     const val MAX_UNCERTAINTY_DEGREES = 30f
     private const val HEADING_UNCERTAINTY_DEGREES = 10f
@@ -21,11 +22,27 @@ internal object GnssDirectionPolicy {
         magneticHeadingDegrees: Float?,
         declinationDegrees: Float,
         nowMillis: Long,
-    ): RadarPeerUpdate = peer.copy(
-        estimatedDirection = if (local != null && remote != null && !measuredBearingAvailable(peer, nowMillis)) {
+    ): RadarPeerUpdate {
+        val hasFreshMeasuredBearing = measuredBearingAvailable(peer, nowMillis)
+        val freshEstimate = if (local != null && remote != null && !hasFreshMeasuredBearing) {
             estimate(local, remote, magneticHeadingDegrees, declinationDegrees)
-        } else null,
-    )
+        } else null
+        val keepLastEstimate = freshEstimate == null && !hasFreshMeasuredBearing &&
+            peer.estimatedDirection != null &&
+            peer.estimatedDirectionUpdatedAtMillis?.let {
+                nowMillis - it in 0..LAST_KNOWN_DIRECTION_MILLIS
+            } == true
+
+        return peer.copy(
+            estimatedDirection = freshEstimate ?: peer.estimatedDirection.takeIf { keepLastEstimate },
+            estimatedDirectionUpdatedAtMillis = when {
+                freshEstimate != null -> nowMillis
+                keepLastEstimate -> peer.estimatedDirectionUpdatedAtMillis
+                else -> null
+            },
+            estimatedDirectionIsLastKnown = keepLastEstimate,
+        )
+    }
 
     fun estimate(
         local: GnssFixDto,

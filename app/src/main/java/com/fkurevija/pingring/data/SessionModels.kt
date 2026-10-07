@@ -274,7 +274,7 @@ data class Event(
      * feature was on, and a ring where only some devices were publishing could
      * show a distance estimate that was quietly missing half its sources. The
      * receiver never draws a range it cannot attribute anyway - see
-     * [GnssPolicy] - so publishing costs one 10-second fix that is already being
+     * [GnssPolicy] - so publishing costs one 5-second fix that is already being
      * taken for the radar's own sake.
      *
      * The field is kept rather than deleted so the value still travels on the

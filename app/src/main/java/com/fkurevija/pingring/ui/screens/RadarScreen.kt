@@ -458,14 +458,26 @@ fun RadarScreen(
     val lastKnownDirection = lastKnownPeerDirections.firstOrNull { it.peerId == focusedPeer?.peerId }
         ?: lastKnownPeerDirections.firstOrNull()
     var lastKnownClockMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(lastKnownDirection?.peerId) {
-        if (lastKnownDirection != null) {
+    val trackedDirectionIsLastKnown = focusedPeer?.radarDirectionIsLastKnown == true
+    LaunchedEffect(lastKnownDirection?.peerId, trackedDirectionIsLastKnown) {
+        if (lastKnownDirection != null || trackedDirectionIsLastKnown) {
             while (true) {
-                delay(5_000L)
+                delay(if (trackedDirectionIsLastKnown) 500L else 5_000L)
                 lastKnownClockMillis = System.currentTimeMillis()
             }
         }
     }
+    val trackedDirectionAgeMillis = focusedPeer?.radarDirectionUpdatedAtMillis?.let {
+        (lastKnownClockMillis - it).coerceAtLeast(0L)
+    }
+    val trackedDirectionAlpha = when {
+        focusedPeer?.radarAzimuth == null -> 0f
+        trackedDirectionIsLastKnown && trackedDirectionAgeMillis != null ->
+            RadarDirectionPolicy.lastKnownDirectionAlpha(trackedDirectionAgeMillis)
+        trackedDirectionIsLastKnown -> 0f
+        else -> 1f
+    }
+    val showLastKnownDirection = trackedDirectionIsLastKnown && trackedDirectionAlpha > 0f
 
     val senderName = sessionState.userName.ifBlank {
         context.getString(if (isHost) R.string.host_default_name else R.string.peer_default_name)
@@ -495,9 +507,11 @@ fun RadarScreen(
             beaconTitle = focusedBeacon?.title,
             distanceIsEstimate = focusedPeer?.distanceSource == com.fkurevija.pingring.data.RangingSourcePolicy.RangingSource.GNSS,
             distanceAccuracyMeters = focusedPeer?.distanceAccuracyMeters,
-        ) + if (focusedPeer == null && focusedBeacon != null) {
+        ) + (if (focusedPeer == null && focusedBeacon != null) {
             context.getString(R.string.radar_active_beacon, focusedBeacon.title)
-        } else ""
+        } else "") + (if (showLastKnownDirection) {
+            " ${context.getString(R.string.radar_last_known_indicator)}."
+        } else "")
     )
     val announcementsActive = spokenRadarUpdatesEnabled && accessibilityEnvironment.screenReaderActive &&
         activityResumed && isTopDestination && !showEndConfirmation && !showBeaconSheet &&
@@ -688,7 +702,9 @@ fun RadarScreen(
                             radarScreenReaderSummaryEnabled,
                             accessibilityEnvironment.reduceMotion,
                             spokenUpdateText,
-                            Modifier.width(paneWidth)
+                            Modifier.width(paneWidth),
+                            trackedDirectionAlpha,
+                            showLastKnownDirection,
                         )
                         PeerList(
                             peers,
@@ -980,7 +996,9 @@ fun RadarScreen(
                                 // clipped the ring, since the ring plus the name
                                 // above it and the readout below need more room
                                 // than any single fixed value can promise.
-                                Modifier.fillMaxWidth()
+                                Modifier.fillMaxWidth(),
+                                trackedDirectionAlpha,
+                                showLastKnownDirection,
                             )
 
                             Row(
@@ -1365,7 +1383,9 @@ internal fun RadarContent(
     radarScreenReaderSummaryEnabled: Boolean,
     reduceMotion: Boolean,
     spokenUpdateText: String?,
-    modifier: Modifier
+    modifier: Modifier,
+    directionAlpha: Float = 1f,
+    directionIsLastKnown: Boolean = false,
 ) {
     val resources = LocalContext.current.resources
     val proximityLabel = when (peer?.proximity) {
@@ -1418,6 +1438,8 @@ internal fun RadarContent(
             arrowDegrees = peer?.radarAzimuth,
             directionUncertaintyDegrees = peer?.displayedEstimatedDirection?.uncertaintyDegrees,
             distanceMeters = peer?.distance,
+            directionAlpha = directionAlpha,
+            directionIsLastKnown = directionIsLastKnown,
             trackedPeerName = peer?.takeIf { hasPeers }?.name,
             trackedPeerDistance = peer?.takeIf { hasPeers }?.let {
                 it.distance?.let { distance ->
@@ -1483,6 +1505,8 @@ private fun ProximityRing(
     arrowDegrees: Float?,
     directionUncertaintyDegrees: Float?,
     distanceMeters: Float?,
+    directionAlpha: Float,
+    directionIsLastKnown: Boolean,
     trackedPeerName: String?,
     trackedPeerDistance: String?,
     beacon: BeaconInfo?,
@@ -1497,6 +1521,7 @@ private fun ProximityRing(
     val drawBearing = rememberUpdatedState(arrowDegrees)
     val drawDirectionUncertainty = rememberUpdatedState(directionUncertaintyDegrees)
     val drawDistance = rememberUpdatedState(distanceMeters)
+    val drawDirectionAlpha = rememberUpdatedState(directionAlpha)
     Box(modifier, contentAlignment = Alignment.Center) {
         spokenUpdateText?.let { announcement ->
             Box(Modifier.size(1.dp).semantics {
@@ -1523,6 +1548,7 @@ private fun ProximityRing(
             val arrowDegrees = drawBearing.value
             val directionUncertaintyDegrees = drawDirectionUncertainty.value
             val distanceMeters = drawDistance.value
+            val directionAlpha = drawDirectionAlpha.value
 
             // One source of truth for the ring's stroke, radius and origin. The
             // lit arc below is inscribed in the very same square, so the two
@@ -1567,7 +1593,9 @@ private fun ProximityRing(
             // rather than as "no direction known". An unlit ring is the honest
             // state: no bearing means there is nothing to point at.
             val segment = RadarDirectionPolicy.segment(arrowDegrees, distanceMeters)
-            val directionColor = if (directionUncertaintyDegrees != null) color.copy(alpha = 0.6f) else color
+            val directionColor = color.copy(
+                alpha = (if (directionUncertaintyDegrees != null) 0.6f else 1f) * directionAlpha
+            )
             if (segment != null) {
                 drawArc(
                     color = directionColor,
@@ -1609,6 +1637,15 @@ private fun ProximityRing(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+                if (directionIsLastKnown) {
+                    Text(
+                        text = stringResource(R.string.radar_last_known_indicator),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = directionAlpha),
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                    )
+                }
             }
         }
     }
@@ -1699,13 +1736,7 @@ internal fun PeerList(
                         }
                     ) {
                         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                            val indicatorColor = if (peerBeacon != null) {
-                                peerBeacon.color
-                            } else if (peer.proximity == "Hot") {
-                                Color(0xFF00C853)
-                            } else {
-                                Color(0xFF3F51B5)
-                            }
+                            val indicatorColor = peerBeacon?.color ?: MaterialTheme.colorScheme.primary
                             Box(Modifier.size(12.dp).background(indicatorColor, CircleShape))
                             Spacer(Modifier.width(12.dp))
                             Column(Modifier.weight(1f)) {
@@ -1730,25 +1761,6 @@ internal fun PeerList(
                                         )
                                     }
                                 }
-                                // Proximity as a word, not as a number. The dBm used
-                                // to be shown here and it was the least useful thing
-                                // on the row: it is a raw radio reading, two members
-                                // in the same room routinely differ by 10 dB for
-                                // reasons nobody can control, and reading it told a
-                                // user nothing about where to walk. The row's dot
-                                // already encodes the same thing visually, and the
-                                // distance at the end encodes it precisely.
-                                //
-                                // The word stays even though the dot also encodes it,
-                                // because the dot is colour: for a member who cannot
-                                // separate green from blue, the dot is the one signal
-                                // on this row they cannot read.
-                                val proximityLabel = when (peer.proximity) {
-                                    "Hot" -> stringResource(R.string.proximity_hot)
-                                    "Cold" -> stringResource(R.string.proximity_cold)
-                                    else -> stringResource(R.string.proximity_unknown)
-                                }
-                                Text(proximityLabel, style = MaterialTheme.typography.bodySmall)
                             }
                             peer.distance?.let { distance ->
                                 Text(

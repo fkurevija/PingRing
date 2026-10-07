@@ -60,6 +60,8 @@ data class RadarPeerUpdate(
     val lastAdditionalRangingAtMillis: Long? = null,
     val directionIsLastKnown: Boolean = false,
     val estimatedDirection: EstimatedRadarDirection? = null,
+    val estimatedDirectionUpdatedAtMillis: Long? = null,
+    val estimatedDirectionIsLastKnown: Boolean = false,
     /**
      * When this peer reported that it joined the event, in epoch millis.
      *
@@ -85,6 +87,10 @@ data class RadarPeerUpdate(
         get() = estimatedDirection?.takeIf { azimuth?.isFinite() != true || directionIsLastKnown }
     val radarAzimuth: Float?
         get() = displayedEstimatedDirection?.azimuthDegrees ?: azimuth
+    val radarDirectionIsLastKnown: Boolean
+        get() = if (displayedEstimatedDirection != null) estimatedDirectionIsLastKnown else directionIsLastKnown
+    val radarDirectionUpdatedAtMillis: Long?
+        get() = if (displayedEstimatedDirection != null) estimatedDirectionUpdatedAtMillis else lastUwbMeasurementAtMillis
 }
 
 data class LastKnownPeerDirection(
@@ -2617,10 +2623,23 @@ private fun removePeer(peerId: String, preserveLastKnownDirection: Boolean = tru
                 }
                 val wifiAnchor = wifiRssiAnchors[peer.peerId]
                 val withEstimate = if (wifiAnchor != null) {
+                    val measuredBearingIsFresh = GnssDirectionPolicy.measuredBearingAvailable(peer, nowMillis)
+                    val freshEstimate = if (measuredBearingIsFresh) null else localFix?.let {
+                        WifiAnchorDirectionPolicy.estimate(it, wifiAnchor, heading, declination)
+                    }
+                    val keepLastEstimate = !measuredBearingIsFresh && freshEstimate == null &&
+                        peer.estimatedDirection != null &&
+                        peer.estimatedDirectionUpdatedAtMillis?.let {
+                            nowMillis - it in 0..GnssDirectionPolicy.LAST_KNOWN_DIRECTION_MILLIS
+                        } == true
                     peer.copy(
-                        estimatedDirection = localFix?.let {
-                            WifiAnchorDirectionPolicy.estimate(it, wifiAnchor, heading, declination)
-                        }
+                        estimatedDirection = freshEstimate ?: peer.estimatedDirection.takeIf { keepLastEstimate },
+                        estimatedDirectionUpdatedAtMillis = when {
+                            freshEstimate != null -> nowMillis
+                            keepLastEstimate -> peer.estimatedDirectionUpdatedAtMillis
+                            else -> null
+                        },
+                        estimatedDirectionIsLastKnown = keepLastEstimate,
                     )
                 } else {
                     GnssDirectionPolicy.supplement(

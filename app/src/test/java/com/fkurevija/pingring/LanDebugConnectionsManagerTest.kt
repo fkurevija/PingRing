@@ -30,8 +30,8 @@ import java.util.concurrent.TimeUnit
 class LanDebugConnectionsManagerTest {
 
     @Test
-    fun wifiPollingIntervalIsOneSecond() {
-        assertEquals(1_000L, LanDebugConnectionsManager.RSSI_SAMPLE_INTERVAL_MILLIS)
+    fun wifiPollingIntervalIs250Milliseconds() {
+        assertEquals(250L, LanDebugConnectionsManager.RSSI_SAMPLE_INTERVAL_MILLIS)
     }
 
     @Test
