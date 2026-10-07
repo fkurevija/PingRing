@@ -44,8 +44,8 @@ Everything in step 5 has a working default, so you can skip it and launch straig
 There are exactly two ways in, and both start with you:
 
 - **Join by QR** proves possession of the invitation secret. Because that QR code is rendered on your device, showing it *is* you offering the ring — a guest who scans it is admitted without a further decision from you.
-- **Join by typed code** only locates the event, so it proves nothing about who is asking. These joins are put to you: a card appears at the top of the radar — *"N devices want to join"* — with **Allow** / **Deny** per device. Unanswered requests are refused after **two minutes**.
-- For every Nearby connection, compare the six digits shown on both phones and confirm only if they match. Reject the request if they differ or you cannot compare them with the intended person.
+- **Join by typed code** only locates the event, so it proves nothing about who is asking. These joins are put to you: a card overlays the top of the radar or host setup screen — *"N devices want to join"* — with their username and **Allow** / **Deny**. Unanswered requests are refused after **45 seconds**.
+- The **Verify Nearby connections** switch in App Settings is off by default. Turn it on to require both devices to compare and confirm the six-digit Nearby code before connecting; turn it off to bypass that step. This applies to new Nearby connections, not the LAN debug relay. Approval cards and QR-secret admission remain in effect. Names and discovery hints alone do not prove identity.
 
 > **Prevent New Users From Joining**, in PingRing Settings, closes the ring to arrivals mid-event: further requests are refused and the radar's QR button is hidden until you turn it back off. This is your only standing control over the whole ring — there is no per-join switch.
 
@@ -61,11 +61,11 @@ There are exactly two ways in, and both start with you:
   - the host's **QR code** — tap **Scan Host QR Code** (disabled with a reason if there is no camera); this includes the invitation secret.
 3. Tap **Connect**.
 
-Before the connection is accepted, compare the six Nearby digits with the person holding the other phone. Reject if they differ. A typed-code join then waits for the host's approval; unanswered requests expire after **two minutes**. If joining fails or is denied, the session is cleaned up and you can retry.
+A typed-code join waits for the host's Allow/Deny decision in the join request card; unanswered requests expire after **45 seconds**. QR-secret joins are admitted directly when the ring allows them. When **Verify Nearby connections** is on, compare the six digits shown on both phones and confirm only if they match. If joining fails or is denied, the session is cleaned up and you can retry.
 
 **You can leave at any point**, including while the app says it is connecting. **Back** always works: it abandons the attempt and returns you to the home page rather than leaving you waiting out a timeout.
 
-Once the digits match and the host has approved you when required, you land on the radar. The host keeps the chat transcript for the life of the PingRing and replays it to you, so you see what was said before you arrived.
+Once the host has approved you when required, you land on the radar. The host keeps the chat transcript for the life of the PingRing and replays it to you, so you see what was said before you arrived.
 
 ---
 
@@ -90,10 +90,10 @@ The heading is the ring itself: **Code: 4C1A9B · 3/8 Members**. The app's own n
 
 ### Tracking
 
-Use the **Tracking** dropdown, or the button on a member's row. Both set the same thing, and both are always available.
+Tap a member's row in the Members drawer to choose who you track. There is no redundant dropdown or separate selection button.
 
-- A member is selected automatically as soon as another member becomes available: a **guest defaults to the host**; the **host defaults to the first available joiner**. The selected member's name appears in the tracking picker and their row is marked **TRACKING** and highlighted.
-- Tap anywhere on another member's row, or choose them in the tracking picker, to change who you track. There are no separate row selection buttons or dash placeholders for unavailable distance.
+- A member is selected automatically as soon as another member becomes available: a **guest defaults to the host**; the **host defaults to the first available joiner**. Their row is marked **TRACKING** and highlighted.
+- Tap anywhere on another member's row to change who you track. There are no separate row selection buttons or dash placeholders for unavailable distance.
 - Tapping the tracked row keeps it selected; tracking cannot be cleared while another member is available. If the selected member becomes unavailable, another available member is selected automatically. With nobody else available, there is no target until a member arrives.
 - Tracking changes what the radar draws and what UWB ranges. **You still receive every message**, no matter who you are tracking.
 - Changing who you track never affects who is in the ring. Repointing the radar moves one ranging session between members, and the one losing it can briefly fall out of contact; it stays in the member list regardless, shown with its distance unavailable.
@@ -196,6 +196,7 @@ Tap **Chat Settings** for everything about how chat looks. It sits on the same r
 
 In English the two share the row on one line. In German or Canadian French the labels are long enough that a button wraps its text to a second line and the pair becomes slightly taller; nothing is cut off or abbreviated.
 
+- **Username** — edit your name and tap **Save Changes**. Names use the same cleanup, length limit, nonblank and case-insensitive duplicate checks as hosting/joining, against other members currently known to your phone. Your current name is allowed; another member's name is not. Saving updates the active session, shares your new name with connected members and saves it for future sessions. Closing without saving discards the name edit; colour choices still apply immediately.
 - **Chat Bubble Colour** — one of **12 fixed colours**: red, orange, amber, yellow, lime, green, teal, cyan, blue, indigo, violet and pink. They are plain, recognisable hues rather than dark tinted shades, so the name matches what you see; message text switches between black and white on each one to stay readable. You are given one at random when you enter a PingRing, and you can change it at any time; the choice is saved immediately.
 - **Changing your colour repaints your whole history.** The colour identifies *you*, not the moment you wrote a message, so every message you have ever sent changes with it — including messages sent before you had picked a colour at all. The same applies to everyone else: when a member changes colour, their earlier bubbles change too. A transcript split down the middle by a colour change reads as two different people talking, which sends you looking for somebody who is not there.
 - Messages from before PingRing had bubble colours are shown in the plain theme style. They stay that way only while nobody in the conversation has a colour to show; as soon as that person sends a coloured message, their older bubbles take it too.
@@ -224,7 +225,7 @@ It is deliberately short: two controls, a way out, and a link onwards.
 - **Ultra-wideband (UWB)** — sub-metre ranging. When it is off, the row says *why*: this device has no UWB radio; ranging needs permission (tap the row to grant it); or ranging needs Android 12 or newer.
 
 **App Settings**
-- A link through to theme, language, notifications, accessibility and developer options. Backing out of it returns you to this screen.
+- A link through to theme, language, notifications, accessibility, developer options and **Verify Nearby connections**. That switch is off by default; enable it on both devices to have both users compare the six-digit connection code. Backing out of App Settings returns you to this screen.
 
 Not here any more, and where they went:
 
@@ -291,7 +292,7 @@ Android still stops the work after a **force-stop**, a **process kill**, a **reb
 | "BLE proximity mode" | No bearing for this peer — distance is inferred from signal strength, so only the ring tint changes. PingRing does not invent a direction. |
 | "Verified BLE proximity is unavailable" | This controller cannot send the extended V5 signed advertisement, so RSSI-based member presence is disabled on this device. |
 | "Weak BLE signal" notice | The smoothed signal is near the expected receive limit. Proximity may disappear; move closer if possible. |
-| "N devices want to join" card | A guest joined by typed code. Allow or Deny each one; unanswered requests time out after two minutes. |
+| "N devices want to join" card | A guest joined by typed code. Allow or Deny each one; unanswered requests time out after 45 seconds. |
 | Distance shown as "—" in the member list | No fix for that peer yet, or it has gone stale. Peers normally expire after 15 s without an advert; the focused peer can remain during its retained UWB window. **The member stays listed either way** — losing sight of somebody is not the same as losing them from the ring, so the list only changes when somebody leaves deliberately or the host ends the ring. |
 | A member's dot turning green | They are close (hot). Blue means not close. |
 | Distance holds while somebody has walked off | A tracked UWB session is retained for up to 45 s, or 20 s under high radio load. The app cannot tell "out of range" from "left", so it treats the member as unreachable rather than claiming they left. |

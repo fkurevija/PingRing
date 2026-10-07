@@ -30,6 +30,7 @@ data class MemberDeparturePayloadDto(
 data class MeshPresencePayloadDto(
     val eventCode: String,
     val peerId: String,
+    val userName: String? = null,
 )
 
 /**

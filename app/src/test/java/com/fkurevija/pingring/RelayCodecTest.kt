@@ -38,6 +38,17 @@ import org.junit.Test
  */
 class RelayCodecTest {
 
+    @Test
+    fun memberPresenceCarriesRenamedUsernameAndAcceptsLegacyMessages() {
+        val presence = MeshPresencePayloadDto("ABC123", "aabbccdd", "Renamed")
+        val encoded = requireNotNull(RelayCodec.encode(presence))
+        assertEquals(DecodedPayload.MeshPresence(presence), RelayCodec.decode(encoded.wireType, encoded.json)?.getOrThrow())
+        assertEquals(
+            DecodedPayload.MeshPresence(MeshPresencePayloadDto("ABC123", "aabbccdd")),
+            RelayCodec.decode(RelayCodec.MESH_PRESENCE, """{"eventCode":"ABC123","peerId":"aabbccdd"}""")?.getOrThrow(),
+        )
+    }
+
     /** Stands in for a transport's flows, so routing can be tested without one. */
     private class RecordingSink : PayloadSink {
         val delivered = mutableListOf<Any>()
@@ -356,4 +367,3 @@ class RelayCodecTest {
         is DecodedPayload.MockRanging -> decoded.report
     }
 }
-

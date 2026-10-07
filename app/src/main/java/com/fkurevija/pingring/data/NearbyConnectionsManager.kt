@@ -338,42 +338,34 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
     // re-requesting a connection that is already up.
     private val requestedEndpoints = mutableSetOf<String>()
     private var localPeerId: String = ""
+    @Volatile
+    var requireDigitComparison: Boolean = true
     override var acceptsNewMembers: Boolean = true
 
     private val _pendingJoinRequests = MutableStateFlow<List<PendingJoinRequest>>(emptyList())
     override val pendingJoinRequests: StateFlow<List<PendingJoinRequest>> = _pendingJoinRequests.asStateFlow()
+    override val pendingAuthentications: StateFlow<List<ConnectionAuthenticationRequest>> =
+        events.pendingAuthentications
     private val authenticationRequests = linkedMapOf<String, ConnectionAuthenticationRequest>()
     private val sasPromptTimes = mutableListOf<Long>()
-    override val pendingAuthentications: StateFlow<List<ConnectionAuthenticationRequest>>
-        get() = events.pendingAuthentications
-
-    override fun confirmConnectionAuthentication(endpointId: String) {
-        val request = authenticationRequests.remove(endpointId) ?: return
-        events.setPendingAuthentications(authenticationRequests.values.toList())
-        scheduleAuthenticationSweep()
+    private fun acceptJoinControlChannel(request: ConnectionAuthenticationRequest) {
+        val endpointId = request.endpointId
         endpointToPeerId[endpointId] = request.deviceName
         if (request.isIncoming) {
             incomingEndpoints.add(endpointId)
             val reserved = authorizedEndpoints.size + _pendingJoinRequests.value.size
             if (!acceptsNewMembers || reserved >= MAX_PARTICIPANTS - 1) {
+                authenticationRequests.remove(endpointId)
+                events.removePendingAuthentication(endpointId)
+                scheduleAuthenticationSweep()
                 connectionsClient.rejectConnection(endpointId)
                 return
             }
         } else {
             authenticatedHostEndpoint = endpointId
         }
-        // Establish only the encrypted control channel here. Ordinary payloads
-        // remain blocked until QR proof or explicit host approval authorizes it.
-        acceptWithPayloadCallback(endpointId, "SAS confirmed")
-    }
-
-    override fun rejectConnectionAuthentication(endpointId: String) {
-        if (authenticationRequests.remove(endpointId) == null) return
-        events.setPendingAuthentications(authenticationRequests.values.toList())
-        scheduleAuthenticationSweep()
-        endpointToPeerId.remove(endpointId)
-        requestedEndpoints.remove(endpointId)
-        connectionsClient.rejectConnection(endpointId)
+        // Ordinary payloads remain blocked until QR proof or host approval.
+        acceptWithPayloadCallback(endpointId, "join control channel")
     }
 
     /**
@@ -394,7 +386,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
         authenticationSweepRunnable?.let(handler::removeCallbacks)
         authenticationSweepRunnable = null
         val oldest = authenticationRequests.values.minOfOrNull { it.requestedAtMillis } ?: return
-        val delayMillis = (oldest + JOIN_REQUEST_TIMEOUT_MILLIS - System.currentTimeMillis()).coerceAtLeast(0L)
+        val delayMillis = (oldest + JOIN_REQUEST_TIMEOUT_MILLIS + 1L - System.currentTimeMillis()).coerceAtLeast(0L)
         authenticationSweepRunnable = Runnable { expireAuthenticationRequests() }.also { runnable ->
             handler.postDelayed(runnable, delayMillis)
         }
@@ -405,12 +397,27 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
         val expired = expiredAuthenticationRequests(authenticationRequests.values, System.currentTimeMillis())
         expired.forEach { request ->
             authenticationRequests.remove(request.endpointId)
-            endpointToPeerId.remove(request.endpointId)
-            requestedEndpoints.remove(request.endpointId)
-            connectionsClient.rejectConnection(request.endpointId)
+            events.removePendingAuthentication(request.endpointId)
+            refuseJoinControlChannel(request.endpointId)
+            Log.w(TAG, "Join control channel timed out before admission")
         }
-        events.setPendingAuthentications(authenticationRequests.values.toList())
         scheduleAuthenticationSweep()
+    }
+
+    private fun refuseJoinControlChannel(endpointId: String) {
+        acceptedEndpoints.remove(endpointId)
+        incomingEndpoints.remove(endpointId)
+        pendingInviteProofEndpoints.remove(endpointId)
+        pendingJoinProofs.remove(endpointId)
+        if (endpointId in connectedEndpoints.values) {
+            // Reject only applies to pending requests, not established control channels.
+            connectionsClient.disconnectFromEndpoint(endpointId)
+        } else {
+            if (authenticatedHostEndpoint == endpointId) authenticatedHostEndpoint = null
+            endpointToPeerId.remove(endpointId)
+            requestedEndpoints.remove(endpointId)
+            connectionsClient.rejectConnection(endpointId)
+        }
     }
 
     override fun approveJoinRequest(endpointId: String) {
@@ -422,7 +429,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
         cancelJoinRequestSweep()
         _pendingJoinRequests.update { current -> current.filterNot { it.endpointId == endpointId } }
         if (endpointId !in pendingInviteProofEndpoints) {
-            connectionsClient.rejectConnection(endpointId)
+            refuseJoinControlChannel(endpointId)
             scheduleJoinRequestSweep()
             return
         }
@@ -442,14 +449,32 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
         }
         cancelJoinRequestSweep()
         _pendingJoinRequests.update { current -> current.filterNot { it.endpointId == endpointId } }
-        // Rejecting is what tells the guest the answer. Accepted state is cleared
-        // too, so a guest that somehow still holds a channel cannot use it after
-        // being turned away.
-        acceptedEndpoints.remove(endpointId)
-        pendingInviteProofEndpoints.remove(endpointId)
-        connectionsClient.rejectConnection(endpointId)
+        refuseJoinControlChannel(endpointId)
         Log.i(TAG, "Denied join request from ${request.deviceName} ($endpointId)")
         scheduleJoinRequestSweep()
+    }
+
+    override fun confirmConnectionAuthentication(endpointId: String) {
+        val request = authenticationRequests[endpointId]
+        if (request == null || endpointId !in events.pendingAuthentications.value.map { it.endpointId }) {
+            Log.w(TAG, "Ignoring authentication confirmation for $endpointId: no pending request")
+            return
+        }
+        events.removePendingAuthentication(endpointId)
+        acceptJoinControlChannel(request)
+        Log.i(TAG, "Nearby digit comparison confirmed for endpoint $endpointId")
+    }
+
+    override fun rejectConnectionAuthentication(endpointId: String) {
+        if (endpointId !in events.pendingAuthentications.value.map { it.endpointId }) {
+            Log.w(TAG, "Ignoring authentication rejection for $endpointId: no pending request")
+            return
+        }
+        authenticationRequests.remove(endpointId)
+        events.removePendingAuthentication(endpointId)
+        refuseJoinControlChannel(endpointId)
+        scheduleAuthenticationSweep()
+        Log.i(TAG, "Nearby connection rejected before admission")
     }
 
     /**
@@ -482,8 +507,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
                 current.filterNot { it.endpointId in expiredEndpoints }
             }
             sweep.expired.forEach {
-                acceptedEndpoints.remove(it.endpointId)
-                connectionsClient.rejectConnection(it.endpointId)
+                refuseJoinControlChannel(it.endpointId)
             }
         }
         scheduleJoinRequestSweep()
@@ -555,7 +579,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
         val heartbeat = object : Runnable {
             override fun run() {
                 val eventCode = localEventId ?: return
-                sendMeshBroadcast(MeshPresencePayloadDto(eventCode, localPeerId))
+                broadcastMemberPresence(MeshPresencePayloadDto(eventCode, localPeerId, userNameProvider?.invoke()))
                 handler.postDelayed(this, MESH_PRESENCE_INTERVAL_MILLIS)
             }
         }
@@ -683,6 +707,10 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
 
     override fun broadcastUwbParameters(params: Any) {
         sendMeshBroadcast(params)
+    }
+
+    override fun broadcastMemberPresence(presence: MeshPresencePayloadDto) {
+        sendMeshBroadcast(presence)
     }
 
     /** Routes the offer to its named guest; authenticated relays can forward it. */
@@ -977,22 +1005,6 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
         events.onPeerConnected(peerId)
     }
 
-    private fun queueJoinApproval(endpointId: String, deviceName: String): Boolean {
-        if (_pendingJoinRequests.value.any { it.endpointId == endpointId }) return true
-        if (_pendingJoinRequests.value.size >= MAX_PENDING_JOIN_REQUESTS) {
-            connectionsClient.rejectConnection(endpointId)
-            return false
-        }
-        val request = PendingJoinRequest(
-            endpointId = endpointId,
-            deviceName = deviceName.ifBlank { "Unknown device" },
-            requestedAtMillis = System.currentTimeMillis(),
-        )
-        _pendingJoinRequests.update { (it + request).sortedBy { pending -> pending.requestedAtMillis } }
-        scheduleJoinRequestSweep()
-        return true
-    }
-
     private val connectionLifecycleCallback = object : ConnectionLifecycleCallback() {
         override fun onConnectionInitiated(endpointId: String, info: ConnectionInfo) {
             val remoteIdentity = NearbyDiscoveryIdentity.decode(info.endpointName)
@@ -1029,15 +1041,22 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
                 "Connection initiated for $endpointId " +
                     "(${if (isIncoming) "requested by peer" else "answering our own request"})"
             )
-            authenticationRequests[endpointId] = ConnectionAuthenticationRequest(
+            val request = ConnectionAuthenticationRequest(
                 endpointId = endpointId,
                 deviceName = remotePeerId,
                 authenticationDigits = info.authenticationDigits,
                 isIncoming = isIncoming,
             )
-            events.setPendingAuthentications(authenticationRequests.values.toList())
+            authenticationRequests[endpointId] = request
+            if (requireDigitComparison) {
+                events.setPendingAuthentications(events.pendingAuthentications.value + request)
+            }
             scheduleAuthenticationSweep()
-            Log.i(TAG, "Waiting for authentication confirmation from endpoint $endpointId")
+            if (requireDigitComparison) {
+                Log.i(TAG, "Waiting for Nearby digit comparison for endpoint $endpointId")
+            } else {
+                acceptJoinControlChannel(request)
+            }
         }
 
         override fun onConnectionResult(endpointId: String, result: ConnectionResolution) {
@@ -1087,7 +1106,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
                 pendingMeshChallenges.remove(endpointId)
                 meshAuthenticationTimeouts.remove(endpointId)?.let(handler::removeCallbacks)
                 authenticationRequests.remove(endpointId)
-                events.setPendingAuthentications(authenticationRequests.values.toList())
+                events.removePendingAuthentication(endpointId)
                 scheduleAuthenticationSweep()
                 incomingEndpoints.remove(endpointId)
                 pendingInviteProofEndpoints.remove(endpointId)
@@ -1106,7 +1125,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
             // silently rather than being reported as denied.
             _pendingJoinRequests.update { current -> current.filterNot { it.endpointId == endpointId } }
             authenticationRequests.remove(endpointId)
-            events.setPendingAuthentications(authenticationRequests.values.toList())
+            events.removePendingAuthentication(endpointId)
             scheduleAuthenticationSweep()
             // The guest is gone, so whatever was left of its request goes with
             // it; the sweep has nothing left to refuse and must not wake for it.
@@ -1385,8 +1404,10 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
         if (endpointId !in connectedEndpoints.values) {
             return true
         }
-
         val expectedSecret = inviteSecretProvider?.invoke() ?: return false
+        authenticationRequests.remove(endpointId)
+        events.removePendingAuthentication(endpointId)
+        scheduleAuthenticationSweep()
         val hasValidInvite = proof.inviteSecret == expectedSecret &&
             InviteSecret.decode(proof.inviteSecret.orEmpty()) != null
         when (
@@ -1398,8 +1419,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
             )
         ) {
             JoinRequestDecision.Refuse -> {
-                pendingInviteProofEndpoints.remove(endpointId)
-                connectionsClient.rejectConnection(endpointId)
+                refuseJoinControlChannel(endpointId)
                 return true
             }
             JoinRequestDecision.Admit -> {
@@ -1432,6 +1452,9 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
         if (InviteSecret.decode(secret.inviteSecret) == null) return false
         val existingSecret = inviteSecretProvider?.invoke()
         if (existingSecret != null && existingSecret != secret.inviteSecret) return false
+        authenticationRequests.remove(endpointId)
+        events.removePendingAuthentication(endpointId)
+        scheduleAuthenticationSweep()
         authorizedEndpoints.add(endpointId)
         events.onPeerConnected(secret.hostPeerId)
         events.onInviteSecret(secret)

@@ -48,6 +48,20 @@ internal interface PayloadSink {
  */
 internal class TransportEvents(private val tag: String) : PayloadSink {
 
+    private val _pendingAuthentications =
+        MutableStateFlow<List<ConnectionAuthenticationRequest>>(emptyList())
+    val pendingAuthentications: StateFlow<List<ConnectionAuthenticationRequest>> =
+        _pendingAuthentications.asStateFlow()
+
+    fun setPendingAuthentications(requests: List<ConnectionAuthenticationRequest>) {
+        _pendingAuthentications.value = requests
+    }
+
+    fun removePendingAuthentication(endpointId: String) {
+        _pendingAuthentications.value =
+            _pendingAuthentications.value.filterNot { it.endpointId == endpointId }
+    }
+
     private val _receivedPeerAddress = MutableSharedFlow<UwbPeerAddressDto>(
         extraBufferCapacity = 1,
         onBufferOverflow = BufferOverflow.DROP_OLDEST
@@ -153,9 +167,6 @@ internal class TransportEvents(private val tag: String) : PayloadSink {
     )
     val receivedEventControl: SharedFlow<EventControlPayloadDto> = _receivedEventControl.asSharedFlow()
 
-    private val _pendingAuthentications = MutableStateFlow<List<ConnectionAuthenticationRequest>>(emptyList())
-    val pendingAuthentications: StateFlow<List<ConnectionAuthenticationRequest>> = _pendingAuthentications.asStateFlow()
-
     /**
      * Scripted range reports arrive at a much higher rate than any real message
      * (up to a few per second per peer) and a dropped sample is worthless, so
@@ -184,10 +195,6 @@ internal class TransportEvents(private val tag: String) : PayloadSink {
         if (peerId.isNotBlank() && name.isNotBlank()) {
             _peerNames.tryEmit(peerId to name)
         }
-    }
-
-    fun setPendingAuthentications(requests: List<ConnectionAuthenticationRequest>) {
-        _pendingAuthentications.value = requests
     }
 
     fun onPeerDisconnected(peerId: String) {
@@ -258,4 +265,3 @@ internal class TransportEvents(private val tag: String) : PayloadSink {
         _receivedControllerParams.tryEmit(params)
     }
 }
-

@@ -6,6 +6,7 @@ import com.fkurevija.pingring.data.DiscoveryRepository
 import com.fkurevija.pingring.data.Event
 import com.fkurevija.pingring.data.LanDebugConnectionsManager
 import com.fkurevija.pingring.data.NearbyTransport
+import com.fkurevija.pingring.data.MeshPresencePayloadDto
 import com.fkurevija.pingring.data.SessionManager
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.first
@@ -18,6 +19,12 @@ class TrackingSelectionInstrumentedTest {
     private class TestTransport : NearbyTransport by LanDebugConnectionsManager("127.0.0.1") {
         override val connectionEstablished = MutableSharedFlow<String>(extraBufferCapacity = 8)
         override val peerDisconnected = MutableSharedFlow<String>(extraBufferCapacity = 8)
+        override val receivedMeshPresence = MutableSharedFlow<MeshPresencePayloadDto>(extraBufferCapacity = 8)
+        val sentPresence = mutableListOf<MeshPresencePayloadDto>()
+
+        override fun broadcastMemberPresence(presence: MeshPresencePayloadDto) {
+            sentPresence += presence
+        }
 
         override fun startAdvertising(
             eventId: String,
@@ -27,6 +34,36 @@ class TrackingSelectionInstrumentedTest {
         ) = Unit
 
         override fun startDiscovery(eventId: String, localPeerId: String) = Unit
+    }
+
+    @Test
+    fun usernameEditsUpdateLocalStateAndRemoteMemberNamesWithoutChangingFocus() = runBlocking<Unit> {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val session = SessionManager()
+        session.hostEvent(Event.create(id = "NAMES1", hostPeerId = session.peerId.value, useUwb = false))
+        session.setUserName("Ana")
+        val transport = TestTransport()
+        val repository = DiscoveryRepository(context, session, transport)
+        try {
+            repository.startDiscovery()
+            withTimeout(5_000L) { transport.receivedMeshPresence.subscriptionCount.first { it > 0 } }
+            transport.receivedMeshPresence.emit(MeshPresencePayloadDto("NAMES1", "peer", "Bo"))
+            withTimeout(5_000L) { repository.peerUpdates.first { it.any { peer -> peer.name == "Bo" } } }
+            withTimeout(5_000L) { repository.focusedPeerId.first { it == "peer" } }
+
+            repository.updateLocalUsername("  A\u200Blex  ")
+            assertEquals("Alex", session.sessionState.value.userName)
+            assertEquals(
+                MeshPresencePayloadDto("NAMES1", session.peerId.value, "Alex"),
+                transport.sentPresence.last(),
+            )
+            transport.receivedMeshPresence.emit(MeshPresencePayloadDto("NAMES1", "peer", "Bea"))
+            withTimeout(5_000L) { repository.peerUpdates.first { it.any { peer -> peer.name == "Bea" } } }
+            assertEquals("peer", repository.focusedPeerId.value)
+            assertEquals("Bea", session.sessionState.value.friends.single().name)
+        } finally {
+            repository.stopDiscovery()
+        }
     }
 
     @Test

@@ -256,4 +256,6 @@
     <string name="diag_vibrator">Vibracija</string>
     <string name="gps_direction_estimate">Procijenjeni GPS smjer · ±%1$d°</string>
     <string name="radar_gps_direction">Procijenjeni GPS smjer %1$d stupnjeva, nesigurnost %2$d stupnjeva.</string>
+    <string name="nearby_digit_comparison_title">Provjeri Nearby veze</string>
+    <string name="nearby_digit_comparison_description">Kad je uključena, ova će te opcija tražiti da usporediš šesteroznamenkasti kôd prije prihvaćanja Nearby veze. Uključi je na oba uređaja kako bi obje osobe potvrdile vezu. LAN debug ostaje nepromijenjen.</string>
 </resources>

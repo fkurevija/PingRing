@@ -265,61 +265,45 @@ class PeerListInstrumentedTest {
     }
 
     @Test
-    fun thePickerNamesWhoeverIsBeingTracked() {
-        // The point of the control is answering "who am I following" without
-        // counting TRACKING badges down the list. The member is in the list too,
-        // so this asserts on the field itself rather than on the name.
+    fun trackingIsIndicatedOnlyOnTheSelectedRow() {
         show(peers = listOf(peer(id = "peer-1", name = "Ana")), focusedPeerId = "peer-1")
 
-        composeRule.onNodeWithText("Tracking").assertIsDisplayed()
-        // The field repeats the tracked member's name; the row behind it also
-        // does, so the assertion is that both agree rather than that the name
-        // appears once.
-        composeRule.onAllNodesWithText("Ana").assertCountEquals(2)
+        composeRule.onNodeWithText("Tracking").assertDoesNotExist()
+        composeRule.onNodeWithText("TRACKING").assertIsDisplayed()
+        composeRule.onAllNodesWithText("Ana").assertCountEquals(1)
     }
 
     @Test
-    fun thePickerDoesNotOfferAutomaticOrClearingTracking() {
+    fun noDropdownOrAutomaticOptionIsShown() {
         show(peers = listOf(peer(id = "peer-1", name = "Ana")), focusedPeerId = "peer-1")
 
-        composeRule.onNodeWithText("Tracking").performClick()
+        composeRule.onNodeWithText("Tracking").assertDoesNotExist()
         composeRule.onNodeWithText("Automatic").assertDoesNotExist()
     }
 
     @Test
-    fun choosingFromThePickerSetsTheTrackedMember() {
+    fun selectingARowSetsTheTrackedMember() {
         var focused: String? = null
         show(
             peers = listOf(peer(id = "peer-1", name = "Ana"), peer(id = "peer-2", name = "Bo")),
             onFocusPeer = { focused = it },
         )
 
-        composeRule.onNodeWithText("Tracking").performClick()
-        composeRule.waitForIdle()
-        // Two nodes carry the name: the row behind the menu and the menu entry.
-        // The row comes first in the tree, so the last match is the menu - and
-        // clicking the row here would prove nothing about the picker, since
-        // both write the same value.
-        composeRule.onAllNodesWithText("Ana").onLast().performClick()
+        composeRule.onNode(hasText("Ana") and isSelectable()).performClick()
         composeRule.waitForIdle()
 
         assertEquals("peer-1", focused)
     }
 
     @Test
-    fun thePickerIsOpenToEveryMember() {
-        // There is no role whose picker is locked. This used to be read-only on a
-        // guest when the host had turned on "track host", which left the radar
-        // pointed at somebody with nothing on screen to say why - the host owned
-        // a decision about the guest's own screen.
+    fun everyMemberRowIsSelectable() {
         var focused: String? = null
         show(
             peers = listOf(peer(id = "peer-1", name = "Ana")),
             onFocusPeer = { focused = it },
         )
 
-        composeRule.onNodeWithText("Tracking").assertIsEnabled().performClick()
-        composeRule.onAllNodesWithText("Ana").onLast().performClick()
+        composeRule.onNode(hasText("Ana") and isSelectable()).assertIsEnabled().performClick()
         composeRule.waitForIdle()
 
         assertEquals("peer-1", focused)

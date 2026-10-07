@@ -24,6 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -85,6 +86,8 @@ fun AppSettingsScreen(
     onNotificationSoundEnabledChange: (Boolean) -> Unit,
     notificationVibrationEnabled: Boolean,
     onNotificationVibrationEnabledChange: (Boolean) -> Unit,
+    nearbyDigitComparisonEnabled: Boolean = false,
+    onNearbyDigitComparisonEnabledChange: (Boolean) -> Unit = {},
     onOpenAccessibility: () -> Unit,
     connectionRecoveryPromptEnabled: Boolean = true,
     connectionRecoveryPromptDelayMillis: Long = 120_000L,
@@ -278,6 +281,13 @@ fun AppSettingsScreen(
                 checked = notificationVibrationEnabled && hasVibrator,
                 enabled = hasVibrator,
                 onCheckedChange = onNotificationVibrationEnabledChange,
+            )
+            SettingsSwitchRow(
+                icon = { Icon(Icons.Default.Lock, contentDescription = null) },
+                title = stringResource(R.string.nearby_digit_comparison_title),
+                description = stringResource(R.string.nearby_digit_comparison_description),
+                checked = nearbyDigitComparisonEnabled,
+                onCheckedChange = onNearbyDigitComparisonEnabledChange,
             )
             Card(
                 modifier = Modifier.fillMaxWidth(),

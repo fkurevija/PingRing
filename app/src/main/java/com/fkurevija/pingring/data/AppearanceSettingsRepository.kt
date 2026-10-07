@@ -94,6 +94,7 @@ private val connectionRecoveryPromptDelayKey = longPreferencesKey("connection_re
 private val joinWaitTimeoutMillisKey = longPreferencesKey("join_wait_timeout_millis")
 private val notificationSoundEnabledKey = booleanPreferencesKey("notification_sound_enabled")
 private val notificationVibrationEnabledKey = booleanPreferencesKey("notification_vibration_enabled")
+private val nearbyDigitComparisonEnabledKey = booleanPreferencesKey("nearby_digit_comparison_enabled")
 private val beaconAlertRepeatKey = stringPreferencesKey("beacon_alert_repeat")
 private val beaconRepeatGapMillisKey = longPreferencesKey("beacon_repeat_gap_millis")
 private val beaconRepeatDurationMillisKey = longPreferencesKey("beacon_repeat_duration_millis")
@@ -162,6 +163,10 @@ class AppearanceSettingsRepository(private val context: Context) {
 
     val notificationVibrationEnabled: Flow<Boolean> = context.appearanceDataStore.data.map { preferences ->
         preferences[notificationVibrationEnabledKey] ?: true
+    }
+
+    val nearbyDigitComparisonEnabled: Flow<Boolean> = context.appearanceDataStore.data.map { preferences ->
+        preferences[nearbyDigitComparisonEnabledKey] ?: false
     }
 
     /**
@@ -339,6 +344,14 @@ class AppearanceSettingsRepository(private val context: Context) {
         }
     }
 
+    fun setNearbyDigitComparisonEnabled(enabled: Boolean) {
+        scope.launch {
+            context.appearanceDataStore.edit { preferences ->
+                preferences[nearbyDigitComparisonEnabledKey] = enabled
+            }
+        }
+    }
+
     /**
      * Debug-only LAN transport settings, used to test chat/discovery between
      * the Android Emulator (which lacks real Bluetooth/Wi-Fi Direct radios)
@@ -369,4 +382,3 @@ class AppearanceSettingsRepository(private val context: Context) {
         }
     }
 }
-

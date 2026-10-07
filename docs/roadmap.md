@@ -28,7 +28,7 @@ Use the [Roadmap Verification Guide](verification-guide.md) for setup, numbered 
 - **Graceful-leave delivery on hardware.** Verify a guest's authenticated departure notice reaches the host and other guests before the connection closes. A crash or lost link still cannot deliver it; those peers must remain *unreachable*, not confirmed gone.
 - **Last-known UWB direction on hardware.** Walk and turn with a UWB-ranged peer, then disconnect it. Verify the frozen world bearing does not rotate with the phone, the age updates, a fresh fix clears it, and the marker expires after two minutes. BLE-only peers must not acquire an inferred bearing.
 - **Accessibility audit.** Settings switches expose localized names, colour presets expose selection with 48 dp targets, and spoken GPS summaries include uncertainty. Reduce Motion, independent Proximity Haptics, and throttled Spoken Radar Updates are implemented. TalkBack/live-region delivery, system animation changes, vibration separation, focus order, contrast, large-text layout, and recovery-dialog focus still need a device-assisted audit. Follow the [Accessibility Scanner and TalkBack checklist](building.md#accessibility-device-audit); compiled semantics/animation tests do not count as completed device validation.
-- **Security hardening on hardware.** A live SAS comparison, signed-advertisement capture/replay, joined-member impersonation attempt, join flood, and logcat review have not been performed. See the [Security Review](security-review.md#verification-limits).
+- **Admission and security checks on hardware.** Validate both settings states: compare the digits when enabled, and verify QR/host admission gates still apply when bypassed. Also test signed-advertisement replay, registered-sender checks, join floods and sanitized logs. See the [Security Review](security-review.md#verification-limits).
 
 ### Release signing readiness
 
@@ -71,10 +71,9 @@ These proposals are recorded for future evaluation only; no new calibration, fil
 ### Other engineering and product work
 
 - **Move the platform probes out of `RangingSourcePolicy`, `BleRangePolicy` and `RadarAccessibilityPolicy`.** These three mix a function that needs a live framework object (`probeWifiRtt`, `supportsExtendedAdvertising`, `describeLocalized`) into the same class as the pure rules that decide something. Their rules are unit tested — `RangingSourcePolicy` is the best-covered class in the project — but the probe's lines are unreachable from a JVM, so no per-class coverage floor on unit data can ever be met by that shape. The three are excluded from the gate for this reason, which is an acknowledgement, not a fix. Every other policy in `data` already separates its probe beside `DiagnosticsProbe`; following that convention would let all three back under the floor. **Why now:** the gate is live, and each of these is a place a new branch can be added with nothing to catch it.
-- **Set an emoji alongside your username.** Optional, unset by default, and deliberately not built. Usernames are the only identity carried in chat and in the SAS comparison; an emoji would be a second, loosely-authenticated identity field hanging off a name that is already shown everywhere. If it is added, two decisions come first — whether it travels in the same signed payload as the name, and whether it is restricted to a small fixed set the way chat bubble colours are, so two phones cannot render the same member differently.
+- **Set an emoji alongside your username.** Optional, unset by default, and deliberately not built. Usernames identify members in chat and approval cards; an emoji would be a second, loosely-authenticated identity field hanging off a name that is already shown everywhere. If it is added, two decisions come first — whether it travels in the same signed payload as the name, and whether it is restricted to a small fixed set the way chat bubble colours are, so two phones cannot render the same member differently.
 - **Decide product direction for the brand and in-app help.** The palette is provisional, and help placement/content has no offline product decision yet.
 
 ---
 
 [← Back to README](../README.md)
-

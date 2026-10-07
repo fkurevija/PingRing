@@ -59,6 +59,8 @@ interface NearbyTransport {
 
     /** Lets a held request in. Ignored if the request is no longer pending. */
     fun approveJoinRequest(endpointId: String)
+    fun confirmConnectionAuthentication(endpointId: String)
+    fun rejectConnectionAuthentication(endpointId: String)
 
     /**
      * Turns a held request away, telling the guest.
@@ -68,8 +70,6 @@ interface NearbyTransport {
      * is a normal race rather than an error worth surfacing.
      */
     fun denyJoinRequest(endpointId: String)
-    fun confirmConnectionAuthentication(endpointId: String)
-    fun rejectConnectionAuthentication(endpointId: String)
 
     fun startAdvertising(eventId: String, localPeerId: String, useWifiDirect: Boolean, useHotspot: Boolean)
     fun startDiscovery(eventId: String, localPeerId: String)
@@ -104,6 +104,7 @@ interface NearbyTransport {
     fun sendBeaconToPeer(peerId: String, beacon: BeaconPayloadDto)
     fun broadcastBeacon(beacon: BeaconPayloadDto)
     fun broadcastPeerRanging(ranging: PeerRangingPayloadDto)
+    fun broadcastMemberPresence(presence: MeshPresencePayloadDto)
     fun sendInviteSecret(peerId: String, secret: InviteSecretPayloadDto)
     fun sendBleIdentityKey(peerId: String, identityKey: BleIdentityKeyPayloadDto)
     fun broadcastBleIdentityKey(identityKey: BleIdentityKeyPayloadDto)

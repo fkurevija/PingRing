@@ -77,7 +77,8 @@ class LanDebugConnectionsManager(
 
     private val _pendingJoinRequests = MutableStateFlow<List<PendingJoinRequest>>(emptyList())
     override val pendingJoinRequests: StateFlow<List<PendingJoinRequest>> = _pendingJoinRequests.asStateFlow()
-    override val pendingAuthentications: StateFlow<List<ConnectionAuthenticationRequest>> = MutableStateFlow(emptyList())
+    override val pendingAuthentications: StateFlow<List<ConnectionAuthenticationRequest>> =
+        events.pendingAuthentications
 
     private val authorizedPeers = ConcurrentHashMap.newKeySet<String>()
     private val scriptedRangingPeers = ConcurrentHashMap.newKeySet<String>()
@@ -115,6 +116,7 @@ class LanDebugConnectionsManager(
     }
 
     override fun confirmConnectionAuthentication(endpointId: String) = Unit
+
     override fun rejectConnectionAuthentication(endpointId: String) = Unit
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -212,6 +214,7 @@ class LanDebugConnectionsManager(
                             if (!writeEnvelopeNow(currentWriter, RelayEnvelope(type = RelayEnvelope.PING, eventId = eventId, senderPeerId = localPeerId))) {
                                 break
                             }
+                            publishMemberPresence()
                         }
                     }
                     try {
@@ -349,6 +352,18 @@ class LanDebugConnectionsManager(
             scriptedRangingPeers.add(payload.report.peerId)
             events.onMockRanging(payload.report)
             true
+        }
+        is DecodedPayload.MeshPresence -> {
+            if (senderPeerId in authorizedPeers &&
+                payload.presence.peerId == senderPeerId &&
+                payload.presence.eventCode == localEventId
+            ) {
+                events.onMeshPresence(payload.presence)
+                true
+            } else {
+                Log.w(TAG, "Ignoring member presence from an unadmitted or mismatched peer")
+                false
+            }
         }
         else -> RelayCodec.route(payload, events)
     }
@@ -625,6 +640,14 @@ class LanDebugConnectionsManager(
 
     override fun broadcastPeerRanging(ranging: PeerRangingPayloadDto) {
         sendPayload(null, ranging)
+    }
+
+    override fun broadcastMemberPresence(presence: MeshPresencePayloadDto) {
+        authorizedPeers.forEach { peerId -> sendPayload(peerId, presence) }
+    }
+
+    private fun publishMemberPresence() {
+        broadcastMemberPresence(MeshPresencePayloadDto(localEventId, localPeerId, userNameProvider?.invoke()))
     }
 
     companion object {

@@ -6,6 +6,7 @@ import com.fkurevija.pingring.data.InviteSecret
 import com.fkurevija.pingring.data.JoinProofPayloadDto
 import com.fkurevija.pingring.data.InviteSecretPayloadDto
 import com.fkurevija.pingring.data.MockRangingDto
+import com.fkurevija.pingring.data.MeshPresencePayloadDto
 import com.fkurevija.pingring.data.RssiSmoother
 import com.fkurevija.pingring.data.RelayCodec
 import com.fkurevija.pingring.data.RelayEnvelope
@@ -68,6 +69,68 @@ class LanDebugConnectionsManagerTest {
 
         assertEquals(GUEST_ID to "Ana", name.await())
         assertTrue(manager.pendingJoinRequests.value.isEmpty())
+    }
+
+    @Test
+    fun memberNamesAreReceivedOnlyFromMatchingAdmittedPeersInTheCurrentEvent() = runTest {
+        val manager = manager(RelayEnvelope.ROLE_HOST)
+        val received = mutableListOf<MeshPresencePayloadDto>()
+        backgroundScope.launch(start = CoroutineStart.UNDISPATCHED) {
+            manager.receivedMeshPresence.toList(received)
+        }
+        val presence = MeshPresencePayloadDto(EVENT_ID, GUEST_ID, "Renamed guest")
+
+        deliverPayload(manager, presence, GUEST_ID)
+        testScheduler.runCurrent()
+        assertTrue(received.isEmpty())
+
+        deliverProof(manager, JoinProofPayloadDto(EVENT_ID, null, "Ana"))
+        manager.approveJoinRequest(GUEST_ID)
+        deliverPayload(manager, presence.copy(peerId = "another-peer"), GUEST_ID)
+        deliverPayload(manager, presence.copy(eventCode = "87654321"), GUEST_ID)
+        deliverPayload(manager, presence, "another-peer")
+        testScheduler.runCurrent()
+        assertTrue(received.isEmpty())
+
+        deliverPayload(manager, presence, GUEST_ID)
+        testScheduler.runCurrent()
+        assertEquals(listOf(presence), received)
+        manager.stopAll()
+    }
+
+    @Test
+    fun usernameBroadcastsTargetOnlyAdmittedPeers() {
+        val manager = manager(RelayEnvelope.ROLE_HOST)
+        deliverProof(manager, JoinProofPayloadDto(EVENT_ID, null, "Ana"))
+        manager.approveJoinRequest(GUEST_ID)
+        deliverPayload(manager, JoinProofPayloadDto(EVENT_ID, null, "Waiting"), "waiting-peer")
+        val sent = LinkedBlockingQueue<String>()
+        val output = StringWriter()
+        setField(manager, "writer", object : BufferedWriter(output) {
+            override fun flush() {
+                super.flush()
+                sent.add(output.toString().trim())
+                output.buffer.setLength(0)
+            }
+        })
+
+        try {
+            val presence = MeshPresencePayloadDto(EVENT_ID, "local-id", "New host name")
+            manager.broadcastMemberPresence(presence)
+
+            val line = sent.poll(5, TimeUnit.SECONDS)
+            assertNotNull("Expected a member-presence broadcast", line)
+            val outer = RelayCodec.decodeEnvelope(requireNotNull(line)).getOrThrow()
+            assertEquals(GUEST_ID, outer.targetPeerId)
+            val inner = RelayCodec.decodeEnvelope(requireNotNull(outer.payload)).getOrThrow()
+            val decoded = RelayCodec.decode(inner.type, requireNotNull(inner.payload))?.getOrThrow()
+            assertTrue(decoded is DecodedPayload.MeshPresence)
+            require(decoded is DecodedPayload.MeshPresence)
+            assertEquals(presence, decoded.presence)
+            assertTrue(sent.isEmpty())
+        } finally {
+            manager.stopAll()
+        }
     }
 
     @Test

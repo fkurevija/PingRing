@@ -259,6 +259,7 @@ fun RadarScreen(
     pendingJoinRequests: List<PendingJoinRequest> = emptyList(),
     onApproveJoinRequest: (String) -> Unit = {},
     onDenyJoinRequest: (String) -> Unit = {},
+    onUsernameChange: (String) -> Unit = {},
     onEventSettings: () -> Unit,
     onLeaveEvent: () -> Unit,
     onEndEvent: () -> Unit,
@@ -1087,6 +1088,9 @@ fun RadarScreen(
                 if (showChatSettings) {
                     ChatSettingsDialog(
                         selectedColorArgb = chatBubbleColorArgb,
+                        username = sessionState.userName,
+                        existingMemberNames = sessionState.friends.map { it.name },
+                        onUsernameChange = onUsernameChange,
                         // Routed through the claim rather than applied directly: a
                         // guest's pick is a request the host has to agree to, and
                         // applying it optimistically would show a colour for as long
@@ -1668,10 +1672,7 @@ internal fun PeerList(
     onFocusPeer: (String) -> Unit,
     modifier: Modifier
 ) {
-    // Nearest first, everywhere in this sheet. The rows below and the tracking
-    // dropdown above are two views of the same members, so they read from one
-    // ordered list - a picker that offered them in a different order than the
-    // list showed would make the list's ordering look arbitrary.
+    // Signal-strength ordering does not change the selected tracking target.
     val orderedPeers = remember(peers) { PeerListOrderPolicy.bySignalStrength(peers) }
 
     // One policy decides which notices appear and in what order, rather than two
@@ -1702,14 +1703,6 @@ internal fun PeerList(
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
-        }
-        if (peers.isNotEmpty()) {
-            TrackedMemberPicker(
-                peers = orderedPeers,
-                trackedPeerId = focusedPeerId,
-                onSelect = onFocusPeer
-            )
-            Spacer(Modifier.height(8.dp))
         }
         // The list of members, or an empty-state message if nobody else has
         // joined. The empty state fills the remaining height so the sheet can
@@ -1817,63 +1810,13 @@ internal fun PeerList(
     }
 }
 /**
- * Names the one member currently being tracked, and lets it be changed.
- *
- * The dropdown and selectable rows share the same concrete selection.
- * Neither offers a way to stop tracking while other members are available.
- */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-internal fun TrackedMemberPicker(
-    peers: List<RadarPeerUpdate>,
-    trackedPeerId: String?,
-    onSelect: (String) -> Unit,
-) {
-    var expanded by remember { mutableStateOf(false) }
-    val trackedName = peers.firstOrNull { it.peerId == trackedPeerId }?.name
-    val label = trackedName.orEmpty()
-
-    ExposedDropdownMenuBox(
-        expanded = expanded,
-        onExpandedChange = { expanded = it }
-    ) {
-        OutlinedTextField(
-            value = label,
-            onValueChange = {},
-            readOnly = true,
-            label = { Text(stringResource(R.string.tracking)) },
-            leadingIcon = { Icon(Icons.Default.MyLocation, contentDescription = null) },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-            modifier = Modifier
-                .menuAnchor(MenuAnchorType.PrimaryNotEditable)
-                .fillMaxWidth()
-        )
-        ExposedDropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false }
-        ) {
-            peers.forEach { peer ->
-                DropdownMenuItem(
-                    text = { Text(peer.name) },
-                    onClick = {
-                        onSelect(peer.peerId)
-                        expanded = false
-                    }
-                )
-            }
-        }
-    }
-}
-
-
-/**
  * Everything about chat that the member can change, in one place.
  *
  * Opened from the radar between the beacon buttons and the transcript, so the
  * controls sit next to the chat they change rather than on a settings screen two
  * destinations away.
  *
- * Bubble colour only, and only from [ChatBubblePalette.presets]. There is no
+ * Username and bubble colour, with colours only from [ChatBubblePalette.presets]. There is no
  * custom picker and no "use the theme colour" option: a member picks a colour so
  * their messages can be found in a busy transcript, which stops working the
  * moment two phones render the same message differently.
@@ -1895,7 +1838,14 @@ internal fun ChatSettingsDialog(
     memberNameFor: (String) -> String = { it },
     localPeerId: String? = null,
     refusedColorArgb: Long? = null,
+    username: String = "",
+    existingMemberNames: List<String> = emptyList(),
+    onUsernameChange: (String) -> Unit = {},
 ) {
+    var editedUsername by remember(username) { mutableStateOf(username) }
+    var usernameSubmitted by remember { mutableStateOf(false) }
+    val usernameError = TextInputPolicy.usernameError(editedUsername, existingMemberNames)
+    val usernameChanged = editedUsername.trim() != username
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.chat_settings)) },
@@ -1905,6 +1855,42 @@ internal fun ChatSettingsDialog(
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState()),
             ) {
+                OutlinedTextField(
+                    value = editedUsername,
+                    onValueChange = {
+                        editedUsername = TextInputPolicy.sanitizeUsername(it)
+                        usernameSubmitted = false
+                    },
+                    label = { Text(stringResource(R.string.username)) },
+                    placeholder = { Text(stringResource(R.string.username_example)) },
+                    singleLine = true,
+                    isError = usernameError != null && (usernameChanged || usernameSubmitted),
+                    supportingText = {
+                        if (usernameChanged || usernameSubmitted) {
+                            when (usernameError) {
+                                TextInputPolicy.UsernameError.REQUIRED -> Text(stringResource(R.string.join_username_required))
+                                TextInputPolicy.UsernameError.TAKEN ->
+                                    Text(stringResource(R.string.join_username_taken, editedUsername.trim()))
+                                null -> Unit
+                            }
+                        }
+                    },
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                if (usernameChanged) {
+                    TextButton(
+                        onClick = {
+                            usernameSubmitted = true
+                            if (usernameError == null) onUsernameChange(editedUsername.trim())
+                        },
+                        enabled = usernameError == null,
+                        modifier = Modifier.align(Alignment.End),
+                    ) {
+                        Text(stringResource(R.string.save_changes))
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
                 Text(
                     stringResource(R.string.chat_bubble_colour_description),
                     style = MaterialTheme.typography.bodySmall,

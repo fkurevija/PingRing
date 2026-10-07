@@ -79,10 +79,12 @@ fun HostSetupScreen(
     pendingJoinRequests: List<PendingJoinRequest> = emptyList(),
     onApproveJoinRequest: (String) -> Unit = {},
     onDenyJoinRequest: (String) -> Unit = {},
+    existingMemberNames: List<String> = emptyList(),
 ) {
     val defaultHostName = stringResource(R.string.host_default_name)
     var username by remember(savedUsername, defaultHostName) { mutableStateOf(savedUsername.ifBlank { defaultHostName }) }
     var showEndConfirmation by remember { mutableStateOf(false) }
+    val usernameError = TextInputPolicy.usernameError(username, existingMemberNames)
 
     // The PingRing is already live on this screen - the host is advertising as
     // soon as it opens - so system back must not slip past the question. The
@@ -213,7 +215,7 @@ fun HostSetupScreen(
                             onValueChange = { username = TextInputPolicy.sanitizeUsername(it) },
                             label = { Text(stringResource(R.string.username)) },
                             placeholder = { Text(stringResource(R.string.username_example)) },
-                            isError = username.isBlank(),
+                            isError = usernameError != null,
                             shape = RoundedCornerShape(14.dp),
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(
@@ -221,9 +223,13 @@ fun HostSetupScreen(
                             ),
                             modifier = Modifier.fillMaxWidth()
                         )
-                        if (username.isBlank()) {
+                        if (usernameError != null) {
                             Text(
-                                stringResource(R.string.username_required),
+                                if (usernameError == TextInputPolicy.UsernameError.REQUIRED) {
+                                    stringResource(R.string.username_required)
+                                } else {
+                                    stringResource(R.string.join_username_taken, username.trim())
+                                },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.error,
                                 modifier = Modifier.padding(start = 16.dp, top = 4.dp),
@@ -282,12 +288,12 @@ fun HostSetupScreen(
             Button(
                 onClick = {
                     val trimmed = username.trim()
-                    if (trimmed.isNotBlank()) {
+                    if (TextInputPolicy.usernameError(trimmed, existingMemberNames) == null) {
                         onSaveUsername(trimmed)
                         onView()
                     }
                 },
-                enabled = username.isNotBlank(),
+                enabled = usernameError == null,
                 modifier = Modifier.fillMaxWidth().height(50.dp),
                 shape = RoundedCornerShape(16.dp),
             ) {

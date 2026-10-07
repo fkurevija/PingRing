@@ -619,6 +619,18 @@ class DiscoveryRepository(
      */
     /** Devices waiting to be let in, oldest first. */
     val pendingJoinRequests get() = nearbyConnectionsManager.pendingJoinRequests
+
+    val pendingAuthentications get() = nearbyConnectionsManager.pendingAuthentications
+
+    fun confirmConnectionAuthentication(endpointId: String) =
+        nearbyConnectionsManager.confirmConnectionAuthentication(endpointId)
+
+    fun rejectConnectionAuthentication(endpointId: String) =
+        nearbyConnectionsManager.rejectConnectionAuthentication(endpointId)
+
+    fun setNearbyDigitComparisonEnabled(enabled: Boolean) {
+        (nearbyConnectionsManager as? NearbyConnectionsManager)?.requireDigitComparison = enabled
+    }
     val eventClosed get() = nearbyConnectionsManager.eventClosed
 
     /** Lets a held join request in. */
@@ -643,13 +655,6 @@ class DiscoveryRepository(
         )
     }
 
-    val pendingAuthentications get() = nearbyConnectionsManager.pendingAuthentications
-
-    fun confirmConnectionAuthentication(endpointId: String) =
-        nearbyConnectionsManager.confirmConnectionAuthentication(endpointId)
-
-    fun rejectConnectionAuthentication(endpointId: String) =
-        nearbyConnectionsManager.rejectConnectionAuthentication(endpointId)
 
     // Local peer ID
     val localPeerId: String get() = sessionManager.peerId.value
@@ -1219,6 +1224,10 @@ class DiscoveryRepository(
         repositoryScope?.launch {
             nearbyConnectionsManager.receivedMeshPresence.collect { presence ->
                 if (presence.eventCode == sessionManager.sessionState.value.currentEvent?.id) {
+                    presence.userName?.let { name ->
+                        val sanitized = TextInputPolicy.sanitizeUsername(name).trim()
+                        if (sanitized.isNotBlank()) updatePeerName(presence.peerId, sanitized)
+                    }
                     updateMeshPresence(presence.peerId)
                 }
             }
@@ -1614,6 +1623,20 @@ class DiscoveryRepository(
 
         // Broadcast to P2P mesh endpoints
         nearbyConnectionsManager.broadcastChatMessage(dto)
+    }
+
+    fun updateLocalUsername(rawName: String) {
+        val name = TextInputPolicy.sanitizeUsername(rawName).trim()
+        val state = sessionManager.sessionState.value
+        require(TextInputPolicy.usernameError(name, state.friends.map { it.name }) == null) {
+            "Username must be nonblank and distinct from other members"
+        }
+        sessionManager.setUserName(name)
+        state.currentEvent?.let { event ->
+            nearbyConnectionsManager.broadcastMemberPresence(
+                MeshPresencePayloadDto(event.id, sessionManager.peerId.value, name),
+            )
+        }
     }
 
     /**

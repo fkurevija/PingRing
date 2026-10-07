@@ -16,7 +16,7 @@ class ConnectionAuthenticationDialogTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun sasDigitsAreShownAndRequireExplicitConfirmation() {
+    fun digitsAreShownAndRequireExplicitConfirmation() {
         var confirmed = false
         composeRule.setContent {
             MaterialTheme {
@@ -28,9 +28,6 @@ class ConnectionAuthenticationDialogTest {
             }
         }
 
-        // The digits are interpolated into one sentence rather than standing
-        // alone, so this has to match a substring: an exact match on "123 456"
-        // finds nothing and reports the code as missing when it is on screen.
         composeRule.onNodeWithText("123 456", substring = true).assertIsDisplayed()
         assertEquals(false, confirmed)
         composeRule.onNodeWithText("Codes match").performClick()
@@ -38,7 +35,7 @@ class ConnectionAuthenticationDialogTest {
     }
 
     @Test
-    fun rejectingSasDoesNotConfirmTheConnection() {
+    fun rejectingDoesNotConfirmTheConnection() {
         var rejected = false
         composeRule.setContent {
             MaterialTheme {

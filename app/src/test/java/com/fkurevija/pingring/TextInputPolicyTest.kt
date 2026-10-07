@@ -17,6 +17,14 @@ import org.junit.Test
  */
 class TextInputPolicyTest {
 
+    @Test
+    fun usernameValidationRejectsBlankAndDuplicateNamesAfterSanitizing() {
+        assertEquals(TextInputPolicy.UsernameError.REQUIRED, TextInputPolicy.usernameError(" \u200B ", emptyList()))
+        assertEquals(TextInputPolicy.UsernameError.TAKEN, TextInputPolicy.usernameError(" aNA ", listOf("Ana")))
+        assertEquals(TextInputPolicy.UsernameError.TAKEN, TextInputPolicy.usernameError("A\u200Bna", listOf("Ana")))
+        assertNull(TextInputPolicy.usernameError("Bo", listOf("Ana")))
+    }
+
     private val familyEmoji = "\uD83D\uDC68\u200D\uD83D\uDC69\u200D\uD83D\uDC67\u200D\uD83D\uDC66"
     private val flag = "\uD83C\uDDEF\uD83C\uDDF5"
 

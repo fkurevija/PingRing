@@ -33,6 +33,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import android.widget.Toast
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import androidx.navigation3.runtime.NavBackStack
@@ -109,6 +110,11 @@ class MainActivity : AppCompatActivity() {
             }
             val discoveryRepository = remember(nearbyConnectionsManager) {
                 DiscoveryRepository(context, sessionManager, nearbyConnectionsManager)
+            }
+            LaunchedEffect(discoveryRepository, appearanceSettings) {
+                appearanceSettings.nearbyDigitComparisonEnabled.collect { enabled ->
+                    discoveryRepository.setNearbyDigitComparisonEnabled(enabled)
+                }
             }
             PingRingRuntime.configure(discoveryRepository)
 
@@ -229,6 +235,7 @@ fun MainNavigation(
     val chatNotificationsEnabled by appearanceSettings.chatNotificationsEnabled.collectAsState(initial = true)
     val notificationSoundEnabled by appearanceSettings.notificationSoundEnabled.collectAsState(initial = true)
     val notificationVibrationEnabled by appearanceSettings.notificationVibrationEnabled.collectAsState(initial = true)
+    val nearbyDigitComparisonEnabled by appearanceSettings.nearbyDigitComparisonEnabled.collectAsState(initial = true)
     val hostConnectionLostAtMillis by discoveryRepository.hostConnectionLostAtMillis.collectAsState(initial = null)
     val lastKnownPeerDirections by discoveryRepository.lastKnownPeerDirections.collectAsState(initial = emptyList())
     // Devices waiting on the host to approve. Collected here rather than inside
@@ -308,6 +315,7 @@ fun MainNavigation(
                         inviteSecret = event.inviteSecret,
                         savedUsername = savedUsername,
                         discoveryRepository = discoveryRepository,
+                        existingMemberNames = sessionState.friends.map { it.name },
                         // Confirmed by the End PingRing dialog on that screen,
                         // whichever way the user asked to leave it.
                         onEndEvent = {
@@ -453,6 +461,8 @@ fun MainNavigation(
                         onNotificationSoundEnabledChange = appearanceSettings::setNotificationSoundEnabled,
                         notificationVibrationEnabled = notificationVibrationEnabled,
                         onNotificationVibrationEnabledChange = appearanceSettings::setNotificationVibrationEnabled,
+                        nearbyDigitComparisonEnabled = nearbyDigitComparisonEnabled,
+                        onNearbyDigitComparisonEnabledChange = appearanceSettings::setNearbyDigitComparisonEnabled,
                         onOpenAccessibility = { backStack.add(AccessibilitySettingsKey) },
                         connectionRecoveryPromptEnabled = connectionRecoveryPromptEnabled,
                         connectionRecoveryPromptDelayMillis = connectionRecoveryPromptDelayMillis,
@@ -609,6 +619,10 @@ fun MainNavigation(
                         isHost = sessionState.isHost,
                         coordinationError = syncStatus.errorMessage,
                         sessionState = sessionState,
+                        onUsernameChange = { username ->
+                            discoveryRepository.updateLocalUsername(username)
+                            appearanceSettings.setUserName(username)
+                        },
                         chatBubbleColorArgb = chatBubbleColor,
                         onChatBubbleColorChange = { color ->
                             appearanceSettings.setChatBubbleColor(key.eventId, color)
@@ -644,13 +658,13 @@ fun MainNavigation(
             }
         }
     }
-    pendingAuthentications.firstOrNull()?.let { request ->
-        ConnectionAuthenticationDialog(
-            request = request,
-            onConfirm = { discoveryRepository.confirmConnectionAuthentication(request.endpointId) },
-            onReject = { discoveryRepository.rejectConnectionAuthentication(request.endpointId) },
-        )
-    }
+        pendingAuthentications.firstOrNull()?.let { request ->
+            ConnectionAuthenticationDialog(
+                request = request,
+                onConfirm = { discoveryRepository.confirmConnectionAuthentication(request.endpointId) },
+                onReject = { discoveryRepository.rejectConnectionAuthentication(request.endpointId) },
+            )
+        }
     }
 }
 

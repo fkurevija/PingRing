@@ -75,6 +75,18 @@ internal object TextInputPolicy {
     fun sanitizeUsername(raw: String): String =
         clean(raw, MAX_USERNAME_CODE_POINTS)
 
+    enum class UsernameError { REQUIRED, TAKEN }
+
+    fun usernameError(raw: String, existingMembers: List<String>): UsernameError? {
+        val name = sanitizeUsername(raw).trim()
+        return when {
+            name.isBlank() -> UsernameError.REQUIRED
+            existingMembers.any { sanitizeUsername(it).trim().equals(name, ignoreCase = true) } ->
+                UsernameError.TAKEN
+            else -> null
+        }
+    }
+
     /**
      * A chat message or beacon title.
      *

@@ -150,7 +150,7 @@ class NearbyAdmissionPolicyTest {
     }
 
     @Test
-    fun unansweredSasPromptsExpireAfterTheJoinWindow() {
+    fun unadmittedJoinControlChannelsExpireAfterTheJoinWindow() {
         val now = 500_000L
         val expired = ConnectionAuthenticationRequest("old", "Old", "000 000", true, now - JOIN_REQUEST_TIMEOUT_MILLIS - 1)
         val current = ConnectionAuthenticationRequest("new", "New", "111 111", true, now)

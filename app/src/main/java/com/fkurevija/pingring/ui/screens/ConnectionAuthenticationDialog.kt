@@ -19,11 +19,13 @@ fun ConnectionAuthenticationDialog(
         onDismissRequest = onReject,
         title = { Text(stringResource(R.string.connection_authentication_title)) },
         text = {
-            Text(stringResource(
-                R.string.connection_authentication_message,
-                request.deviceName,
-                request.authenticationDigits,
-            ))
+            Text(
+                stringResource(
+                    R.string.connection_authentication_message,
+                    request.deviceName,
+                    request.authenticationDigits,
+                )
+            )
         },
         confirmButton = {
             Button(onClick = onConfirm) {
