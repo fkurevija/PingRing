@@ -1471,7 +1471,6 @@ class DiscoveryRepository(
         repositoryScope?.launch {
             nearbyConnectionsManager.receivedChatHistory.collect { history ->
                 history.messages.forEach { dto ->
-                    updatePeerName(dto.senderPeerId, dto.senderName)
                     sessionManager.receiveLocalChatMessage(
                         ChatMessage(
                             id = dto.id,
@@ -1633,6 +1632,20 @@ class DiscoveryRepository(
             "Username must be nonblank and distinct from other members"
         }
         sessionManager.setUserName(name)
+        sessionManager.renameMemberHistory(sessionManager.peerId.value, name)
+        _activeBeacons.update { beacons ->
+            beacons.mapValues { (peerId, beacon) ->
+                if (peerId == sessionManager.peerId.value) beacon.copy(senderName = name) else beacon
+            }
+        }
+        _endedBeacons.update { beacons ->
+            beacons.map { beacon ->
+                if (beacon.senderPeerId == sessionManager.peerId.value) beacon.copy(senderName = name) else beacon
+            }
+        }
+        _localBeacon.update { beacon ->
+            beacon?.copy(senderName = name)
+        }
         state.currentEvent?.let { event ->
             nearbyConnectionsManager.broadcastMemberPresence(
                 MeshPresencePayloadDto(event.id, sessionManager.peerId.value, name),
@@ -2471,30 +2484,14 @@ private fun removePeer(peerId: String, preserveLastKnownDirection: Boolean = tru
             existing.copy(meshPresenceLastSeenAtMillis = nowMillis)
         } else if (retainedUwb) {
             existing.copy(
-                rssi = null,
-                proximity = "Unknown",
-                signalWeak = false,
                 meshOnlyPresence = true,
                 meshPresenceLastSeenAtMillis = nowMillis,
             )
         } else {
             existing.copy(
-                rssi = null,
-                proximity = "Unknown",
-                distance = null,
-                azimuth = null,
-                elevation = null,
-                worldDirectionX = null,
-                worldDirectionY = null,
-                worldDirectionZ = null,
                 lastSeen = nowMillis,
-                signalWeak = false,
                 meshOnlyPresence = true,
                 meshPresenceLastSeenAtMillis = nowMillis,
-                lastUwbMeasurementAtMillis = null,
-                distanceSource = null,
-                distanceAccuracyMeters = null,
-                lastAdditionalRangingAtMillis = null,
             )
         }
         _peerUpdates.update { current -> current + (peerId to updated) }
@@ -2522,6 +2519,17 @@ private fun removePeer(peerId: String, preserveLastKnownDirection: Boolean = tru
             )
         }
         _peerUpdates.update { current -> current + (peerId to updated) }
+        sessionManager.renameMemberHistory(peerId, name)
+        _activeBeacons.update { beacons ->
+            beacons.mapValues { (senderPeerId, beacon) ->
+                if (senderPeerId == peerId) beacon.copy(senderName = name) else beacon
+            }
+        }
+        _endedBeacons.update { beacons ->
+            beacons.map { beacon ->
+                if (beacon.senderPeerId == peerId) beacon.copy(senderName = name) else beacon
+            }
+        }
         syncFriend(updated)
     }
 
@@ -2999,9 +3007,9 @@ private fun removePeer(peerId: String, preserveLastKnownDirection: Boolean = tru
             val current = peers[peerId] ?: return@update peers
             peers + (
                 peerId to current.copy(
-                    distance = position.distance?.value,
-                    azimuth = position.azimuth?.value,
-                    elevation = position.elevation?.value,
+                    distance = position.distance?.value ?: current.distance,
+                    azimuth = position.azimuth?.value ?: current.azimuth,
+                    elevation = position.elevation?.value ?: current.elevation,
                     lastSeen = measuredAtMillis,
                     lastUwbMeasurementAtMillis = measuredAtMillis,
                     distanceSource = RangingSourcePolicy.RangingSource.UWB,

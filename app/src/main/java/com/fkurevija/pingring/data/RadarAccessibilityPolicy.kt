@@ -21,10 +21,8 @@ object RadarAccessibilityPolicy {
 
         val distance = if (distanceIsEstimate) {
             val validDistance = distanceMeters?.takeIf { it.isFinite() && it >= 0f }
-            val validAccuracy = distanceAccuracyMeters?.takeIf { it.isFinite() && it >= 0f }
-            val estimate = if (validDistance != null && validAccuracy != null) {
-                resources.getString(R.string.distance_with_uncertainty, validDistance, validAccuracy)
-            } else resources.getString(R.string.radar_distance_unavailable)
+            val estimate = validDistance?.let { resources.getString(R.string.radar_distance_meters, it) }
+                ?: resources.getString(R.string.radar_distance_unavailable)
             "${resources.getString(R.string.gnss_distance_estimate)}. $estimate."
         } else distanceMeters
             ?.takeIf { it.isFinite() && it >= 0f }
@@ -60,9 +58,8 @@ object RadarAccessibilityPolicy {
 
         val distance = if (distanceIsEstimate) {
             val validDistance = distanceMeters?.takeIf { it.isFinite() && it >= 0f }
-            val validAccuracy = distanceAccuracyMeters?.takeIf { it.isFinite() && it >= 0f }
-            if (validDistance != null && validAccuracy != null) {
-                String.format(Locale.US, "GPS distance estimate. About %.0f meters, uncertainty %.0f meters.", validDistance, validAccuracy)
+            if (validDistance != null) {
+                String.format(Locale.US, "GPS distance estimate. %.1f meters away.", validDistance)
             } else "GPS distance estimate. Distance unavailable."
         } else distanceMeters
             ?.takeIf { it.isFinite() && it >= 0f }

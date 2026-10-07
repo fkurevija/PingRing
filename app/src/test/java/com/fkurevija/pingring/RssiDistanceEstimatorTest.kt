@@ -181,7 +181,7 @@ class RssiDistanceEstimatorTest {
     }
 
     @Test
-    fun outOfRangeReadingDropsTheEstimateRatherThanFreezingIt() {
+    fun outOfRangeReadingIsIgnoredAndRecentSamplesStillSmoothTheNextReading() {
         val smoother = RssiSmoother()
         var at = 0L
         repeat(4) {
@@ -189,11 +189,9 @@ class RssiDistanceEstimatorTest {
             at += 100
         }
 
-        assertNull(smoother.add(-120, at))
-        // And it must not come back as the old distance when the peer returns:
-        // the window was cleared, so this is the new reading and nothing else.
+        assertEquals(RssiDistanceEstimator.estimate(-70)!!, smoother.add(-120, at)!!, 0.0001f)
         assertEquals(
-            RssiDistanceEstimator.estimate(-80)!!,
+            RssiDistanceEstimator.estimateFromRssi((-70f * 4f - 80f) / 5f)!!,
             smoother.add(-80, at + 100)!!,
             0.0001f
         )
@@ -249,23 +247,27 @@ class RssiDistanceEstimatorTest {
     }
 
     @Test
-    fun aPeerBelowTheNoiseFloorReadsAsGoneDespiteTheWindowHoldingGoodReadings() {
-        // The other half of the same problem. A peer walking out of range sends
-        // adverts below the floor, and carrying the last ten good readings
-        // forward would keep reporting a distance for somebody who is not there
-        // - the old distance, too, since one deep fade barely moves a mean of
-        // strong readings. mock_radar.py drives this with --dropout.
+    fun aBelowFloorReadingPreservesRecentSamplesForTheNextDistanceEstimate() {
+        // A transient fade is not a useful range reading. Keep the valid recent
+        // signal samples so the next advert averages with them rather than
+        // flashing "unknown" or jumping to the new sample alone.
         val smoother = RssiSmoother()
         var at = 0L
         repeat(10) {
             smoother.add(-70, at)
             at += 100
         }
-        assertNotNull("the peer should be reported while it is audible", smoother.distance(at))
-
-        assertNull(
-            "one reading below the floor must read as gone, not as the old distance",
-            smoother.add(RssiDistanceEstimator.SENSITIVITY_FLOOR_DBM.toInt() - 1, at)
+        val previous = smoother.distance(at)
+        assertNotNull("the peer should be reported while it is audible", previous)
+        assertEquals(
+            "a below-floor sample should leave the last usable estimate available",
+            previous,
+            smoother.add(RssiDistanceEstimator.SENSITIVITY_FLOOR_DBM.toInt() - 1, at),
+        )
+        assertEquals(
+            "the next valid sample should still be averaged with recent readings",
+            previous,
+            smoother.add(-70, at + 100),
         )
     }
 

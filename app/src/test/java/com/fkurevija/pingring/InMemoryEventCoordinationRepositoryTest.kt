@@ -4,6 +4,7 @@ import com.fkurevija.pingring.data.CoordinationSyncState
 import com.fkurevija.pingring.data.Event
 import com.fkurevija.pingring.data.Friend
 import com.fkurevija.pingring.data.InMemoryEventCoordinationRepository
+import com.fkurevija.pingring.data.ChatMessage
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -59,5 +60,19 @@ class InMemoryEventCoordinationRepositoryTest {
 
         assertEquals(CoordinationSyncState.ERROR, repository.syncStatus.value.state)
         assertEquals("network timeout", repository.syncStatus.value.errorMessage)
+    }
+
+    @Test
+    fun renamingMemberUpdatesTheirMembershipAndEarlierChatMessages() {
+        val repository = InMemoryEventCoordinationRepository()
+        repository.updateMembers(listOf(Friend("peer-1", "Old name", 100L, 2.0)))
+        repository.receiveChatMessage(
+            ChatMessage("message-1", "peer-1", "Old name", "Hello", 200L),
+        )
+
+        repository.renameMemberHistory("peer-1", "New name")
+
+        assertEquals("New name", repository.sessionState.value.friends.single().name)
+        assertEquals("New name", repository.sessionState.value.chatMessages.single().senderName)
     }
 }

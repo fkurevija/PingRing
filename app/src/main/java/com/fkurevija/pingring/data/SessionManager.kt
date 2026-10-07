@@ -21,6 +21,10 @@ class SessionManager(
         coordinationRepository.setUserName(name)
     }
 
+    fun renameMemberHistory(peerId: String, name: String) {
+        coordinationRepository.renameMemberHistory(peerId, name)
+    }
+
     fun joinEvent(event: Event): Boolean {
         val activeEvent = sessionState.value.currentEvent
         if (activeEvent != null && activeEvent.id != event.id) {

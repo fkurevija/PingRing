@@ -319,7 +319,7 @@ class AppRulesTest {
     }
 
     @Test
-    fun spokenGpsSummaryIncludesTheSameEstimateAndUncertaintyAsTheRadar() {
+    fun spokenGpsSummaryIncludesTheEstimateWithoutDistanceUncertainty() {
         val summary = RadarAccessibilityPolicy.describe(
             peerName = "Ana",
             distanceMeters = 42f,
@@ -329,7 +329,8 @@ class AppRulesTest {
             distanceIsEstimate = true,
             distanceAccuracyMeters = 20f,
         )
-        assertTrue(summary.contains("GPS distance estimate. About 42 meters, uncertainty 20 meters."))
+        assertTrue(summary.contains("GPS distance estimate. 42.0 meters away."))
+        assertFalse(summary.contains("uncertainty 20 meters"))
         assertTrue(summary.contains("Direction unavailable."))
     }
 
@@ -355,12 +356,11 @@ class AppRulesTest {
     }
 
     @Test
-    fun gpsSummaryWithoutUncertaintyDoesNotClaimAnExactDistance() {
+    fun gpsSummaryWithoutAccuracyStillUsesTheAvailableDistanceEstimate() {
         val summary = RadarAccessibilityPolicy.describe(
             "Ana", 42f, null, null, null, distanceIsEstimate = true,
         )
-        assertTrue(summary.contains("Distance unavailable."))
-        assertFalse(summary.contains("42"))
+        assertTrue(summary.contains("GPS distance estimate. 42.0 meters away."))
     }
 
     @Test

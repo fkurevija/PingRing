@@ -63,6 +63,23 @@ class InMemoryEventCoordinationRepository : EventCoordinationRepository {
         _sessionState.update { it.copy(userName = name) }
     }
 
+    override fun renameMemberHistory(peerId: String, name: String) {
+        if (peerId.isBlank() || name.isBlank()) return
+        _sessionState.update { current ->
+            current.copy(
+                friends = current.friends.map { friend ->
+                    if (friend.peerId == peerId) friend.copy(name = name) else friend
+                },
+                chatMessages = current.chatMessages.map { message ->
+                    if (message.senderPeerId == peerId) message.copy(senderName = name) else message
+                },
+                activeBeacons = current.activeBeacons.mapValues { (senderPeerId, beacon) ->
+                    if (senderPeerId == peerId) beacon.copy(senderName = name) else beacon
+                },
+            )
+        }
+    }
+
     override fun updateMembers(newMembers: List<Friend>) {
         _sessionState.update { it.copy(friends = newMembers) }
         if (_sessionState.value.currentEvent != null) {

@@ -1416,9 +1416,7 @@ internal fun RadarContent(
         Spacer(Modifier.height(verticalBuffer))
         if (hasPeers && (peer != null)) {
             val distanceLabel = peer.distance?.let {
-                if (peer.distanceSource == com.fkurevija.pingring.data.RangingSourcePolicy.RangingSource.GNSS) {
-                    stringResource(R.string.distance_with_uncertainty, it, peer.distanceAccuracyMeters ?: 0f)
-                } else stringResource(R.string.distance_away, it)
+                stringResource(R.string.distance_away, it)
             } ?: stringResource(R.string.proximity_signal, proximityLabel)
             Text(
                 stringResource(R.string.tracked_peer_distance, peer.name, distanceLabel),

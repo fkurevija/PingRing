@@ -157,16 +157,14 @@ class RssiSmoother(
      * Adds a reading and returns the resulting smoothed distance, or null when
      * the peer is below the noise floor.
      *
-     * A below-floor reading clears the window rather than being averaged in. A
-     * peer that has walked out of range should read as gone at once, and
-     * carrying ten older readings forward would keep reporting a distance for
-     * somebody who is not there - the *old* distance, too, since one deep fade
-     * barely moves the mean of a set of strong readings.
+     * A below-floor reading is treated as missing rather than as a real signal
+     * level. Keep the recent valid samples so a transient fade does not replace
+     * a useful distance with "unknown"; the normal time window still expires
+     * old samples when the peer has been out of range long enough.
      */
     fun add(rssi: Int, nowMillis: Long): Float? {
         if (rssi < RssiDistanceEstimator.SENSITIVITY_FLOOR_DBM) {
-            samples.clear()
-            return null
+            return distance(nowMillis)
         }
         samples.addLast(Sample(rssi.toFloat(), nowMillis))
         // Pruned before averaging so a stale reading cannot hold a value on
