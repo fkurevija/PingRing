@@ -1,4 +1,7 @@
 <resources>
+    <string name="matrix_invitation">Voulez-vous que j’accède au fournisseur de données et que je vous connecte à la Matrice ?</string>
+    <string name="matrix_accept">Vous venez de tout inventer…</string>
+    <string name="matrix_exit">Retour à la page « À propos »</string>
     <string name="app_name">PingRing</string>
     <string name="back">Retour</string>
     <string name="cancel">Annuler</string>
@@ -103,12 +106,13 @@
     <string name="closed">Fermé</string>
     <string name="save_changes">Enregistrer les modifications</string>
     <string name="connectivity_participation">Connexion et participation</string>
+    <string name="uwb">Ultra-large bande (UWB)</string>
     <string name="uwb_no_hardware">Cet appareil ne possède pas de radio UWB.</string>
     <string name="uwb_needs_permission">La mesure UWB nécessite une autorisation. Touchez pour l’accorder.</string>
     <string name="uwb_os_too_old">La mesure UWB nécessite Android 12 ou une version ultérieure.</string>
     <string name="sub_metre_uwb">Mesure UWB à moins d’un mètre sur les appareils compatibles.</string>
     <string name="max_capacity">Capacité maximale</string>
-    <string name="max_capacity_description">Limite de %1$d membres (1 hôte + 7 invités) pour les performances radio.</string>
+    <string name="max_capacity_description">PingRing est limité à 8 membres (1 hôte + 7 invités).</string>
     <string name="leave_pingring">Quitter PingRing</string>
     <string name="peer_default_name">Membre</string>
     <string name="radar_event_summary">Code : %1$s · membres %2$d/%3$d</string>
@@ -166,6 +170,8 @@
     <string name="radar_last_known_direction">Dernière direction connue de %1$s : %2$d°. Détecté il y a %3$d s; la personne a pu se déplacer.</string>
     <string name="radar_last_known_indicator">Dernière direction connue</string>
     <string name="member_count">Membres (%1$d/%2$d)</string>
+    <string name="show_members">Afficher les membres</string>
+    <string name="no_members_yet">Aucun autre membre n’a encore rejoint le groupe.</string>
     <string name="member_count_full">Membres (%1$d/%2$d - complet)</string>
     <string name="tracking_badge">SUIVI</string>    <string name="distance_meters">%1$.1f m</string>
     <string name="no_distance">—</string>
@@ -187,6 +193,7 @@
     <string name="select_preset">Choisir un préréglage</string>
     <string name="beacon_message_intent">Message / intention de la balise</string>
     <string name="beacon_color">Couleur de la balise</string>
+    <string name="set_beacon_color_to">Définir la couleur de la balise sur %1$s</string>
     <string name="vibration_rhythm_intensity">Rythme et intensité des vibrations</string>
     <string name="test_vibration">Tester la vibration</string>
     <string name="remove_quick_beacon">Supprimer la balise rapide</string>
@@ -262,7 +269,7 @@
     <string name="gps_direction_estimate">Direction GPS estimée · ±%1$d°</string>
     <string name="radar_gps_direction">Direction GPS estimée à %1$d degrés, incertitude de %2$d degrés.</string>
     <string name="nearby_digit_comparison_title">Vérifier les connexions Nearby</string>
-    <string name="nearby_digit_comparison_description">Lorsqu’elle est activée, cet appareil vous demande de comparer le code à six chiffres avant d’accepter une connexion Nearby. Activez-la sur les deux appareils pour que chaque personne confirme. Le débogage LAN n’est pas touché.</string>
+    <string name="nearby_digit_comparison_description">Lorsqu’elle est activée, cet appareil vous demande de comparer le code à six chiffres avant d’accepter une connexion Nearby. Activez-la sur les deux appareils pour que chaque personne confirme.</string>
     <string name="remove_member_action">Retirer %1$s</string>
     <string name="remove_member_title">Retirer ce membre?</string>
     <string name="remove_member_confirmation">Retirer %1$s de ce PingRing? La personne sera déconnectée.</string>

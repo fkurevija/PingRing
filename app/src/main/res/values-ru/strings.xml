@@ -1,4 +1,7 @@
 <resources>
+    <string name="matrix_invitation">Хотите, я получу доступ к поставщику данных и подключу вас к Матрице?</string>
+    <string name="matrix_accept">Вы только что всё это выдумали…</string>
+    <string name="matrix_exit">Вернуться к разделу «О приложении»</string>
     <string name="app_name">PingRing</string>
     <string name="back">Назад</string>
     <string name="cancel">Отмена</string>
@@ -99,13 +102,13 @@
     <string name="closed">Закрыто</string>
     <string name="save_changes">Сохранить изменения</string>
     <string name="connectivity_participation">Подключение и участие</string>
-    <string name="uwb">Ultra-wideband (UWB)</string>
+    <string name="uwb">Сверхширокополосная связь (UWB)</string>
     <string name="uwb_no_hardware">На устройстве нет радиомодуля UWB.</string>
     <string name="uwb_needs_permission">Для измерения расстояния UWB требуется разрешение. Нажмите, чтобы предоставить его.</string>
     <string name="uwb_os_too_old">Для измерения расстояния UWB нужен Android 12 или новее.</string>
     <string name="sub_metre_uwb">Измерение UWB с точностью до метра на поддерживаемых устройствах.</string>
     <string name="max_capacity">Максимальное число участников</string>
-    <string name="max_capacity_description">Ограничение: %1$d участников (1 хост + 7 гостей) для стабильной работы радио.</string>
+    <string name="max_capacity_description">В PingRing может быть не более 8 участников (1 организатор и 7 гостей).</string>
     <string name="leave_pingring">Покинуть PingRing</string>
     <string name="peer_default_name">Участник</string>
     <string name="radar_event_summary">Код: %1$s · участников %2$d/%3$d</string>
@@ -165,6 +168,8 @@
     <string name="radar_last_known_direction">Последнее известное направление к участнику «%1$s»: %2$d°. Обнаружен %3$d с назад; он мог переместиться.</string>
     <string name="radar_last_known_indicator">Последнее известное направление</string>
     <string name="member_count">Участники (%1$d/%2$d)</string>
+    <string name="show_members">Показать участников</string>
+    <string name="no_members_yet">Другие участники пока не присоединились.</string>
     <string name="member_count_full">Участники (%1$d/%2$d · мест нет)</string>
     <string name="tracking_badge">СЛЕЖЕНИЕ</string>    <string name="distance_meters">%1$.1f м</string>
     <string name="no_distance">—</string>
@@ -186,6 +191,7 @@
     <string name="select_preset">Выбрать шаблон</string>
     <string name="beacon_message_intent">Сообщение / назначение сигнала</string>
     <string name="beacon_color">Цвет сигнала</string>
+    <string name="set_beacon_color_to">Установить цвет сигнала: %1$s</string>
     <string name="vibration_rhythm_intensity">Ритм и интенсивность вибрации</string>
     <string name="test_vibration">Проверить вибрацию</string>
     <string name="remove_quick_beacon">Удалить быстрый сигнал</string>
@@ -265,7 +271,7 @@
     <string name="gps_direction_estimate">Оценка направления по GPS · ±%1$d°</string>
     <string name="radar_gps_direction">Оценка направления по GPS: %1$d градусов, погрешность %2$d градусов.</string>
     <string name="nearby_digit_comparison_title">Проверка подключений Nearby</string>
-    <string name="nearby_digit_comparison_description">Если функция включена, на этом устройстве появится запрос сравнить шестизначный код перед принятием подключения Nearby. Включите её на обоих устройствах, чтобы подтвердили оба пользователя. Отладка LAN не затрагивается.</string>
+    <string name="nearby_digit_comparison_description">Если функция включена, на этом устройстве появится запрос сравнить шестизначный код перед принятием подключения Nearby. Включите её на обоих устройствах, чтобы подтвердили оба пользователя.</string>
     <string name="remove_member_action">Удалить участника %1$s</string>
     <string name="remove_member_title">Удалить участника?</string>
     <string name="remove_member_confirmation">Удалить участника %1$s из этого PingRing? Подключение будет отключено.</string>

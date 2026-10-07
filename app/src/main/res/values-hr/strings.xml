@@ -1,4 +1,7 @@
 <resources>
+    <string name="matrix_invitation">Želiš li da pristupim dobavljaču podataka i povežem te s Matricom?</string>
+    <string name="matrix_accept">Upravo si sve to izmislio/la…</string>
+    <string name="matrix_exit">Povratak na stranicu O aplikaciji</string>
     <string name="app_name">PingRing</string>
     <string name="back">Natrag</string>
     <string name="cancel">Odustani</string>
@@ -103,12 +106,13 @@
     <string name="closed">Zatvoreno</string>
     <string name="save_changes">Spremi promjene</string>
     <string name="connectivity_participation">Povezivanje i sudjelovanje</string>
+    <string name="uwb">Ultraširokopojasna tehnologija (UWB)</string>
     <string name="uwb_no_hardware">Ovaj uređaj nema UWB radio.</string>
     <string name="uwb_needs_permission">Za UWB mjerenje udaljenosti potrebno je dopuštenje. Dodirnite za dodjelu.</string>
     <string name="uwb_os_too_old">Za UWB mjerenje udaljenosti potreban je Android 12 ili noviji.</string>
     <string name="sub_metre_uwb">UWB mjerenje udaljenosti ispod jednog metra na podržanom hardveru.</string>
     <string name="max_capacity">Maksimalni kapacitet</string>
-    <string name="max_capacity_description">Ograničeno na %1$d članova (1 domaćin + 7 gostiju) radi performansi radija.</string>
+    <string name="max_capacity_description">PingRing je ograničen na 8 članova (1 domaćin + 7 gostiju).</string>
     <string name="leave_pingring">Napusti PingRing</string>
     <string name="peer_default_name">Sudionik</string>
     <string name="radar_event_summary">Kod: %1$s · članovi %2$d/%3$d</string>
@@ -167,6 +171,8 @@
     <string name="radar_last_known_direction">Posljednji poznati smjer osobe %1$s: %2$d°. Zadnji put viđena prije %3$d s; možda se pomaknula.</string>
     <string name="radar_last_known_indicator">Posljednji poznati smjer</string>
     <string name="member_count">Članovi (%1$d/%2$d)</string>
+    <string name="show_members">Prikaži članove</string>
+    <string name="no_members_yet">Još se nijedan drugi član nije pridružio.</string>
     <string name="member_count_full">Članovi (%1$d/%2$d - puno)</string>
     <string name="tracking_badge">PRAĆENJE</string>    <string name="distance_meters">%1$.1f m</string>
     <string name="no_distance">—</string>
@@ -188,6 +194,7 @@
     <string name="select_preset">Odaberi predložak</string>
     <string name="beacon_message_intent">Poruka / namjera signala</string>
     <string name="beacon_color">Boja signala</string>
+    <string name="set_beacon_color_to">Postavi boju signala na %1$s</string>
     <string name="vibration_rhythm_intensity">Ritam i intenzitet vibracije</string>
     <string name="test_vibration">Testiraj vibraciju</string>
     <string name="remove_quick_beacon">Ukloni brzi signal</string>
@@ -263,7 +270,7 @@
     <string name="gps_direction_estimate">Procijenjeni GPS smjer · ±%1$d°</string>
     <string name="radar_gps_direction">Procijenjeni GPS smjer %1$d stupnjeva, nesigurnost %2$d stupnjeva.</string>
     <string name="nearby_digit_comparison_title">Provjeri Nearby veze</string>
-    <string name="nearby_digit_comparison_description">Kad je uključena, ova će te opcija tražiti da usporediš šesteroznamenkasti kôd prije prihvaćanja Nearby veze. Uključi je na oba uređaja kako bi obje osobe potvrdile vezu. LAN debug ostaje nepromijenjen.</string>
+    <string name="nearby_digit_comparison_description">Kad je uključena, ova će te opcija tražiti da usporediš šesteroznamenkasti kôd prije prihvaćanja Nearby veze. Uključi je na oba uređaja kako bi obje osobe potvrdile vezu.</string>
     <string name="remove_member_action">Ukloni člana %1$s</string>
     <string name="remove_member_title">Ukloniti člana?</string>
     <string name="remove_member_confirmation">Ukloniti člana %1$s iz ovog PingRinga? Veza će se prekinuti.</string>

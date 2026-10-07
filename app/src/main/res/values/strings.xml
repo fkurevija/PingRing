@@ -269,7 +269,7 @@
     <string name="diag_wifi_enabled">Wi-Fi enabled</string>
     <string name="diag_vibrator">Vibrator</string>
     <string name="nearby_digit_comparison_title">Verify Nearby connections</string>
-    <string name="nearby_digit_comparison_description">When enabled, this device asks you to compare the six-digit code before accepting a Nearby connection. Enable it on both devices for both users to confirm. LAN debug is unaffected.</string>
+    <string name="nearby_digit_comparison_description">When enabled, this device asks you to compare the six-digit code before accepting a Nearby connection. Enable it on both devices for both users to confirm.</string>
     <string name="remove_member_action">Remove %1$s</string>
     <string name="remove_member_title">Remove member?</string>
     <string name="remove_member_confirmation">Remove %1$s from this PingRing? They will be disconnected.</string>
