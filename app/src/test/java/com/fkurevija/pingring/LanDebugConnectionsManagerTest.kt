@@ -5,6 +5,8 @@ import com.fkurevija.pingring.data.DecodedPayload
 import com.fkurevija.pingring.data.InviteSecret
 import com.fkurevija.pingring.data.JoinProofPayloadDto
 import com.fkurevija.pingring.data.InviteSecretPayloadDto
+import com.fkurevija.pingring.data.EventControlPayloadDto
+import com.fkurevija.pingring.data.MemberDeparturePayloadDto
 import com.fkurevija.pingring.data.MockRangingDto
 import com.fkurevija.pingring.data.MeshPresencePayloadDto
 import com.fkurevija.pingring.data.RssiSmoother
@@ -69,6 +71,50 @@ class LanDebugConnectionsManagerTest {
 
         assertEquals(GUEST_ID to "Ana", name.await())
         assertTrue(manager.pendingJoinRequests.value.isEmpty())
+    }
+
+    @Test
+    fun hostRemovalAnnouncesDepartureAndTargetsClosureOnlyAtRemovedMember() = runTest {
+        val manager = manager(RelayEnvelope.ROLE_HOST)
+        @Suppress("UNCHECKED_CAST")
+        val authorizedPeers = manager.javaClass.getDeclaredField("authorizedPeers")
+            .apply { isAccessible = true }
+            .get(manager) as MutableSet<String>
+        authorizedPeers.add(GUEST_ID)
+
+        val sent = LinkedBlockingQueue<String>()
+        val output = StringWriter()
+        setField(manager, "writer", object : BufferedWriter(output) {
+            override fun flush() {
+                super.flush()
+                sent.add(output.toString().trim())
+                output.buffer.setLength(0)
+            }
+        })
+        val departure = MemberDeparturePayloadDto(EVENT_ID, GUEST_ID)
+        val removalControl = EventControlPayloadDto(
+            eventCode = EVENT_ID,
+            hostPeerId = "local-id",
+            useUwb = false,
+            useWifiDirect = true,
+            acceptsNewMembers = true,
+            isFull = false,
+            isClosed = true,
+        )
+
+        try {
+            manager.removeMember(GUEST_ID, departure, removalControl)
+
+            val departureMessage = decodeSentPayload(requireNotNull(sent.poll(5, TimeUnit.SECONDS)))
+            assertEquals(null, departureMessage.first.targetPeerId)
+            assertEquals(DecodedPayload.MemberDeparture(departure), departureMessage.second)
+
+            val removalMessage = decodeSentPayload(requireNotNull(sent.poll(5, TimeUnit.SECONDS)))
+            assertEquals(GUEST_ID, removalMessage.first.targetPeerId)
+            assertEquals(DecodedPayload.EventControl(removalControl), removalMessage.second)
+        } finally {
+            manager.stopAll()
+        }
     }
 
     @Test
@@ -329,6 +375,13 @@ class LanDebugConnectionsManagerTest {
         assertTrue(payload is DecodedPayload.JoinProof)
         require(payload is DecodedPayload.JoinProof)
         assertEquals(JoinProofPayloadDto(EVENT_ID, secret, "Ana"), payload.proof)
+    }
+
+    private fun decodeSentPayload(line: String): Pair<RelayEnvelope, DecodedPayload> {
+        val outer = RelayCodec.decodeEnvelope(line).getOrThrow()
+        val inner = RelayCodec.decodeEnvelope(requireNotNull(outer.payload)).getOrThrow()
+        val payload = RelayCodec.decode(inner.type, requireNotNull(inner.payload))?.getOrThrow()
+        return outer to requireNotNull(payload)
     }
 
     private fun manager(role: String): LanDebugConnectionsManager =

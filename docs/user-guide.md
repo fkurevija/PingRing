@@ -97,6 +97,7 @@ Tap a member's row in the Members drawer to choose who you track. There is no re
 - Tapping the tracked row keeps it selected; tracking cannot be cleared while another member is available. If the selected member becomes unavailable, another available member is selected automatically. With nobody else available, there is no target until a member arrives.
 - Tracking changes what the radar draws and what UWB ranges. **You still receive every message**, no matter who you are tracking.
 - Changing who you track never affects who is in the ring. Repointing the radar moves one ranging session between members, and the one losing it can briefly fall out of contact; it stays in the member list regardless, shown with its distance unavailable.
+- Hosts can use the remove-member action on a row to disconnect that member from the PingRing. A confirmation dialog names the member before removal; cancel leaves the ring unchanged.
 
 > This is entirely your own choice. The host cannot point your radar at somebody, and cannot stop you ranging another guest.
 

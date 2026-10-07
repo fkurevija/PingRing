@@ -82,6 +82,8 @@ class PeerListInstrumentedTest {
         activeBeacons: Map<String, BeaconInfo> = emptyMap(),
         focusedPeerId: String? = null,
         onFocusPeer: (String) -> Unit = {},
+        isHost: Boolean = false,
+        onRemovePeer: (String) -> Unit = {},
     ) {
         composeRule.setContent {
             MaterialTheme {
@@ -92,6 +94,8 @@ class PeerListInstrumentedTest {
                     activeBeacons = activeBeacons,
                     focusedPeerId = focusedPeerId,
                     onFocusPeer = onFocusPeer,
+                    isHost = isHost,
+                    onRemovePeer = onRemovePeer,
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -323,6 +327,25 @@ class PeerListInstrumentedTest {
         composeRule.waitForIdle()
 
         assertEquals("peer-1", focused)
+    }
+
+    @Test
+    fun onlyHostCanRemoveAndRemovalRequiresConfirmation() {
+        val member = peer(id = "guest-id", name = "Ana")
+        var removedPeerId: String? = null
+
+        show(peers = listOf(member))
+        composeRule.onNodeWithContentDescription("Remove Ana").assertDoesNotExist()
+
+        show(peers = listOf(member), isHost = true, onRemovePeer = { removedPeerId = it })
+        composeRule.onNodeWithContentDescription("Remove Ana").performClick()
+        composeRule.onNodeWithText("Remove member?").assertIsDisplayed()
+        composeRule.onNodeWithText("Cancel").performClick()
+        assertEquals(null, removedPeerId)
+
+        composeRule.onNodeWithContentDescription("Remove Ana").performClick()
+        composeRule.onNodeWithText("Remove").performClick()
+        assertEquals("guest-id", removedPeerId)
     }
 
     @Test

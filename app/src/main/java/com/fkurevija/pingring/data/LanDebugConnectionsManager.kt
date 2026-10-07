@@ -626,6 +626,29 @@ class LanDebugConnectionsManager(
         sendPayload(null, departure)
     }
 
+    override fun removeMember(
+        peerId: String,
+        departure: MemberDeparturePayloadDto,
+        removalControl: EventControlPayloadDto,
+    ) {
+        if (localRole != RelayEnvelope.ROLE_HOST || peerId == localPeerId ||
+            departure.peerId != peerId || departure.eventCode != localEventId ||
+            removalControl.eventCode != localEventId || !removalControl.isClosed ||
+            peerId !in authorizedPeers
+        ) {
+            Log.w(TAG, "Ignoring invalid or unauthorized LAN member removal request")
+            return
+        }
+        events.onMemberDeparture(departure)
+        sendPayload(null, departure) {
+            sendPayload(peerId, removalControl) {
+                authorizedPeers.remove(peerId)
+                scriptedRangingPeers.remove(peerId)
+                wifiRssiBaselines.remove(peerId)
+            }
+        }
+    }
+
     override fun sendEventControl(peerId: String, control: EventControlPayloadDto) {
         sendPayload(peerId, control)
     }

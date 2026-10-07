@@ -47,6 +47,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.PersonRemove
 import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
@@ -697,6 +698,8 @@ fun RadarScreen(
                             activeBeacons,
                             focusedPeerId = focusedPeer?.peerId,
                             onFocusPeer = { discoveryRepository?.setFocusedPeer(it) },
+                            isHost = isHost,
+                            onRemovePeer = { discoveryRepository?.removeMember(it) },
                             modifier = Modifier.width(paneWidth)
                         )
                     }
@@ -1165,6 +1168,8 @@ fun RadarScreen(
                             activeBeacons = activeBeacons,
                             focusedPeerId = focusedPeer?.peerId,
                             onFocusPeer = { discoveryRepository?.setFocusedPeer(it) },
+                            isHost = isHost,
+                            onRemovePeer = { discoveryRepository?.removeMember(it) },
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                         )
                     }
@@ -1670,8 +1675,11 @@ internal fun PeerList(
     activeBeacons: Map<String, BeaconInfo>,
     focusedPeerId: String?,
     onFocusPeer: (String) -> Unit,
+    isHost: Boolean = false,
+    onRemovePeer: (String) -> Unit = {},
     modifier: Modifier
 ) {
+    var peerPendingRemoval by remember { mutableStateOf<RadarPeerUpdate?>(null) }
     // Signal-strength ordering does not change the selected tracking target.
     val orderedPeers = remember(peers) { PeerListOrderPolicy.bySignalStrength(peers) }
 
@@ -1716,6 +1724,7 @@ internal fun PeerList(
                 items(orderedPeers, key = { it.peerId }) { peer ->
                     val peerBeacon = activeBeacons[peer.peerId]
                     val isFocused = peer.peerId == focusedPeerId
+                    val removePeerDescription = stringResource(R.string.remove_member_action, peer.name)
                     Card(
                         modifier = Modifier.fillMaxWidth().selectable(
                             selected = isFocused,
@@ -1789,6 +1798,20 @@ internal fun PeerList(
                                     fontWeight = FontWeight.Bold,
                                 )
                             }
+                            if (isHost) {
+                                IconButton(
+                                    onClick = { peerPendingRemoval = peer },
+                                    modifier = Modifier.semantics {
+                                        contentDescription = removePeerDescription
+                                    },
+                                ) {
+                                    Icon(
+                                        Icons.Default.PersonRemove,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.error,
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -1806,6 +1829,30 @@ internal fun PeerList(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+        }
+        peerPendingRemoval?.let { peer ->
+            AlertDialog(
+                onDismissRequest = { peerPendingRemoval = null },
+                title = { Text(stringResource(R.string.remove_member_title)) },
+                text = {
+                    Text(stringResource(R.string.remove_member_confirmation, peer.name))
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            onRemovePeer(peer.peerId)
+                            peerPendingRemoval = null
+                        }
+                    ) {
+                        Text(stringResource(R.string.remove_member_confirm))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { peerPendingRemoval = null }) {
+                        Text(stringResource(R.string.cancel))
+                    }
+                },
+            )
         }
     }
 }

@@ -257,4 +257,8 @@
     <string name="radar_gps_direction">Dirección GPS estimada de %1$d grados, incertidumbre de %2$d grados.</string>
     <string name="nearby_digit_comparison_title">Verificar conexiones Nearby</string>
     <string name="nearby_digit_comparison_description">Al activarla, este dispositivo te pedirá que compares el código de seis dígitos antes de aceptar una conexión Nearby. Actívala en ambos dispositivos para que ambas personas confirmen. La depuración LAN no cambia.</string>
+    <string name="remove_member_action">Quitar a %1$s</string>
+    <string name="remove_member_title">¿Quitar miembro?</string>
+    <string name="remove_member_confirmation">¿Quitar a %1$s de este PingRing? Se desconectará.</string>
+    <string name="remove_member_confirm">Quitar</string>
 </resources>

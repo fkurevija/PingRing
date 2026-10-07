@@ -775,6 +775,38 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
         sendMeshBroadcast(departure)
     }
 
+    override fun removeMember(
+        peerId: String,
+        departure: MemberDeparturePayloadDto,
+        removalControl: EventControlPayloadDto,
+    ) {
+        if (!isLocalHost || peerId == localPeerId || departure.peerId != peerId ||
+            departure.eventCode != localEventId || removalControl.eventCode != localEventId ||
+            !removalControl.isClosed
+        ) {
+            Log.w(TAG, "Ignoring invalid host member removal request")
+            return
+        }
+        val endpointId = connectedEndpoints[peerId]
+        if (endpointId == null || endpointId !in authorizedEndpoints) {
+            Log.w(TAG, "Cannot remove $peerId: no authorized direct connection")
+            return
+        }
+
+        events.onMemberDeparture(departure)
+        val pendingSends = java.util.concurrent.atomic.AtomicInteger(2)
+        val finishRemoval = {
+            if (pendingSends.decrementAndGet() == 0) {
+                connectedEndpoints.remove(peerId, endpointId)
+                connectedEndpoints.remove(endpointId)
+                authorizedEndpoints.remove(endpointId)
+                connectionsClient.disconnectFromEndpoint(endpointId)
+            }
+        }
+        sendMeshBroadcast(departure, finishRemoval)
+        sendMeshTargetedPayload(peerId, removalControl, finishRemoval)
+    }
+
     override fun sendEventControl(peerId: String, control: EventControlPayloadDto) {
         if (control.isClosed) {
             pendingClosureSends++
@@ -844,15 +876,31 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
         sendEnvelopeToEndpoint(endpointId, outgoing, wireType, onComplete)
     }
 
-    private fun sendMeshBroadcast(params: Any) {
-        val (envelope, wireType) = buildSignedMeshEnvelope(params) ?: return
+    private fun sendMeshBroadcast(params: Any, onComplete: (() -> Unit)? = null) {
+        val (envelope, wireType) = buildSignedMeshEnvelope(params) ?: run {
+            onComplete?.invoke()
+            return
+        }
         if (!MeshRoutingPolicy.isForwardable(wireType)) {
-            authorizedEndpoints.forEach { endpointId -> sendEnvelopeToEndpoint(endpointId, envelope, wireType) }
+            val endpoints = authorizedEndpoints.toList()
+            if (endpoints.isEmpty()) {
+                onComplete?.invoke()
+                return
+            }
+            val remaining = java.util.concurrent.atomic.AtomicInteger(endpoints.size)
+            endpoints.forEach { endpointId ->
+                sendEnvelopeToEndpoint(endpointId, envelope, wireType) {
+                    if (remaining.decrementAndGet() == 0) onComplete?.invoke()
+                }
+            }
             return
         }
         val messageId = MeshRoutingPolicy.messageId(envelope)
-        if (!meshDuplicateCache.markIfNew(messageId)) return
-        forwardToMeshNeighbors(envelope, excludedEndpointId = null)
+        if (!meshDuplicateCache.markIfNew(messageId)) {
+            onComplete?.invoke()
+            return
+        }
+        forwardToMeshNeighbors(envelope, excludedEndpointId = null, onComplete = onComplete)
     }
 
     private fun sendMeshTargetedPayload(peerId: String, params: Any, onComplete: (() -> Unit)? = null) {
@@ -860,7 +908,10 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
             onComplete?.invoke()
             return
         }
-        val (envelope, wireType) = buildSignedMeshEnvelope(params, peerId) ?: return
+        val (envelope, wireType) = buildSignedMeshEnvelope(params, peerId) ?: run {
+            onComplete?.invoke()
+            return
+        }
         if (!MeshRoutingPolicy.isForwardable(wireType)) {
             val endpointId = connectedEndpoints[peerId]
             if (endpointId == null) onComplete?.invoke()
@@ -868,10 +919,16 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
             return
         }
         val messageId = MeshRoutingPolicy.messageId(envelope)
-        if (!meshDuplicateCache.markIfNew(messageId)) return
+        if (!meshDuplicateCache.markIfNew(messageId)) {
+            onComplete?.invoke()
+            return
+        }
         val directEndpoint = connectedEndpoints[peerId]
         if (directEndpoint != null && directEndpoint in authorizedEndpoints) {
-            val hopCount = MeshRoutingPolicy.nextHopCount(0) ?: return
+            val hopCount = MeshRoutingPolicy.nextHopCount(0) ?: run {
+                onComplete?.invoke()
+                return
+            }
             sendEnvelopeToEndpoint(directEndpoint, envelope.copy(hopCount = hopCount), wireType, onComplete)
         } else {
             forwardToMeshNeighbors(envelope, excludedEndpointId = null, onComplete = onComplete)

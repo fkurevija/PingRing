@@ -260,4 +260,8 @@
     <string name="radar_gps_direction">Оценка направления по GPS: %1$d градусов, погрешность %2$d градусов.</string>
     <string name="nearby_digit_comparison_title">Проверка подключений Nearby</string>
     <string name="nearby_digit_comparison_description">Если функция включена, на этом устройстве появится запрос сравнить шестизначный код перед принятием подключения Nearby. Включите её на обоих устройствах, чтобы подтвердили оба пользователя. Отладка LAN не затрагивается.</string>
+    <string name="remove_member_action">Удалить участника %1$s</string>
+    <string name="remove_member_title">Удалить участника?</string>
+    <string name="remove_member_confirmation">Удалить участника %1$s из этого PingRing? Подключение будет отключено.</string>
+    <string name="remove_member_confirm">Удалить</string>
 </resources>

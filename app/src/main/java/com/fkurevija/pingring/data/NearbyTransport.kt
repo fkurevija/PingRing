@@ -105,6 +105,11 @@ interface NearbyTransport {
     fun broadcastBeacon(beacon: BeaconPayloadDto)
     fun broadcastPeerRanging(ranging: PeerRangingPayloadDto)
     fun broadcastMemberPresence(presence: MeshPresencePayloadDto)
+    fun removeMember(
+        peerId: String,
+        departure: MemberDeparturePayloadDto,
+        removalControl: EventControlPayloadDto,
+    )
     fun sendInviteSecret(peerId: String, secret: InviteSecretPayloadDto)
     fun sendBleIdentityKey(peerId: String, identityKey: BleIdentityKeyPayloadDto)
     fun broadcastBleIdentityKey(identityKey: BleIdentityKeyPayloadDto)

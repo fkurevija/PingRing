@@ -1462,7 +1462,8 @@ class DiscoveryRepository(
         // Either way, leaving clears the session and returns navigation Home.
         repositoryScope?.launch {
             nearbyConnectionsManager.eventClosed.collect {
-                Log.i(TAG, "Host ended the PingRing; leaving the event")
+                Log.i(TAG, "Host ended or removed this member from the PingRing")
+                stopDiscovery()
                 sessionManager.endEventFromHost()
             }
         }
@@ -2027,6 +2028,29 @@ class DiscoveryRepository(
             isClosed = isClosed,
         )
         connectedPeerIds.forEach { peerId -> nearbyConnectionsManager.sendEventControl(peerId, control) }
+    }
+
+    fun removeMember(peerId: String) {
+        val state = sessionManager.sessionState.value
+        val event = state.currentEvent
+        if (!state.isHost || event == null || peerId == sessionManager.peerId.value ||
+            state.friends.none { it.peerId == peerId }
+        ) {
+            Log.w(TAG, "Ignoring member removal for unknown peer or non-host session")
+            return
+        }
+        val departure = MemberDeparturePayloadDto(event.id, peerId)
+        val removalControl = EventControlPayloadDto(
+            eventCode = event.id,
+            hostPeerId = sessionManager.peerId.value,
+            useUwb = event.useUwb,
+            useGnss = event.useGnss,
+            useWifiDirect = event.useWifiDirect,
+            acceptsNewMembers = event.acceptsNewMembers,
+            isFull = false,
+            isClosed = true,
+        )
+        nearbyConnectionsManager.removeMember(peerId, departure, removalControl)
     }
 
     /**
