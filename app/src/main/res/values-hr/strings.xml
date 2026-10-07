@@ -215,9 +215,9 @@
     <string name="service_notification_channel">PingRing mrežna usluga</string>
     <string name="service_notification_channel_description">Održava PingRing mrežu i radar aktivnima u pozadini</string>
     <string name="join_failed">Pridruživanje PingRingu nije uspjelo: domaćin nije prihvatio zahtjev ili nije dostupan.</string>
-    <string name="connection_authentication_title">Potvrdi Nearby vezu</string>
-    <string name="connection_authentication_message">Povežite se s uređajem %1$s samo ako se znamenke na oba uređaja podudaraju. Zatražite od druge osobe da usporedi ovaj kod: %2$s</string>
-    <string name="connection_digits_match">Kodovi se podudaraju</string>
+    <string name="connection_authentication_title">Provjeri vezu</string>
+    <string name="connection_authentication_message">Usporedi s uređajem %1$s:\n%2$s</string>
+    <string name="connection_digits_match">Podudara se</string>
     <string name="connection_reject">Odbij</string>
 
     <string name="app_settings">Postavke aplikacije</string>

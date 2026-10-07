@@ -214,9 +214,9 @@
     <string name="service_notification_channel">PingRing-Netzwerkdienst</string>
     <string name="service_notification_channel_description">Hält das PingRing-Netzwerk und Radar im Hintergrund aktiv</string>
     <string name="join_failed">Beitritt zu PingRing fehlgeschlagen: Der Host hat nicht zugestimmt oder ist nicht verfügbar.</string>
-    <string name="connection_authentication_title">Nearby-Verbindung überprüfen</string>
-    <string name="connection_authentication_message">Verbinde dich nur mit %1$s, wenn die Ziffern auf beiden Geräten übereinstimmen. Bitte die andere Person, diesen Code zu vergleichen: %2$s</string>
-    <string name="connection_digits_match">Codes stimmen überein</string>
+    <string name="connection_authentication_title">Verbindung prüfen</string>
+    <string name="connection_authentication_message">Mit %1$s vergleichen:\n%2$s</string>
+    <string name="connection_digits_match">Stimmt</string>
     <string name="connection_reject">Ablehnen</string>
 
     <string name="app_settings">App-Einstellungen</string>

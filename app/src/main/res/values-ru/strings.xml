@@ -217,9 +217,9 @@
     <string name="service_notification_channel">Фоновая служба PingRing</string>
     <string name="service_notification_channel_description">Поддерживает работу PingRing и радара в фоновом режиме</string>
     <string name="join_failed">Не удалось присоединиться к PingRing: хост не подтвердил запрос или недоступен.</string>
-    <string name="connection_authentication_title">Проверка подключения Nearby</string>
-    <string name="connection_authentication_message">Подключайтесь к устройству %1$s, только если цифры совпадают на обоих устройствах. Попросите собеседника сравнить код: %2$s</string>
-    <string name="connection_digits_match">Коды совпадают</string>
+    <string name="connection_authentication_title">Проверка соединения</string>
+    <string name="connection_authentication_message">Сравните с устройством %1$s:\n%2$s</string>
+    <string name="connection_digits_match">Совпадает</string>
     <string name="connection_reject">Отклонить</string>
 
     <string name="app_settings">Настройки приложения</string>

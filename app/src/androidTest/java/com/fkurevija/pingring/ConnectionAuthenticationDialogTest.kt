@@ -30,7 +30,7 @@ class ConnectionAuthenticationDialogTest {
 
         composeRule.onNodeWithText("123 456", substring = true).assertIsDisplayed()
         assertEquals(false, confirmed)
-        composeRule.onNodeWithText("Codes match").performClick()
+        composeRule.onNodeWithText("Match").performClick()
         assertEquals(true, confirmed)
     }
 

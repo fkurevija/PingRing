@@ -214,9 +214,9 @@
     <string name="service_notification_channel">Servicio de red de PingRing</string>
     <string name="service_notification_channel_description">Mantiene activa la red y el radar de PingRing en segundo plano</string>
     <string name="join_failed">No se pudo unirse a PingRing: el anfitrión no aceptó la solicitud o no está disponible.</string>
-    <string name="connection_authentication_title">Verificar conexión Nearby</string>
-    <string name="connection_authentication_message">Conéctate a %1$s solo si los dígitos coinciden en ambos dispositivos. Pide a la otra persona que compare este código: %2$s</string>
-    <string name="connection_digits_match">Los códigos coinciden</string>
+    <string name="connection_authentication_title">Verificar conexión</string>
+    <string name="connection_authentication_message">Compara con %1$s:\n%2$s</string>
+    <string name="connection_digits_match">Coincide</string>
     <string name="connection_reject">Rechazar</string>
 
     <string name="app_settings">Ajustes de la aplicación</string>
