@@ -55,6 +55,8 @@ import com.fkurevija.pingring.data.PingRingService
 import com.fkurevija.pingring.data.SessionManager
 import com.fkurevija.pingring.data.ThemeMode
 import com.fkurevija.pingring.ui.navigation.AppSettingsKey
+import com.fkurevija.pingring.ui.navigation.NotificationSettingsKey
+import com.fkurevija.pingring.ui.navigation.ConnectionSettingsKey
 import com.fkurevija.pingring.ui.navigation.AccessibilitySettingsKey
 import com.fkurevija.pingring.ui.navigation.AboutKey
 import com.fkurevija.pingring.ui.navigation.DeveloperSettingsKey
@@ -65,6 +67,8 @@ import com.fkurevija.pingring.ui.navigation.HostSetupKey
 import com.fkurevija.pingring.ui.navigation.RadarKey
 import com.fkurevija.pingring.ui.permissions.PermissionWrapper
 import com.fkurevija.pingring.ui.screens.AppSettingsScreen
+import com.fkurevija.pingring.ui.screens.NotificationSettingsScreen
+import com.fkurevija.pingring.ui.screens.ConnectionSettingsScreen
 import com.fkurevija.pingring.ui.screens.AccessibilitySettingsScreen
 import com.fkurevija.pingring.data.BugReportPolicy
 import com.fkurevija.pingring.data.DiagnosticsPolicy
@@ -441,13 +445,6 @@ fun MainNavigation(
                 }
 
                 is AppSettingsKey -> {
-                    // Named distinctly from the composable's own `context`:
-                    // inside this destination block that name is shadowed by a
-                    // parameter, so reaching for it here resolves to the wrong
-                    // thing. Captured locally from the composition so the
-                    // callback below - which is not itself composable - can
-                    // still start an activity.
-                    val appSettingsContext = LocalContext.current.applicationContext
                     AppSettingsScreen(
                         selectedLanguageTag = AppCompatDelegate.getApplicationLocales().toLanguageTags(),
                         onLanguageSelected = { languageTag ->
@@ -455,25 +452,39 @@ fun MainNavigation(
                         },
                         themeMode = currentThemeMode,
                         onThemeModeChange = appearanceSettings::setThemeMode,
+                        onOpenNotifications = { backStack.add(NotificationSettingsKey) },
+                        onOpenConnection = { backStack.add(ConnectionSettingsKey) },
+                        onOpenAccessibility = { backStack.add(AccessibilitySettingsKey) },
+                        showDeveloperOptions = BuildConfig.DEBUG,
+                        onOpenDeveloperOptions = { backStack.add(DeveloperSettingsKey) },
+                        onOpenAbout = { backStack.add(AboutKey) },
+                        onBack = { backStack.popBack() }
+                    )
+                }
+
+                is NotificationSettingsKey -> {
+                    NotificationSettingsScreen(
                         chatNotificationsEnabled = chatNotificationsEnabled,
                         onChatNotificationsEnabledChange = appearanceSettings::setChatNotificationsEnabled,
                         notificationSoundEnabled = notificationSoundEnabled,
                         onNotificationSoundEnabledChange = appearanceSettings::setNotificationSoundEnabled,
                         notificationVibrationEnabled = notificationVibrationEnabled,
                         onNotificationVibrationEnabledChange = appearanceSettings::setNotificationVibrationEnabled,
+                        onBack = { backStack.popBack() },
+                    )
+                }
+
+                is ConnectionSettingsKey -> {
+                    ConnectionSettingsScreen(
                         nearbyDigitComparisonEnabled = nearbyDigitComparisonEnabled,
                         onNearbyDigitComparisonEnabledChange = appearanceSettings::setNearbyDigitComparisonEnabled,
-                        onOpenAccessibility = { backStack.add(AccessibilitySettingsKey) },
                         connectionRecoveryPromptEnabled = connectionRecoveryPromptEnabled,
                         connectionRecoveryPromptDelayMillis = connectionRecoveryPromptDelayMillis,
                         onConnectionRecoveryPromptEnabledChange = appearanceSettings::setConnectionRecoveryPromptEnabled,
                         onConnectionRecoveryPromptDelayChange = appearanceSettings::setConnectionRecoveryPromptDelayMillis,
                         joinWaitTimeoutMillis = joinWaitTimeoutMillis,
                         onJoinWaitTimeoutChange = appearanceSettings::setJoinWaitTimeoutMillis,
-                        showDeveloperOptions = BuildConfig.DEBUG,
-                        onOpenDeveloperOptions = { backStack.add(DeveloperSettingsKey) },
-                        onOpenAbout = { backStack.add(AboutKey) },
-                        onBack = { backStack.popBack() }
+                        onBack = { backStack.popBack() },
                     )
                 }
 

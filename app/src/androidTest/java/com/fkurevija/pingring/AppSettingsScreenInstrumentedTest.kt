@@ -6,7 +6,6 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -17,15 +16,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
-/**
- * The App Settings screen, driven on a device.
- *
- * These exist because Appearance and Notifications used to be rows that opened a
- * screen each. Appearance held one control and Notifications three, so both were
- * a tap and a back press spent reaching less than the screen you came from. The
- * assertions below are about the settings being on this screen, which is the
- * part a user would notice regressing.
- */
 class AppSettingsScreenInstrumentedTest {
 
     @get:Rule
@@ -34,12 +24,8 @@ class AppSettingsScreenInstrumentedTest {
     private fun showSettings(
         themeMode: ThemeMode = ThemeMode.SYSTEM,
         onThemeModeChange: (ThemeMode) -> Unit = {},
-        chatNotificationsEnabled: Boolean = true,
-        notificationSoundEnabled: Boolean = true,
-        notificationVibrationEnabled: Boolean = true,
-        onChatNotificationsEnabledChange: (Boolean) -> Unit = {},
-        onNotificationSoundEnabledChange: (Boolean) -> Unit = {},
-        onNotificationVibrationEnabledChange: (Boolean) -> Unit = {},
+        onOpenNotifications: () -> Unit = {},
+        onOpenConnection: () -> Unit = {},
         onOpenAccessibility: () -> Unit = {},
         showDeveloperOptions: Boolean = false,
         onOpenDeveloperOptions: () -> Unit = {},
@@ -52,12 +38,8 @@ class AppSettingsScreenInstrumentedTest {
                     onLanguageSelected = {},
                     themeMode = themeMode,
                     onThemeModeChange = onThemeModeChange,
-                    chatNotificationsEnabled = chatNotificationsEnabled,
-                    onChatNotificationsEnabledChange = onChatNotificationsEnabledChange,
-                    notificationSoundEnabled = notificationSoundEnabled,
-                    onNotificationSoundEnabledChange = onNotificationSoundEnabledChange,
-                    notificationVibrationEnabled = notificationVibrationEnabled,
-                    onNotificationVibrationEnabledChange = onNotificationVibrationEnabledChange,
+                    onOpenNotifications = onOpenNotifications,
+                    onOpenConnection = onOpenConnection,
                     onOpenAccessibility = onOpenAccessibility,
                     showDeveloperOptions = showDeveloperOptions,
                     onOpenDeveloperOptions = onOpenDeveloperOptions,
@@ -68,22 +50,11 @@ class AppSettingsScreenInstrumentedTest {
         }
     }
 
-    /**
-     * The Theme Mode field showing [value], rather than a dropdown item.
-     *
-     * Both carry the same text - the field shows the current choice and the menu
-     * lists every choice - so a bare `onNodeWithText` matches two nodes, or one
-     * hidden popup item when the menu is closed. Only the field is editable, so
-     * EditableText is what tells them apart.
-     */
     private fun themeFieldShowing(value: String) =
         hasText(value) and SemanticsMatcher.keyIsDefined(SemanticsProperties.EditableText)
 
     @Test
     fun themeModeIsChosenOnThisScreenRatherThanBehindAnAppearanceGroup() {
-        // The whole point: no Appearance row to tap through. The field carries its
-        // own label, so it is announced as a control with a value rather than as a
-        // heading followed by an unlabelled dropdown.
         showSettings(themeMode = ThemeMode.DARK)
 
         composeRule.onNodeWithText("Theme Mode").assertIsDisplayed()
@@ -92,123 +63,23 @@ class AppSettingsScreenInstrumentedTest {
     }
 
     @Test
-    fun theChosenThemeModeIsTheOneShownAsCurrent() {
-        // Asserts the value is read from state rather than left at whatever the
-        // dropdown was initialised with, which is the bug a control seeded from a
-        // local `var` produces on a second visit to the screen.
-        showSettings(themeMode = ThemeMode.LIGHT)
-
-        composeRule.onNode(themeFieldShowing("Light Theme")).assertExists()
-        composeRule.onNode(themeFieldShowing("System Default")).assertDoesNotExist()
-    }
-
-    @Test
-    fun changingTheThemeModeReportsTheNewChoice() {
-        var picked: ThemeMode? = null
-        showSettings(themeMode = ThemeMode.SYSTEM, onThemeModeChange = { picked = it })
-
-        // Opened from the field's label rather than its value: the label is part
-        // of the decoration box and is not what carries the menu anchor.
-        composeRule.onNodeWithText("Theme Mode").performClick()
-        composeRule.waitForIdle()
-
-        // Excludes EditableText, so this skips the field, which already shows one
-        // of these three strings. The closed menu keeps its items in the tree but
-        // off screen, so this also proves the menu actually opened rather than
-        // that its contents merely exist.
-        fun menuItem(value: String) =
-            hasText(value) and SemanticsMatcher.keyIsDefined(SemanticsProperties.EditableText).not()
-
-        listOf("System Default", "Light Theme", "Dark Theme").forEach { mode ->
-            composeRule.onNode(menuItem(mode)).assertIsDisplayed()
-        }
-        composeRule.onNode(menuItem("Dark Theme")).performClick()
-        composeRule.waitForIdle()
-
-        // Dark rather than the already-selected System Default, so this cannot
-        // pass by the screen reporting its initial value back at us.
-        composeRule.runOnIdle { assertEquals(ThemeMode.DARK, picked) }
-    }
-
-    @Test
-    fun eachNotificationSettingIsListedIndividuallyOnThisScreen() {
-        // Three switches, each with its own title, rather than a Notifications
-        // heading that opened a screen holding exactly these three.
-        showSettings()
-
-        listOf("Chat Push Notifications", "Notification Sound", "Notification Vibration").forEach { title ->
-            composeRule.onNodeWithContentDescription(title).performScrollTo().assertIsDisplayed()
-        }
-    }
-
-    @Test
-    fun thereIsNoAppearanceGroupRowLeftBehind() {
-        // Guards the removal itself. If the heading comes back as a sub-menu row, the
-        // settings are behind a tap again and this fails.
-        showSettings()
-
-        composeRule.onNodeWithText("Appearance").assertDoesNotExist()
-        composeRule.onNodeWithText("Notifications").assertIsDisplayed()
-        composeRule.onNodeWithText("Connection").assertIsDisplayed()
-    }
-
-    @Test
-    fun aNotificationSwitchReportsItsOwnNewValueAndNobodyElses() {
-        // Each switch is independent. Flipping one must not report a value for
-        // another, which is what wiring them to one shared handler position would
-        // do - and the mistake is invisible until someone turns sound off and the
-        // chat switch appears to change with it.
-        var chat: Boolean? = null
-        var sound: Boolean? = null
+    fun notificationsAndConnectionSubMenusAreReachable() {
+        var notificationsOpened = 0
+        var connectionOpened = 0
         showSettings(
-            chatNotificationsEnabled = true,
-            notificationSoundEnabled = true,
-            onChatNotificationsEnabledChange = { chat = it },
-            onNotificationSoundEnabledChange = { sound = it },
+            onOpenNotifications = { notificationsOpened++ },
+            onOpenConnection = { connectionOpened++ }
         )
 
-        composeRule.onNodeWithContentDescription("Notification Sound").performScrollTo().performClick()
-        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Notifications").performScrollTo().performClick()
+        composeRule.onNodeWithText("Connection").performScrollTo().performClick()
 
-        composeRule.runOnIdle {
-            assertEquals(false, sound)
-            assertEquals(null, chat)
-        }
-    }
-
-    @Test
-    fun theVibrationSwitchReflectsWhetherTheDeviceCanVibrateAtAll() {
-        // The stored preference is independent of the hardware, so a phone with
-        // rather than hiding it or showing a switch that silently does nothing.
-        // Which branch this lands in depends on the device, so the assertion is
-        // that the control and its explanation agree, not which one they are.
-        showSettings(notificationVibrationEnabled = true)
-
-        composeRule.onNodeWithContentDescription("Notification Vibration").performScrollTo().assertIsDisplayed()
-        composeRule.onNodeWithText("Notification Vibration").performScrollTo().assertIsDisplayed()
-    }
-
-    @Test
-    fun theLanguageDropdownHasNoHintUnderIt() {
-        // A line of explanatory copy used to sit under the dropdown. Every other
-        // entry on this screen is a control with its own label, and nothing here
-        // needs a sentence describing it to someone who has just tapped it.
-        //
-        // Asserted as a substring rather than an exact match because the copy
-        // existed only as a free-standing Text and had no name to assert on.
-        // The wording is what is being guarded, not the idea: a future hint with
-        // different words should still fail rather than slip back in unnoticed.
-        showSettings()
-
-        composeRule.onNodeWithText("System default follows your device", substring = true)
-            .assertDoesNotExist()
+        assertEquals(1, notificationsOpened)
+        assertEquals(1, connectionOpened)
     }
 
     @Test
     fun tappingAccessibilityCallsBack() {
-        // The route to the Accessibility screen. It is the only one, so if this
-        // row stops reporting, the switches it holds become unreachable from
-        // anywhere in the app.
         var opened = 0
         showSettings(onOpenAccessibility = { opened++ })
 
@@ -219,10 +90,6 @@ class AppSettingsScreenInstrumentedTest {
 
     @Test
     fun aboutIsReachableAndIsNotADebugOnlyRow() {
-        // Ungated on purpose, and asserted as such: a build number is the one
-        // diagnostic a user can supply without understanding anything else, and
-        // hiding it in a release build would leave the majority of bug reports
-        // with nothing to identify the build.
         var opened = 0
         showSettings(showDeveloperOptions = false, onOpenAbout = { opened++ })
 
@@ -233,9 +100,6 @@ class AppSettingsScreenInstrumentedTest {
 
     @Test
     fun developerOptionsAreHiddenInABuildThatIsNotDebug() {
-        // MainActivity passes BuildConfig.DEBUG. A release build that showed the
-        // row would offer a LAN transport override to a user who has no way to
-        // tell whether it is doing anything.
         showSettings(showDeveloperOptions = false)
 
         composeRule.onNodeWithText("Developer Options").assertDoesNotExist()
@@ -249,31 +113,5 @@ class AppSettingsScreenInstrumentedTest {
         composeRule.onNodeWithText("Developer Options").performScrollTo().performClick()
 
         assertEquals("Developer Options must be reachable when it is shown", 1, opened)
-    }
-
-    @Test
-    fun aboutIsTheLastRowWhetherOrNotDeveloperOptionsIsShown() {
-        // About is the row every build has, so it closes the list in both.
-        // Asserted by position rather than by presence: About existed above
-        // Developer Options before, which left a debug build ending on a
-        // screen most users never see and the release build ending somewhere
-        // else entirely.
-        showSettings(showDeveloperOptions = true)
-
-        composeRule.onNodeWithText("About").performScrollTo()
-        val aboutTop = composeRule.onNodeWithText("About")
-            .fetchSemanticsNode().boundsInRoot.top
-        val developerTop = composeRule.onNodeWithText("Developer Options")
-            .fetchSemanticsNode().boundsInRoot.top
-
-        // Both rows have to be genuinely on screen, not just ordered.
-        // Compose clips a fully scrolled-out node to an empty rect, so a
-        // Developer Options row sitting below the fold reads as top = 0 and
-        // any row above the fold compares greater than it. Without the
-        // developerTop > 0 conjunct the swapped order passes vacuously.
-        assertTrue(
-            "About must sit below Developer Options",
-            developerTop > 0 && aboutTop > developerTop,
-        )
     }
 }

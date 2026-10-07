@@ -229,7 +229,9 @@
     <string name="copy_pingring_code">Copier le code PingRing</string>
     <string name="pingring_code_copied">Code PingRing copié</string>
     <string name="notifications">Notifications</string>
+    <string name="notifications_sub_description">Notifications push de clavardage, son et vibration</string>
     <string name="connection">Connexion</string>
+    <string name="connection_sub_description">Vérification de proximité, invite de récupération et délai d’attente</string>
     <string name="beacon_configuration">Configuration de balise</string>
     <string name="beacon_alert_repetition_label">Répétition de l’alerte</string>
     <string name="beacon_alert_repetition_explainer">Votre choix. S’applique aux balises de tout le monde, y compris les vôtres.</string>

@@ -230,7 +230,9 @@
     <string name="copy_pingring_code">Kopiraj PingRing kod</string>
     <string name="pingring_code_copied">PingRing kod kopiran</string>
     <string name="notifications">Obavijesti</string>
+    <string name="notifications_sub_description">Obavijesti o chatu, zvuk i vibracija</string>
     <string name="connection">Veza</string>
+    <string name="connection_sub_description">Nearby provjera, oporavak veze i istek vremena</string>
     <string name="beacon_configuration">Konfiguracija signala</string>
     <string name="beacon_alert_repetition_label">Ponavljanje upozorenja</string>
     <string name="beacon_alert_repetition_explainer">Tvoj izbor. Primjenjuje se na sva svjetla, uključujući tvoja.</string>

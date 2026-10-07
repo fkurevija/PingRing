@@ -232,7 +232,9 @@
     <string name="copy_pingring_code">Копировать код PingRing</string>
     <string name="pingring_code_copied">Код PingRing скопирован</string>
     <string name="notifications">Уведомления</string>
+    <string name="notifications_sub_description">Push-уведомления чата, звук и вибрация</string>
     <string name="connection">Соединение</string>
+    <string name="connection_sub_description">Проверка Nearby, восстановление связи и время ожидания</string>
     <string name="beacon_configuration">Конфигурация маяка</string>
     <string name="beacon_alert_repetition_label">Повтор оповещения</string>
     <string name="beacon_alert_repetition_explainer">Ваш выбор. Применяется к маякам от всех, включая ваши собственные.</string>
