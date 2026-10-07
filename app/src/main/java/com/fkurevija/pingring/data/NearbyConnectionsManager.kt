@@ -816,21 +816,21 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
             return
         }
         val endpointId = connectedEndpoints[peerId]
-        if (endpointId == null || endpointId !in authorizedEndpoints) {
-            Log.w(TAG, "Cannot remove $peerId: no authorized direct connection")
-            return
-        }
-
         events.onMemberDeparture(departure)
         val pendingSends = java.util.concurrent.atomic.AtomicInteger(2)
         val finishRemoval = {
             if (pendingSends.decrementAndGet() == 0) {
-                connectedEndpoints.remove(peerId, endpointId)
-                connectedEndpoints.remove(endpointId)
-                authorizedEndpoints.remove(endpointId)
-                connectionsClient.disconnectFromEndpoint(endpointId)
+                if (endpointId != null) {
+                    connectedEndpoints.remove(peerId, endpointId)
+                    connectedEndpoints.remove(endpointId)
+                    authorizedEndpoints.remove(endpointId)
+                    connectionsClient.disconnectFromEndpoint(endpointId)
+                }
             }
         }
+        // These notifications are courtesy only. The departure above removes
+        // the member from this host immediately, even if the guest is already
+        // unreachable or either send fails.
         sendMeshBroadcast(departure, finishRemoval)
         sendMeshTargetedPayload(peerId, removalControl, finishRemoval)
     }

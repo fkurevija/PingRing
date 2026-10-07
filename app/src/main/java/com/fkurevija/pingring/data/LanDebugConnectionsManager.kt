@@ -633,20 +633,19 @@ class LanDebugConnectionsManager(
     ) {
         if (localRole != RelayEnvelope.ROLE_HOST || peerId == localPeerId ||
             departure.peerId != peerId || departure.eventCode != localEventId ||
-            removalControl.eventCode != localEventId || !removalControl.isClosed ||
-            peerId !in authorizedPeers
+            removalControl.eventCode != localEventId || !removalControl.isClosed
         ) {
-            Log.w(TAG, "Ignoring invalid or unauthorized LAN member removal request")
+            Log.w(TAG, "Ignoring invalid LAN member removal request")
             return
         }
         events.onMemberDeparture(departure)
-        sendPayload(null, departure) {
-            sendPayload(peerId, removalControl) {
-                authorizedPeers.remove(peerId)
-                scriptedRangingPeers.remove(peerId)
-                wifiRssiBaselines.remove(peerId)
-            }
-        }
+        authorizedPeers.remove(peerId)
+        scriptedRangingPeers.remove(peerId)
+        wifiRssiBaselines.remove(peerId)
+        // Keep relay notifications best-effort: local membership is removed
+        // above and is never contingent on a live relay or guest connection.
+        sendPayload(null, departure)
+        sendPayload(peerId, removalControl)
     }
 
     override fun sendEventControl(peerId: String, control: EventControlPayloadDto) {

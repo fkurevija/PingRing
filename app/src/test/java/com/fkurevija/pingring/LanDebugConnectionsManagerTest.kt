@@ -118,6 +118,49 @@ class LanDebugConnectionsManagerTest {
     }
 
     @Test
+    fun hostRemovalUpdatesLocalSessionWhenGuestIsAlreadyUnauthorized() = runTest {
+        val manager = manager(RelayEnvelope.ROLE_HOST)
+        val receivedDeparture = async(start = CoroutineStart.UNDISPATCHED) {
+            manager.receivedMemberDeparture.first()
+        }
+        val sent = LinkedBlockingQueue<String>()
+        val output = StringWriter()
+        setField(manager, "writer", object : BufferedWriter(output) {
+            override fun flush() {
+                super.flush()
+                sent.add(output.toString().trim())
+                output.buffer.setLength(0)
+            }
+        })
+        val departure = MemberDeparturePayloadDto(EVENT_ID, GUEST_ID)
+        val removalControl = EventControlPayloadDto(
+            eventCode = EVENT_ID,
+            hostPeerId = "local-id",
+            useUwb = false,
+            useWifiDirect = true,
+            acceptsNewMembers = true,
+            isFull = false,
+            isClosed = true,
+        )
+
+        try {
+            manager.removeMember(GUEST_ID, departure, removalControl)
+
+            assertEquals("local removal must not wait for guest authorization", departure, receivedDeparture.await())
+            assertEquals(
+                DecodedPayload.MemberDeparture(departure),
+                decodeSentPayload(requireNotNull(sent.poll(5, TimeUnit.SECONDS))).second,
+            )
+            assertEquals(
+                DecodedPayload.EventControl(removalControl),
+                decodeSentPayload(requireNotNull(sent.poll(5, TimeUnit.SECONDS))).second,
+            )
+        } finally {
+            manager.stopAll()
+        }
+    }
+
+    @Test
     fun memberNamesAreReceivedOnlyFromMatchingAdmittedPeersInTheCurrentEvent() = runTest {
         val manager = manager(RelayEnvelope.ROLE_HOST)
         val received = mutableListOf<MeshPresencePayloadDto>()
