@@ -1964,7 +1964,7 @@ internal fun ChatSettingsDialog(
                 // scroller hides the fact that there are eleven other choices.
                 FlowRow(
                     modifier = Modifier.fillMaxWidth().selectableGroup(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     ChatBubblePalette.presets.forEach { colorArgb ->
