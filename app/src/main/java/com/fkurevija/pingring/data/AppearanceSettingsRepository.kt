@@ -103,6 +103,7 @@ private val silencedBeaconIdsKey = stringSetPreferencesKey("silenced_beacon_ids"
 private val lanDebugEnabledKey = booleanPreferencesKey("lan_debug_enabled")
 private val lanDebugHostKey = stringPreferencesKey("lan_debug_host")
 private val batterySaverEnabledKey = booleanPreferencesKey("battery_saver_enabled")
+private val peerLinkDiagnosticsEnabledKey = booleanPreferencesKey("peer_link_diagnostics_enabled")
 private val customBeaconTemplatesKey = stringSetPreferencesKey("custom_beacon_templates")
 
 class AppearanceSettingsRepository(private val context: Context) {
@@ -261,6 +262,14 @@ class AppearanceSettingsRepository(private val context: Context) {
         scope.launch { context.appearanceDataStore.edit { it[batterySaverEnabledKey] = enabled } }
     }
 
+    val peerLinkDiagnosticsEnabled: Flow<Boolean> = context.appearanceDataStore.data.map { preferences ->
+        preferences[peerLinkDiagnosticsEnabledKey] ?: false
+    }
+
+    fun setPeerLinkDiagnosticsEnabled(enabled: Boolean) {
+        scope.launch { context.appearanceDataStore.edit { it[peerLinkDiagnosticsEnabledKey] = enabled } }
+    }
+
     val customBeaconTemplates: Flow<Set<String>> = context.appearanceDataStore.data.map { preferences ->
         preferences[customBeaconTemplatesKey] ?: emptySet()
     }
@@ -271,6 +280,15 @@ class AppearanceSettingsRepository(private val context: Context) {
             context.appearanceDataStore.edit { preferences ->
                 val existing = preferences[customBeaconTemplatesKey] ?: emptySet()
                 preferences[customBeaconTemplatesKey] = existing + template.trim()
+            }
+        }
+    }
+
+    fun removeCustomBeaconTemplate(template: String) {
+        scope.launch {
+            context.appearanceDataStore.edit { preferences ->
+                val existing = preferences[customBeaconTemplatesKey] ?: emptySet()
+                preferences[customBeaconTemplatesKey] = existing - template
             }
         }
     }

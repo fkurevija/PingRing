@@ -239,6 +239,11 @@
     <string name="report_a_problem_failed">Не удалось открыть браузер</string>
     <string name="copy_pingring_code">Копировать код PingRing</string>
     <string name="pingring_code_copied">Код PingRing скопирован</string>
+    <string name="chat_message_copied">Сообщение скопировано</string>
+    <string name="peer_link_diagnostics_title">Диагностика связи с участниками</string>
+    <string name="peer_link_diagnostics_description">Показывать тип транспорта, уровень сигнала (RSSI) и источник дальности на радаре</string>
+    <string name="battery_saver_title">Режим энергосбережения</string>
+    <string name="battery_saver_description">Снизить частоту сканирования для экономии заряда аккумулятора</string>
     <string name="notifications">Уведомления</string>
     <string name="notifications_sub_description">Push-уведомления чата, звук и вибрация</string>
     <string name="connection">Соединение</string>

@@ -14,7 +14,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.BatterySaver
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.NetworkCheck
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -58,6 +60,10 @@ fun ConnectionSettingsScreen(
     onConnectionRecoveryPromptDelayChange: (Long) -> Unit = {},
     joinWaitTimeoutMillis: Long = DEFAULT_JOIN_WAIT_TIMEOUT_MILLIS,
     onJoinWaitTimeoutChange: (Long) -> Unit = {},
+    peerLinkDiagnosticsEnabled: Boolean = false,
+    onPeerLinkDiagnosticsEnabledChange: (Boolean) -> Unit = {},
+    batterySaverEnabled: Boolean = false,
+    onBatterySaverEnabledChange: (Boolean) -> Unit = {},
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -112,6 +118,48 @@ fun ConnectionSettingsScreen(
                             onCheckedChange = onNearbyDigitComparisonEnabledChange,
                             modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp).semantics {
                                 contentDescription = context.getString(R.string.nearby_digit_comparison_title)
+                            }
+                        )
+                    }
+
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.NetworkCheck, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(stringResource(R.string.peer_link_diagnostics_title), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                            Text(stringResource(R.string.peer_link_diagnostics_description), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Switch(
+                            checked = peerLinkDiagnosticsEnabled,
+                            onCheckedChange = onPeerLinkDiagnosticsEnabledChange,
+                            modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp).semantics {
+                                contentDescription = context.getString(R.string.peer_link_diagnostics_title)
+                            }
+                        )
+                    }
+
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.BatterySaver, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(stringResource(R.string.battery_saver_title), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                            Text(stringResource(R.string.battery_saver_description), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Switch(
+                            checked = batterySaverEnabled,
+                            onCheckedChange = onBatterySaverEnabledChange,
+                            modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp).semantics {
+                                contentDescription = context.getString(R.string.battery_saver_title)
                             }
                         )
                     }

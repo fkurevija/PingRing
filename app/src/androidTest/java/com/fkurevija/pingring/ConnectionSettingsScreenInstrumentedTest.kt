@@ -6,7 +6,6 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsOff
-import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.performClick
@@ -27,6 +26,8 @@ class ConnectionSettingsScreenInstrumentedTest {
     @Test
     fun connectionSwitchesHaveIndependentCallbacks() {
         var nearbyDigit by mutableStateOf(false)
+        var diagnostics by mutableStateOf(false)
+        var batterySaver by mutableStateOf(false)
         var recoveryPrompt by mutableStateOf(true)
         var recoveryDelay by mutableLongStateOf(120_000L)
         var joinWait by mutableLongStateOf(60_000L)
@@ -36,6 +37,10 @@ class ConnectionSettingsScreenInstrumentedTest {
                 ConnectionSettingsScreen(
                     nearbyDigitComparisonEnabled = nearbyDigit,
                     onNearbyDigitComparisonEnabledChange = { nearbyDigit = it },
+                    peerLinkDiagnosticsEnabled = diagnostics,
+                    onPeerLinkDiagnosticsEnabledChange = { diagnostics = it },
+                    batterySaverEnabled = batterySaver,
+                    onBatterySaverEnabledChange = { batterySaver = it },
                     connectionRecoveryPromptEnabled = recoveryPrompt,
                     connectionRecoveryPromptDelayMillis = recoveryDelay,
                     onConnectionRecoveryPromptEnabledChange = { recoveryPrompt = it },
@@ -51,13 +56,18 @@ class ConnectionSettingsScreenInstrumentedTest {
             .performScrollTo().assertIsOff().performClick()
         composeRule.waitForIdle()
 
-        composeRule.onNodeWithContentDescription(context.getString(R.string.connection_recovery_title))
-            .performScrollTo().assertIsOn().performClick()
+        composeRule.onNodeWithContentDescription(context.getString(R.string.peer_link_diagnostics_title))
+            .performScrollTo().assertIsOff().performClick()
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithContentDescription(context.getString(R.string.battery_saver_title))
+            .performScrollTo().assertIsOff().performClick()
         composeRule.waitForIdle()
 
         composeRule.runOnIdle {
             assertEquals(true, nearbyDigit)
-            assertEquals(false, recoveryPrompt)
+            assertEquals(true, diagnostics)
+            assertEquals(true, batterySaver)
         }
     }
 }

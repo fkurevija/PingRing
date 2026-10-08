@@ -224,6 +224,8 @@ fun MainNavigation(
     val proximityHapticsEnabled by appearanceSettings.proximityHapticsEnabled.collectAsState(initial = true)
     val spokenRadarUpdatesEnabled by appearanceSettings.spokenRadarUpdatesEnabled.collectAsState(initial = false)
     val visualFlashAlertsEnabled by appearanceSettings.visualFlashAlertsEnabled.collectAsState(initial = false)
+    val peerLinkDiagnosticsEnabled by appearanceSettings.peerLinkDiagnosticsEnabled.collectAsState(initial = false)
+    val batterySaverEnabled by appearanceSettings.batterySaverEnabled.collectAsState(initial = false)
     val connectionRecoveryPromptEnabled by appearanceSettings.connectionRecoveryPromptEnabled.collectAsState(initial = true)
     val connectionRecoveryPromptDelayMillis by appearanceSettings.connectionRecoveryPromptDelayMillis.collectAsState(
         initial = 120_000L
@@ -485,6 +487,10 @@ fun MainNavigation(
                         onConnectionRecoveryPromptDelayChange = appearanceSettings::setConnectionRecoveryPromptDelayMillis,
                         joinWaitTimeoutMillis = joinWaitTimeoutMillis,
                         onJoinWaitTimeoutChange = appearanceSettings::setJoinWaitTimeoutMillis,
+                        peerLinkDiagnosticsEnabled = peerLinkDiagnosticsEnabled,
+                        onPeerLinkDiagnosticsEnabledChange = appearanceSettings::setPeerLinkDiagnosticsEnabled,
+                        batterySaverEnabled = batterySaverEnabled,
+                        onBatterySaverEnabledChange = appearanceSettings::setBatterySaverEnabled,
                         onBack = { backStack.popBack() },
                     )
                 }

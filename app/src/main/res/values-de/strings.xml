@@ -238,6 +238,10 @@
     <string name="copy_pingring_code">PingRing-Code kopieren</string>
     <string name="pingring_code_copied">PingRing-Code kopiert</string>
     <string name="chat_message_copied">Nachricht kopiert</string>
+    <string name="peer_link_diagnostics_title">Peer-Verbindungsdiagnose</string>
+    <string name="peer_link_diagnostics_description">Übertragungstyp, Signalstärke (RSSI) und Distanzquelle auf dem Radar anzeigen</string>
+    <string name="battery_saver_title">Akkusparmodus</string>
+    <string name="battery_saver_description">Suchfrequenz und Entfernungs-Haltezeit reduzieren, um Akku zu sparen</string>
     <string name="notifications">Benachrichtigungen</string>
     <string name="notifications_sub_description">Chat-Push-Benachrichtigungen, Ton und Vibration</string>
     <string name="connection">Verbindung</string>

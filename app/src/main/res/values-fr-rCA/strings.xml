@@ -238,6 +238,10 @@
     <string name="copy_pingring_code">Copier le code PingRing</string>
     <string name="pingring_code_copied">Code PingRing copié</string>
     <string name="chat_message_copied">Message copié</string>
+    <string name="peer_link_diagnostics_title">Diagnostics de liaison réseau</string>
+    <string name="peer_link_diagnostics_description">Afficher le type de transport, le signal (RSSI) et la source sur le radar</string>
+    <string name="battery_saver_title">Mode économie de batterie</string>
+    <string name="battery_saver_description">Réduire la fréquence de balayage pour économiser la batterie</string>
     <string name="notifications">Notifications</string>
     <string name="notifications_sub_description">Notifications push de clavardage, son et vibration</string>
     <string name="connection">Connexion</string>
