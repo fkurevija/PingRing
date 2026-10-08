@@ -51,6 +51,9 @@ For step-by-step instructions on using any of this, see the [User Guide](user-gu
 - **Theming**: a fixed violet brand palette applied throughout, honouring the system's light/dark setting, an adaptive violet-and-white radar icon, and a monochrome `ic_launcher_monochrome.xml` for Android 13+ launchers. **Material You dynamic colour is deliberately not used** — see [Known limitations](roadmap.md#known-limitations).
 - **Localized interface** in English, Croatian, Spanish, French, Canadian French, German, and Russian. Android 13 and newer can select PingRing's language independently in the system app-language settings; earlier Android versions follow the device language.
 - **Device-aware permissions**: unsupported hardware (`FEATURE_BLUETOOTH`, `FEATURE_WIFI`, `FEATURE_LOCATION`, camera, UWB, vibrator) skips its permission prompt, and its UI is disabled with an explanatory label instead of an ungrantable dialog.
+- **Multi-Path Interference Mitigation**: Predictive model for Wi-Fi RTT and BLE RSSI using time/angle observations to reject reflected multi-path signals in complex indoor venues.
+- **Real-Time Policy Visualization**: Interactive diagnostic view displaying active policy states (`ConnectionMethodPolicy`, `RadioPowerPolicy`, `BeaconAlertPolicy`) and exact triggers. Hidden behind a toggle in the developer options menu.
+- **Data Export and Logging API**: Local export and API endpoints for aggregated, anonymized movement heatmaps and connection auditing. Hidden behind a toggle in the developer options menu.
 
 ---
 

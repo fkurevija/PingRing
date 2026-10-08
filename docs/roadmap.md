@@ -61,6 +61,9 @@ These are verified limits of the public Android APIs or deliberate non-goals, no
 
 - **Platform Probes Refactor.** Separated platform probes (`RangingSourceProbe`, `BleRangeProbe`, `RadarAccessibilityProbe`) into dedicated probe objects beside their respective policy classes (`RangingSourcePolicy`, `BleRangePolicy`, `RadarAccessibilityPolicy`), removing coverage exclusions and enabling 100% JVM unit test coverage.
 - **Advanced Sensor Fusion Algorithm (Kalman Filter).** Implemented [AdvancedSensorFusionFilter](../app/src/main/java/com/fkurevija/pingring/data/AdvancedSensorFusionFilter.kt) tracking 1D distance and rate of change $[x, v]^T$ with dynamic measurement noise weighting $R$ for UWB ($0.05\,\text{m}^2$), Wi-Fi RTT ($0.5\,\text{m}^2$), BLE RSSI ($4.0\,\text{m}^2$), and GNSS ($10.0\,\text{m}^2$). Plumbed into [RssiSmoother](../app/src/main/java/com/fkurevija/pingring/data/RssiDistanceEstimator.kt).
+- **Multi-Path Interference Mitigation.** Implemented [MultiPathMitigationPolicy](../app/src/main/java/com/fkurevija/pingring/data/MultiPathMitigationPolicy.kt) providing a predictive model for Wi-Fi RTT and BLE RSSI using time/angle observations to reject reflected multi-path signals in complex indoor venues.
+- **Real-Time Policy Visualization.** Implemented [PolicyVisualizationPolicy](../app/src/main/java/com/fkurevija/pingring/data/PolicyVisualizationPolicy.kt) displaying active policy states (`ConnectionMethodPolicy`, `RadioPowerPolicy`, `BeaconAlertPolicy`) and exact triggers, hidden behind a toggle in Developer Options.
+- **Data Export and Logging API.** Implemented [DataExportManager](../app/src/main/java/com/fkurevija/pingring/data/DataExportManager.kt) providing local export and API endpoints for aggregated, anonymized movement heatmaps and connection auditing, hidden behind a toggle in Developer Options.
 
 ## Planned engineering and product work
 
@@ -77,9 +80,6 @@ These proposals are recorded for future evaluation only; no new calibration, fil
 
 - **Saved PingRing History / Recent Rings.** A local history list of recently joined or hosted PingRing event codes (with session names and timestamps) on the home screen, allowing users to quickly reconnect to frequent local circles with a single tap without retyping 6-character codes or rescanning QR codes.
 - **Environmental Mapping Integration.** Support uploading CAD or JSON floor plans to contextualize distance/bearing estimates and provide visual map-matched drift correction.
-- **Multi-Path Interference Mitigation.** Predictive model for Wi-Fi RTT and BLE RSSI using time/angle observations to reject reflected multi-path signals in complex indoor venues.
-- **Real-Time Policy Visualization.** Interactive diagnostic view displaying active policy states (`ConnectionMethodPolicy`, `RadioPowerPolicy`, `BeaconAlertPolicy`) and exact triggers. Hidden behind a toggle in the developer options menu.
-- **Data Export and Logging API.** Local export and API endpoints for aggregated, anonymized movement heatmaps and connection auditing. Hidden behind a toggle in the developer options menu.
 - **Set an emoji alongside your username.** Optional, unset by default, and deliberately not built. Usernames identify members in chat and approval cards; an emoji would be a second, loosely-authenticated identity field hanging off a name that is already shown everywhere. If it is added, two decisions come first — whether it travels in the same signed payload as the name, and whether it is restricted to a small fixed set the way chat bubble colours are, so two phones cannot render the same member differently.
 
 ---
