@@ -27,6 +27,7 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -106,7 +107,7 @@ fun AppSettingsScreen(
                     label = { Text(stringResource(R.string.theme_mode)) },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = themeMenuExpanded) },
                     shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.fillMaxWidth().menuAnchor(),
+                    modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable),
                 )
                 ExposedDropdownMenu(
                     expanded = themeMenuExpanded,
@@ -135,7 +136,7 @@ fun AppSettingsScreen(
                     label = { Text(stringResource(R.string.language)) },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = languageMenuExpanded) },
                     shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.fillMaxWidth().menuAnchor(),
+                    modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable),
                 )
                 ExposedDropdownMenu(
                     expanded = languageMenuExpanded,
