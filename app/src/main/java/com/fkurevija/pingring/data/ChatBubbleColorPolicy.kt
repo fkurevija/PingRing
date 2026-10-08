@@ -34,6 +34,22 @@ package com.fkurevija.pingring.data
 object ChatBubbleColorPolicy {
 
     /**
+     * Stores a granted sender colour on their existing messages so the shared
+     * chat history carries the current identity colour to every member.
+     */
+    fun updateSenderColor(
+        messages: List<ChatMessage>,
+        senderPeerId: String,
+        colorArgb: Long,
+    ): List<ChatMessage> = messages.map { message ->
+        if (message.entryType == ChatEntryType.MESSAGE && message.senderPeerId == senderPeerId) {
+            message.copy(colorArgb = colorArgb)
+        } else {
+            message
+        }
+    }
+
+    /**
      * The colour to paint [message], or null for the themed legacy style.
      *
      * [latestColorByPeer] is the most recent colour observed per sender peer id,

@@ -1,5 +1,6 @@
 package com.fkurevija.pingring.ui.screens
 import com.fkurevija.pingring.data.TextInputPolicy
+import com.fkurevija.pingring.data.ChatTimestampPolicy
 import com.fkurevija.pingring.data.RadarFeedbackPolicy
 import com.fkurevija.pingring.data.RadarAnnouncementPolicy
 import androidx.compose.runtime.remember
@@ -186,8 +187,8 @@ import com.fkurevija.pingring.data.RadarPeerUpdate
 import com.fkurevija.pingring.data.SessionState
 import com.fkurevija.pingring.R
 import kotlinx.coroutines.delay
-import java.util.Calendar
 import java.util.Locale
+import java.util.TimeZone
 import kotlin.math.atan2
 
 /**
@@ -214,19 +215,6 @@ private fun Color.readableOnIt(): Color {
     val contrastOnBlack = (luminance() + 0.05f) / 0.05f
     val contrastOnWhite = 1.05f / (luminance() + 0.05f)
     return if (contrastOnBlack >= contrastOnWhite) Color.Black else Color.White
-}
-
-internal fun formatMessageTimestamp(timestampMillis: Long): String {
-    val msgCal = Calendar.getInstance().apply { timeInMillis = timestampMillis }
-    val todayCal = Calendar.getInstance()
-    val isToday = msgCal.get(Calendar.YEAR) == todayCal.get(Calendar.YEAR) &&
-                  msgCal.get(Calendar.DAY_OF_YEAR) == todayCal.get(Calendar.DAY_OF_YEAR)
-    val timeStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(timestampMillis))
-    return if (isToday) {
-        "Today $timeStr"
-    } else {
-        SimpleDateFormat("MMM d, HH:mm", Locale.getDefault()).format(Date(timestampMillis))
-    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -887,7 +875,15 @@ fun RadarScreen(
                                                         ?.let(::Color)
                                                     val context = LocalContext.current
                                                     val clipboard = LocalClipboardManager.current
-                                                    val timeStr = remember(msg.timestamp) { SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(msg.timestamp)) }
+                                                    val timeStr = ChatTimestampPolicy.format(
+                                                        timestampMillis = msg.timestamp,
+                                                        nowMillis = System.currentTimeMillis(),
+                                                        locale = Locale.getDefault(),
+                                                        timeZone = TimeZone.getDefault(),
+                                                        todayLabel = stringResource(R.string.today),
+                                                        yesterdayLabel = stringResource(R.string.yesterday),
+                                                        tomorrowLabel = stringResource(R.string.tomorrow),
+                                                    )
                                                     Column(
                                                         modifier = Modifier.fillMaxWidth(),
                                                         horizontalAlignment = if (isMe) Alignment.End else Alignment.Start

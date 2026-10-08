@@ -3,6 +3,9 @@
     <string name="matrix_accept">You just made all that up...</string>
     <string name="matrix_exit">Return to About</string>
     <string name="app_name">PingRing</string>
+    <string name="today">Today</string>
+    <string name="yesterday">Yesterday</string>
+    <string name="tomorrow">Tomorrow</string>
     <string name="back">Back</string>
     <string name="cancel">Cancel</string>
     <string name="settings">Settings</string>

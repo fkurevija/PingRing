@@ -817,6 +817,15 @@ class DiscoveryRepository(
         if (state.isHost) {
             // The host is the authority; asking it would be asking itself.
             applyGrantedChatColour(colorArgb, localPeerId)
+            nearbyConnectionsManager.broadcastChatColourClaim(
+                ChatColourClaimPayloadDto(
+                    eventCode = eventId,
+                    peerId = localPeerId,
+                    colorArgb = colorArgb,
+                    granted = true,
+                    requestedAtMillis = System.currentTimeMillis(),
+                )
+            )
             onResult(true)
             return
         }
@@ -852,15 +861,24 @@ class DiscoveryRepository(
         _chatColourHolders.update { current ->
             ChatColourPolicy.applyGrantedClaim(current, colorArgb, peerId)
         }
+        val currentHistory = sessionManager.sessionState.value.chatMessages
+        val updatedHistory = ChatBubbleColorPolicy.updateSenderColor(
+            messages = currentHistory,
+            senderPeerId = peerId,
+            colorArgb = colorArgb,
+        )
+        if (updatedHistory != currentHistory) {
+            sessionManager.receiveChatHistory(updatedHistory)
+            broadcastChatHistory()
+        }
     }
 
     /**
      * One claim, resolved by whoever is in a position to.
      *
-     * The host decides and announces; a guest only listens for the answer to its
-     * own claim. A guest ignoring another guest's claim is deliberate: two guests
-     * are not in a position to arbitrate between each other, and letting them
-     * would reintroduce exactly the race the host exists to remove.
+     * The host decides and announces; guests apply every granted answer so the
+     * holder map and the sender's stored history stay consistent across the ring.
+     * A guest never arbitrates another guest's request.
      */
     private fun handleChatColourClaim(claim: ChatColourClaimPayloadDto) {
         val state = sessionManager.sessionState.value
@@ -894,11 +912,13 @@ class DiscoveryRepository(
             return
         }
 
-        // Guest: only our own claim is answered.
-        if (claim.peerId != localPeerId || claim.granted == null || colorArgb == null) return
-        if (claim.granted) {
-            applyGrantedChatColour(colorArgb, localPeerId)
+        // The host's granted reply is also the group-wide color update. All
+        // guests apply it so existing bubbles and available swatches stay in sync.
+        if (claim.granted == true && colorArgb != null) {
+            applyGrantedChatColour(colorArgb, claim.peerId)
         }
+        // Only our own claim has a waiting UI callback.
+        if (claim.peerId != localPeerId || claim.granted == null || colorArgb == null) return
         // Remove the callback whether granted or refused: this is the answer, and
         // leaving it would hold onto a lambda the caller is waiting on.
         chatColourRequests.remove(colorArgb)?.invoke(claim.granted)

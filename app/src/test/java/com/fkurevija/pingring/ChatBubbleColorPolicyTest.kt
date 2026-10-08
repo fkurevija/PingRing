@@ -71,6 +71,21 @@ class ChatBubbleColorPolicyTest {
     }
 
     @Test
+    fun `saved colour is written to all of that sender's existing history entries`() {
+        val pink = 0xFFD81B60
+        val transcript = listOf(
+            message("ana", red, "a"),
+            message("bo", teal, "b"),
+            message("ana", blue, "c"),
+        )
+
+        val updated = ChatBubbleColorPolicy.updateSenderColor(transcript, "ana", pink)
+
+        assertEquals(listOf(pink, teal, pink), updated.map { it.colorArgb })
+        assertEquals(listOf(red, teal, blue), transcript.map { it.colorArgb })
+    }
+
+    @Test
     fun `one member changing colour does not repaint another member's messages`() {
         val transcript = listOf(message("ana", red, "a"), message("bo", blue, "b"))
         val latest = ChatBubbleColorPolicy.latestColorsBySender(transcript)

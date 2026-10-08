@@ -3,6 +3,9 @@
     <string name="matrix_accept">Das hast du dir gerade alles ausgedacht …</string>
     <string name="matrix_exit">Zurück zu „Über PingRing“</string>
     <string name="app_name">PingRing</string>
+    <string name="today">Heute</string>
+    <string name="yesterday">Gestern</string>
+    <string name="tomorrow">Morgen</string>
     <string name="back">Zurück</string>
     <string name="cancel">Abbrechen</string>
     <string name="settings">Einstellungen</string>

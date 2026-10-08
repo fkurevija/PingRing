@@ -3,6 +3,9 @@
     <string name="matrix_accept">Upravo si sve to izmislio/la…</string>
     <string name="matrix_exit">Povratak na stranicu O aplikaciji</string>
     <string name="app_name">PingRing</string>
+    <string name="today">Danas</string>
+    <string name="yesterday">Jučer</string>
+    <string name="tomorrow">Sutra</string>
     <string name="back">Natrag</string>
     <string name="cancel">Odustani</string>
     <string name="settings">Postavke</string>
