@@ -57,6 +57,11 @@ These are verified limits of the public Android APIs or deliberate non-goals, no
 - **Extending range with a coded PHY.** Coded PHY is the only BLE setting that genuinely multiplies range, and the public SDK does not expose it — `ScanSettings` has only `PHY_LE_ALL_SUPPORTED` and `AdvertiseSettings.Builder` has no `setPreferredPhy` (verified against the API 37 `android.jar`). Getting it needs hidden APIs, a deliberate non-goal here. The commonly quoted "~4×" is a free-space figure: 4× range is 12 dB of extra link budget, and at the `PATH_LOSS_EXPONENT = 2.2` used here the same 12 dB is 3.5×. Silicon Labs quotes 4–6 dB of real-world sensitivity gain instead, which is 1.5–1.8× at that exponent. Either way it would not help PingRing: the gain applies to established connections via `HCI_LE_SetPhy`, and PingRing advertises non-connectable and never forms a link. UWB does not widen the reach either — it never transports data, so a peer past the BLE radius is invisible to it too.
 - **Replacing Nearby with a selectable/custom transport.** Transport selection is not planned for the current architecture. Revisit only if physical-device validation shows Nearby's transport choice is materially insufficient; a replacement would require a separate radio, protocol, security, and device-compatibility design.
 
+## Completed engineering and product work
+
+- **Platform Probes Refactor.** Separated platform probes (`RangingSourceProbe`, `BleRangeProbe`, `RadarAccessibilityProbe`) into dedicated probe objects beside their respective policy classes (`RangingSourcePolicy`, `BleRangePolicy`, `RadarAccessibilityPolicy`), removing coverage exclusions and enabling 100% JVM unit test coverage.
+- **Advanced Sensor Fusion Algorithm (Kalman Filter).** Implemented [AdvancedSensorFusionFilter](../app/src/main/java/com/fkurevija/pingring/data/AdvancedSensorFusionFilter.kt) tracking 1D distance and rate of change $[x, v]^T$ with dynamic measurement noise weighting $R$ for UWB ($0.05\,\text{m}^2$), Wi-Fi RTT ($0.5\,\text{m}^2$), BLE RSSI ($4.0\,\text{m}^2$), and GNSS ($10.0\,\text{m}^2$). Plumbed into [RssiSmoother](../app/src/main/java/com/fkurevija/pingring/data/RssiDistanceEstimator.kt).
+
 ## Planned engineering and product work
 
 ### Tracking measurement quality (documented proposals, not implemented)
@@ -70,8 +75,6 @@ These proposals are recorded for future evaluation only; no new calibration, fil
 
 ### Other engineering and product work
 
-- **Move the platform probes out of `RangingSourcePolicy`, `BleRangePolicy` and `RadarAccessibilityPolicy`.** *(Completed)* Platform probes (`RangingSourceProbe`, `BleRangeProbe`, `RadarAccessibilityProbe`) have been separated out into dedicated probe objects beside their respective policy classes, removing their coverage exclusions and allowing full JVM unit test coverage.
-- **Advanced Sensor Fusion Algorithm (Kalman Filter).** *(Completed)* Implemented [AdvancedSensorFusionFilter](../app/src/main/java/com/fkurevija/pingring/data/AdvancedSensorFusionFilter.kt) tracking 1D distance and rate of change $[x, v]^T$ with dynamic measurement noise weighting $R$ for UWB ($0.05\,\text{m}^2$), Wi-Fi RTT ($0.5\,\text{m}^2$), BLE RSSI ($4.0\,\text{m}^2$), and GNSS ($10.0\,\text{m}^2$). Plumbed into [RssiSmoother](../app/src/main/java/com/fkurevija/pingring/data/RssiDistanceEstimator.kt).
 - **Saved PingRing History / Recent Rings.** A local history list of recently joined or hosted PingRing event codes (with session names and timestamps) on the home screen, allowing users to quickly reconnect to frequent local circles with a single tap without retyping 6-character codes or rescanning QR codes.
 - **Environmental Mapping Integration.** Support uploading CAD or JSON floor plans to contextualize distance/bearing estimates and provide visual map-matched drift correction.
 - **Multi-Path Interference Mitigation.** Predictive model for Wi-Fi RTT and BLE RSSI using time/angle observations to reject reflected multi-path signals in complex indoor venues.
