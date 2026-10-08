@@ -243,6 +243,10 @@
     <string name="peer_link_diagnostics_description">Prikaži vrstu prijenosa, jačinu signala (RSSI) i izvor udaljenosti na radaru</string>
     <string name="battery_saver_title">Način uštede baterije</string>
     <string name="battery_saver_description">Smanji učestalost skeniranja radi uštede baterije</string>
+    <string name="realtime_policy_visualization_title">Vizualizacija pravila u stvarnom vremenu</string>
+    <string name="realtime_policy_visualization_description">Prikaži aktivna stanja pravila i okidače</string>
+    <string name="data_export_api_title">Izvoz podataka i API za bilježenje</string>
+    <string name="data_export_api_description">Omogući lokalne izvozne točke za reviziju veze</string>
     <string name="notifications">Obavijesti</string>
     <string name="notifications_sub_description">Obavijesti o chatu, zvuk i vibracija</string>
     <string name="connection">Veza</string>

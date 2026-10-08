@@ -78,14 +78,9 @@ These proposals are recorded for future evaluation only; no new calibration, fil
 - **Saved PingRing History / Recent Rings.** A local history list of recently joined or hosted PingRing event codes (with session names and timestamps) on the home screen, allowing users to quickly reconnect to frequent local circles with a single tap without retyping 6-character codes or rescanning QR codes.
 - **Environmental Mapping Integration.** Support uploading CAD or JSON floor plans to contextualize distance/bearing estimates and provide visual map-matched drift correction.
 - **Multi-Path Interference Mitigation.** Predictive model for Wi-Fi RTT and BLE RSSI using time/angle observations to reject reflected multi-path signals in complex indoor venues.
-- **"Mission Mode" Step-by-Step Navigation.** Guided step-by-step navigation task flows ("Find Room 305") converting relative radar bearings into indoor wayfinding instructions.
-- **Contextual Dashboard Widgets.** Location-aware status widgets displaying regional operational metrics when near specific areas or beacons.
-- **Real-Time Policy Visualization.** Interactive diagnostic view displaying active policy states (`ConnectionMethodPolicy`, `RadioPowerPolicy`, `BeaconAlertPolicy`) and exact triggers.
-- **IoT Infrastructure & Geofence Integration.** Trigger local automated actions (geofence alerts, smart lock / lighting integration) upon entering or leaving a PingRing zone.
-- **Role-Based Access Control (RBAC).** User roles ("Visitor", "Staff", "Maintenance") tailoring visible UI data and configuration controls to authorized tiers.
-- **Data Export and Logging API.** Local export and API endpoints for aggregated, anonymized movement heatmaps and connection auditing.
+- **Real-Time Policy Visualization.** Interactive diagnostic view displaying active policy states (`ConnectionMethodPolicy`, `RadioPowerPolicy`, `BeaconAlertPolicy`) and exact triggers. Hidden behind a toggle in the developer options menu.
+- **Data Export and Logging API.** Local export and API endpoints for aggregated, anonymized movement heatmaps and connection auditing. Hidden behind a toggle in the developer options menu.
 - **Set an emoji alongside your username.** Optional, unset by default, and deliberately not built. Usernames identify members in chat and approval cards; an emoji would be a second, loosely-authenticated identity field hanging off a name that is already shown everywhere. If it is added, two decisions come first — whether it travels in the same signed payload as the name, and whether it is restricted to a small fixed set the way chat bubble colours are, so two phones cannot render the same member differently.
-- **Decide product direction for the brand and in-app help.** The palette is provisional, and help placement/content has no offline product decision yet.
 
 ---
 

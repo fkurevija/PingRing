@@ -105,6 +105,8 @@ private val lanDebugHostKey = stringPreferencesKey("lan_debug_host")
 private val batterySaverEnabledKey = booleanPreferencesKey("battery_saver_enabled")
 private val peerLinkDiagnosticsEnabledKey = booleanPreferencesKey("peer_link_diagnostics_enabled")
 private val customBeaconTemplatesKey = stringSetPreferencesKey("custom_beacon_templates")
+private val realTimePolicyVisualizationEnabledKey = booleanPreferencesKey("realtime_policy_visualization_enabled")
+private val dataExportApiEnabledKey = booleanPreferencesKey("data_export_api_enabled")
 
 class AppearanceSettingsRepository(private val context: Context) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -291,6 +293,22 @@ class AppearanceSettingsRepository(private val context: Context) {
                 preferences[customBeaconTemplatesKey] = existing - template
             }
         }
+    }
+
+    val realTimePolicyVisualizationEnabled: Flow<Boolean> = context.appearanceDataStore.data.map { preferences ->
+        preferences[realTimePolicyVisualizationEnabledKey] ?: false
+    }
+
+    fun setRealTimePolicyVisualizationEnabled(enabled: Boolean) {
+        scope.launch { context.appearanceDataStore.edit { it[realTimePolicyVisualizationEnabledKey] = enabled } }
+    }
+
+    val dataExportApiEnabled: Flow<Boolean> = context.appearanceDataStore.data.map { preferences ->
+        preferences[dataExportApiEnabledKey] ?: false
+    }
+
+    fun setDataExportApiEnabled(enabled: Boolean) {
+        scope.launch { context.appearanceDataStore.edit { it[dataExportApiEnabledKey] = enabled } }
     }
 
     fun setChatNotificationsEnabled(enabled: Boolean) {

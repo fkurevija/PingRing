@@ -242,6 +242,10 @@
     <string name="peer_link_diagnostics_description">Mostrar tipo de transporte, intensidad de señal (RSSI) y fuente en el radar</string>
     <string name="battery_saver_title">Modo de ahorro de batería</string>
     <string name="battery_saver_description">Reducir la frecuencia de escaneo para ahorrar batería</string>
+    <string name="realtime_policy_visualization_title">Visualización de políticas en tiempo real</string>
+    <string name="realtime_policy_visualization_description">Mostrar estados de políticas activas y desencadenantes</string>
+    <string name="data_export_api_title">Exportación de datos y API de registro</string>
+    <string name="data_export_api_description">Habilitar puntos de exportación locales para auditoría</string>
     <string name="notifications">Notificaciones</string>
     <string name="notifications_sub_description">Notificaciones push de chat, sonido y vibración</string>
     <string name="connection">Conexión</string>

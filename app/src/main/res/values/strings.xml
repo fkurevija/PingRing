@@ -248,6 +248,10 @@
     <string name="peer_link_diagnostics_description">Show transport type, signal strength (RSSI) and ranging details on radar</string>
     <string name="battery_saver_title">Battery Saver Mode</string>
     <string name="battery_saver_description">Throttle scan frequency and ranging retention to conserve battery</string>
+    <string name="realtime_policy_visualization_title">Real-Time Policy Visualization</string>
+    <string name="realtime_policy_visualization_description">Display active policy states (ConnectionMethodPolicy, RadioPowerPolicy, BeaconAlertPolicy) and triggers</string>
+    <string name="data_export_api_title">Data Export and Logging API</string>
+    <string name="data_export_api_description">Enable local export endpoints for aggregated movement heatmaps and connection auditing</string>
     <string name="beacon_configuration">Received Beacon Configuration</string>
     <string name="beacon_alert_repetition_label">Beacon Repetition</string>
     <string name="beacon_alert_repetition_explainer">Your own choice. It applies to beacons from everyone, including your own.</string>

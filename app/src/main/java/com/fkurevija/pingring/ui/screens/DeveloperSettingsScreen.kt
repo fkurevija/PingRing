@@ -10,8 +10,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Analytics
+import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -44,6 +47,8 @@ fun DeveloperSettingsScreen(
 ) {
     val lanDebugEnabled by appearanceSettings.lanDebugEnabled.collectAsState(initial = false)
     val lanDebugHost by appearanceSettings.lanDebugHost.collectAsState(initial = "10.0.2.2")
+    val realTimePolicyVisualizationEnabled by appearanceSettings.realTimePolicyVisualizationEnabled.collectAsState(initial = false)
+    val dataExportApiEnabled by appearanceSettings.dataExportApiEnabled.collectAsState(initial = false)
     var hostFieldValue by remember(lanDebugHost) { mutableStateOf(lanDebugHost) }
 
     Scaffold(
@@ -62,7 +67,7 @@ fun DeveloperSettingsScreen(
             modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)
         ) {
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Wifi, contentDescription = null)
+                Icon(Icons.Default.Wifi, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
                     Text(stringResource(R.string.use_lan_debug_transport), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
@@ -78,22 +83,6 @@ fun DeveloperSettingsScreen(
                 OutlinedTextField(
                     value = hostFieldValue,
                     onValueChange = { raw ->
-                        // The one field that becomes a socket address, so an
-                        // invalid entry is rejected outright and the previous
-                        // value is kept, rather than being repaired into
-                        // something the user did not type. The relay then fails
-                        // to connect in an obvious way instead of silently
-                        // connecting somewhere unexpected.
-                        //
-                        // An empty field is the one exception, and it is allowed
-                        // through as an editing state rather than rejected. It has
-                        // to be: rejecting "" means the last character can never be
-                        // deleted, because the backspace that empties the field is
-                        // refused and the controlled value snaps straight back. The
-                        // field was then impossible to edit - a host left over from a
-                        // previous session could be appended to but not replaced.
-                        // Nothing is written to the store for an empty field, so an
-                        // abandoned edit keeps the last good value.
                         if (raw.isEmpty()) {
                             hostFieldValue = ""
                         } else {
@@ -109,6 +98,38 @@ fun DeveloperSettingsScreen(
                     shape = RoundedCornerShape(14.dp),
                     modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
                 )
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Analytics, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(stringResource(R.string.realtime_policy_visualization_title), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        stringResource(R.string.realtime_policy_visualization_description),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(checked = realTimePolicyVisualizationEnabled, onCheckedChange = appearanceSettings::setRealTimePolicyVisualizationEnabled)
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.CloudUpload, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(stringResource(R.string.data_export_api_title), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        stringResource(R.string.data_export_api_description),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(checked = dataExportApiEnabled, onCheckedChange = appearanceSettings::setDataExportApiEnabled)
             }
         }
     }

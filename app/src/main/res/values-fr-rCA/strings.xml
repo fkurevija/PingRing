@@ -242,6 +242,10 @@
     <string name="peer_link_diagnostics_description">Afficher le type de transport, le signal (RSSI) et la source sur le radar</string>
     <string name="battery_saver_title">Mode économie de batterie</string>
     <string name="battery_saver_description">Réduire la fréquence de balayage pour économiser la batterie</string>
+    <string name="realtime_policy_visualization_title">Visualisation des règles en temps réel</string>
+    <string name="realtime_policy_visualization_description">Afficher les états des règles actives et leurs déclencheurs</string>
+    <string name="data_export_api_title">Exportation de données et API de journalisation</string>
+    <string name="data_export_api_description">Activer les points d’exportation locaux pour l’audit</string>
     <string name="notifications">Notifications</string>
     <string name="notifications_sub_description">Notifications push de clavardage, son et vibration</string>
     <string name="connection">Connexion</string>

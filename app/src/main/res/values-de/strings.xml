@@ -242,6 +242,10 @@
     <string name="peer_link_diagnostics_description">Übertragungstyp, Signalstärke (RSSI) und Distanzquelle auf dem Radar anzeigen</string>
     <string name="battery_saver_title">Akkusparmodus</string>
     <string name="battery_saver_description">Suchfrequenz und Entfernungs-Haltezeit reduzieren, um Akku zu sparen</string>
+    <string name="realtime_policy_visualization_title">Echtzeit-Richtlinienvisualisierung</string>
+    <string name="realtime_policy_visualization_description">Aktive Richtlinienzustände und Auslöser anzeigen</string>
+    <string name="data_export_api_title">Datenexport und Protokollierungs-API</string>
+    <string name="data_export_api_description">Lokale Exportendpunkte für aggregierte Bewegungskarten aktivieren</string>
     <string name="notifications">Benachrichtigungen</string>
     <string name="notifications_sub_description">Chat-Push-Benachrichtigungen, Ton und Vibration</string>
     <string name="connection">Verbindung</string>

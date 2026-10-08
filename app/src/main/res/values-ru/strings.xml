@@ -244,6 +244,10 @@
     <string name="peer_link_diagnostics_description">Показывать тип транспорта, уровень сигнала (RSSI) и источник дальности на радаре</string>
     <string name="battery_saver_title">Режим энергосбережения</string>
     <string name="battery_saver_description">Снизить частоту сканирования для экономии заряда аккумулятора</string>
+    <string name="realtime_policy_visualization_title">Визуализация правил в реальном времени</string>
+    <string name="realtime_policy_visualization_description">Показывать состояния активных правил и триггеры</string>
+    <string name="data_export_api_title">Экспорт данных и API логирования</string>
+    <string name="data_export_api_description">Включить локальные конечные точки экспорта для аудита</string>
     <string name="notifications">Уведомления</string>
     <string name="notifications_sub_description">Push-уведомления чата, звук и вибрация</string>
     <string name="connection">Соединение</string>
