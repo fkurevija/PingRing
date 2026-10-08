@@ -59,6 +59,10 @@ class SessionManager(
         coordinationRepository.receiveChatMessage(message)
     }
 
+    fun receiveChatHistory(messages: List<ChatMessage>) {
+        coordinationRepository.receiveChatHistory(messages)
+    }
+
     fun leaveEvent() {
         coordinationRepository.leaveEvent(peerId.value)
         _peerId.value = generatePeerId() // Rotate peer ID for privacy

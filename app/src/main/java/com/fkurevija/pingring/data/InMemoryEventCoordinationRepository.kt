@@ -98,11 +98,22 @@ class InMemoryEventCoordinationRepository : EventCoordinationRepository {
 
     override fun receiveChatMessage(message: ChatMessage) {
         _sessionState.update { current ->
-            if (current.chatMessages.any { it.id == message.id }) {
-                current
-            } else {
-                current.copy(chatMessages = current.chatMessages + message)
+            val index = current.chatMessages.indexOfFirst { it.id == message.id }
+            when {
+                index < 0 -> current.copy(chatMessages = current.chatMessages + message)
+                current.chatMessages[index] == message -> current
+                else -> current.copy(
+                    chatMessages = current.chatMessages.mapIndexed { messageIndex, existing ->
+                        if (messageIndex == index) message else existing
+                    },
+                )
             }
+        }
+    }
+
+    override fun receiveChatHistory(messages: List<ChatMessage>) {
+        _sessionState.update { current ->
+            if (current.chatMessages == messages) current else current.copy(chatMessages = messages)
         }
     }
 

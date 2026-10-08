@@ -27,6 +27,7 @@ interface EventCoordinationRepository {
     fun updateMembers(newMembers: List<Friend>)
     fun upsertMember(member: Friend)
     fun receiveChatMessage(message: ChatMessage)
+    fun receiveChatHistory(messages: List<ChatMessage>)
     fun markSyncing()
     fun markSynced()
     fun markSyncError(message: String)

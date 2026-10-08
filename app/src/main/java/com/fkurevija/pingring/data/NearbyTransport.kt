@@ -98,6 +98,7 @@ interface NearbyTransport {
     fun sendUwbRangingOfferToHost(params: Any)
 
     fun broadcastChatMessage(chatMsg: ChatPayloadDto)
+    fun broadcastChatHistory(messages: List<ChatPayloadDto>)
     fun sendChatHistoryToPeer(peerId: String, messages: List<ChatPayloadDto>)
     fun sendChatMessageToPeer(peerId: String, chatMsg: ChatPayloadDto)
 

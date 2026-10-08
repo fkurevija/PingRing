@@ -594,6 +594,10 @@ class LanDebugConnectionsManager(
         sendPayload(null, chatMsg)
     }
 
+    override fun broadcastChatHistory(messages: List<ChatPayloadDto>) {
+        sendPayload(null, ChatHistoryPayloadDto(messages))
+    }
+
     override fun sendChatHistoryToPeer(peerId: String, messages: List<ChatPayloadDto>) {
         sendPayload(peerId, ChatHistoryPayloadDto(messages))
     }

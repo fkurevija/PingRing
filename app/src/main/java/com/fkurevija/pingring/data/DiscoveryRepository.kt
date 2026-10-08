@@ -1370,20 +1370,7 @@ class DiscoveryRepository(
                             ),
                         )
                     }
-                    val history = sessionManager.sessionState.value.chatMessages.map { message ->
-                        ChatPayloadDto(
-                            id = message.id,
-                            senderPeerId = message.senderPeerId,
-                            senderName = message.senderName,
-                            text = message.messageText,
-                            timestamp = message.timestamp,
-                            colorArgb = message.colorArgb,
-                            entryType = message.entryType,
-                            subjectName = message.subjectName,
-                            subjectPeerId = message.subjectPeerId,
-                        )
-                    }
-                    nearbyConnectionsManager.sendChatHistoryToPeer(peerId, history)
+                    nearbyConnectionsManager.sendChatHistoryToPeer(peerId, currentChatHistory())
                 }
             }
         }
@@ -1503,25 +1490,24 @@ class DiscoveryRepository(
 
         repositoryScope?.launch {
             nearbyConnectionsManager.receivedChatHistory.collect { history ->
-                history.messages.forEach { dto ->
+                val validMessages = history.messages.mapNotNull { dto ->
                     if (dto.entryType != ChatEntryType.MESSAGE && !isValidSystemChatEntry(dto)) {
                         Log.w(TAG, "Ignoring invalid system chat entry ${dto.id} in history")
-                        return@forEach
+                        return@mapNotNull null
                     }
-                    sessionManager.receiveLocalChatMessage(
-                        ChatMessage(
-                            id = dto.id,
-                            senderPeerId = dto.senderPeerId,
-                            senderName = dto.senderName,
-                            messageText = dto.text,
-                            timestamp = dto.timestamp,
-                            colorArgb = dto.colorArgb,
-                            entryType = dto.entryType,
-                            subjectName = dto.subjectName,
-                            subjectPeerId = dto.subjectPeerId,
-                        )
+                    ChatMessage(
+                        id = dto.id,
+                        senderPeerId = dto.senderPeerId,
+                        senderName = dto.senderName,
+                        messageText = dto.text,
+                        timestamp = dto.timestamp,
+                        colorArgb = dto.colorArgb,
+                        entryType = dto.entryType,
+                        subjectName = dto.subjectName,
+                        subjectPeerId = dto.subjectPeerId,
                     )
                 }
+                sessionManager.receiveChatHistory(validMessages)
             }
         }
 
@@ -1722,6 +1708,35 @@ class DiscoveryRepository(
         nearbyConnectionsManager.broadcastChatMessage(dto)
     }
 
+    private fun currentChatHistory(): List<ChatPayloadDto> =
+        sessionManager.sessionState.value.chatMessages.map { message ->
+            ChatPayloadDto(
+                id = message.id,
+                senderPeerId = message.senderPeerId,
+                senderName = message.senderName,
+                text = message.messageText,
+                timestamp = message.timestamp,
+                colorArgb = message.colorArgb,
+                entryType = message.entryType,
+                subjectName = message.subjectName,
+                subjectPeerId = message.subjectPeerId,
+            )
+        }
+
+    private fun broadcastChatHistory() {
+        if (sessionManager.sessionState.value.isHost) {
+            nearbyConnectionsManager.broadcastChatHistory(currentChatHistory())
+        }
+    }
+
+    private fun renameMemberHistory(peerId: String, name: String) {
+        val oldHistory = sessionManager.sessionState.value.chatMessages
+        sessionManager.renameMemberHistory(peerId, name)
+        if (sessionManager.sessionState.value.chatMessages != oldHistory) {
+            broadcastChatHistory()
+        }
+    }
+
     private fun isValidSystemChatEntry(dto: ChatPayloadDto): Boolean {
         val hostPeerId = sessionManager.sessionState.value.currentEvent?.hostPeerId
             ?: return false
@@ -1742,7 +1757,7 @@ class DiscoveryRepository(
             "Username must be nonblank and distinct from other members"
         }
         sessionManager.setUserName(name)
-        sessionManager.renameMemberHistory(sessionManager.peerId.value, name)
+        renameMemberHistory(sessionManager.peerId.value, name)
         _activeBeacons.update { beacons ->
             beacons.mapValues { (peerId, beacon) ->
                 if (peerId == sessionManager.peerId.value) beacon.copy(senderName = name) else beacon
@@ -2642,7 +2657,7 @@ private fun removePeer(peerId: String, preserveLastKnownDirection: Boolean = tru
             )
         }
         _peerUpdates.update { current -> current + (peerId to updated) }
-        sessionManager.renameMemberHistory(peerId, name)
+        renameMemberHistory(peerId, name)
         _activeBeacons.update { beacons ->
             beacons.mapValues { (senderPeerId, beacon) ->
                 if (senderPeerId == peerId) beacon.copy(senderName = name) else beacon

@@ -75,4 +75,16 @@ class InMemoryEventCoordinationRepositoryTest {
         assertEquals("New name", repository.sessionState.value.friends.single().name)
         assertEquals("New name", repository.sessionState.value.chatMessages.single().senderName)
     }
+
+    @Test
+    fun receivingChatHistoryReplacesStaleEntriesAndUpdatesExistingMessages() {
+        val repository = InMemoryEventCoordinationRepository()
+        repository.receiveChatMessage(ChatMessage("message-1", "peer-1", "Old name", "Hello", 200L))
+        repository.receiveChatMessage(ChatMessage("stale-message", "peer-2", "Peer 2", "Stale", 300L))
+
+        val updatedMessage = ChatMessage("message-1", "peer-1", "New name", "Hello", 200L)
+        repository.receiveChatHistory(listOf(updatedMessage))
+
+        assertEquals(listOf(updatedMessage), repository.sessionState.value.chatMessages)
+    }
 }

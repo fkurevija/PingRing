@@ -759,6 +759,10 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
         sendMeshBroadcast(chatMsg)
     }
 
+    override fun broadcastChatHistory(messages: List<ChatPayloadDto>) {
+        sendMeshBroadcast(ChatHistoryPayloadDto(messages))
+    }
+
     override fun sendChatHistoryToPeer(peerId: String, messages: List<ChatPayloadDto>) {
         sendMeshTargetedPayload(peerId, ChatHistoryPayloadDto(messages))
     }
