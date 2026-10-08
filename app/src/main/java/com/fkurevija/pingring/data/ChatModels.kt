@@ -203,10 +203,10 @@ object ChatBubblePalette {
         0xFFFFB300, // amber
         0xFF00897B, // teal
         0xFF8E24AA, // violet
-        0xFFFB8C00, // orange
+        0xFFFF80AB, // soft bright pink
         0xFF3949AB, // indigo
         0xFF43A047, // green
-        0xFFFDD835, // yellow
+        0xFFFB8C00, // orange
         0xFFD81B60, // pink
     )
 

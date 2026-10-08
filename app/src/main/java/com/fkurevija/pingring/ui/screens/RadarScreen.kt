@@ -2086,6 +2086,22 @@ internal fun ChatSettingsDialog(
             }
         },
         confirmButton = {
+            TextButton(
+                onClick = {
+                    usernameSubmitted = true
+                    if (usernameError == null) {
+                        if (usernameChanged) {
+                            onUsernameChange(editedUsername.trim())
+                        }
+                        onDismiss()
+                    }
+                },
+                enabled = usernameError == null,
+            ) {
+                Text(stringResource(R.string.save_changes))
+            }
+        },
+        dismissButton = {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) }
         },
     )
