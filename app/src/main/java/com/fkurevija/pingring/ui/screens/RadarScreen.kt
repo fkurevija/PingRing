@@ -893,13 +893,15 @@ fun RadarScreen(
                                                         horizontalAlignment = if (isMe) Alignment.End else Alignment.Start
                                                     ) {
                                                         Card(
-                                                            modifier = Modifier.combinedClickable(
-                                                                onClick = {},
-                                                                onLongClick = {
-                                                                    clipboard.setText(AnnotatedString(msg.messageText))
-                                                                    Toast.makeText(context, context.getString(R.string.chat_message_copied), Toast.LENGTH_SHORT).show()
-                                                                }
-                                                            ),
+                                                            modifier = Modifier
+                                                                .fillMaxWidth(0.75f)
+                                                                .combinedClickable(
+                                                                    onClick = {},
+                                                                    onLongClick = {
+                                                                        clipboard.setText(AnnotatedString(msg.messageText))
+                                                                        Toast.makeText(context, context.getString(R.string.chat_message_copied), Toast.LENGTH_SHORT).show()
+                                                                    }
+                                                                ),
                                                             shape = RoundedCornerShape(
                                                                 topStart = 14.dp,
                                                                 topEnd = 14.dp,
