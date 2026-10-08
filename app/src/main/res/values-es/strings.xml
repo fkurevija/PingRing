@@ -237,6 +237,7 @@
     <string name="report_a_problem_failed">No se pudo abrir el navegador</string>
     <string name="copy_pingring_code">Copiar código de PingRing</string>
     <string name="pingring_code_copied">Código de PingRing copiado</string>
+    <string name="chat_message_copied">Mensaje copiado</string>
     <string name="notifications">Notificaciones</string>
     <string name="notifications_sub_description">Notificaciones push de chat, sonido y vibración</string>
     <string name="connection">Conexión</string>

@@ -239,6 +239,7 @@
     <!-- Shown as an accessibility action on the code, and as the confirmation. -->
     <string name="copy_pingring_code">Copy PingRing Code</string>
     <string name="pingring_code_copied">PingRing Code copied</string>
+    <string name="chat_message_copied">Message copied</string>
     <string name="notifications">Notifications</string>
     <string name="notifications_sub_description">Chat push notifications, sound and vibration</string>
     <string name="connection">Connection</string>

@@ -10,6 +10,11 @@ import com.fkurevija.pingring.ui.accessibility.rememberAccessibilityEnvironment
 
 import androidx.compose.ui.window.DialogProperties
 import android.widget.Toast
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
+import java.text.SimpleDateFormat
+import java.util.Date
 import androidx.activity.compose.BackHandler
 import kotlinx.coroutines.delay
 import androidx.compose.foundation.BorderStroke
@@ -743,15 +748,32 @@ fun RadarScreen(
                     // Newest first, because the list is reversed: what reads as the
                     // end of the conversation is the bottom of the screen, which
                     // is where the reader is already looking.
+                    val systemNotices = remember(eventId) { mutableStateOf<List<ChatTimelineItem.SystemNotice>>(emptyList()) }
+                    val knownPeers = remember(eventId) { mutableSetOf<String>() }
+                    LaunchedEffect(sessionState.friends, sessionState.currentEvent) {
+                        sessionState.friends.forEach { friend ->
+                            if (friend.peerId !in knownPeers && friend.peerId != sessionState.currentEvent?.hostPeerId) {
+                                knownPeers.add(friend.peerId)
+                                systemNotices.value = systemNotices.value + ChatTimelineItem.SystemNotice(
+                                    id = "join:${friend.peerId}:${System.currentTimeMillis()}",
+                                    text = "${friend.name.ifBlank { "A member" }} joined the PingRing",
+                                    timestamp = System.currentTimeMillis()
+                                )
+                            }
+                        }
+                    }
+
                     val chatEntries: List<ChatTimelineItem> = remember(
                         sessionState.chatMessages,
                         activeBeacons,
                         endedBeacons,
+                        systemNotices.value,
                     ) {
                         ChatTimelinePolicy.build(
                             messages = sessionState.chatMessages,
                             activeBeacons = activeBeacons.values.toList(),
                             endedBeacons = endedBeacons,
+                            systemNotices = systemNotices.value,
                         ).reversed()
                     }
 
@@ -853,79 +875,121 @@ fun RadarScreen(
                                             when (entry) {
                                                 is ChatTimelineItem.Msg -> {
                                                     val msg = entry.message
-                                                    // Identity, not display name: a
-                                                    // name comparison put the host's own
-                                                    // messages on the wrong side, because
-                                                    // the local fallback name is "Host"
-                                                    // and names are neither unique nor
-                                                    // stable. See ChatMessageOwnership.
                                                     val isMe = ChatMessageOwnership.isOwnMessage(
-                                                    msg.senderPeerId,
-                                                    localPeerId
-                                                )
-                                                // "The colour this person is
-                                                // using now", not the one the
-                                                // message carried when it was sent.
-                                                // See ChatBubbleColorPolicy:
-                                                // without this a member who changes
-                                                // colour has their own transcript
-                                                // split down the middle.
-                                                val senderBubbleColor = ChatBubbleColorPolicy
-                                                    .colorFor(
-                                                        message = msg,
-                                                        localPeerId = localPeerId,
-                                                        localColorArgb = chatBubbleColorArgb,
-                                                        latestColorByPeer = latestSenderColors,
+                                                        msg.senderPeerId,
+                                                        localPeerId
                                                     )
-                                                    ?.let(::Color)
-                                            Column(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                horizontalAlignment = if (isMe) Alignment.End else Alignment.Start
-                                            ) {
-                                                Card(
-                                                    shape = RoundedCornerShape(
-                                                        topStart = 14.dp,
-                                                        topEnd = 14.dp,
-                                                        bottomStart = if (isMe) 14.dp else 4.dp,
-                                                        bottomEnd = if (isMe) 4.dp else 14.dp
-                                                    ),
-                                                    colors = CardDefaults.cardColors(
-                                                        containerColor = senderBubbleColor ?: if (isMe) {
-                                                            MaterialTheme.colorScheme.primaryContainer
-                                                        } else {
-                                                            MaterialTheme.colorScheme.surface
-                                                        }
-                                                    )
-                                                ) {
+                                                    val senderBubbleColor = ChatBubbleColorPolicy
+                                                        .colorFor(
+                                                            message = msg,
+                                                            localPeerId = localPeerId,
+                                                            localColorArgb = chatBubbleColorArgb,
+                                                            latestColorByPeer = latestSenderColors,
+                                                        )
+                                                        ?.let(::Color)
+                                                    val context = LocalContext.current
+                                                    val clipboard = LocalClipboardManager.current
+                                                    val timeStr = remember(msg.timestamp) { SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(msg.timestamp)) }
+                                                    Column(
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        horizontalAlignment = if (isMe) Alignment.End else Alignment.Start
+                                                    ) {
+                                                        Card(
+                                                            modifier = Modifier.combinedClickable(
+                                                                onClick = {},
+                                                                onLongClick = {
+                                                                    clipboard.setText(AnnotatedString(msg.messageText))
+                                                                    Toast.makeText(context, context.getString(R.string.chat_message_copied), Toast.LENGTH_SHORT).show()
+                                                                }
+                                                            ),
+                                                            shape = RoundedCornerShape(
+                                                                topStart = 14.dp,
+                                                                topEnd = 14.dp,
+                                                                bottomStart = if (isMe) 14.dp else 4.dp,
+                                                                bottomEnd = if (isMe) 4.dp else 14.dp
+                                                            ),
+                                                            colors = CardDefaults.cardColors(
+                                                                containerColor = senderBubbleColor ?: if (isMe) {
+                                                                    MaterialTheme.colorScheme.primaryContainer
+                                                                } else {
+                                                                    MaterialTheme.colorScheme.surface
+                                                                }
+                                                            )
+                                                        ) {
                                                             Column(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
-                                                                Text(
-                                                                    msg.senderName,
-                                                                    style = MaterialTheme.typography.labelSmall,
-                                                                    fontWeight = FontWeight.Bold,
-                                                                    color = senderBubbleColor?.readableOnIt() ?: if (isMe) {
-                                                                        MaterialTheme.colorScheme.onPrimaryContainer
-                                                                    } else {
-                                                                        MaterialTheme.colorScheme.primary
-                                                                    }
-                                                                )
+                                                                Row(
+                                                                    modifier = Modifier.fillMaxWidth(),
+                                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                                    verticalAlignment = Alignment.CenterVertically
+                                                                ) {
+                                                                    Text(
+                                                                        msg.senderName,
+                                                                        style = MaterialTheme.typography.labelSmall,
+                                                                        fontWeight = FontWeight.Bold,
+                                                                        color = senderBubbleColor?.readableOnIt() ?: if (isMe) {
+                                                                            MaterialTheme.colorScheme.onPrimaryContainer
+                                                                        } else {
+                                                                            MaterialTheme.colorScheme.primary
+                                                                        }
+                                                                    )
+                                                                    Spacer(Modifier.width(8.dp))
+                                                                    Text(
+                                                                        timeStr,
+                                                                        style = MaterialTheme.typography.labelSmall,
+                                                                        color = (senderBubbleColor?.readableOnIt() ?: if (isMe) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface).copy(alpha = 0.7f)
+                                                                    )
+                                                                }
+                                                                Spacer(Modifier.height(2.dp))
                                                                 Text(
                                                                     msg.messageText,
                                                                     style = MaterialTheme.typography.bodyMedium,
                                                                     color = senderBubbleColor?.readableOnIt()
                                                                         ?: if (isMe) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
                                                                 )
+                                                                if (isMe) {
+                                                                    Spacer(Modifier.height(2.dp))
+                                                                    Text(
+                                                                        "✓ Sent",
+                                                                        style = MaterialTheme.typography.labelSmall,
+                                                                        color = (senderBubbleColor?.readableOnIt() ?: MaterialTheme.colorScheme.onPrimaryContainer).copy(alpha = 0.6f),
+                                                                        modifier = Modifier.align(Alignment.End)
+                                                                    )
+                                                                }
                                                             }
                                                         }
                                                     }
                                                 }
 
                                                 is ChatTimelineItem.Beacon -> ActiveBeaconEntry(
-                    beacon = entry.beacon,
-                    silenced = entry.beacon.id in silencedBeaconIds,
-                    onToggleSilenced = { silenced ->
-                        discoveryRepository?.setBeaconSilenced(entry.beacon.id, silenced)
-                    },
-                )
+                                                    beacon = entry.beacon,
+                                                    silenced = entry.beacon.id in silencedBeaconIds,
+                                                    onToggleSilenced = { silenced ->
+                                                        discoveryRepository?.setBeaconSilenced(entry.beacon.id, silenced)
+                                                    },
+                                                )
+
+                                                is ChatTimelineItem.SystemNotice -> {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .padding(vertical = 4.dp),
+                                                        contentAlignment = Alignment.Center
+                                                    ) {
+                                                        Card(
+                                                            shape = RoundedCornerShape(12.dp),
+                                                            colors = CardDefaults.cardColors(
+                                                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                                                            )
+                                                        ) {
+                                                            Text(
+                                                                text = entry.text,
+                                                                style = MaterialTheme.typography.labelSmall,
+                                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                                            )
+                                                        }
+                                                    }
+                                                }
                                             }
                                         }
                                     }

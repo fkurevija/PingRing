@@ -50,6 +50,14 @@ sealed interface ChatTimelineItem {
         override val timestamp: Long get() = beacon.timestamp
         override val key = "b:${beacon.id}"
     }
+
+    data class SystemNotice(
+        val id: String,
+        val text: String,
+        override val timestamp: Long,
+    ) : ChatTimelineItem {
+        override val key = "sys:$id"
+    }
 }
 
 /**
@@ -84,10 +92,12 @@ object ChatTimelinePolicy {
         messages: List<ChatMessage>,
         activeBeacons: List<BeaconInfo>,
         endedBeacons: List<BeaconInfo>,
+        systemNotices: List<ChatTimelineItem.SystemNotice> = emptyList(),
     ): List<ChatTimelineItem> {
         val history = buildList {
             messages.mapTo(this) { ChatTimelineItem.Msg(it) }
             endedBeacons.mapTo(this) { ChatTimelineItem.Beacon(it) }
+            systemNotices.mapTo(this) { it }
         }.sortedBy { it.timestamp }
 
         return history + activeBeacons.map { ChatTimelineItem.Beacon(it) }
