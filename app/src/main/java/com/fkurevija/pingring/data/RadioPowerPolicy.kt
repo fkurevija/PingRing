@@ -57,6 +57,7 @@ object RadioPowerPolicy {
         val uwbActive: Boolean,
         val hotspotActive: Boolean,
         val onBattery: Boolean = true,
+        val batterySaverEnabled: Boolean = false,
     )
 
     /**
@@ -106,19 +107,17 @@ object RadioPowerPolicy {
         supportsExtendedAdvertising: Boolean,
     ): Plan {
         val crowded = load.memberCount >= PASS_THRESHOLD_MEMBERS
-        val secondPass = supportsExtendedAdvertising && crowded
+        val secondPass = supportsExtendedAdvertising && crowded && !load.batterySaverEnabled
 
         return Plan(
             scanEffort = when {
-                // Two radios of the three are already up and the phone is not
-                // on mains. Dropping to the platform default is the one lever
-                // that costs nothing in behaviour the user asked for: the radar
-                // still works, it just finds a member a beat later.
-                load.hotspotActive && load.uwbActive && !load.onBattery -> ScanEffort.BALANCED
+                load.batterySaverEnabled || (load.hotspotActive && load.uwbActive && !load.onBattery) -> ScanEffort.BALANCED
                 else -> ScanEffort.ACTIVE
             },
             scanPassCount = if (secondPass) MAX_SCAN_PASSES else 1,
-            uwbRetentionMillis = if (load.uwbActive && (load.hotspotActive || !load.onBattery)) {
+            uwbRetentionMillis = if (load.batterySaverEnabled) {
+                UWB_RETENTION_BUSY_MILLIS / 2
+            } else if (load.uwbActive && (load.hotspotActive || !load.onBattery)) {
                 UWB_RETENTION_BUSY_MILLIS
             } else {
                 UWB_RETENTION_ACTIVE_MILLIS

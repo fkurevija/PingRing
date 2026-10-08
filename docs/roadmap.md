@@ -71,6 +71,7 @@ These proposals are recorded for future evaluation only; no new calibration, fil
 ### Other engineering and product work
 
 - **Move the platform probes out of `RangingSourcePolicy`, `BleRangePolicy` and `RadarAccessibilityPolicy`.** *(Completed)* Platform probes (`RangingSourceProbe`, `BleRangeProbe`, `RadarAccessibilityProbe`) have been separated out into dedicated probe objects beside their respective policy classes, removing their coverage exclusions and allowing full JVM unit test coverage.
+- **Saved PingRing History / Recent Rings.** A local history list of recently joined or hosted PingRing event codes (with session names and timestamps) on the home screen, allowing users to quickly reconnect to frequent local circles with a single tap without retyping 6-character codes or rescanning QR codes.
 - **Set an emoji alongside your username.** Optional, unset by default, and deliberately not built. Usernames identify members in chat and approval cards; an emoji would be a second, loosely-authenticated identity field hanging off a name that is already shown everywhere. If it is added, two decisions come first — whether it travels in the same signed payload as the name, and whether it is restricted to a small fixed set the way chat bubble colours are, so two phones cannot render the same member differently.
 - **Decide product direction for the brand and in-app help.** The palette is provisional, and help placement/content has no offline product decision yet.
 
