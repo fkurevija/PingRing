@@ -307,7 +307,8 @@ fun PingRingSettingsScreen(
                             .fillMaxWidth()
                             .then(if (!capabilities.canRange) Modifier.clickable {
                                 uwbAvailability.onRequestAccess()
-                            } else Modifier),
+                            } else Modifier)
+                            .padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(Icons.Default.Sensors, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
@@ -315,20 +316,12 @@ fun PingRingSettingsScreen(
                         Column(Modifier.weight(1f)) {
                             Text(stringResource(R.string.uwb), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                             Text(
-                                uwbRefusal?.let { stringResource(it.descriptionRes) }
-                                    ?: stringResource(R.string.sub_metre_uwb),
+                                if (capabilities.canRange) stringResource(R.string.uwb_active_status)
+                                else (uwbRefusal?.let { stringResource(it.descriptionRes) } ?: stringResource(R.string.sub_metre_uwb)),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        Switch(
-                            checked = selection.usesUwb,
-                            enabled = capabilities.canRange,
-                            onCheckedChange = { persist(useUwb = it) },
-                            modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp).semantics {
-                                contentDescription = context.getString(R.string.uwb)
-                            },
-                        )
                     }
                 }
             }

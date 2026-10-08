@@ -110,6 +110,7 @@
     <string name="uwb_needs_permission">UWB ranging needs permission. Tap to grant it.</string>
     <string name="uwb_os_too_old">UWB ranging needs Android 12 or newer.</string>
     <string name="sub_metre_uwb">Sub-metre ranging on supported hardware.</string>
+    <string name="uwb_active_status">Sub-metre UWB ranging active</string>
     <string name="max_capacity">Max Capacity</string>
     <string name="max_capacity_description">PingRing is limited to 8 members (1 host + 7 guests).</string>
     <string name="prevent_new_users_joining">Prevent New Users From Joining</string>

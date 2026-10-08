@@ -109,6 +109,7 @@
     <string name="uwb_needs_permission">Для измерения расстояния UWB требуется разрешение. Нажмите, чтобы предоставить его.</string>
     <string name="uwb_os_too_old">Для измерения расстояния UWB нужен Android 12 или новее.</string>
     <string name="sub_metre_uwb">Измерение UWB с точностью до метра на поддерживаемых устройствах.</string>
+    <string name="uwb_active_status">UWB измерение до метра активно</string>
     <string name="max_capacity">Максимальное число участников</string>
     <string name="max_capacity_description">В PingRing может быть не более 8 участников (1 организатор и 7 гостей).</string>
     <string name="leave_pingring">Покинуть PingRing</string>

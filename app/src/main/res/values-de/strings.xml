@@ -113,6 +113,7 @@
     <string name="uwb_needs_permission">Für UWB-Entfernungsmessung ist eine Berechtigung nötig. Zum Erteilen tippen.</string>
     <string name="uwb_os_too_old">Für UWB-Entfernungsmessung ist Android 12 oder neuer erforderlich.</string>
     <string name="sub_metre_uwb">UWB-Messung im Submeterbereich auf unterstützter Hardware.</string>
+    <string name="uwb_active_status">UWB-Entfernungsmessung im Submeterbereich aktiv</string>
     <string name="max_capacity">Maximale Teilnehmerzahl</string>
     <string name="max_capacity_description">PingRing ist auf 8 Mitglieder (1 Host + 7 Gäste) begrenzt.</string>
     <string name="leave_pingring">PingRing verlassen</string>

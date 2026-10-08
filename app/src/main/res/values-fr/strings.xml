@@ -113,6 +113,7 @@
     <string name="uwb_needs_permission">La mesure UWB nécessite une autorisation. Touchez pour l’accorder.</string>
     <string name="uwb_os_too_old">La mesure UWB nécessite Android 12 ou une version ultérieure.</string>
     <string name="sub_metre_uwb">Mesure UWB à moins d’un mètre sur les appareils compatibles.</string>
+    <string name="uwb_active_status">Mesure UWB sub-métrique active</string>
     <string name="max_capacity">Capacité maximale</string>
     <string name="max_capacity_description">PingRing est limité à 8 membres (1 hôte + 7 invités).</string>
     <string name="leave_pingring">Quitter PingRing</string>

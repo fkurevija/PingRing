@@ -113,6 +113,7 @@
     <string name="uwb_needs_permission">Za UWB mjerenje udaljenosti potrebno je dopuštenje. Dodirnite za dodjelu.</string>
     <string name="uwb_os_too_old">Za UWB mjerenje udaljenosti potreban je Android 12 ili noviji.</string>
     <string name="sub_metre_uwb">UWB mjerenje udaljenosti ispod jednog metra na podržanom hardveru.</string>
+    <string name="uwb_active_status">UWB mjerenje ispod metra aktivno</string>
     <string name="max_capacity">Maksimalni kapacitet</string>
     <string name="max_capacity_description">PingRing je ograničen na 8 članova (1 domaćin + 7 gostiju).</string>
     <string name="leave_pingring">Napusti PingRing</string>
