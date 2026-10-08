@@ -185,6 +185,7 @@ import com.fkurevija.pingring.data.RadarPeerUpdate
 import com.fkurevija.pingring.data.SessionState
 import com.fkurevija.pingring.R
 import kotlinx.coroutines.delay
+import java.util.Calendar
 import java.util.Locale
 import kotlin.math.atan2
 
@@ -212,6 +213,19 @@ private fun Color.readableOnIt(): Color {
     val contrastOnBlack = (luminance() + 0.05f) / 0.05f
     val contrastOnWhite = 1.05f / (luminance() + 0.05f)
     return if (contrastOnBlack >= contrastOnWhite) Color.Black else Color.White
+}
+
+internal fun formatMessageTimestamp(timestampMillis: Long): String {
+    val msgCal = Calendar.getInstance().apply { timeInMillis = timestampMillis }
+    val todayCal = Calendar.getInstance()
+    val isToday = msgCal.get(Calendar.YEAR) == todayCal.get(Calendar.YEAR) &&
+                  msgCal.get(Calendar.DAY_OF_YEAR) == todayCal.get(Calendar.DAY_OF_YEAR)
+    val timeStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(timestampMillis))
+    return if (isToday) {
+        "Today $timeStr"
+    } else {
+        SimpleDateFormat("MMM d, HH:mm", Locale.getDefault()).format(Date(timestampMillis))
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -1941,9 +1955,12 @@ internal fun ChatSettingsDialog(
     onUsernameChange: (String) -> Unit = {},
 ) {
     var editedUsername by remember(username) { mutableStateOf(username) }
+    var draftColor by remember(selectedColorArgb) { mutableStateOf(selectedColorArgb ?: ChatBubblePalette.random()) }
     var usernameSubmitted by remember { mutableStateOf(false) }
     val usernameError = TextInputPolicy.usernameError(editedUsername, existingMemberNames)
     val usernameChanged = editedUsername.trim() != username
+    val colorChanged = draftColor != selectedColorArgb
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.chat_settings)) },
@@ -1976,18 +1993,6 @@ internal fun ChatSettingsDialog(
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                     modifier = Modifier.fillMaxWidth(),
                 )
-                if (usernameChanged) {
-                    TextButton(
-                        onClick = {
-                            usernameSubmitted = true
-                            if (usernameError == null) onUsernameChange(editedUsername.trim())
-                        },
-                        enabled = usernameError == null,
-                        modifier = Modifier.align(Alignment.End),
-                    ) {
-                        Text(stringResource(R.string.save_changes))
-                    }
-                }
                 Spacer(Modifier.height(12.dp))
                 Text(
                     stringResource(R.string.chat_bubble_colour_description),
@@ -2012,7 +2017,7 @@ internal fun ChatSettingsDialog(
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     ChatBubblePalette.presets.forEach { colorArgb ->
-                        val selected = selectedColorArgb == colorArgb
+                        val selected = draftColor == colorArgb
                         // Ours is not taken, and ours is the one thing that must
                         // never grey out or a member cannot see or keep their own.
                         //
@@ -2057,7 +2062,7 @@ internal fun ChatSettingsDialog(
                                     selected = selected,
                                     enabled = !heldByOther,
                                     role = Role.RadioButton,
-                                    onClick = { onColorSelected(colorArgb) },
+                                    onClick = { draftColor = colorArgb },
                                 ),
                             contentAlignment = Alignment.Center,
                         ) {
@@ -2092,6 +2097,9 @@ internal fun ChatSettingsDialog(
                     if (usernameError == null) {
                         if (usernameChanged) {
                             onUsernameChange(editedUsername.trim())
+                        }
+                        if (colorChanged) {
+                            onColorSelected(draftColor)
                         }
                         onDismiss()
                     }
