@@ -46,9 +46,8 @@ class RadarHeadingInstrumentedTest {
     }
 
     private fun assertHeading(status: String) {
-        composeRule.onNodeWithText(context.getString(R.string.tracked_peer_distance, "Guest", status))
-            .assertIsDisplayed()
-        composeRule.onNodeWithText(status).assertDoesNotExist()
+        composeRule.onNodeWithText("Guest").assertIsDisplayed()
+        composeRule.onNodeWithText(status).assertIsDisplayed()
     }
 
     @Test
