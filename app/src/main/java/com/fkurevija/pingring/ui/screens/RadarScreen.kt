@@ -166,6 +166,7 @@ import com.fkurevija.pingring.data.ChatMessage
 import com.fkurevija.pingring.data.ChatBubbleColorPolicy
 import com.fkurevija.pingring.data.ChatMessageOwnership
 import com.fkurevija.pingring.data.ChatBubblePalette
+import com.fkurevija.pingring.data.ChatEntryType
 import com.fkurevija.pingring.data.ChatTimelineItem
 import com.fkurevija.pingring.data.ChatTimelinePolicy
 import com.fkurevija.pingring.data.ConnectionRecoveryPromptPolicy
@@ -762,32 +763,15 @@ fun RadarScreen(
                     // Newest first, because the list is reversed: what reads as the
                     // end of the conversation is the bottom of the screen, which
                     // is where the reader is already looking.
-                    val systemNotices = remember(eventId) { mutableStateOf<List<ChatTimelineItem.SystemNotice>>(emptyList()) }
-                    val knownPeers = remember(eventId) { mutableSetOf<String>() }
-                    LaunchedEffect(sessionState.friends, sessionState.currentEvent) {
-                        sessionState.friends.forEach { friend ->
-                            if (friend.peerId !in knownPeers && friend.peerId != sessionState.currentEvent?.hostPeerId) {
-                                knownPeers.add(friend.peerId)
-                                systemNotices.value += ChatTimelineItem.SystemNotice(
-                                    id = "join:${friend.peerId}:${System.currentTimeMillis()}",
-                                    text = "${friend.name.ifBlank { "A member" }} joined the PingRing",
-                                    timestamp = System.currentTimeMillis()
-                                )
-                            }
-                        }
-                    }
-
                     val chatEntries: List<ChatTimelineItem> = remember(
                         sessionState.chatMessages,
                         activeBeacons,
                         endedBeacons,
-                        systemNotices.value,
                     ) {
                         ChatTimelinePolicy.build(
                             messages = sessionState.chatMessages,
                             activeBeacons = activeBeacons.values.toList(),
                             endedBeacons = endedBeacons,
-                            systemNotices = systemNotices.value,
                         ).reversed()
                     }
 
@@ -983,6 +967,24 @@ fun RadarScreen(
                                                 )
 
                                                 is ChatTimelineItem.SystemNotice -> {
+                                                    val message = entry.message
+                                                    val noticeText = when (message.entryType) {
+                                                        ChatEntryType.PINGRING_CREATED -> stringResource(
+                                                            R.string.system_pingring_created,
+                                                            message.senderName,
+                                                        )
+                                                        ChatEntryType.MEMBER_JOINED -> stringResource(
+                                                            R.string.system_member_joined,
+                                                            message.subjectName
+                                                                ?.takeIf(String::isNotBlank)
+                                                                ?: stringResource(R.string.peer_default_name),
+                                                        )
+                                                        ChatEntryType.MESSAGE -> ""
+                                                    }
+                                                    val timeStr = remember(message.timestamp) {
+                                                        SimpleDateFormat("HH:mm", Locale.getDefault())
+                                                            .format(Date(message.timestamp))
+                                                    }
                                                     Box(
                                                         modifier = Modifier
                                                             .fillMaxWidth()
@@ -995,12 +997,22 @@ fun RadarScreen(
                                                                 containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
                                                             )
                                                         ) {
-                                                            Text(
-                                                                text = entry.text,
-                                                                style = MaterialTheme.typography.labelSmall,
-                                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                                                            )
+                                                            Row(
+                                                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                                                verticalAlignment = Alignment.CenterVertically,
+                                                            ) {
+                                                                Text(
+                                                                    text = noticeText,
+                                                                    style = MaterialTheme.typography.labelSmall,
+                                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                                )
+                                                                Spacer(Modifier.width(8.dp))
+                                                                Text(
+                                                                    text = timeStr,
+                                                                    style = MaterialTheme.typography.labelSmall,
+                                                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                                                )
+                                                            }
                                                         }
                                                     }
                                                 }

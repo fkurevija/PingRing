@@ -71,7 +71,10 @@ class InMemoryEventCoordinationRepository : EventCoordinationRepository {
                     if (friend.peerId == peerId) friend.copy(name = name) else friend
                 },
                 chatMessages = current.chatMessages.map { message ->
-                    if (message.senderPeerId == peerId) message.copy(senderName = name) else message
+                    message.copy(
+                        senderName = if (message.senderPeerId == peerId) name else message.senderName,
+                        subjectName = if (message.subjectPeerId == peerId) name else message.subjectName,
+                    )
                 },
                 activeBeacons = current.activeBeacons.mapValues { (senderPeerId, beacon) ->
                     if (senderPeerId == peerId) beacon.copy(senderName = name) else beacon

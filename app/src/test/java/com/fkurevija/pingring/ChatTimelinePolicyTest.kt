@@ -2,6 +2,7 @@ package com.fkurevija.pingring
 
 import com.fkurevija.pingring.data.BeaconInfo
 import com.fkurevija.pingring.data.ChatMessage
+import com.fkurevija.pingring.data.ChatEntryType
 import com.fkurevija.pingring.data.ChatTimelineItem
 import com.fkurevija.pingring.data.ChatTimelinePolicy
 import org.junit.Assert.assertEquals
@@ -34,6 +35,23 @@ class ChatTimelinePolicyTest {
         vibrationPattern = "RAPID_ALERT",
         isActive = active,
         timestamp = at
+    )
+
+    private fun systemEntry(
+        id: String,
+        at: Long,
+        type: ChatEntryType,
+        subjectName: String? = null,
+        subjectPeerId: String? = null,
+    ) = ChatMessage(
+        id = id,
+        senderPeerId = "host",
+        senderName = "Host",
+        messageText = "",
+        timestamp = at,
+        entryType = type,
+        subjectName = subjectName,
+        subjectPeerId = subjectPeerId,
     )
 
     private fun keys(items: List<ChatTimelineItem>) = items.map { it.key }
@@ -136,6 +154,30 @@ class ChatTimelinePolicyTest {
         )
 
         assertEquals(listOf("m:m1", "m:m2", "m:m3"), keys(items))
+    }
+
+    @Test
+    fun sharedSystemNoticesAreOrderedWithMessages() {
+        val created = systemEntry("created", 500L, ChatEntryType.PINGRING_CREATED)
+        val joined = systemEntry(
+            "joined",
+            2_500L,
+            ChatEntryType.MEMBER_JOINED,
+            subjectName = "Ana",
+            subjectPeerId = "peer-ana",
+        )
+        val items = ChatTimelinePolicy.build(
+            messages = listOf(msg("m2", 3_000L), joined, msg("m1", 1_000L), created),
+            activeBeacons = emptyList(),
+            endedBeacons = emptyList(),
+        )
+
+        assertEquals(
+            listOf("sys:created", "m:m1", "sys:joined", "m:m2"),
+            keys(items),
+        )
+        assertEquals(created, (items[0] as ChatTimelineItem.SystemNotice).message)
+        assertEquals(joined, (items[2] as ChatTimelineItem.SystemNotice).message)
     }
 
     @Test

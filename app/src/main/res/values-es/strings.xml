@@ -131,6 +131,8 @@
     <string name="stop">Detener</string>
     <string name="chat">Chat</string>
     <string name="no_messages_yet">Aún no hay mensajes. ¡Saluda!</string>
+    <string name="system_pingring_created">%1$s creó el PingRing</string>
+    <string name="system_member_joined">%1$s se unió al PingRing</string>
     <string name="type_message">Escribe un mensaje…</string>
     <string name="send">Enviar</string>
     <string name="my_beacon">Mi baliza</string>

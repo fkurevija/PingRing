@@ -132,6 +132,8 @@
     <string name="stop">Zaustavi</string>
     <string name="chat">Razgovor</string>
     <string name="no_messages_yet">Još nema poruka. Pozdravi ostale!</string>
+    <string name="system_pingring_created">%1$s je pokrenuo/la PingRing</string>
+    <string name="system_member_joined">%1$s pridružio/la se PingRingu</string>
     <string name="type_message">Napiši poruku…</string>
     <string name="send">Pošalji</string>
     <string name="my_beacon">Moj signal</string>

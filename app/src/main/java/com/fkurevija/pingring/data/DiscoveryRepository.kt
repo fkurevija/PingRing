@@ -1283,7 +1283,13 @@ class DiscoveryRepository(
 
         repositoryScope?.launch {
             nearbyConnectionsManager.receivedChatMessage.collect { dto ->
-                updatePeerName(dto.senderPeerId, dto.senderName)
+                if (dto.entryType != ChatEntryType.MESSAGE && !isValidSystemChatEntry(dto)) {
+                    Log.w(TAG, "Ignoring invalid system chat entry ${dto.id}")
+                    return@collect
+                }
+                if (dto.entryType == ChatEntryType.MESSAGE) {
+                    updatePeerName(dto.senderPeerId, dto.senderName)
+                }
                 val chatMessage = ChatMessage(
                     id = dto.id,
                     senderPeerId = dto.senderPeerId,
@@ -1291,10 +1297,15 @@ class DiscoveryRepository(
                     messageText = dto.text,
                     timestamp = dto.timestamp,
                     colorArgb = dto.colorArgb,
+                    entryType = dto.entryType,
+                    subjectName = dto.subjectName,
+                    subjectPeerId = dto.subjectPeerId,
                 )
                 sessionManager.receiveLocalChatMessage(chatMessage)
 
-                if (dto.senderPeerId != sessionManager.peerId.value) {
+                if (dto.entryType == ChatEntryType.MESSAGE &&
+                    dto.senderPeerId != sessionManager.peerId.value
+                ) {
                     val appWideEnabled = appearanceSettings.chatNotificationsEnabled.first()
                     val eventEnabled = sessionManager.sessionState.value.currentEvent?.chatNotificationsEnabled ?: true
                     if (appWideEnabled && eventEnabled) {
@@ -1318,6 +1329,9 @@ class DiscoveryRepository(
                     _hostConnectionLostAtMillis.value = null
                 }
                 addConnectedPeer(peerId)
+                if (sessionManager.sessionState.value.isHost) {
+                    announceMemberJoined(peerId)
+                }
                 // A peer with a live connection is the only kind that can be
                 // UWB-ranged, so this is what makes it eligible as a focus.
                 connectedPeerIds.add(peerId)
@@ -1364,6 +1378,9 @@ class DiscoveryRepository(
                             text = message.messageText,
                             timestamp = message.timestamp,
                             colorArgb = message.colorArgb,
+                            entryType = message.entryType,
+                            subjectName = message.subjectName,
+                            subjectPeerId = message.subjectPeerId,
                         )
                     }
                     nearbyConnectionsManager.sendChatHistoryToPeer(peerId, history)
@@ -1487,13 +1504,21 @@ class DiscoveryRepository(
         repositoryScope?.launch {
             nearbyConnectionsManager.receivedChatHistory.collect { history ->
                 history.messages.forEach { dto ->
+                    if (dto.entryType != ChatEntryType.MESSAGE && !isValidSystemChatEntry(dto)) {
+                        Log.w(TAG, "Ignoring invalid system chat entry ${dto.id} in history")
+                        return@forEach
+                    }
                     sessionManager.receiveLocalChatMessage(
                         ChatMessage(
                             id = dto.id,
                             senderPeerId = dto.senderPeerId,
                             senderName = dto.senderName,
                             messageText = dto.text,
-                            timestamp = dto.timestamp
+                            timestamp = dto.timestamp,
+                            colorArgb = dto.colorArgb,
+                            entryType = dto.entryType,
+                            subjectName = dto.subjectName,
+                            subjectPeerId = dto.subjectPeerId,
                         )
                     )
                 }
@@ -1628,6 +1653,59 @@ class DiscoveryRepository(
         )
         
         // Append locally immediately
+        publishChatEntry(dto)
+    }
+
+    fun announcePingRingCreated() {
+        val state = sessionManager.sessionState.value
+        check(state.isHost && state.currentEvent != null) {
+            "A PingRing-created notice requires an active host session."
+        }
+        publishSystemChatEntry(
+            entryType = ChatEntryType.PINGRING_CREATED,
+            subjectName = state.userName,
+            subjectPeerId = state.currentEvent.hostPeerId,
+        )
+    }
+
+    private fun announceMemberJoined(peerId: String) {
+        val state = sessionManager.sessionState.value
+        if (!state.isHost || peerId.isBlank() || peerId == sessionManager.peerId.value) return
+        if (state.chatMessages.any {
+                it.entryType == ChatEntryType.MEMBER_JOINED && it.subjectPeerId == peerId
+            }
+        ) return
+
+        val member = state.friends.firstOrNull { it.peerId == peerId }
+        publishSystemChatEntry(
+            entryType = ChatEntryType.MEMBER_JOINED,
+            subjectName = member?.name?.takeIf(String::isNotBlank),
+            subjectPeerId = peerId,
+        )
+    }
+
+    private fun publishSystemChatEntry(
+        entryType: ChatEntryType,
+        subjectName: String?,
+        subjectPeerId: String?,
+    ) {
+        val state = sessionManager.sessionState.value
+        val senderName = TextInputPolicy.sanitizeUsername(state.userName)
+            .ifBlank { context.getString(R.string.host_default_name) }
+        val dto = ChatPayloadDto(
+            id = UUID.randomUUID().toString(),
+            senderPeerId = sessionManager.peerId.value,
+            senderName = senderName,
+            text = "",
+            timestamp = System.currentTimeMillis(),
+            entryType = entryType,
+            subjectName = subjectName?.let(TextInputPolicy::sanitizeUsername),
+            subjectPeerId = subjectPeerId,
+        )
+        publishChatEntry(dto)
+    }
+
+    private fun publishChatEntry(dto: ChatPayloadDto) {
         sessionManager.receiveLocalChatMessage(
             ChatMessage(
                 id = dto.id,
@@ -1636,11 +1714,25 @@ class DiscoveryRepository(
                 messageText = dto.text,
                 timestamp = dto.timestamp,
                 colorArgb = dto.colorArgb,
+                entryType = dto.entryType,
+                subjectName = dto.subjectName,
+                subjectPeerId = dto.subjectPeerId,
             )
         )
-
-        // Broadcast to P2P mesh endpoints
         nearbyConnectionsManager.broadcastChatMessage(dto)
+    }
+
+    private fun isValidSystemChatEntry(dto: ChatPayloadDto): Boolean {
+        val hostPeerId = sessionManager.sessionState.value.currentEvent?.hostPeerId
+            ?: return false
+        if (dto.senderPeerId != hostPeerId) return false
+        return when (dto.entryType) {
+            ChatEntryType.MESSAGE -> true
+            ChatEntryType.PINGRING_CREATED -> dto.subjectPeerId == hostPeerId
+            ChatEntryType.MEMBER_JOINED ->
+                !dto.subjectPeerId.isNullOrBlank() &&
+                    dto.subjectPeerId != hostPeerId
+        }
     }
 
     fun updateLocalUsername(rawName: String) {

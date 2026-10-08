@@ -301,6 +301,7 @@ fun MainNavigation(
                                         inviteSecret = InviteSecret.generate(),
                                     )
                                 )
+                                discoveryRepository.announcePingRingCreated()
                                 backStack.add(HostSetupKey(eventCode))
                             }
                         },

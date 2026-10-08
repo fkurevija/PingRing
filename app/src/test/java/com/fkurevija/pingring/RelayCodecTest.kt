@@ -10,6 +10,7 @@ import com.fkurevija.pingring.data.MeshLinkAuthenticationPayloadDto
 import com.fkurevija.pingring.data.ChatHistoryPayloadDto
 import com.fkurevija.pingring.data.ChatColourClaimPayloadDto
 import com.fkurevija.pingring.data.ChatPayloadDto
+import com.fkurevija.pingring.data.ChatEntryType
 import com.fkurevija.pingring.data.DecodedPayload
 import com.fkurevija.pingring.data.EventControlPayloadDto
 import com.fkurevija.pingring.data.InviteSecretPayloadDto
@@ -292,6 +293,19 @@ class RelayCodecTest {
             )!!
         ) as ChatPayloadDto
         assertNull("messages from older builds retain the theme color", olderChat.colorArgb)
+    }
+
+    @Test
+    fun systemChatEntryMetadataSurvivesTheWire() {
+        val notice = chat.copy(
+            entryType = ChatEntryType.MEMBER_JOINED,
+            subjectName = "Ana",
+            subjectPeerId = "peer-ana",
+        )
+
+        val encoded = RelayCodec.encode(notice)!!
+
+        assertEquals(notice, payloadOf(decoded(encoded.wireType, encoded.json)))
     }
 
     @Test

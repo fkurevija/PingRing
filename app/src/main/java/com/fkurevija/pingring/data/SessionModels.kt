@@ -350,6 +350,9 @@ data class ChatMessage(
     val timestamp: Long,
     /** The sender's chosen bubble colour, or null for the legacy themed style. */
     val colorArgb: Long? = null,
+    val entryType: ChatEntryType = ChatEntryType.MESSAGE,
+    val subjectName: String? = null,
+    val subjectPeerId: String? = null,
 )
 
 @Serializable

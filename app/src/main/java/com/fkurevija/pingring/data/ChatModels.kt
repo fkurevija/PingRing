@@ -16,10 +16,9 @@ const val DEFAULT_BEACON_TITLE = "Active Beacon"
 /**
  * One thing in the chat transcript, with the moment it happened.
  *
- * A beacon and a message are different things to render, but they are the same
- * thing to *order*: both carry a timestamp, and both were said at a time. This
- * is that shared shape, so the transcript can be assembled as one list and the
- * render step can decide how each looks.
+ * Messages, lifecycle notices, and beacons are different things to render, but
+ * they share a timestamp, so the transcript can order them together and let the
+ * render step decide how each looks.
  */
 sealed interface ChatTimelineItem {
     /** When it happened, in epoch millis. */
@@ -51,13 +50,17 @@ sealed interface ChatTimelineItem {
         override val key = "b:${beacon.id}"
     }
 
-    data class SystemNotice(
-        val id: String,
-        val text: String,
-        override val timestamp: Long,
-    ) : ChatTimelineItem {
-        override val key = "sys:$id"
+    data class SystemNotice(val message: ChatMessage) : ChatTimelineItem {
+        override val timestamp: Long get() = message.timestamp
+        override val key = "sys:${message.id}"
     }
+}
+
+@kotlinx.serialization.Serializable
+enum class ChatEntryType {
+    MESSAGE,
+    PINGRING_CREATED,
+    MEMBER_JOINED,
 }
 
 /**
@@ -92,12 +95,17 @@ object ChatTimelinePolicy {
         messages: List<ChatMessage>,
         activeBeacons: List<BeaconInfo>,
         endedBeacons: List<BeaconInfo>,
-        systemNotices: List<ChatTimelineItem.SystemNotice> = emptyList(),
     ): List<ChatTimelineItem> {
         val history = buildList {
-            messages.mapTo(this) { ChatTimelineItem.Msg(it) }
+            messages.forEach { message ->
+                when (message.entryType) {
+                    ChatEntryType.MESSAGE -> add(ChatTimelineItem.Msg(message))
+                    ChatEntryType.PINGRING_CREATED, ChatEntryType.MEMBER_JOINED -> {
+                        add(ChatTimelineItem.SystemNotice(message))
+                    }
+                }
+            }
             endedBeacons.mapTo(this) { ChatTimelineItem.Beacon(it) }
-            systemNotices.mapTo(this) { it }
         }.sortedBy { it.timestamp }
 
         return history + activeBeacons.map { ChatTimelineItem.Beacon(it) }
@@ -113,6 +121,9 @@ data class ChatPayloadDto(
     val timestamp: Long,
     /** Null preserves the themed bubble used by messages from older builds. */
     val colorArgb: Long? = null,
+    val entryType: ChatEntryType = ChatEntryType.MESSAGE,
+    val subjectName: String? = null,
+    val subjectPeerId: String? = null,
 )
 
 @JsonClass(generateAdapter = true)
