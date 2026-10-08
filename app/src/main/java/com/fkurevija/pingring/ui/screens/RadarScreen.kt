@@ -17,7 +17,6 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import androidx.activity.compose.BackHandler
 import kotlinx.coroutines.delay
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -49,6 +48,7 @@ import androidx.compose.material.icons.filled.BluetoothDisabled
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.WifiOff
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.MyLocation
@@ -754,7 +754,7 @@ fun RadarScreen(
                         sessionState.friends.forEach { friend ->
                             if (friend.peerId !in knownPeers && friend.peerId != sessionState.currentEvent?.hostPeerId) {
                                 knownPeers.add(friend.peerId)
-                                systemNotices.value = systemNotices.value + ChatTimelineItem.SystemNotice(
+                                systemNotices.value += ChatTimelineItem.SystemNotice(
                                     id = "join:${friend.peerId}:${System.currentTimeMillis()}",
                                     text = "${friend.name.ifBlank { "A member" }} joined the PingRing",
                                     timestamp = System.currentTimeMillis()
@@ -1088,7 +1088,7 @@ fun RadarScreen(
                                     onClick = { showChatSettings = true },
                                     modifier = Modifier.weight(1f)
                                 ) {
-                                    Icon(Icons.Default.Chat, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = null, modifier = Modifier.size(18.dp))
                                     Spacer(Modifier.width(6.dp))
                                     Text(
                                         stringResource(R.string.chat_settings),
