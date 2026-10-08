@@ -102,6 +102,8 @@ private val beaconRepeatDurationMillisKey = longPreferencesKey("beacon_repeat_du
 private val silencedBeaconIdsKey = stringSetPreferencesKey("silenced_beacon_ids")
 private val lanDebugEnabledKey = booleanPreferencesKey("lan_debug_enabled")
 private val lanDebugHostKey = stringPreferencesKey("lan_debug_host")
+private val batterySaverEnabledKey = booleanPreferencesKey("battery_saver_enabled")
+private val customBeaconTemplatesKey = stringSetPreferencesKey("custom_beacon_templates")
 
 class AppearanceSettingsRepository(private val context: Context) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -249,6 +251,28 @@ class AppearanceSettingsRepository(private val context: Context) {
 
     fun setVisualFlashAlertsEnabled(enabled: Boolean) {
         scope.launch { context.appearanceDataStore.edit { it[visualFlashAlertsEnabledKey] = enabled } }
+    }
+
+    val batterySaverEnabled: Flow<Boolean> = context.appearanceDataStore.data.map { preferences ->
+        preferences[batterySaverEnabledKey] ?: false
+    }
+
+    fun setBatterySaverEnabled(enabled: Boolean) {
+        scope.launch { context.appearanceDataStore.edit { it[batterySaverEnabledKey] = enabled } }
+    }
+
+    val customBeaconTemplates: Flow<Set<String>> = context.appearanceDataStore.data.map { preferences ->
+        preferences[customBeaconTemplatesKey] ?: emptySet()
+    }
+
+    fun addCustomBeaconTemplate(template: String) {
+        if (template.isBlank()) return
+        scope.launch {
+            context.appearanceDataStore.edit { preferences ->
+                val existing = preferences[customBeaconTemplatesKey] ?: emptySet()
+                preferences[customBeaconTemplatesKey] = existing + template.trim()
+            }
+        }
     }
 
     fun setChatNotificationsEnabled(enabled: Boolean) {
