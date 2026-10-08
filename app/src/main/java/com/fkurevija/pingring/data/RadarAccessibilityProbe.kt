@@ -5,6 +5,7 @@ import com.fkurevija.pingring.R
 import kotlin.math.ceil
 
 object RadarAccessibilityProbe {
+    @Suppress("UNUSED_PARAMETER")
     fun describeLocalized(
         resources: Resources,
         peerName: String?,

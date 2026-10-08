@@ -25,8 +25,8 @@ object RangingSourceProbe {
             val manager = context.applicationContext
                 .getSystemService(Context.WIFI_RTT_RANGING_SERVICE) as? WifiRttManager
             val aware = context.applicationContext.getSystemService(WifiAwareManager::class.java)
-            manager?.isAvailable() == true && aware?.isAvailable == true
-        }.getOrDefault(false)
+            manager?.isAvailable == true && aware?.isAvailable == true
+        }.getOrDefault(defaultValue = false)
 
         val permissionGranted = ContextCompat.checkSelfPermission(
             context,
@@ -37,7 +37,7 @@ object RangingSourceProbe {
             val locationManager =
                 context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
             locationManager?.isLocationEnabled == true
-        }.getOrDefault(false)
+        }.getOrDefault(defaultValue = false)
 
         return RangingSourcePolicy.WifiRttCapability(
             rttAvailable = rttAvailable,

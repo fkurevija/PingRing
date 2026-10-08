@@ -2,7 +2,6 @@ package com.fkurevija.pingring.data
 
 import android.bluetooth.BluetoothManager
 import android.content.Context
-import android.os.Build
 import android.util.Log
 
 object BleRangeProbe {
@@ -15,11 +14,7 @@ object BleRangeProbe {
     fun isCodedPhyUsable(context: Context): Boolean {
         val adapter = context.getSystemService(BluetoothManager::class.java)?.adapter ?: return false
         if (!adapter.isEnabled) return false
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            runCatching { adapter.isLeCodedPhySupported }.getOrDefault(false)
-        } else {
-            false
-        }
+        return runCatching { adapter.isLeCodedPhySupported }.getOrDefault(defaultValue = false)
     }
 
     /**
@@ -28,11 +23,7 @@ object BleRangeProbe {
     fun supportsExtendedAdvertising(context: Context): Boolean {
         val adapter = context.getSystemService(BluetoothManager::class.java)?.adapter ?: return false
         if (!adapter.isEnabled) return false
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            runCatching { adapter.isLeExtendedAdvertisingSupported }.getOrDefault(false)
-        } else {
-            false
-        }
+        return runCatching { adapter.isLeExtendedAdvertisingSupported }.getOrDefault(defaultValue = false)
     }
 
     fun supportsSignedBleIdentityAdvertising(context: Context): Boolean {
@@ -40,7 +31,7 @@ object BleRangeProbe {
         if (!adapter.isEnabled || !supportsExtendedAdvertising(context)) return false
         return runCatching {
             adapter.leMaximumAdvertisingDataLength >= BleRangePolicy.MIN_EXTENDED_AD_DATA_BYTES
-        }.getOrDefault(false)
+        }.getOrDefault(defaultValue = false)
     }
 
     /** Human-readable summary of the active configuration, for logcat and settings. */
