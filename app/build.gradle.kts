@@ -326,18 +326,9 @@ val coverageGateExclusions = jacocoExclusions + listOf(
     "**/data/PingRingService*",
     "**/MainActivity*",
     "**/DeviceEnvironment*",
-    // Mixes a platform probe into the same class as its rules, so the probe's
-    // untestable lines drag a genuinely well-tested policy below the floor.
-    // RangingSourcePolicy is at 0.62 and is the best-covered class in this list;
-    // the shortfall is entirely `probeWifiRtt`, which needs a WifiRttManager.
-    // The fix is to move that function out beside DiagnosticsProbe, the way every
-    // other policy in this package already separates its probe. Tracked in
-    // docs/roadmap.md rather than quietly tolerated here.
-    "**/data/RangingSourcePolicy*",
-    "**/data/BleRangePolicy*",
-    // Same problem, opposite halves: describe() is pure and describeLocalized()
-    // needs a real Resources, so the pair can never both be covered from a JVM.
-    "**/data/RadarAccessibilityPolicy*",
+    "**/data/RangingSourceProbe*",
+    "**/data/BleRangeProbe*",
+    "**/data/RadarAccessibilityProbe*",
     // Type declarations with no executable logic to cover. JaCoCo counts the
     // constructor or the abstract members as uncovered lines, which reads as 0%
     // for a class that has no behaviour at all.

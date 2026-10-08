@@ -5,7 +5,7 @@ import android.content.res.Configuration
 import android.os.LocaleList
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.fkurevija.pingring.data.RadarAccessibilityPolicy
+import com.fkurevija.pingring.data.RadarAccessibilityProbe
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -53,7 +53,7 @@ class LocalizationResourcesInstrumentedTest {
 
         assertEquals(
             "Радар: Анна. Сигнал: Рядом. Направление недоступно.",
-            RadarAccessibilityPolicy.describeLocalized(
+            RadarAccessibilityProbe.describeLocalized(
                 resources = russian.resources,
                 peerName = "Анна",
                 distanceMeters = null,

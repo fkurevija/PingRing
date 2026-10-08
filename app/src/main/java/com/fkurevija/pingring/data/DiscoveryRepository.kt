@@ -951,7 +951,7 @@ class DiscoveryRepository(
         return ConnectivityStatus(
             isBluetoothEnabled = bleEnabled,
             isWifiEnabled = wifiEnabled,
-            supportsBleIdentity = bleEnabled && BleRangePolicy.supportsSignedBleIdentityAdvertising(context),
+            supportsBleIdentity = bleEnabled && BleRangeProbe.supportsSignedBleIdentityAdvertising(context),
         )
     }
 
@@ -1445,7 +1445,7 @@ class DiscoveryRepository(
                 // whether retaining is right at all; this only decides how long
                 // it is worth paying for.
                 val window = currentRadioPlan(
-                    BleRangePolicy.supportsExtendedAdvertising(context)
+                    BleRangeProbe.supportsExtendedAdvertising(context)
                 ).uwbRetentionMillis
                 val expired = retainedRangingPeerIds
                     .filterValues { !UwbRetentionPolicy.isWithinRetentionWindow(it, now, window) }
@@ -1850,7 +1850,7 @@ class DiscoveryRepository(
     private fun startSignedBleAdvertising() {
         val adapter = bluetoothAdapter ?: return
         if (!adapter.isEnabled) return
-        if (!BleRangePolicy.supportsSignedBleIdentityAdvertising(context)) {
+        if (!BleRangeProbe.supportsSignedBleIdentityAdvertising(context)) {
             _connectivityStatus.value = getConnectivityStatus()
             Log.w(TAG, "BLE identity proximity unavailable: extended advertising is unsupported")
             return
@@ -2137,13 +2137,13 @@ class DiscoveryRepository(
             .setServiceUuid(ParcelUuid(PINGRING_SERVICE_UUID))
             .build()
 
-        val extended = BleRangePolicy.supportsExtendedAdvertising(context)
+        val extended = BleRangeProbe.supportsExtendedAdvertising(context)
         // The pass count and scan mode come from the power policy rather than
         // from BleRangePolicy's fixed answer, so a ring that does not need two
         // passes is not paying for them. BleRangePolicy still owns what each
         // pass looks like; this decides how many there are and how hard.
         val plan = currentRadioPlan(extended)
-        BleRangePolicy.logSummary(context)
+        BleRangeProbe.logSummary(context)
         Log.i(TAG, "Radio plan: ${RadioPowerPolicy.describe(plan)}")
 
         // Each pass gets its own ScanCallback instance: Android treats the

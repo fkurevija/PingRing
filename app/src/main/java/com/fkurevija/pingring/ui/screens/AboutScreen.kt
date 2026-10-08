@@ -57,7 +57,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import com.fkurevija.pingring.R
-import com.fkurevija.pingring.data.BleRangePolicy
+import com.fkurevija.pingring.data.BleRangeProbe
 import com.fkurevija.pingring.data.DiagnosticsFacts
 import com.fkurevija.pingring.data.DiagnosticsPolicy
 import com.fkurevija.pingring.data.DiagnosticsPolicy.Key
@@ -390,7 +390,7 @@ fun rememberDiagnosticsFacts(
             }?.toInt() ?: 0,
             isDebugBuild = isDebugBuild,
             uwbSupported = uwbSupported,
-            signedBleIdentitySupported = BleRangePolicy.supportsSignedBleIdentityAdvertising(context),
+            signedBleIdentitySupported = BleRangeProbe.supportsSignedBleIdentityAdvertising(context),
             bluetoothEnabled = bluetoothEnabled,
             wifiEnabled = wifiEnabled,
             hasVibrator = hasVibrator,

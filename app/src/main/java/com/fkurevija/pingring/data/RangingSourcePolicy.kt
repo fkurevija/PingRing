@@ -1,12 +1,6 @@
 package com.fkurevija.pingring.data
 
-import android.Manifest
-import android.content.Context
-import android.content.pm.PackageManager
-import android.location.LocationManager
-import android.net.wifi.rtt.WifiRttManager
 import android.os.Build
-import androidx.core.content.ContextCompat
 
 /**
  * Where a distance reading came from, and which source a device should use for
@@ -27,7 +21,7 @@ import androidx.core.content.ContextCompat
  * genuinely unavailable. Never the other way round, because a coarse reading is
  * worse than none once the user has been told the fine one exists.
  *
- * Pure and Android-free so the rules are directly testable; [probeWifiRtt] is
+ * Pure and Android-free so the rules are directly testable; [RangingSourceProbe.probeWifiRtt] is
  * the one function that touches the platform, kept separate so the policy can
  * be asserted without a device.
  */
@@ -219,42 +213,7 @@ object RangingSourcePolicy {
             "Wi-Fi RTT ranging needs Android 9 or newer."
     }
 
-    /**
-     * Reads what this device can currently do.
-     *
-     * Every check is wrapped: all three can throw on an OEM build that exposes
-     * the class without supporting it, and a capability probe that crashes the
-     * settings screen is worse than one that reports nothing.
-     *
-     * `WifiRttManager.isAvailable` is a documented way to ask, unlike the
-     * hotspot equivalents which are hidden.
-     */
-    fun probeWifiRtt(context: Context): WifiRttCapability {
-        val rttAvailable = runCatching {
-            val manager = context.applicationContext
-                .getSystemService(Context.WIFI_RTT_RANGING_SERVICE) as? WifiRttManager
-            val aware = context.applicationContext.getSystemService(android.net.wifi.aware.WifiAwareManager::class.java)
-            manager?.isAvailable() == true && aware?.isAvailable == true
-        }.getOrDefault(false)
 
-        val permissionGranted = ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.ACCESS_FINE_LOCATION,
-        ) == PackageManager.PERMISSION_GRANTED
-
-        val locationServicesEnabled = runCatching {
-            val locationManager =
-                context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
-            locationManager?.isLocationEnabled == true
-        }.getOrDefault(false)
-
-        return WifiRttCapability(
-            rttAvailable = rttAvailable,
-            locationPermissionGranted = permissionGranted,
-            locationServicesEnabled = locationServicesEnabled,
-            apiLevel = Build.VERSION.SDK_INT,
-        )
-    }
 
     /**
      * Judges a reading against an independent measurement of the same geometry.

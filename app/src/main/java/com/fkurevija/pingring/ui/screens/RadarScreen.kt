@@ -174,7 +174,7 @@ import com.fkurevija.pingring.data.FocusPolicy
 import com.fkurevija.pingring.data.LastKnownPeerDirection
 import com.fkurevija.pingring.data.MAX_PARTICIPANTS
 import com.fkurevija.pingring.data.PendingJoinRequest
-import com.fkurevija.pingring.data.RadarAccessibilityPolicy
+import com.fkurevija.pingring.data.RadarAccessibilityProbe
 import com.fkurevija.pingring.data.RadarDirectionPolicy
 import com.fkurevija.pingring.data.RadarPeerUpdate
 import com.fkurevija.pingring.data.SessionState
@@ -491,7 +491,7 @@ fun RadarScreen(
         focusedBeacon?.title,
     )
     val spokenSummary by rememberUpdatedState(
-        RadarAccessibilityPolicy.describeLocalized(
+        RadarAccessibilityProbe.describeLocalized(
             resources = context.resources,
             peerName = focusedPeer?.name,
             distanceMeters = focusedPeer?.distance,
@@ -1447,7 +1447,7 @@ internal fun RadarContent(
                 } ?: stringResource(R.string.proximity_signal, proximityLabel)
             },
             beacon = beacon,
-            accessibilityDescription = RadarAccessibilityPolicy.describeLocalized(
+            accessibilityDescription = RadarAccessibilityProbe.describeLocalized(
                 resources = resources,
                 peerName = peer?.name,
                 distanceMeters = peer?.distance,

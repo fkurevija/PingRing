@@ -1,11 +1,8 @@
 package com.fkurevija.pingring.data
 
-import android.bluetooth.BluetoothManager
 import android.bluetooth.le.AdvertiseSettings
 import android.bluetooth.le.ScanSettings
-import android.content.Context
 import android.os.Build
-import android.util.Log
 
 /**
  * How far PingRing can see over BLE, and the radio settings that decide it.
@@ -27,41 +24,6 @@ import android.util.Log
  * the honest, supported ones.
  */
 object BleRangePolicy {
-
-    private const val TAG = "BleRangePolicy"
-
-    /**
-     * True when this device's radio and platform can act on long-range hints.
-     *
-     * Coded PHY cannot be *selected* from the public SDK, so this is reported
-     * as a capability signal (and logged) rather than used to drive a setting.
-     */
-    fun isCodedPhyUsable(context: Context): Boolean {
-        val adapter = context.getSystemService(BluetoothManager::class.java)?.adapter ?: return false
-        if (!adapter.isEnabled) return false
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            runCatching { adapter.isLeCodedPhySupported }.getOrDefault(false)
-        } else {
-            false
-        }
-    }
-
-    /**
-     * True when extended (BLE 5.0) advertising is available, which is the
-     * public-API route to a larger advertising payload and a longer interval
-     * budget. PingRing's payload is 20 bytes, so the size win is not
-     * needed, but extended advertising is a genuinely better discovery
-     * mechanism than legacy and costs nothing to prefer.
-     */
-    fun supportsExtendedAdvertising(context: Context): Boolean {
-        val adapter = context.getSystemService(BluetoothManager::class.java)?.adapter ?: return false
-        if (!adapter.isEnabled) return false
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            runCatching { adapter.isLeExtendedAdvertisingSupported }.getOrDefault(false)
-        } else {
-            false
-        }
-    }
 
     /**
      * How many concurrent scan passes to run.
@@ -149,23 +111,4 @@ object BleRangePolicy {
     fun fitsInLegacyAdvertising(): Boolean = SERVICE_DATA_BYTES <= MAX_LEGACY_SERVICE_DATA_BYTES
 
     fun fitsInExtendedAdvertising(): Boolean = MIN_EXTENDED_AD_DATA_BYTES <= MAX_EXTENDED_AD_DATA_BYTES
-
-    fun supportsSignedBleIdentityAdvertising(context: Context): Boolean {
-        val adapter = context.getSystemService(BluetoothManager::class.java)?.adapter ?: return false
-        if (!adapter.isEnabled || !supportsExtendedAdvertising(context)) return false
-        return runCatching {
-            adapter.leMaximumAdvertisingDataLength >= MIN_EXTENDED_AD_DATA_BYTES
-        }.getOrDefault(false)
-    }
-
-    /** Human-readable summary of the active configuration, for logcat and settings. */
-    fun describe(context: Context): String {
-        val extended = supportsExtendedAdvertising(context)
-        return "BLE range: passes=${scanPassCount(extended)}, " +
-            "extendedAdvertising=$extended, codedPhyHardware=${isCodedPhyUsable(context)} (not selectable via public API)"
-    }
-
-    internal fun logSummary(context: Context) {
-        Log.i(TAG, describe(context))
-    }
 }
