@@ -12,6 +12,9 @@ import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
  * Silencing one beacon without being able to hide it.
@@ -37,8 +40,12 @@ class BeaconSilenceInstrumentedTest {
         timestamp = 1L,
     )
 
-    private fun show(silenced: Boolean, onToggle: (Boolean) -> Unit = {}) {
-        composeRule.setContent {
+    private fun show(
+        silenced: Boolean,
+        beacon: BeaconInfo = this.beacon,
+        onToggle: (Boolean) -> Unit = {},
+    ) {
+        composeRule.setScreen {
             ActiveBeaconEntry(
                 beacon = beacon,
                 silenced = silenced,
@@ -72,6 +79,28 @@ class BeaconSilenceInstrumentedTest {
         composeRule.onNodeWithText(
             "Alarm silenced on this phone. The beacon is still shown."
         ).assertIsDisplayed()
+    }
+
+    @Test
+    fun beaconShowsItsTimestampInChat() {
+        show(silenced = false)
+
+        val timestamp = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(beacon.timestamp))
+        composeRule.onNodeWithText(timestamp).assertIsDisplayed()
+    }
+
+    @Test
+    fun endedBeaconHasNoSilenceControlOrSilencedNote() {
+        show(silenced = true, beacon = beacon.copy(isActive = false))
+
+        composeRule.onNodeWithText("Regroup Here").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Silence the alarm for Regroup Here")
+            .assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("Turn the alarm back on for Regroup Here")
+            .assertDoesNotExist()
+        composeRule.onNodeWithText(
+            "Alarm silenced on this phone. The beacon is still shown."
+        ).assertDoesNotExist()
     }
 
     @Test

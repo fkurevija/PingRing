@@ -1348,6 +1348,9 @@ internal fun ActiveBeaconEntry(
     onToggleSilenced: (Boolean) -> Unit,
 ) {
     val beaconColor = beacon.color
+    val timeStr = remember(beacon.timestamp) {
+        SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(beacon.timestamp))
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1368,12 +1371,24 @@ internal fun ActiveBeaconEntry(
         )
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
-            Text(
-                beacon.title,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                color = beaconColor
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    beacon.title,
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = beaconColor,
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    timeStr,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                )
+            }
             Text(
                 stringResource(
                     R.string.beacon_sender_pattern,
@@ -1386,7 +1401,7 @@ internal fun ActiveBeaconEntry(
             // Stated in words as well as shown by the icon, because the icon is
             // the only signal on this row that changes and a member who has just
             // silenced something needs to be able to confirm it took.
-            if (silenced) {
+            if (beacon.isActive && silenced) {
                 Text(
                     stringResource(R.string.beacon_silenced_note),
                     style = MaterialTheme.typography.labelSmall,
@@ -1394,20 +1409,22 @@ internal fun ActiveBeaconEntry(
                 )
             }
         }
-        IconButton(
-            onClick = { onToggleSilenced(!silenced) },
-            modifier = Modifier.size(36.dp)
-        ) {
-            Icon(
-                if (silenced) Icons.Default.NotificationsOff else Icons.Default.Notifications,
-                // Names both the action and what it means, so the state is not
-                // carried by the icon shape alone.
-                contentDescription = stringResource(
-                    if (silenced) R.string.unsilence_beacon else R.string.silence_beacon,
-                    beacon.title,
-                ),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+        if (beacon.isActive) {
+            IconButton(
+                onClick = { onToggleSilenced(!silenced) },
+                modifier = Modifier.size(36.dp)
+            ) {
+                Icon(
+                    if (silenced) Icons.Default.NotificationsOff else Icons.Default.Notifications,
+                    // Names both the action and what it means, so the state is not
+                    // carried by the icon shape alone.
+                    contentDescription = stringResource(
+                        if (silenced) R.string.unsilence_beacon else R.string.silence_beacon,
+                        beacon.title,
+                    ),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }
