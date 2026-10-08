@@ -23,7 +23,7 @@ The floor is **scoped, and the scope is the interesting part.** The gate reads u
 
 What remains in scope is the code a JVM test genuinely can reach — the pure decision objects, which is where untested logic actually hides. The exclusions are listed explicitly in `coverageGateExclusions` and **rot visibly**: a new framework-bound class fails the gate until somebody names it there with a reason. That friction is deliberate, because guessing at reachability is what lets an untested policy class slip through disguised as plumbing.
 
-Three policy classes are excluded for a narrower reason and are the real remaining debt: `RangingSourcePolicy`, `BleRangePolicy` and `RadarAccessibilityPolicy` each mix a platform probe into the same class as its rules. A per-class floor on unit data can never be met by that shape — the probe's lines are unreachable — so the fix is to move the probe out beside `DiagnosticsProbe`, as the other policies already do. See the [Roadmap](roadmap.md).
+Platform probes (`RangingSourceProbe`, `BleRangeProbe`, `RadarAccessibilityProbe`) are separated into dedicated probe objects beside their respective policy classes (`RangingSourcePolicy`, `BleRangePolicy`, `RadarAccessibilityPolicy`), keeping the decision policies pure and fully testable on a JVM without hardware dependencies. See the [Roadmap](roadmap.md).
 
 ```bash
 git clone https://github.com/fkurevija/PingRing.git

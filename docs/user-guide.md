@@ -243,16 +243,18 @@ Not here any more, and where they went:
 
 ## App Settings
 
-The gear icon on the home screen, before hosting or joining, and from PingRing Settings. One flat list, ordered by how often each is changed:
+The gear icon on the home screen, before hosting or joining, and from PingRing Settings. Navigation rows lead to dedicated sub-menu screens:
 
 1. **Theme Mode** — *System Default*, *Light Theme* or *Dark Theme*, as a dropdown beside Language. PingRing uses a fixed violet brand palette in both modes; it deliberately does not follow Material You wallpaper colours.
 2. **Language** — choose System Default or one of the available languages: English, Croatian, Spanish, French, Canadian French, German, or Russian. The choice applies to PingRing alone.
-3. **Chat Push Notifications**, **Notification Sound** and **Notification Vibration** — each its own switch, governing device-wide incoming-chat notifications. These are the only place they are set; Android's own settings for PingRing can silence them too. On a phone with no vibrator the vibration switch stays visible but off, labelled as unsupported.
-4. **Ask If I Lose The Host** — enable or disable the guest leave prompt and set how long host contact must be lost before it appears (1–10 minutes; default 2 minutes). The feature is the Connection Recovery Prompt; the switch is named for the question it puts to you rather than after the mechanism behind it.
-5. **Join Timeout** — how long joining waits for the host before giving up (10–120 seconds; default 60). Set it low when the host is watching their screen and will answer within seconds; set it high when they are busy. **A wait under about 45 seconds can fail a join that was about to succeed**: the host still has their own window to notice your request and tap Allow, and if you give up first you will be told you could not reach anybody rather than that the host was still deciding. The default of 60 s avoids that.
-6. **Accessibility** — Reduce Motion, independent Proximity Haptics, the opt-in radar screen-reader summary, and throttled Spoken Radar Updates. Android font/display scaling is used rather than an app-specific text-size control.
-7. **Developer Options** — shown only in debug builds. It contains the LAN Debug Transport and relay host. See [Building & Testing](building.md) for how to use it.
-8. **About** — your build version, the device, and what this phone can do. Two buttons at the bottom hand that information to someone who can fix it, and both carry the same eleven values:
+3. **Notifications** — opens the Notifications sub-menu containing **Chat Push Notifications**, **Notification Sound** and **Notification Vibration**. On a phone with no vibrator the vibration switch stays visible but off, labelled as unsupported.
+4. **Connection** — opens the Connection sub-menu containing:
+   - **Verify Nearby connections** — require both devices to compare and confirm the six-digit code before accepting a Nearby connection.
+   - **Ask If I Lose The Host** — enable or disable the guest leave prompt and set how long host contact must be lost before it appears (1–10 minutes; default 2 minutes).
+   - **Join Timeout** — how long joining waits for the host before giving up (10–120 seconds; default 60).
+5. **Accessibility** — Reduce Motion, independent Proximity Haptics, the opt-in radar screen-reader summary, and throttled Spoken Radar Updates. Android font/display scaling is used rather than an app-specific text-size control.
+6. **Developer Options** — shown only in debug builds. It contains the LAN Debug Transport and relay host. See [Building & Testing](building.md) for how to use it.
+7. **About** — your build version, the device, and what this phone can do. Two buttons at the bottom hand that information to someone who can fix it, and both carry the same eleven values:
    - **Copy report for bug report** puts the whole thing on the clipboard in one tap, for pasting into an email or a chat.
    - **Report a Problem** opens the project's issue tracker in your browser with the report **already filled in** — nothing to copy, nothing to paste. The title carries your build and device so a report can be told apart without opening it.
 
