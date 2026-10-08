@@ -16,6 +16,8 @@
     <string name="proximity_haptics_description">Vibrer lorsque le membre suivi est proche. Les vibrations de balises et de notifications sont indépendantes.</string>
     <string name="spoken_radar_updates">Annonces des changements du radar</string>
     <string name="spoken_radar_updates_description">Avec un lecteur d’écran actif, annoncer les changements stables de membre, de proximité et de balise au maximum toutes les 10 secondes lorsque le radar est ouvert.</string>
+    <string name="visual_flash_alerts">Alertes visuelles clignotantes</string>
+    <string name="visual_flash_alerts_description">Faire clignoter la bordure de l’écran lors des alertes.</string>
     <string name="accessibility_card_description">Fonctionnalités facultatives pour lecteur d’écran</string>
     <string name="language">Langue</string>
     <string name="language_system_default">Par défaut du système</string>

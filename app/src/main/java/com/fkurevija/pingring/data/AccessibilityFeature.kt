@@ -22,4 +22,8 @@ enum class AccessibilityFeature(
         title = "Spoken radar updates",
         description = "Announce tracked-member and proximity changes without continuous speech",
     ),
+    VISUAL_FLASH_ALERTS(
+        title = "Visual flash alerts",
+        description = "Flash screen border when a beacon alert triggers, assisting users who are hard of hearing",
+    ),
 }

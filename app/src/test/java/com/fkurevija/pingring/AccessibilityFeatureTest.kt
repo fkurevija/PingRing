@@ -10,10 +10,11 @@ class AccessibilityFeatureTest {
     @Test
     fun accessibilityFeatureEnumEntriesAreValid() {
         val entries = AccessibilityFeature.entries
-        assertEquals(4, entries.size)
+        assertEquals(5, entries.size)
         assertNotNull(AccessibilityFeature.valueOf("REDUCE_MOTION"))
         assertNotNull(AccessibilityFeature.valueOf("PROXIMITY_HAPTICS"))
         assertNotNull(AccessibilityFeature.valueOf("SPOKEN_RADAR_UPDATES"))
         assertNotNull(AccessibilityFeature.valueOf("RADAR_SCREEN_READER_SUMMARY"))
+        assertNotNull(AccessibilityFeature.valueOf("VISUAL_FLASH_ALERTS"))
     }
 }

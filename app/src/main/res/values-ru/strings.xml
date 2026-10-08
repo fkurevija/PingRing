@@ -16,6 +16,8 @@
     <string name="proximity_haptics_description">Вибрировать, когда отслеживаемый участник рядом. Вибрации сигналов и уведомлений независимы.</string>
     <string name="spoken_radar_updates">Озвучивание изменений радара</string>
     <string name="spoken_radar_updates_description">При активном чтении экрана озвучивать устойчивые изменения участника, близости и сигнала не чаще раза в 10 секунд, пока радар открыт.</string>
+    <string name="visual_flash_alerts">Визуальные мигающие оповещения</string>
+    <string name="visual_flash_alerts_description">Мигать рамкой экрана при срабатывании оповещения.</string>
     <string name="accessibility_card_description">Дополнительные функции для программы чтения с экрана</string>
     <string name="language">Язык</string>
     <string name="language_system_default">Как в системе</string>

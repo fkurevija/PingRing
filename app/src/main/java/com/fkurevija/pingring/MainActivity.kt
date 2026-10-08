@@ -223,6 +223,7 @@ fun MainNavigation(
     val reduceMotionEnabled by appearanceSettings.reduceMotionEnabled.collectAsState(initial = false)
     val proximityHapticsEnabled by appearanceSettings.proximityHapticsEnabled.collectAsState(initial = true)
     val spokenRadarUpdatesEnabled by appearanceSettings.spokenRadarUpdatesEnabled.collectAsState(initial = false)
+    val visualFlashAlertsEnabled by appearanceSettings.visualFlashAlertsEnabled.collectAsState(initial = false)
     val connectionRecoveryPromptEnabled by appearanceSettings.connectionRecoveryPromptEnabled.collectAsState(initial = true)
     val connectionRecoveryPromptDelayMillis by appearanceSettings.connectionRecoveryPromptDelayMillis.collectAsState(
         initial = 120_000L
@@ -563,6 +564,8 @@ fun MainNavigation(
                         onProximityHapticsChange = appearanceSettings::setProximityHapticsEnabled,
                         spokenRadarUpdatesEnabled = spokenRadarUpdatesEnabled,
                         onSpokenRadarUpdatesChange = appearanceSettings::setSpokenRadarUpdatesEnabled,
+                        visualFlashAlertsEnabled = visualFlashAlertsEnabled,
+                        onVisualFlashAlertsChange = appearanceSettings::setVisualFlashAlertsEnabled,
                         onBack = { backStack.popBack() },
                     )
                 }

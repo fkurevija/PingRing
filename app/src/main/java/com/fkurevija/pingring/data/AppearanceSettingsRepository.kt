@@ -88,6 +88,7 @@ private val radarScreenReaderSummaryEnabledKey = booleanPreferencesKey("radar_sc
 private val reduceMotionEnabledKey = booleanPreferencesKey("reduce_motion_enabled")
 private val proximityHapticsEnabledKey = booleanPreferencesKey("proximity_haptics_enabled")
 private val spokenRadarUpdatesEnabledKey = booleanPreferencesKey("spoken_radar_updates_enabled")
+private val visualFlashAlertsEnabledKey = booleanPreferencesKey("visual_flash_alerts_enabled")
 private val chatNotificationsEnabledKey = booleanPreferencesKey("chat_notifications_enabled")
 private val connectionRecoveryPromptEnabledKey = booleanPreferencesKey("connection_recovery_prompt_enabled")
 private val connectionRecoveryPromptDelayKey = longPreferencesKey("connection_recovery_prompt_delay_millis")
@@ -139,6 +140,10 @@ class AppearanceSettingsRepository(private val context: Context) {
 
     val spokenRadarUpdatesEnabled: Flow<Boolean> = context.appearanceDataStore.data.map { preferences ->
         preferences[spokenRadarUpdatesEnabledKey] ?: AccessibilityFeature.SPOKEN_RADAR_UPDATES.defaultEnabled
+    }
+
+    val visualFlashAlertsEnabled: Flow<Boolean> = context.appearanceDataStore.data.map { preferences ->
+        preferences[visualFlashAlertsEnabledKey] ?: AccessibilityFeature.VISUAL_FLASH_ALERTS.defaultEnabled
     }
 
     val connectionRecoveryPromptEnabled: Flow<Boolean> = context.appearanceDataStore.data.map { preferences ->
@@ -240,6 +245,10 @@ class AppearanceSettingsRepository(private val context: Context) {
 
     fun setSpokenRadarUpdatesEnabled(enabled: Boolean) {
         scope.launch { context.appearanceDataStore.edit { it[spokenRadarUpdatesEnabledKey] = enabled } }
+    }
+
+    fun setVisualFlashAlertsEnabled(enabled: Boolean) {
+        scope.launch { context.appearanceDataStore.edit { it[visualFlashAlertsEnabledKey] = enabled } }
     }
 
     fun setChatNotificationsEnabled(enabled: Boolean) {

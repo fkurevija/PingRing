@@ -44,6 +44,8 @@ fun AccessibilitySettingsScreen(
     onProximityHapticsChange: (Boolean) -> Unit = {},
     spokenRadarUpdatesEnabled: Boolean = false,
     onSpokenRadarUpdatesChange: (Boolean) -> Unit = {},
+    visualFlashAlertsEnabled: Boolean = false,
+    onVisualFlashAlertsChange: (Boolean) -> Unit = {},
 ) {
     Scaffold(
         topBar = {
@@ -97,6 +99,11 @@ fun AccessibilitySettingsScreen(
                         stringResource(R.string.spoken_radar_updates),
                         stringResource(R.string.spoken_radar_updates_description),
                         spokenRadarUpdatesEnabled, onSpokenRadarUpdatesChange,
+                    )
+                    AccessibilitySettingRow(
+                        stringResource(R.string.visual_flash_alerts),
+                        stringResource(R.string.visual_flash_alerts_description),
+                        visualFlashAlertsEnabled, onVisualFlashAlertsChange,
                     )
                 }
             }

@@ -16,6 +16,8 @@
     <string name="proximity_haptics_description">Vibrate when the tracked member is nearby. Beacon and notification vibration are separate.</string>
     <string name="spoken_radar_updates">Spoken radar updates</string>
     <string name="spoken_radar_updates_description">With a screen reader active, announce stable member, proximity and beacon changes at most once every 10 seconds while the radar is open.</string>
+    <string name="visual_flash_alerts">Visual flash alerts</string>
+    <string name="visual_flash_alerts_description">Flash screen border when a beacon alert triggers, assisting users who are hard of hearing.</string>
     <string name="accessibility_card_description">Optional screen-reader features</string>
     <string name="language">Language</string>
     <string name="language_system_default">System default</string>

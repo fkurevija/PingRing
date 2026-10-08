@@ -16,6 +16,8 @@
     <string name="proximity_haptics_description">Vibrieren, wenn das verfolgte Mitglied nahe ist. Signal- und Benachrichtigungsvibration sind unabhängig.</string>
     <string name="spoken_radar_updates">Gesprochene Radar-Updates</string>
     <string name="spoken_radar_updates_description">Bei aktivem Screenreader stabile Mitglieder-, Näherungs- und Signaländerungen höchstens alle 10 Sekunden bei geöffnetem Radar ansagen.</string>
+    <string name="visual_flash_alerts">Visuelle Blitzwarnungen</string>
+    <string name="visual_flash_alerts_description">Bildschirmrand bei Beacon-Alarmen blinken lassen für hörgeschädigte Nutzer.</string>
     <string name="accessibility_card_description">Optionale Funktionen für Screenreader</string>
     <string name="language">Sprache</string>
     <string name="language_system_default">Systemstandard</string>

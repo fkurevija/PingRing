@@ -16,6 +16,8 @@
     <string name="proximity_haptics_description">Vibriraj kada je praćena osoba blizu. Vibracije signala i obavijesti su neovisne.</string>
     <string name="spoken_radar_updates">Govorne promjene radara</string>
     <string name="spoken_radar_updates_description">Uz aktivan čitač zaslona izgovori stabilne promjene osobe, blizine i signala najviše jednom svakih 10 sekundi dok je radar otvoren.</string>
+    <string name="visual_flash_alerts">Vizualna bljeskajuća upozorenja</string>
+    <string name="visual_flash_alerts_description">Bljeskaj rubom ekrana kod upozorenja.</string>
     <string name="accessibility_card_description">Neobavezne značajke za čitač zaslona</string>
     <string name="language">Jezik</string>
     <string name="language_system_default">Zadano prema sustavu</string>

@@ -16,6 +16,8 @@
     <string name="proximity_haptics_description">Vibrar cuando el miembro seguido está cerca. La vibración de balizas y notificaciones es independiente.</string>
     <string name="spoken_radar_updates">Actualizaciones habladas del radar</string>
     <string name="spoken_radar_updates_description">Con un lector de pantalla activo, anunciar cambios estables de miembro, proximidad y baliza como máximo cada 10 segundos mientras el radar está abierto.</string>
+    <string name="visual_flash_alerts">Alertas visuales de parpadeo</string>
+    <string name="visual_flash_alerts_description">Parpadear el borde de la pantalla al activarse una alerta.</string>
     <string name="accessibility_card_description">Funciones opcionales para lectores de pantalla</string>
     <string name="language">Idioma</string>
     <string name="language_system_default">Predeterminado del sistema</string>
