@@ -133,6 +133,7 @@ object RssiDistanceEstimator {
  */
 class RssiSmoother(
     private val windowMillis: Long = RssiDistanceEstimator.SMOOTHING_WINDOW_MILLIS,
+    private val sensorFusionFilter: AdvancedSensorFusionFilter = AdvancedSensorFusionFilter(),
 ) {
     /** One reading, and when it was taken. */
     private data class Sample(val rssi: Float, val atMillis: Long)
@@ -152,6 +153,14 @@ class RssiSmoother(
     /** The distance the smoothed RSSI implies, or null when nothing is held. */
     fun distance(nowMillis: Long): Float? =
         smoothedRssi(nowMillis)?.let { RssiDistanceEstimator.estimateFromRssi(it) }
+
+    /** The Kalman-filtered sensor fusion distance estimate. */
+    fun fusedDistance(
+        nowMillis: Long,
+        source: RangingSourcePolicy.RangingSource? = RangingSourcePolicy.RangingSource.BLE_RSSI,
+    ): Float? = distance(nowMillis)?.let { rawEstimate ->
+        sensorFusionFilter.update(rawEstimate, nowMillis, source)
+    }
 
     /**
      * Adds a reading and returns the resulting smoothed distance, or null when
@@ -174,7 +183,10 @@ class RssiSmoother(
     }
 
     /** Forgets every reading, for a peer that has left or been dropped. */
-    fun clear() = samples.clear()
+    fun clear() {
+        samples.clear()
+        sensorFusionFilter.reset()
+    }
 
     /** Drops readings older than the window. */
     private fun prune(nowMillis: Long) {
