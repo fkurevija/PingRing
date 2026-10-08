@@ -633,12 +633,14 @@ class RadarScreenInstrumentedTest {
                 .assertWidthIsAtLeast(48.dp)
                 .assertHeightIsAtLeast(48.dp)
                 .performClick()
-            // The frame clock is paused for this screen, so a click does not by
-            // itself drive the recomposition that marks the swatch as chosen.
-            // Without settling first, the assertion reads the tree as it was
-            // before the tap and reports the control as unselected.
+            composeRule.settle()
+            composeRule.onNodeWithText(context.getString(R.string.save_changes)).performClick()
             composeRule.settle()
             composeRule.runOnIdle { assertEquals(colorArgb, selected) }
+            if (colorArgb != ChatBubblePalette.presets.last()) {
+                composeRule.onNodeWithText("Chat Settings").performClick()
+                composeRule.settle()
+            }
         }
     }
 
