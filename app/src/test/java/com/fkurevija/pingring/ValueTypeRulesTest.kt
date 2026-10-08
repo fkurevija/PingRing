@@ -1,6 +1,7 @@
 package com.fkurevija.pingring
 
 import com.fkurevija.pingring.data.BeaconInfo
+import com.fkurevija.pingring.data.RangingConfidence
 import com.fkurevija.pingring.data.ThemeMode
 import com.fkurevija.pingring.ui.permissions.UwbAvailability
 import org.junit.Assert.assertEquals
@@ -158,5 +159,14 @@ class ValueTypeRulesTest {
         assertNotEquals(base, base.copy(title = "Caution"))
         assertNotEquals(base, base.copy(colorArgb = 0xFF00E676))
         assertNotEquals(base, base.copy(isActive = false))
+    }
+
+    // --- RangingConfidence: confidence levels for distance readings.
+
+    @Test
+    fun `every ranging confidence has a distinct name and round-trips`() {
+        RangingConfidence.entries.forEach { confidence ->
+            assertEquals(confidence, RangingConfidence.valueOf(confidence.name))
+        }
     }
 }
