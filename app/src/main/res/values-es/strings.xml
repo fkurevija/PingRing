@@ -242,7 +242,7 @@
     <string name="notifications_sub_description">Notificaciones push de chat, sonido y vibración</string>
     <string name="connection">Conexión</string>
     <string name="connection_sub_description">Verificación de Nearby, recuperación y tiempo de espera</string>
-    <string name="beacon_configuration">Configuración de balizas</string>
+    <string name="beacon_configuration">Configuración de balizas recibidas</string>
     <string name="beacon_alert_repetition_label">Repetición de la alerta</string>
     <string name="beacon_alert_repetition_explainer">Tu propia elección. Se aplica a los beacons de todos, incluidos los tuyos.</string>
     <string name="beacon_alert_repeat_once">Una vez</string>

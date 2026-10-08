@@ -242,7 +242,7 @@
     <string name="notifications_sub_description">Chat-Push-Benachrichtigungen, Ton und Vibration</string>
     <string name="connection">Verbindung</string>
     <string name="connection_sub_description">Nearby-Prüfung, Wiederherstellung und Beitritts-Timeout</string>
-    <string name="beacon_configuration">Beacon-Konfiguration</string>
+    <string name="beacon_configuration">Konfiguration empfangener Signale</string>
     <string name="beacon_alert_repetition_label">Wiederholung der Warnung</string>
     <string name="beacon_alert_repetition_explainer">Deine eigene Wahl. Gilt für Beacons von allen, auch von dir selbst.</string>
     <string name="beacon_alert_repeat_once">Einmal</string>

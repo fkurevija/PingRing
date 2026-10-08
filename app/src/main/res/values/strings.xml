@@ -244,7 +244,7 @@
     <string name="notifications_sub_description">Chat push notifications, sound and vibration</string>
     <string name="connection">Connection</string>
     <string name="connection_sub_description">Nearby verification, recovery prompt and join timeout</string>
-    <string name="beacon_configuration">Beacon Configuration</string>
+    <string name="beacon_configuration">Received Beacon Configuration</string>
     <string name="beacon_alert_repetition_label">Beacon Repetition</string>
     <string name="beacon_alert_repetition_explainer">Your own choice. It applies to beacons from everyone, including your own.</string>
     <string name="beacon_alert_repeat_once">Once</string>

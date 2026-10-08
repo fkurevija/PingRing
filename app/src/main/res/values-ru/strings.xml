@@ -243,7 +243,7 @@
     <string name="notifications_sub_description">Push-уведомления чата, звук и вибрация</string>
     <string name="connection">Соединение</string>
     <string name="connection_sub_description">Проверка Nearby, восстановление связи и время ожидания</string>
-    <string name="beacon_configuration">Конфигурация маяка</string>
+    <string name="beacon_configuration">Настройка полученных маяков</string>
     <string name="beacon_alert_repetition_label">Повтор оповещения</string>
     <string name="beacon_alert_repetition_explainer">Ваш выбор. Применяется к маякам от всех, включая ваши собственные.</string>
     <string name="beacon_alert_repeat_once">Один раз</string>
