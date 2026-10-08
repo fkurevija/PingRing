@@ -1,0 +1,17 @@
+# Aider configuration file
+# This is a minimal config to help with setup issues
+
+# Default model (you can change this)
+model: gpt-4
+
+# Set to true if you want to use git
+git: true
+
+# Set to true if you want aider to auto-commit changes
+auto-commits: true
+
+# Set to true if you want aider to automatically run tests
+auto-test: false
+
+# Set to true if you want aider to automatically lint code
+auto-lint: true
