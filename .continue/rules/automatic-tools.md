@@ -1,20 +1,14 @@
 ---
 globs: ['**/*']
-description: Automatic tool activation for code exploration and project understanding
+description: Focused guidance for using tools on this Android project
 ---
 
-This rule enables automatic activation of key Continue tools when working with the codebase. The agent should automatically use these tools to:
+This is an Android application written in Kotlin with Jetpack Compose.
 
-1. Understand project structure using view_repo_map
-2. Search codebase for relevant implementations using codebase search
-3. Find specific files using file_glob_search
-4. Read file contents using read_file and read_file_range
-5. List directory contents using ls
-6. Run terminal commands using run_terminal_command
-7. Search file contents using grep_search
-
-These tools should be automatically invoked when the conversation context suggests that understanding or exploring the codebase would be beneficial, particularly during:
-- Code review discussions
-- Bug investigation
-- Feature implementation planning
-- Technical documentation creation
+- Search for the relevant implementation and tests before editing.
+- Read only the files needed to understand the change; follow existing patterns.
+- Make the smallest complete change. Do not rewrite whole files or edit unrelated code.
+- Preserve Android 10 (API 29)+ behavior and existing localization.
+- For behavior changes, add or update focused unit tests.
+- Verify changes with `.\gradlew.bat testDebugUnitTest`; use `.\gradlew.bat uiTest` only when UI/device behavior requires it and a device is available.
+- Summarize changed files and validation results; state clearly when a check could not be run.
