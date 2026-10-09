@@ -19,17 +19,17 @@ object ChatTimestampPolicy {
         val time = SimpleDateFormat("HH:mm", locale).apply { this.timeZone = timeZone }
             .format(Date(timestampMillis))
         val relation = relation(timestampMillis, nowMillis, timeZone)
-        val prefix = when (relation) {
+        val prefix: String = when (relation) {
             DayRelation.TODAY -> todayLabel
             DayRelation.YESTERDAY -> yesterdayLabel
             DayRelation.TOMORROW -> tomorrowLabel
             DayRelation.OTHER -> {
-                return SimpleDateFormat("MMM d, HH:mm", locale)
-                    .apply { this.timeZone = timeZone }
+                SimpleDateFormat("MMM d", locale).apply { this.timeZone = timeZone }
                     .format(Date(timestampMillis))
             }
         }
-        return "$prefix $time"
+
+        return "$prefix @ $time"
     }
 
     private fun relation(timestampMillis: Long, nowMillis: Long, timeZone: TimeZone): DayRelation {
