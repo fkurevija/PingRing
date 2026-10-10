@@ -21,6 +21,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Switch
+import androidx.compose.foundation.layout.Row
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -73,15 +75,20 @@ internal fun ChatSettingsDialog(
     username: String = "",
     existingMemberNames: List<String> = emptyList(),
     onUsernameChange: (String) -> Unit = {},
+    // New: Read receipts toggle
+    readReceiptsEnabled: Boolean = true,
+    onReadReceiptsChanged: (Boolean) -> Unit = {},
 ) {
     var editedUsername by remember(username) { mutableStateOf(username) }
     var draftColor by remember(selectedColorArgb) { mutableStateOf(selectedColorArgb ?: ChatBubblePalette.random()) }
+    var draftReadReceiptsEnabled by remember(readReceiptsEnabled) { mutableStateOf(readReceiptsEnabled) }
     var usernameSubmitted by remember { mutableStateOf(false) }
     var saveCompleted by remember { mutableStateOf(false) }
     val usernameError = TextInputPolicy.usernameError(editedUsername, existingMemberNames)
     val usernameChanged = editedUsername.trim() != username
     // Only consider colour changed if an initial colour was provided and the user picks a different one.
     val colorChanged = selectedColorArgb != null && draftColor != selectedColorArgb
+    val readReceiptChanged = draftReadReceiptsEnabled != readReceiptsEnabled
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -209,11 +216,29 @@ internal fun ChatSettingsDialog(
                             )
                         }
                     }
+        // Read receipts toggle UI
+        Spacer(Modifier.height(12.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                stringResource(R.string.read_receipts),
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Switch(
+                checked = draftReadReceiptsEnabled,
+                onCheckedChange = { draftReadReceiptsEnabled = it }
+            )
+        }
                 }
             }
         },
-        confirmButton = if (!saveCompleted && (usernameChanged || colorChanged)) {
-            {
+        confirmButton = {
+            if (!saveCompleted && (usernameChanged || colorChanged || readReceiptChanged)) {
                 TextButton(
                     onClick = {
                         usernameSubmitted = true
@@ -224,6 +249,9 @@ internal fun ChatSettingsDialog(
                             if (colorChanged) {
                                 onColorSelected(draftColor)
                             }
+                            if (readReceiptChanged) {
+                                onReadReceiptsChanged(draftReadReceiptsEnabled)
+                            }
                             saveCompleted = true
                             onDismiss()
                         }
@@ -233,8 +261,6 @@ internal fun ChatSettingsDialog(
                     Text(stringResource(R.string.save_changes))
                 }
             }
-        } else {
-            {}
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) }

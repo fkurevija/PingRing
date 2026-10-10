@@ -90,6 +90,7 @@ private val proximityHapticsEnabledKey = booleanPreferencesKey("proximity_haptic
 private val spokenRadarUpdatesEnabledKey = booleanPreferencesKey("spoken_radar_updates_enabled")
 private val visualFlashAlertsEnabledKey = booleanPreferencesKey("visual_flash_alerts_enabled")
 private val chatNotificationsEnabledKey = booleanPreferencesKey("chat_notifications_enabled")
+    private val readReceiptsEnabledKey = booleanPreferencesKey("read_receipts_enabled")
 private val connectionRecoveryPromptEnabledKey = booleanPreferencesKey("connection_recovery_prompt_enabled")
 private val connectionRecoveryPromptDelayKey = longPreferencesKey("connection_recovery_prompt_delay_millis")
 private val joinWaitTimeoutMillisKey = longPreferencesKey("join_wait_timeout_millis")
@@ -133,6 +134,10 @@ class AppearanceSettingsRepository(private val context: Context) {
 
     val chatNotificationsEnabled: Flow<Boolean> = context.appearanceDataStore.data.map { preferences ->
         preferences[chatNotificationsEnabledKey] ?: true
+    }
+
+    val readReceiptsEnabled: Flow<Boolean> = context.appearanceDataStore.data.map { preferences ->
+        preferences[readReceiptsEnabledKey] ?: true
     }
 
     val reduceMotionEnabled: Flow<Boolean> = context.appearanceDataStore.data.map { preferences ->
@@ -315,6 +320,14 @@ class AppearanceSettingsRepository(private val context: Context) {
         scope.launch {
             context.appearanceDataStore.edit { preferences ->
                 preferences[chatNotificationsEnabledKey] = enabled
+            }
+        }
+    }
+
+    fun setReadReceiptsEnabled(enabled: Boolean) {
+        scope.launch {
+            context.appearanceDataStore.edit { preferences ->
+                preferences[readReceiptsEnabledKey] = enabled
             }
         }
     }
