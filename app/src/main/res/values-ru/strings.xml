@@ -247,6 +247,11 @@
     <string name="copy_pingring_code">Копировать код PingRing</string>
     <string name="pingring_code_copied">Код PingRing скопирован</string>
     <string name="chat_message_copied">Сообщение скопировано</string>
+    <string name="chat_receipt_counts">Доставлено %1$d/%2$d · Прочитано %3$d/%4$d</string>
+    <string name="chat_receipt_details">Статус сообщения</string>
+    <string name="chat_receipt_sent">Отправлено</string>
+    <string name="chat_receipt_delivered">Доставлено</string>
+    <string name="chat_receipt_read">Прочитано</string>
     <string name="peer_link_diagnostics_title">Диагностика связи с участниками</string>
     <string name="peer_link_diagnostics_description">Показывать тип транспорта, уровень сигнала (RSSI) и источник дальности на радаре</string>
     <string name="battery_saver_title">Режим энергосбережения</string>

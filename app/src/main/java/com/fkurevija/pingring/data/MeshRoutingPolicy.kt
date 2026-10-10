@@ -13,6 +13,7 @@ internal object MeshRoutingPolicy {
     private val FORWARDABLE_PAYLOAD_TYPES = setOf(
         RelayCodec.CHAT,
         RelayCodec.CHAT_HISTORY,
+        RelayCodec.CHAT_RECEIPT,
         RelayCodec.BEACON,
         RelayCodec.BLE_IDENTITY_KEY,
         RelayCodec.MEMBER_DEPARTURE,

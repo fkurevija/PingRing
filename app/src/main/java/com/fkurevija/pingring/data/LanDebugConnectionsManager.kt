@@ -43,6 +43,7 @@ class LanDebugConnectionsManager(
     override val receivedUwbRangingOffer: SharedFlow<UwbRangingOfferDto> get() = events.receivedUwbRangingOffer
     override val receivedChatMessage: SharedFlow<ChatPayloadDto> get() = events.receivedChatMessage
     override val receivedChatHistory: SharedFlow<ChatHistoryPayloadDto> get() = events.receivedChatHistory
+    override val receivedChatReceipt: SharedFlow<ChatReceiptPayloadDto> get() = events.receivedChatReceipt
     override val connectionEstablished: SharedFlow<String> get() = events.connectionEstablished
     override val peerDisconnected: SharedFlow<String> get() = events.peerDisconnected
     override val eventClosed: SharedFlow<Unit> get() = events.eventClosed
@@ -276,6 +277,19 @@ class LanDebugConnectionsManager(
                 false
             }
         }
+        is DecodedPayload.ChatReceipt -> {
+            if (senderPeerId in authorizedPeers &&
+                payload.receipt.recipientPeerId == senderPeerId &&
+                payload.receipt.eventCode == localEventId &&
+                payload.receipt.status != MessageStatus.SENT
+            ) {
+                events.onChatReceipt(payload.receipt)
+                true
+            } else {
+                Log.w(TAG, "Ignoring chat receipt from an unadmitted or mismatched peer")
+                false
+            }
+        }
         else -> RelayCodec.route(payload, events)
     }
 
@@ -351,6 +365,10 @@ class LanDebugConnectionsManager(
 
     override fun sendChatMessageToPeer(peerId: String, chatMsg: ChatPayloadDto) {
         sendPayload(peerId, chatMsg)
+    }
+
+    override fun sendChatReceiptToPeer(peerId: String, receipt: ChatReceiptPayloadDto) {
+        sendPayload(peerId, receipt)
     }
 
     override fun sendBeaconToPeer(peerId: String, beacon: BeaconPayloadDto) {

@@ -353,6 +353,7 @@ data class ChatMessage(
     val entryType: ChatEntryType = ChatEntryType.MESSAGE,
     val subjectName: String? = null,
     val subjectPeerId: String? = null,
+    val recipientReceipts: List<ChatRecipientReceipt> = emptyList(),
     val status: MessageStatus = MessageStatus.SENT,
 )
 

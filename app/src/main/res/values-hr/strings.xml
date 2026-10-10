@@ -246,6 +246,11 @@
     <string name="copy_pingring_code">Kopiraj PingRing kod</string>
     <string name="pingring_code_copied">PingRing kod kopiran</string>
     <string name="chat_message_copied">Poruka kopirana</string>
+    <string name="chat_receipt_counts">Dostavljeno %1$d/%2$d · Pročitano %3$d/%4$d</string>
+    <string name="chat_receipt_details">Potvrde poruke</string>
+    <string name="chat_receipt_sent">Poslano</string>
+    <string name="chat_receipt_delivered">Dostavljeno</string>
+    <string name="chat_receipt_read">Pročitano</string>
     <string name="peer_link_diagnostics_title">Dijagnostika veze s članovima</string>
     <string name="peer_link_diagnostics_description">Prikaži vrstu prijenosa, jačinu signala (RSSI) i izvor udaljenosti na radaru</string>
     <string name="battery_saver_title">Način uštede baterije</string>

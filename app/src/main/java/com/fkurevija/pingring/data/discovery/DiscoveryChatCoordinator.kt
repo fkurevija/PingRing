@@ -7,7 +7,11 @@ import com.fkurevija.pingring.data.ChatEntryType
 import com.fkurevija.pingring.data.ChatHistoryPayloadDto
 import com.fkurevija.pingring.data.ChatMessage
 import com.fkurevija.pingring.data.ChatPayloadDto
+import com.fkurevija.pingring.data.ChatReceiptPayloadDto
 import com.fkurevija.pingring.data.ChatNotifier
+import com.fkurevija.pingring.data.ChatRecipientReceipt
+import com.fkurevija.pingring.data.ChatReceiptPolicy
+import com.fkurevija.pingring.data.MessageStatus
 import com.fkurevija.pingring.data.NearbyTransport
 import com.fkurevija.pingring.data.SessionManager
 import com.fkurevija.pingring.data.TextInputPolicy
@@ -26,6 +30,9 @@ internal class DiscoveryChatCoordinator(
     private val appearanceSettings: AppearanceSettingsRepository,
     private val updatePeerName: (String, String) -> Unit,
 ) {
+    private val readAcknowledgedMessageIds = mutableSetOf<String>()
+    private var readAcknowledgedEventId: String? = null
+
     private val notifier = ChatNotifier(
         context = context,
         appearanceSettings = appearanceSettings,
@@ -36,14 +43,23 @@ internal class DiscoveryChatCoordinator(
         val sanitizedText = TextInputPolicy.sanitizeMessage(text)
         val sanitizedName = TextInputPolicy.sanitizeUsername(senderName)
         if (sanitizedText.isBlank() || sanitizedName.isBlank()) return
+        val state = sessionManager.sessionState.value
+        val senderPeerId = sessionManager.peerId.value
+        val recipients = state.friends
+            .asSequence()
+            .filter { it.peerId.isNotBlank() && it.peerId != senderPeerId }
+            .distinctBy { it.peerId }
+            .map { ChatRecipientReceipt(peerId = it.peerId, name = it.name) }
+            .toList()
         publish(
             ChatPayloadDto(
                 id = UUID.randomUUID().toString(),
-                senderPeerId = sessionManager.peerId.value,
+                senderPeerId = senderPeerId,
                 senderName = sanitizedName,
                 text = sanitizedText,
                 timestamp = System.currentTimeMillis(),
                 colorArgb = colorArgb,
+                recipientReceipts = recipients,
             )
         )
     }
@@ -90,11 +106,72 @@ internal class DiscoveryChatCoordinator(
         if (dto.entryType == ChatEntryType.MESSAGE &&
             dto.senderPeerId != sessionManager.peerId.value
         ) {
+            val localPeerId = sessionManager.peerId.value
+            val eventId = sessionManager.sessionState.value.currentEvent?.id
+            if (eventId != null && dto.recipientReceipts.any { it.peerId == localPeerId }) {
+                transport.sendChatReceiptToPeer(
+                    dto.senderPeerId,
+                    ChatReceiptPayloadDto(
+                        eventCode = eventId,
+                        messageId = dto.id,
+                        recipientPeerId = localPeerId,
+                        status = MessageStatus.DELIVERED,
+                    ),
+                )
+            }
             val appWideEnabled = appearanceSettings.chatNotificationsEnabled.first()
             val eventEnabled = sessionManager.sessionState.value.currentEvent?.chatNotificationsEnabled ?: true
             if (appWideEnabled && eventEnabled) {
                 notifier.onChatMessageReceived(message)
             }
+        }
+    }
+
+    fun receiveReceipt(receipt: ChatReceiptPayloadDto) {
+        val eventId = sessionManager.sessionState.value.currentEvent?.id ?: return
+        val message = sessionManager.sessionState.value.chatMessages
+            .firstOrNull { it.id == receipt.messageId } ?: return
+        val updated = ChatReceiptPolicy.apply(
+            message = message,
+            receipt = receipt,
+            localPeerId = sessionManager.peerId.value,
+            currentEventId = eventId,
+        ) ?: return
+        sessionManager.receiveLocalChatMessage(updated)
+    }
+
+    suspend fun markVisibleMessagesRead(messageIds: List<String>) {
+        if (!appearanceSettings.readReceiptsEnabled.first()) return
+        val state = sessionManager.sessionState.value
+        val eventId = state.currentEvent?.id ?: return
+        if (readAcknowledgedEventId != eventId) {
+            readAcknowledgedMessageIds.clear()
+            readAcknowledgedEventId = eventId
+        }
+        val localPeerId = sessionManager.peerId.value
+        val messagesById = state.chatMessages.associateBy { it.id }
+        messageIds.distinct().forEach { messageId ->
+            if (messageId in readAcknowledgedMessageIds) return@forEach
+            val message = messagesById[messageId] ?: return@forEach
+            if (message.entryType != ChatEntryType.MESSAGE || message.senderPeerId == localPeerId) {
+                return@forEach
+            }
+            val recipient = message.recipientReceipts.firstOrNull { it.peerId == localPeerId }
+                ?: return@forEach
+            if (recipient.status == MessageStatus.READ) {
+                readAcknowledgedMessageIds.add(messageId)
+                return@forEach
+            }
+            readAcknowledgedMessageIds.add(messageId)
+            transport.sendChatReceiptToPeer(
+                message.senderPeerId,
+                ChatReceiptPayloadDto(
+                    eventCode = eventId,
+                    messageId = message.id,
+                    recipientPeerId = localPeerId,
+                    status = MessageStatus.READ,
+                ),
+            )
         }
     }
 
@@ -121,6 +198,7 @@ internal class DiscoveryChatCoordinator(
                 entryType = message.entryType,
                 subjectName = message.subjectName,
                 subjectPeerId = message.subjectPeerId,
+                recipientReceipts = message.recipientReceipts,
             )
         }
 
@@ -191,6 +269,7 @@ internal class DiscoveryChatCoordinator(
         entryType = entryType,
         subjectName = subjectName,
         subjectPeerId = subjectPeerId,
+        recipientReceipts = recipientReceipts,
     )
 
     private companion object {

@@ -19,6 +19,7 @@ interface NearbyTransport {
     val receivedControllerParams: SharedFlow<UwbControllerParametersDto>
     val receivedChatMessage: SharedFlow<ChatPayloadDto>
     val receivedChatHistory: SharedFlow<ChatHistoryPayloadDto>
+    val receivedChatReceipt: SharedFlow<ChatReceiptPayloadDto>
     val connectionEstablished: SharedFlow<String>
     val peerDisconnected: SharedFlow<String>
     val eventClosed: SharedFlow<Unit>
@@ -101,6 +102,7 @@ interface NearbyTransport {
     fun broadcastChatHistory(messages: List<ChatPayloadDto>)
     fun sendChatHistoryToPeer(peerId: String, messages: List<ChatPayloadDto>)
     fun sendChatMessageToPeer(peerId: String, chatMsg: ChatPayloadDto)
+    fun sendChatReceiptToPeer(peerId: String, receipt: ChatReceiptPayloadDto)
 
     fun sendBeaconToPeer(peerId: String, beacon: BeaconPayloadDto)
     fun broadcastBeacon(beacon: BeaconPayloadDto)

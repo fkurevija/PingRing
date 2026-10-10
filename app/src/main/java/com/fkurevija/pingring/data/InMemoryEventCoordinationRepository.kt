@@ -101,10 +101,10 @@ class InMemoryEventCoordinationRepository : EventCoordinationRepository {
             val index = current.chatMessages.indexOfFirst { it.id == message.id }
             when {
                 index < 0 -> current.copy(chatMessages = current.chatMessages + message)
-                current.chatMessages[index] == message -> current
+                current.chatMessages[index] == ChatReceiptPolicy.merge(current.chatMessages[index], message) -> current
                 else -> current.copy(
                     chatMessages = current.chatMessages.mapIndexed { messageIndex, existing ->
-                        if (messageIndex == index) message else existing
+                        if (messageIndex == index) ChatReceiptPolicy.merge(existing, message) else existing
                     },
                 )
             }
@@ -113,7 +113,11 @@ class InMemoryEventCoordinationRepository : EventCoordinationRepository {
 
     override fun receiveChatHistory(messages: List<ChatMessage>) {
         _sessionState.update { current ->
-            if (current.chatMessages == messages) current else current.copy(chatMessages = messages)
+            val currentById = current.chatMessages.associateBy { it.id }
+            val merged = messages.map { incoming ->
+                currentById[incoming.id]?.let { ChatReceiptPolicy.merge(it, incoming) } ?: incoming
+            }
+            if (current.chatMessages == merged) current else current.copy(chatMessages = merged)
         }
     }
 

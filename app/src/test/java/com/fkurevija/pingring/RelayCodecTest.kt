@@ -10,6 +10,7 @@ import com.fkurevija.pingring.data.MeshLinkAuthenticationPayloadDto
 import com.fkurevija.pingring.data.ChatHistoryPayloadDto
 import com.fkurevija.pingring.data.ChatColourClaimPayloadDto
 import com.fkurevija.pingring.data.ChatPayloadDto
+import com.fkurevija.pingring.data.ChatReceiptPayloadDto
 import com.fkurevija.pingring.data.ChatEntryType
 import com.fkurevija.pingring.data.DecodedPayload
 import com.fkurevija.pingring.data.EventControlPayloadDto
@@ -60,6 +61,10 @@ class RelayCodecTest {
 
         override fun onChatHistory(history: ChatHistoryPayloadDto) {
             delivered += history
+        }
+
+        override fun onChatReceipt(receipt: ChatReceiptPayloadDto) {
+            delivered += receipt
         }
 
         override fun onBeacon(beacon: BeaconPayloadDto) {
@@ -164,6 +169,7 @@ class RelayCodecTest {
     )
     private val joinProof = JoinProofPayloadDto("4C1A9B", null)
     private val eventControl = EventControlPayloadDto("4C1A9B", "peer-a", true, true, true, true, false)
+    private val chatReceipt = ChatReceiptPayloadDto("4C1A9B", "m1", "peer-c", com.fkurevija.pingring.data.MessageStatus.READ)
 
     @Test
     fun aChatColourClaimSurvivesTheWireInBothDirections() {
@@ -195,6 +201,7 @@ class RelayCodecTest {
         val payloads = listOf<Any>(
             chat,
             ChatHistoryPayloadDto(listOf(chat)),
+            chatReceipt,
             beacon,
             inviteSecret,
             bleIdentityKey,
@@ -262,7 +269,7 @@ class RelayCodecTest {
     @Test
     fun everyWireTypeTheAppUsesIsInTheKnownSet() {
         listOf(
-            RelayCodec.CHAT, RelayCodec.CHAT_HISTORY, RelayCodec.BEACON,
+            RelayCodec.CHAT, RelayCodec.CHAT_HISTORY, RelayCodec.CHAT_RECEIPT, RelayCodec.BEACON,
             RelayCodec.INVITE_SECRET, RelayCodec.BLE_IDENTITY_KEY, RelayCodec.MEMBER_DEPARTURE,
             RelayCodec.MESH_PRESENCE,
             RelayCodec.PEER_RANGING,
@@ -323,6 +330,7 @@ class RelayCodecTest {
         val sink = RecordingSink()
 
         assertTrue(RelayCodec.route(DecodedPayload.Chat(chat), sink))
+        assertTrue(RelayCodec.route(DecodedPayload.ChatReceipt(chatReceipt), sink))
         assertTrue(RelayCodec.route(DecodedPayload.Beacon(beacon), sink))
         assertTrue(RelayCodec.route(DecodedPayload.InviteSecret(inviteSecret), sink))
         assertTrue(RelayCodec.route(DecodedPayload.BleIdentityKey(bleIdentityKey), sink))
@@ -331,7 +339,7 @@ class RelayCodecTest {
         assertTrue(RelayCodec.route(DecodedPayload.ChatColourClaim(colourClaimRequest), sink))
         assertTrue(RelayCodec.route(DecodedPayload.EventControl(eventControl), sink))
         assertEquals(
-            listOf<Any>(chat, beacon, inviteSecret, bleIdentityKey, memberDeparture, meshPresence,
+            listOf<Any>(chat, chatReceipt, beacon, inviteSecret, bleIdentityKey, memberDeparture, meshPresence,
                 colourClaimRequest, eventControl),
             sink.delivered,
         )
@@ -343,9 +351,9 @@ class RelayCodecTest {
         assertFalse(RelayCodec.route(DecodedPayload.JoinProof(joinProof), sink))
         assertFalse(RelayCodec.route(DecodedPayload.MockRanging(report), sink))
         assertFalse(RelayCodec.route(DecodedPayload.MeshPeerAuthentication(meshAuthentication), sink))
-        // Only the eight routings above delivered anything; the four refused
+        // Only the nine routings above delivered anything; the four refused
         // payloads must not have leaked onto the sink on the way past.
-        assertEquals(8, sink.delivered.size)
+        assertEquals(9, sink.delivered.size)
     }
 
     private fun encodedJson(payload: Any): String = RelayCodec.encode(payload)!!.json
@@ -365,6 +373,7 @@ class RelayCodecTest {
     private fun payloadOf(decoded: DecodedPayload): Any = when (decoded) {
         is DecodedPayload.Chat -> decoded.message
         is DecodedPayload.ChatHistory -> decoded.history
+        is DecodedPayload.ChatReceipt -> decoded.receipt
         is DecodedPayload.Beacon -> decoded.beacon
         is DecodedPayload.InviteSecret -> decoded.secret
         is DecodedPayload.BleIdentityKey -> decoded.identityKey

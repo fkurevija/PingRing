@@ -60,6 +60,7 @@ internal fun RadarCompactChatPane(
     localPeerId: String?,
     senderName: String,
     chatBubbleColorArgb: Long?,
+    readReceiptsVisible: Boolean,
     silencedBeaconIds: Set<String>,
     radarScreenReaderSummaryEnabled: Boolean,
     reduceMotionEnabled: Boolean,
@@ -149,9 +150,11 @@ internal fun RadarCompactChatPane(
             chatEntries = chatEntries,
             localPeerId = localPeerId,
             chatBubbleColorArgb = chatBubbleColorArgb,
+            readReceiptsVisible = readReceiptsVisible,
             latestSenderColors = latestSenderColors,
             silencedBeaconIds = silencedBeaconIds,
             onToggleBeaconSilenced = { id, silenced -> discoveryRepository?.setBeaconSilenced(id, silenced) },
+            onVisibleMessagesChanged = { ids -> discoveryRepository?.acknowledgeVisibleChatMessages(ids) },
             onSendMessage = { message ->
                 discoveryRepository?.broadcastOutgoingChatMessage(message, senderName, chatBubbleColorArgb)
             },

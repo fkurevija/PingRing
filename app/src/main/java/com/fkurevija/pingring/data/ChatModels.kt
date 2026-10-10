@@ -124,11 +124,20 @@ data class ChatPayloadDto(
     val entryType: ChatEntryType = ChatEntryType.MESSAGE,
     val subjectName: String? = null,
     val subjectPeerId: String? = null,
+    val recipientReceipts: List<ChatRecipientReceipt> = emptyList(),
 )
 
 @JsonClass(generateAdapter = true)
 data class ChatHistoryPayloadDto(
     val messages: List<ChatPayloadDto>
+)
+
+@JsonClass(generateAdapter = true)
+data class ChatReceiptPayloadDto(
+    val eventCode: String,
+    val messageId: String,
+    val recipientPeerId: String,
+    val status: MessageStatus,
 )
 
 @JsonClass(generateAdapter = true)

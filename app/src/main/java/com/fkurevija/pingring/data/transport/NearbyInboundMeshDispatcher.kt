@@ -11,6 +11,7 @@ import com.fkurevija.pingring.data.MeshDuplicateCache
 import com.fkurevija.pingring.data.MeshLinkAuthenticationPayloadDto
 import com.fkurevija.pingring.data.MeshPeerAuthentication
 import com.fkurevija.pingring.data.MeshRoutingPolicy
+import com.fkurevija.pingring.data.MessageStatus
 import com.fkurevija.pingring.data.PayloadSink
 import com.fkurevija.pingring.data.RelayCodec
 import com.fkurevija.pingring.data.RelayEnvelope
@@ -121,6 +122,13 @@ internal class NearbyInboundMeshDispatcher(
         envelope: RelayEnvelope,
     ): Boolean = when (payload) {
         is DecodedPayload.Chat -> payload.message.senderPeerId == originPeerId && RelayCodec.route(payload, events)
+        is DecodedPayload.ChatReceipt ->
+            payload.receipt.recipientPeerId == originPeerId &&
+                payload.receipt.eventCode == state.localEventId() &&
+                payload.receipt.messageId.isNotBlank() &&
+                payload.receipt.status != MessageStatus.SENT &&
+                envelope.targetPeerId == state.localPeerId() &&
+                RelayCodec.route(payload, events)
         is DecodedPayload.Beacon -> payload.beacon.senderPeerId == originPeerId && RelayCodec.route(payload, events)
         is DecodedPayload.ChatHistory ->
             originPeerId == state.hostPeerId() && RelayCodec.route(payload, events)
@@ -191,6 +199,13 @@ internal class NearbyInboundMeshDispatcher(
                     ) RelayCodec.route(payload, events) else false
                 is DecodedPayload.ChatHistory ->
                     !state.isLocalHost() && endpointId == state.authenticatedHostEndpoint() &&
+                        RelayCodec.route(payload, events)
+                is DecodedPayload.ChatReceipt ->
+                    payload.receipt.recipientPeerId == endpointPeerId &&
+                        payload.receipt.eventCode == state.localEventId() &&
+                        payload.receipt.messageId.isNotBlank() &&
+                        payload.receipt.status != MessageStatus.SENT &&
+                        envelope.targetPeerId == state.localPeerId() &&
                         RelayCodec.route(payload, events)
                 is DecodedPayload.UwbAddress ->
                     isPayloadSenderAuthorized(

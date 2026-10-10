@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 internal interface PayloadSink {
     fun onChatMessage(message: ChatPayloadDto)
     fun onChatHistory(history: ChatHistoryPayloadDto)
+    fun onChatReceipt(receipt: ChatReceiptPayloadDto)
     fun onBeacon(beacon: BeaconPayloadDto)
     fun onInviteSecret(secret: InviteSecretPayloadDto)
     fun onBleIdentityKey(identityKey: BleIdentityKeyPayloadDto)
@@ -91,6 +92,12 @@ internal class TransportEvents(private val tag: String) : PayloadSink {
         onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
     val receivedChatHistory: SharedFlow<ChatHistoryPayloadDto> = _receivedChatHistory.asSharedFlow()
+
+    private val _receivedChatReceipt = MutableSharedFlow<ChatReceiptPayloadDto>(
+        extraBufferCapacity = 16,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+    val receivedChatReceipt: SharedFlow<ChatReceiptPayloadDto> = _receivedChatReceipt.asSharedFlow()
 
     private val _connectionEstablished = MutableSharedFlow<String>(
         replay = 1,
@@ -222,6 +229,10 @@ internal class TransportEvents(private val tag: String) : PayloadSink {
     override fun onChatHistory(history: ChatHistoryPayloadDto) {
         Log.i(tag, "Received chat history with ${history.messages.size} msgs")
         _receivedChatHistory.tryEmit(history)
+    }
+
+    override fun onChatReceipt(receipt: ChatReceiptPayloadDto) {
+        _receivedChatReceipt.tryEmit(receipt)
     }
 
     override fun onBeacon(beacon: BeaconPayloadDto) {

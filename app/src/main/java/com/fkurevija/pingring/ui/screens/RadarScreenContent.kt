@@ -351,6 +351,7 @@ fun RadarScreenContent(
                     localPeerId = localPeerId,
                     senderName = senderName,
                     chatBubbleColorArgb = chatBubbleColorArgb,
+                    readReceiptsVisible = activityResumed && isTopDestination && readReceiptsEnabled,
                     silencedBeaconIds = silencedBeaconIds,
                     isHost = isHost,
                     radarScreenReaderSummaryEnabled = radarScreenReaderSummaryEnabled,

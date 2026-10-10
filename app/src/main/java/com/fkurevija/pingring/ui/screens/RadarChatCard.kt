@@ -25,14 +25,18 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,13 +49,17 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.snapshotFlow
 import com.fkurevija.pingring.R
 import com.fkurevija.pingring.data.ChatBubbleColorPolicy
 import com.fkurevija.pingring.data.ChatEntryType
 import com.fkurevija.pingring.data.ChatMessageOwnership
+import com.fkurevija.pingring.data.ChatRecipientReceipt
 import com.fkurevija.pingring.data.ChatTimelineItem
 import com.fkurevija.pingring.data.ChatTimestampPolicy
+import com.fkurevija.pingring.data.MessageStatus
 import com.fkurevija.pingring.data.TextInputPolicy
+import kotlinx.coroutines.flow.distinctUntilChanged
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -65,15 +73,54 @@ internal fun RadarChatCard(
     chatEntries: List<ChatTimelineItem>,
     localPeerId: String?,
     chatBubbleColorArgb: Long?,
+    readReceiptsVisible: Boolean,
     latestSenderColors: Map<String, Long>,
     silencedBeaconIds: Set<String>,
     onToggleBeaconSilenced: (String, Boolean) -> Unit,
+    onVisibleMessagesChanged: (List<String>) -> Unit,
     onSendMessage: (String) -> Unit,
 ) {
     var chatText by remember { mutableStateOf("") }
+    var receiptDetails by remember { mutableStateOf<List<ChatRecipientReceipt>?>(null) }
+    val visibleMessagesChanged by rememberUpdatedState(onVisibleMessagesChanged)
     val focusManager = LocalFocusManager.current
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
+    LaunchedEffect(chatListState, readReceiptsVisible) {
+        if (readReceiptsVisible) {
+            snapshotFlow {
+                chatListState.layoutInfo.visibleItemsInfo.mapNotNull { item ->
+                    (item.key as? String)
+                        ?.takeIf { it.startsWith("m:") }
+                        ?.removePrefix("m:")
+                }
+            }.distinctUntilChanged().collect { visibleMessagesChanged(it) }
+        }
+    }
+
+    receiptDetails?.let { recipients ->
+        AlertDialog(
+            onDismissRequest = { receiptDetails = null },
+            title = { Text(stringResource(R.string.chat_receipt_details)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    recipients.forEach { recipient ->
+                        val status = when (recipient.status) {
+                            MessageStatus.SENT -> stringResource(R.string.chat_receipt_sent)
+                            MessageStatus.DELIVERED -> stringResource(R.string.chat_receipt_delivered)
+                            MessageStatus.READ -> stringResource(R.string.chat_receipt_read)
+                        }
+                        Text("${recipient.name}: $status")
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { receiptDetails = null }) {
+                    Text(stringResource(android.R.string.ok))
+                }
+            },
+        )
+    }
 
     Card(
         modifier = modifier,
@@ -207,15 +254,35 @@ internal fun RadarChatCard(
                                                 color = senderBubbleColor?.readableOnIt()
                                                     ?: if (isMe) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
                                             )
-                                            if (isMe) {
+                                            if (isMe && msg.recipientReceipts.isEmpty()) {
                                                 Spacer(Modifier.height(2.dp))
                                                 Text(
-                                                    "✓ Sent",
+                                                    stringResource(R.string.chat_receipt_sent),
                                                     style = MaterialTheme.typography.labelSmall,
                                                     color = (senderBubbleColor?.readableOnIt() ?: MaterialTheme.colorScheme.onPrimaryContainer).copy(alpha = 0.6f),
                                                     modifier = Modifier.align(Alignment.End)
                                                 )
                                             }
+                                        }
+                                    }
+                                    if (isMe && msg.recipientReceipts.isNotEmpty()) {
+                                        val delivered = msg.recipientReceipts.count { it.status != MessageStatus.SENT }
+                                        val read = msg.recipientReceipts.count { it.status == MessageStatus.READ }
+                                        TextButton(
+                                            onClick = { receiptDetails = msg.recipientReceipts },
+                                            contentPadding = PaddingValues(0.dp),
+                                        ) {
+                                            Text(
+                                                stringResource(
+                                                    R.string.chat_receipt_counts,
+                                                    delivered,
+                                                    msg.recipientReceipts.size,
+                                                    read,
+                                                    msg.recipientReceipts.size,
+                                                ),
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = (senderBubbleColor?.readableOnIt() ?: MaterialTheme.colorScheme.onPrimaryContainer).copy(alpha = 0.75f),
+                                            )
                                         }
                                     }
                                 }

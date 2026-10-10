@@ -595,6 +595,12 @@ class DiscoveryRepository(
         }
 
         repositoryScope?.launch {
+            nearbyConnectionsManager.receivedChatReceipt.collect { receipt ->
+                chatCoordinator.receiveReceipt(receipt)
+            }
+        }
+
+        repositoryScope?.launch {
             nearbyConnectionsManager.peerNames.collect { (peerId, name) ->
                 updatePeerName(peerId, name)
             }
@@ -827,6 +833,12 @@ class DiscoveryRepository(
 
     fun broadcastOutgoingChatMessage(text: String, senderName: String, colorArgb: Long?) =
         chatCoordinator.broadcastOutgoingMessage(text, senderName, colorArgb)
+
+    fun acknowledgeVisibleChatMessages(messageIds: List<String>) {
+        repositoryScope?.launch {
+            chatCoordinator.markVisibleMessagesRead(messageIds)
+        }
+    }
 
     fun announcePingRingCreated() = chatCoordinator.announceRingCreated()
 

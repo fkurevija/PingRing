@@ -245,6 +245,11 @@
     <string name="copy_pingring_code">PingRing-Code kopieren</string>
     <string name="pingring_code_copied">PingRing-Code kopiert</string>
     <string name="chat_message_copied">Nachricht kopiert</string>
+    <string name="chat_receipt_counts">Zugestellt %1$d/%2$d · Gelesen %3$d/%4$d</string>
+    <string name="chat_receipt_details">Nachrichtenbestätigungen</string>
+    <string name="chat_receipt_sent">Gesendet</string>
+    <string name="chat_receipt_delivered">Zugestellt</string>
+    <string name="chat_receipt_read">Gelesen</string>
     <string name="peer_link_diagnostics_title">Peer-Verbindungsdiagnose</string>
     <string name="peer_link_diagnostics_description">Übertragungstyp, Signalstärke (RSSI) und Distanzquelle auf dem Radar anzeigen</string>
     <string name="battery_saver_title">Akkusparmodus</string>

@@ -245,6 +245,11 @@
     <string name="copy_pingring_code">Copier le code PingRing</string>
     <string name="pingring_code_copied">Code PingRing copié</string>
     <string name="chat_message_copied">Message copié</string>
+    <string name="chat_receipt_counts">Livré %1$d/%2$d · Lu %3$d/%4$d</string>
+    <string name="chat_receipt_details">Accusés du message</string>
+    <string name="chat_receipt_sent">Envoyé</string>
+    <string name="chat_receipt_delivered">Livré</string>
+    <string name="chat_receipt_read">Lu</string>
     <string name="peer_link_diagnostics_title">Diagnostics de liaison réseau</string>
     <string name="peer_link_diagnostics_description">Afficher le type de transport, le signal (RSSI) et la source sur le radar</string>
     <string name="battery_saver_title">Mode économie de batterie</string>

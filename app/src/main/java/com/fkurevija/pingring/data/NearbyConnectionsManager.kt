@@ -296,6 +296,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
     override val receivedUwbRangingOffer: SharedFlow<UwbRangingOfferDto> get() = events.receivedUwbRangingOffer
     override val receivedChatMessage: SharedFlow<ChatPayloadDto> get() = events.receivedChatMessage
     override val receivedChatHistory: SharedFlow<ChatHistoryPayloadDto> get() = events.receivedChatHistory
+    override val receivedChatReceipt: SharedFlow<ChatReceiptPayloadDto> get() = events.receivedChatReceipt
     override val connectionEstablished: SharedFlow<String> get() = events.connectionEstablished
     override val peerDisconnected: SharedFlow<String> get() = events.peerDisconnected
 
@@ -702,6 +703,10 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
 
     override fun sendChatMessageToPeer(peerId: String, chatMsg: ChatPayloadDto) {
         sendMeshTargetedPayload(peerId, chatMsg)
+    }
+
+    override fun sendChatReceiptToPeer(peerId: String, receipt: ChatReceiptPayloadDto) {
+        sendMeshTargetedPayload(peerId, receipt)
     }
 
     override fun sendBeaconToPeer(peerId: String, beacon: BeaconPayloadDto) {
