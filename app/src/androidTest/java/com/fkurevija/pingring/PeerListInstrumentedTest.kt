@@ -12,6 +12,7 @@ import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.isSelectable
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -334,15 +335,41 @@ class PeerListInstrumentedTest {
         val member = peer(id = "guest-id", name = "Ana")
         var removedPeerId: String? = null
 
-        show(peers = listOf(member))
+        // Use mutable state to switch host flag and removal callback without needing multiple setContent calls
+        val isHostState = mutableStateOf(false)
+        val onRemoveState = mutableStateOf<(String) -> Unit>({})
+
+        composeRule.setContent {
+            MaterialTheme {
+                PeerList(
+                    peers = listOf(member),
+                    connectivity = ConnectivityStatus(true, true),
+                    repository = null,
+                    activeBeacons = emptyMap(),
+                    focusedPeerId = null,
+                    onFocusPeer = {},
+                    isHost = isHostState.value,
+                    onRemovePeer = onRemoveState.value,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+
+        // Verify remove button is not shown when not host
         composeRule.onNodeWithContentDescription("Remove Ana").assertDoesNotExist()
 
-        show(peers = listOf(member), isHost = true, onRemovePeer = { removedPeerId = it })
+        // Become host and set removal callback
+        isHostState.value = true
+        onRemoveState.value = { removedPeerId = it }
+        composeRule.waitForIdle()
+
+        // Click remove and cancel
         composeRule.onNodeWithContentDescription("Remove Ana").performClick()
         composeRule.onNodeWithText("Remove member?").assertIsDisplayed()
         composeRule.onNodeWithText("Cancel").performClick()
         assertEquals(null, removedPeerId)
 
+        // Confirm removal
         composeRule.onNodeWithContentDescription("Remove Ana").performClick()
         composeRule.onNodeWithText("Remove").performClick()
         assertEquals("guest-id", removedPeerId)

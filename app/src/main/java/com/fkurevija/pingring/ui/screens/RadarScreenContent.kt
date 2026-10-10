@@ -314,7 +314,8 @@ fun RadarScreenContent(
                 onShowEndConfirmation = { showEndConfirmation = true },
                 onShowMemberSheet = { showMemberSheet = true },
                 onShowQrCode = { showQrCode = true },
-                onEventSettings = onEventSettings
+                onEventSettings = onEventSettings,
+                hideMemberCount = showMemberSheet
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }

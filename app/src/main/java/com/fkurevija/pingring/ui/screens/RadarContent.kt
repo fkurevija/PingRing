@@ -115,9 +115,18 @@ internal fun RadarContent(
                 directionIsLastKnown = directionIsLastKnown,
                 trackedPeerName = peer?.takeIf { hasPeers }?.name,
                 trackedPeerDistance = peer?.takeIf { hasPeers }?.let {
-                    it.distance?.let { distance ->
-                        stringResource(R.string.distance_away, distance)
-                    } ?: stringResource(R.string.proximity_signal, proximityLabel)
+                    // Show distance with uncertainty when source is GNSS and accuracy is available
+                    if (it.distanceSource == RangingSourcePolicy.RangingSource.GNSS && it.distance != null && it.distanceAccuracyMeters != null) {
+                        stringResource(
+                            R.string.distance_with_uncertainty,
+                            it.distance,
+                            it.distanceAccuracyMeters
+                        )
+                    } else {
+                        it.distance?.let { distance ->
+                            stringResource(R.string.distance_away, distance)
+                        } ?: stringResource(R.string.proximity_signal, proximityLabel)
+                    }
                 },
                 beacon = beacon,
                 accessibilityDescription = RadarAccessibilityProbe.describeLocalized(

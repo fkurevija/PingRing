@@ -188,6 +188,7 @@ internal fun PeerList(
                             Column(Modifier.weight(1f)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(peer.name, fontWeight = FontWeight.SemiBold)
+                                    Text(peer.proximity, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(start = 6.dp))
                                     if (isFocused) {
                                         Spacer(Modifier.width(6.dp))
                                         Text(

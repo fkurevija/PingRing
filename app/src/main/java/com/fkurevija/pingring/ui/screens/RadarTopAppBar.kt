@@ -25,6 +25,7 @@ fun RadarTopAppBar(
     onShowMemberSheet: () -> Unit,
     onShowQrCode: () -> Unit,
     onEventSettings: () -> Unit,
+    hideMemberCount: Boolean = false,
 ) {
     TopAppBar(
         title = {
@@ -35,16 +36,18 @@ fun RadarTopAppBar(
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                 )
-                val isFull = peerCount >= maxPeers
-                Text(
-                    text = stringResource(
-                        if (isFull) R.string.member_count_full else R.string.member_count,
-                        peerCount,
-                        maxPeers
-                    ),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                if (!hideMemberCount) {
+                    val isFull = peerCount >= maxPeers
+                    Text(
+                        text = stringResource(
+                            if (isFull) R.string.member_count_full else R.string.member_count,
+                            peerCount,
+                            maxPeers
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         },
         navigationIcon = {

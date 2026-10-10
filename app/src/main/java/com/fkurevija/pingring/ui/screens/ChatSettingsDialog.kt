@@ -80,7 +80,8 @@ internal fun ChatSettingsDialog(
     var saveCompleted by remember { mutableStateOf(false) }
     val usernameError = TextInputPolicy.usernameError(editedUsername, existingMemberNames)
     val usernameChanged = editedUsername.trim() != username
-    val colorChanged = draftColor != selectedColorArgb
+    // Only consider colour changed if an initial colour was provided and the user picks a different one.
+    val colorChanged = selectedColorArgb != null && draftColor != selectedColorArgb
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -211,8 +212,8 @@ internal fun ChatSettingsDialog(
                 }
             }
         },
-        confirmButton = {
-            if (!saveCompleted && (usernameChanged || colorChanged)) {
+        confirmButton = if (!saveCompleted && (usernameChanged || colorChanged)) {
+            {
                 TextButton(
                     onClick = {
                         usernameSubmitted = true
@@ -232,6 +233,8 @@ internal fun ChatSettingsDialog(
                     Text(stringResource(R.string.save_changes))
                 }
             }
+        } else {
+            {}
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) }
