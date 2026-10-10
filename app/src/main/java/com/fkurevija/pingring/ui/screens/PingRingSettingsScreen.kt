@@ -1,15 +1,8 @@
 package com.fkurevija.pingring.ui.screens
 
-import android.content.pm.PackageManager
 import android.os.Build
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -21,25 +14,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.Undo
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.GroupAdd
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Rule
 import androidx.compose.material.icons.filled.Sensors
 import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material.icons.filled.MyLocation
-import androidx.compose.material.icons.filled.TravelExplore
-import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -49,42 +31,27 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.fkurevija.pingring.R
+import com.fkurevija.pingring.data.BeaconAlertSettings
 import com.fkurevija.pingring.data.ConnectionMethodPolicy
 import com.fkurevija.pingring.data.ConnectionMethodPolicy.Unavailable
 import com.fkurevija.pingring.data.Event
-import com.fkurevija.pingring.data.BeaconAlertSettings
-import com.fkurevija.pingring.data.BeaconAlertRepeat
-import com.fkurevija.pingring.data.BEACON_REPEAT_DURATION_UNTIL_STOPPED
-import kotlin.math.roundToInt
-import com.fkurevija.pingring.data.ChatBubblePalette
-import com.fkurevija.pingring.data.MAX_PARTICIPANTS
-import com.fkurevija.pingring.R
 import com.fkurevija.pingring.ui.permissions.rememberUwbAvailability
 
 /**
@@ -286,17 +253,6 @@ fun PingRingSettingsScreen(
                             uwbPermissionGranted = uwbAvailability.permissionGranted,
                         )
                     }
-                    val selection = remember(capabilities, event.useUwb, uwbAvailability.isUsable) {
-                        ConnectionMethodPolicy.chooseMethod(
-                            capabilities = capabilities,
-                            preferences = ConnectionMethodPolicy.Preferences(
-                                // The same gate the staged value used: a flag that
-                                // survived from a device which did have UWB must not
-                                // present as enabled here.
-                                uwbRangingEnabled = event.useUwb && uwbAvailability.isUsable,
-                            ),
-                        )
-                    }
                     val uwbRefusal = ConnectionMethodPolicy.chooseMethod(
                         capabilities = capabilities,
                         preferences = ConnectionMethodPolicy.Preferences(uwbRangingEnabled = true),
@@ -326,135 +282,10 @@ fun PingRingSettingsScreen(
                 }
             }
 
-// A way out to the settings that are about the app rather than
-            // about this ring: theme, language, notifications, accessibility.
-            // They live two screens below Home, which is exactly why they were
-            // hard to find at the moment somebody standing in a crowd with a
-            // bright screen actually wanted one. A link, not a copy - the same
-            // argument that keeps every event switch on one screen.
-            //
-            // No heading above the button: it is already labelled "App Settings",
-            // and repeating those words two lines up said the same thing twice.
-            // The button is the whole card, so the card needs no name of its own.
-            // Beacon Repetition Card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
-                )
-            ) {
-                var repeatEnabled by remember(beaconAlertSettings) {
-                    mutableStateOf(beaconAlertSettings.repeat == BeaconAlertRepeat.REPEAT)
-                }
-
-                val initialDurationSec = if (beaconAlertSettings.repeatDurationMillis == BEACON_REPEAT_DURATION_UNTIL_STOPPED) {
-                    300f
-                } else {
-                    (beaconAlertSettings.repeatDurationMillis / 1000f).coerceIn(30f, 300f)
-                }
-                var durationDraft by remember(beaconAlertSettings) { mutableFloatStateOf(initialDurationSec) }
-
-                val initialGapSec = (((beaconAlertSettings.repeatGapMillis / 1000f) / 5f).roundToInt() * 5f).coerceIn(5f, 30f)
-                var frequencyDraft by remember(beaconAlertSettings) { mutableFloatStateOf(initialGapSec) }
-
-                Column(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Text(
-                        stringResource(R.string.beacon_configuration),
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                stringResource(R.string.beacon_alert_repetition_label),
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                            Text(
-                                stringResource(R.string.beacon_alert_repetition_explainer),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        Spacer(Modifier.width(8.dp))
-                        Switch(
-                            checked = repeatEnabled,
-                            onCheckedChange = { checked ->
-                                repeatEnabled = checked
-                                val newRepeat = if (checked) BeaconAlertRepeat.REPEAT else BeaconAlertRepeat.ONCE
-                                val durSec = durationDraft.roundToInt()
-                                val newDuration = if (durSec >= 300) BEACON_REPEAT_DURATION_UNTIL_STOPPED else (durSec * 1000L)
-                                val newGap = (((frequencyDraft / 5f).roundToInt() * 5).coerceIn(5, 30) * 1000L)
-                                onBeaconAlertSettingsChange(BeaconAlertSettings(repeat = newRepeat, repeatGapMillis = newGap, repeatDurationMillis = newDuration))
-                            }
-                        )
-                    }
-
-                    if (repeatEnabled) {
-                        HorizontalDivider(
-                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
-                            modifier = Modifier.padding(vertical = 4.dp)
-                        )
-
-                        val currentDurationSec = durationDraft.roundToInt()
-                        val isUntilStopped = currentDurationSec >= 300
-                        Text(
-                            text = if (isUntilStopped) {
-                                "Duration: Until stopped"
-                            } else {
-                                "Duration: ${currentDurationSec}s"
-                            },
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                        Slider(
-                            value = durationDraft,
-                            onValueChange = { durationDraft = it },
-                            onValueChangeFinished = {
-                                val sec = durationDraft.roundToInt()
-                                val dur = if (sec >= 300) BEACON_REPEAT_DURATION_UNTIL_STOPPED else (sec * 1000L)
-                                onBeaconAlertSettingsChange(beaconAlertSettings.copy(repeatDurationMillis = dur))
-                            },
-                            valueRange = 30f..300f,
-                            steps = 8,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
-                        Spacer(Modifier.height(4.dp))
-
-                        val currentFreqSec = ((frequencyDraft / 5f).roundToInt() * 5).coerceIn(5, 30)
-                        Text(
-                            text = "Frequency: Every ${currentFreqSec}s",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                        Slider(
-                            value = frequencyDraft,
-                            onValueChange = { frequencyDraft = it },
-                            onValueChangeFinished = {
-                                val sec = ((frequencyDraft / 5f).roundToInt() * 5).coerceIn(5, 30)
-                                val gap = sec * 1000L
-                                onBeaconAlertSettingsChange(beaconAlertSettings.copy(repeatGapMillis = gap))
-                            },
-                            valueRange = 5f..30f,
-                            steps = 4,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                }
-            }
+            BeaconAlertSettingsCard(
+                beaconAlertSettings = beaconAlertSettings,
+                onBeaconAlertSettingsChange = onBeaconAlertSettingsChange
+            )
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -494,4 +325,3 @@ private val Unavailable.descriptionRes: Int
         Unavailable.NO_PERMISSION -> R.string.uwb_needs_permission
         Unavailable.UNSUPPORTED_OS_VERSION -> R.string.uwb_os_too_old
     }
-
