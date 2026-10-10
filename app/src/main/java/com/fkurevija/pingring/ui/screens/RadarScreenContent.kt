@@ -75,17 +75,17 @@ import com.fkurevija.pingring.data.ChatBubbleColorPolicy
 import com.fkurevija.pingring.data.ChatTimelineItem
 import com.fkurevija.pingring.data.ChatTimelinePolicy
 import com.fkurevija.pingring.data.ConnectionRecoveryPromptPolicy
-import com.fkurevija.pingring.data.ConnectivityStatus
+import com.fkurevija.pingring.data.discovery.ConnectivityStatus
 import com.fkurevija.pingring.data.DiscoveryRepository
 import com.fkurevija.pingring.data.FocusPolicy
-import com.fkurevija.pingring.data.LastKnownPeerDirection
+import com.fkurevija.pingring.data.radar.LastKnownPeerDirection
 import com.fkurevija.pingring.data.MAX_PARTICIPANTS
 import com.fkurevija.pingring.data.PendingJoinRequest
 import com.fkurevija.pingring.data.RadarAccessibilityProbe
 import com.fkurevija.pingring.data.RadarAnnouncementPolicy
 import com.fkurevija.pingring.data.RadarDirectionPolicy
 import com.fkurevija.pingring.data.RadarFeedbackPolicy
-import com.fkurevija.pingring.data.RadarPeerUpdate
+import com.fkurevija.pingring.data.radar.RadarPeerUpdate
 import com.fkurevija.pingring.data.RangingSourcePolicy
 import com.fkurevija.pingring.data.SessionState
 import com.fkurevija.pingring.ui.accessibility.rememberAccessibilityEnvironment
@@ -118,6 +118,8 @@ fun RadarScreenContent(
     onApproveJoinRequest: (String) -> Unit = {},
     onDenyJoinRequest: (String) -> Unit = {},
     onUsernameChange: (String) -> Unit = {},
+    readReceiptsEnabled: Boolean = true,
+    onReadReceiptsChanged: (Boolean) -> Unit = {},
     onEventSettings: () -> Unit,
     onLeaveEvent: () -> Unit,
     onEndEvent: () -> Unit,
@@ -326,227 +328,81 @@ fun RadarScreenContent(
             onDeny = onDenyJoinRequest,
             modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp),
         ) {
-            coordinationError?.let { message ->
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
-                ) {
-                    Text(text = message, color = MaterialTheme.colorScheme.onErrorContainer, modifier = Modifier.padding(12.dp))
-                }
-            }
-            val weakSignalPeers = peers.filter { it.signalWeak }
-            val trackedWeakPeer = focusedPeer?.takeIf { it.signalWeak }
-            val weakSignalMessage = when {
-                trackedWeakPeer != null -> stringResource(R.string.radar_weak_tracked_signal, trackedWeakPeer.name)
-                weakSignalPeers.isNotEmpty() -> stringResource(R.string.radar_weak_group_signal, weakSignalPeers.size)
-                else -> null
-            }
-            weakSignalMessage?.let { message ->
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer),
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.BluetoothDisabled, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text(text = message, color = MaterialTheme.colorScheme.onTertiaryContainer, modifier = Modifier.weight(1f))
-                    }
-                }
-            }
-            lastKnownDirection?.let { location ->
-                val bearingDegrees = (Math.toDegrees(atan2(location.worldDirectionX.toDouble(), location.worldDirectionY.toDouble())).toInt() % 360 + 360) % 360
-                val secondsAgo = ((lastKnownClockMillis - location.lastDetectedAtMillis).coerceAtLeast(0L) / 1_000L).toInt()
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.MyLocation, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            stringResource(R.string.radar_last_known_direction, location.name, bearingDegrees, secondsAgo),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                }
-            }
+            coordinationError?.let { message -> RadarCoordinationErrorCard(message) }
+            RadarNoticeCards(
+                peers = peers,
+                focusedPeer = focusedPeer,
+                lastKnownDirection = lastKnownDirection,
+                lastKnownClockMillis = lastKnownClockMillis,
+            )
             BoxWithConstraints(modifier = Modifier.fillMaxWidth().weight(1f)) {
-                val wide = maxWidth >= 600.dp
-                if (wide) {
-                    val paneWidth = (maxWidth - 20.dp) / 2
-                    Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-                        RadarContent(
-                            focusedPeer,
-                            peers.isNotEmpty(),
-                            focusedBeacon,
-                            radarScreenReaderSummaryEnabled,
-                            accessibilityEnvironment.reduceMotion,
-                            spokenUpdateText,
-                            Modifier.width(paneWidth),
-                            trackedDirectionAlpha,
-                            showLastKnownDirection,
-                        )
-                        PeerList(
-                            peers,
-                            connectivity,
-                            discoveryRepository,
-                            activeBeacons,
-                            focusedPeerId = focusedPeer?.peerId,
-                            onFocusPeer = { discoveryRepository?.setFocusedPeer(it) },
-                            isHost = isHost,
-                            onRemovePeer = { discoveryRepository?.removeMember(it) },
-                            modifier = Modifier.width(paneWidth)
-                        )
-                    }
-                } else {
-                    @OptIn(ExperimentalLayoutApi::class)
-                    val isImeVisible = WindowInsets.isImeVisible
-                    val chatEntries = remember(sessionState.chatMessages, activeBeacons, endedBeacons) {
-                        ChatTimelinePolicy.build(
-                            messages = sessionState.chatMessages,
-                            activeBeacons = activeBeacons.values.toList(),
-                            endedBeacons = endedBeacons
-                        ).reversed()
-                    }
-                    val chatListState = rememberLazyListState()
-                    val latestSenderColors = remember(sessionState.chatMessages) { ChatBubbleColorPolicy.latestColorsBySender(sessionState.chatMessages) }
-                    var followingNewest by remember { mutableStateOf(true) }
-                    LaunchedEffect(chatListState) {
-                        var dragging = false
-                        while (true) {
-                            withFrameNanos { }
-                            if (chatListState.isScrollInProgress) dragging = true else if (dragging) {
-                                followingNewest = chatListState.firstVisibleItemIndex == 0
-                                dragging = false
-                            }
-                        }
-                    }
-                    LaunchedEffect(chatEntries.firstOrNull()?.key) { if (followingNewest) chatListState.scrollToItem(0) }
-                    val density = LocalDensity.current
-                    var topContentHeightPx by remember { mutableIntStateOf(0) }
-                    val availableHeight = maxHeight
-                    Box(Modifier.fillMaxSize()) {
-                        Column(Modifier.fillMaxWidth().onSizeChanged { topContentHeightPx = it.height }) {
-                            RadarContent(
-                                focusedPeer,
-                                peers.isNotEmpty(),
-                                focusedBeacon,
-                                radarScreenReaderSummaryEnabled,
-                                accessibilityEnvironment.reduceMotion,
-                                spokenUpdateText,
-                                Modifier.fillMaxWidth(),
-                                trackedDirectionAlpha,
-                                showLastKnownDirection,
-                            )
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 4.dp),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                OutlinedButton(onClick = { showChatSettings = true }, modifier = Modifier.weight(1f)) {
-                                    Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = null, modifier = Modifier.size(18.dp))
-                                    Spacer(Modifier.width(6.dp))
-                                    Text(stringResource(R.string.chat_settings), textAlign = TextAlign.Center)
-                                }
-                                BeaconActionButton(
-                                    localBeacon = localBeacon,
-                                    onOpen = { showBeaconSheet = true },
-                                    onStop = { discoveryRepository?.cancelLocalBeacon() },
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                        }
-                        val topContentHeightDp = with(density) { topContentHeightPx.toDp() }
-                        val chatCardOffsetY = if (isImeVisible) 0.dp else topContentHeightDp
-                        val chatCardHeight = if (isImeVisible) availableHeight else (availableHeight - topContentHeightDp).coerceAtLeast(0.dp)
-                        RadarChatCard(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .offset(y = chatCardOffsetY)
-                                .height(chatCardHeight)
-                                .padding(vertical = 6.dp)
-                                .then(if (isImeVisible) Modifier.imePadding() else Modifier),
-                            isImeVisible = isImeVisible,
-                            chatListState = chatListState,
-                            chatEntries = chatEntries,
-                            localPeerId = localPeerId,
-                            chatBubbleColorArgb = chatBubbleColorArgb,
-                            latestSenderColors = latestSenderColors,
-                            silencedBeaconIds = silencedBeaconIds,
-                            onToggleBeaconSilenced = { id, silenced -> discoveryRepository?.setBeaconSilenced(id, silenced) },
-                            onSendMessage = { msg -> discoveryRepository?.broadcastOutgoingChatMessage(msg, senderName, chatBubbleColorArgb) }
-                        )
-                    }
-                }
-            }
-            if (showEndConfirmation) {
-                EndPingRingDialog(isHost = isHost, onConfirm = { showEndConfirmation = false; if (isHost) onEndEvent() else onLeaveEvent() }, onDismiss = { showEndConfirmation = false })
-            }
-            if (showConnectionLostDialog) {
-                ConnectionLostDialog(
-                    onDismiss = ::snoozeConnectionLostPrompt,
-                    onLeave = { showConnectionLostDialog = false; onLeaveEvent() },
-                    onSilence = { connectionPromptSilenced = true; showConnectionLostDialog = false },
-                    connectionRecoveryPromptDelayMillis = connectionRecoveryPromptDelayMillis
-                )
-            }
-            if (showChatSettings) {
-                ChatSettingsDialog(
-                    selectedColorArgb = chatBubbleColorArgb,
-                    username = sessionState.userName,
-                    existingMemberNames = sessionState.friends.map { it.name },
-                    onUsernameChange = onUsernameChange,
-                    onColorSelected = { requested ->
-                        val repo = discoveryRepository
-                        if (repo == null) onChatBubbleColorChange(requested) else repo.requestChatColour(requested) { granted ->
-                            refused = if (granted) null else requested
-                            if (granted) onChatBubbleColorChange(requested)
-                        }
-                    },
-                    onDismiss = { showChatSettings = false },
-                    colourHolders = chatColourHolders,
-                    memberNameFor = { peerId -> peers.firstOrNull { it.peerId == peerId }?.name ?: peerId },
-                    localPeerId = localPeerId,
-                    refusedColorArgb = refused ?: refusedChatColourArgb,
-                )
-            }
-            if (showBeaconSheet) {
-                BeaconCustomizationDialog(
+                RadarAdaptiveContent(
+                    maxWidth = maxWidth,
+                    maxHeight = maxHeight,
+                    sessionState = sessionState,
+                    peers = peers,
+                    focusedPeer = focusedPeer,
+                    focusedBeacon = focusedBeacon,
+                    activeBeacons = activeBeacons,
+                    endedBeacons = endedBeacons,
                     localBeacon = localBeacon,
-                    onDismiss = { showBeaconSheet = false },
-                    onActivate = { title, color, pattern -> discoveryRepository?.activateBeacon(title, color, pattern, senderName) },
-                    onStop = { discoveryRepository?.cancelLocalBeacon() },
-                    onTestVibrate = { pattern -> discoveryRepository?.playVibrationPattern(pattern) }
+                    connectivity = connectivity,
+                    discoveryRepository = discoveryRepository,
+                    localPeerId = localPeerId,
+                    senderName = senderName,
+                    chatBubbleColorArgb = chatBubbleColorArgb,
+                    silencedBeaconIds = silencedBeaconIds,
+                    isHost = isHost,
+                    radarScreenReaderSummaryEnabled = radarScreenReaderSummaryEnabled,
+                    reduceMotionEnabled = accessibilityEnvironment.reduceMotion,
+                    spokenUpdateText = spokenUpdateText,
+                    trackedDirectionAlpha = trackedDirectionAlpha,
+                    showLastKnownDirection = showLastKnownDirection,
+                    onShowChatSettings = { showChatSettings = true },
+                    onShowBeaconSheet = { showBeaconSheet = true },
                 )
             }
-            if (showMemberSheet) {
-                val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-                ModalBottomSheet(onDismissRequest = { showMemberSheet = false }, sheetState = sheetState) {
-                    PeerList(
-                        peers = peers,
-                        connectivity = connectivity,
-                        repository = discoveryRepository,
-                        activeBeacons = activeBeacons,
-                        focusedPeerId = focusedPeer?.peerId,
-                        onFocusPeer = { discoveryRepository?.setFocusedPeer(it) },
-                        isHost = isHost,
-                        onRemovePeer = { discoveryRepository?.removeMember(it) },
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
-                    )
-                }
-            }
-            if (showQrCode) {
-                AlertDialog(
-                    onDismissRequest = { showQrCode = false },
-                    title = { Text(stringResource(R.string.scan_to_join)) },
-                    text = {
-                        PingRingCodeBlock(eventCode = eventId, inviteSecret = sessionState.currentEvent?.inviteSecret, qrSize = 200.dp)
-                    },
-                    confirmButton = { TextButton(onClick = { showQrCode = false }) { Text(stringResource(R.string.close)) } }
-                )
-            }
+            RadarScreenOverlays(
+                eventId = eventId,
+                sessionState = sessionState,
+                isHost = isHost,
+                discoveryRepository = discoveryRepository,
+                peers = peers,
+                connectivity = connectivity,
+                activeBeacons = activeBeacons,
+                localBeacon = localBeacon,
+                focusedPeerId = focusedPeer?.peerId,
+                senderName = senderName,
+                showEndConfirmation = showEndConfirmation,
+                onDismissEndConfirmation = { showEndConfirmation = false },
+                onLeaveEvent = onLeaveEvent,
+                onEndEvent = onEndEvent,
+                showConnectionLostDialog = showConnectionLostDialog,
+                onDismissConnectionLost = ::snoozeConnectionLostPrompt,
+                onLeaveFromConnectionLost = { showConnectionLostDialog = false; onLeaveEvent() },
+                onSilenceConnectionLost = { connectionPromptSilenced = true; showConnectionLostDialog = false },
+                connectionRecoveryPromptDelayMillis = connectionRecoveryPromptDelayMillis,
+                showChatSettings = showChatSettings,
+                onDismissChatSettings = { showChatSettings = false },
+                chatBubbleColorArgb = chatBubbleColorArgb,
+                onUsernameChange = onUsernameChange,
+                onChatBubbleColorChange = onChatBubbleColorChange,
+                onColourClaimResult = { requested, granted ->
+                    refused = if (granted) null else requested
+                },
+                colourHolders = chatColourHolders,
+                localPeerId = localPeerId,
+                refusedChatColourArgb = refused,
+                refusedChatColourFallback = refusedChatColourArgb,
+                readReceiptsEnabled = readReceiptsEnabled,
+                onReadReceiptsChanged = onReadReceiptsChanged,
+                showBeaconSheet = showBeaconSheet,
+                onDismissBeaconSheet = { showBeaconSheet = false },
+                showMemberSheet = showMemberSheet,
+                onDismissMemberSheet = { showMemberSheet = false },
+                showQrCode = showQrCode,
+                onDismissQrCode = { showQrCode = false },
+            )
         }
     }
 }

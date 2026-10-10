@@ -1,7 +1,7 @@
 package com.fkurevija.pingring
 
-import com.fkurevija.pingring.data.DEFAULT_JOIN_WAIT_TIMEOUT_MILLIS
-import com.fkurevija.pingring.data.JOIN_APPROVAL_GRACE_MILLIS
+import com.fkurevija.pingring.data.settings.DEFAULT_JOIN_WAIT_TIMEOUT_MILLIS
+import com.fkurevija.pingring.data.settings.JOIN_APPROVAL_GRACE_MILLIS
 import com.fkurevija.pingring.data.JOIN_REQUEST_TIMEOUT_MILLIS
 import com.fkurevija.pingring.data.JoinRequestDecision
 import com.fkurevija.pingring.data.MAX_PARTICIPANTS

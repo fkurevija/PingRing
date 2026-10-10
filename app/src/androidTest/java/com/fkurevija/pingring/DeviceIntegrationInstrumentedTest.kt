@@ -3,12 +3,12 @@ package com.fkurevija.pingring
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.fkurevija.pingring.data.BleAdvertisementPayload
+import com.fkurevija.pingring.data.ble.BleAdvertisementPayload
 import com.fkurevija.pingring.data.BleIdentityAdvertisement
 import com.fkurevija.pingring.data.BleRangePolicy
 import com.fkurevija.pingring.data.InviteSecret
 import com.fkurevija.pingring.data.SessionManager
-import com.fkurevija.pingring.data.ThemeMode
+import com.fkurevija.pingring.data.settings.ThemeMode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue

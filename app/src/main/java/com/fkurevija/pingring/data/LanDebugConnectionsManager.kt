@@ -1,32 +1,18 @@
 package com.fkurevija.pingring.data
 
 import android.content.Context
-import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
-import android.net.wifi.WifiInfo
-import android.net.wifi.WifiManager
-import android.os.Build
 import android.util.Log
-import com.fkurevija.pingring.DeviceEnvironment
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import java.io.BufferedReader
-import java.io.BufferedWriter
-import java.io.InputStreamReader
-import java.io.OutputStreamWriter
-import java.net.Socket
-import java.net.SocketException
+import com.fkurevija.pingring.data.transport.LanDebugJoinAdmission
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -75,44 +61,39 @@ class LanDebugConnectionsManager(
     override var inviteSecretProvider: (() -> String?)? = null
     override var userNameProvider: (() -> String?)? = null
 
-    private val _pendingJoinRequests = MutableStateFlow<List<PendingJoinRequest>>(emptyList())
-    override val pendingJoinRequests: StateFlow<List<PendingJoinRequest>> = _pendingJoinRequests.asStateFlow()
+    private val authorizedPeers = ConcurrentHashMap.newKeySet<String>()
+    private val joinAdmission = LanDebugJoinAdmission(
+        state = {
+            LanDebugJoinAdmission.State(
+                localEventId = localEventId,
+                localPeerId = localPeerId,
+                localRole = localRole,
+                acceptsNewMembers = acceptsNewMembers,
+                inviteSecretProvider = { inviteSecretProvider?.invoke() },
+                userNameProvider = { userNameProvider?.invoke() },
+            )
+        },
+        authorizedPeers = authorizedPeers,
+        callbacks = LanDebugJoinAdmission.Callbacks(
+            sendPayload = { targetPeerId, payload -> sendPayload(targetPeerId, payload) },
+            onPeerName = events::onPeerName,
+            onPeerConnected = events::onPeerConnected,
+            onInviteSecret = events::onInviteSecret,
+            logInfo = { Log.i(TAG, it) },
+        ),
+    )
+    override val pendingJoinRequests: StateFlow<List<PendingJoinRequest>> get() = joinAdmission.pendingJoinRequests
     override val pendingAuthentications: StateFlow<List<ConnectionAuthenticationRequest>> =
         events.pendingAuthentications
 
-    private val authorizedPeers = ConcurrentHashMap.newKeySet<String>()
-    private val scriptedRangingPeers = ConcurrentHashMap.newKeySet<String>()
-    private val wifiRssiBaselines = ConcurrentHashMap<String, Int>()
-    private val pendingJoinProofs = mutableMapOf<String, JoinProofPayloadDto>()
+    private val wifiRssiProxy = LanDebugWifiRssiProxy(context)
 
     override fun approveJoinRequest(endpointId: String) {
-        Log.i(TAG, "Host approved join request for $endpointId")
-        _pendingJoinRequests.update { current -> current.filterNot { it.endpointId == endpointId } }
-        pendingJoinProofs.remove(endpointId)?.guestName?.let { events.onPeerName(endpointId, it) }
-        authorizedPeers.add(endpointId)
-        val secret = inviteSecretProvider?.invoke()
-        if (secret != null) {
-            sendPayload(endpointId, InviteSecretPayloadDto(localEventId, localPeerId, secret))
-        }
-        events.onPeerConnected(endpointId)
+        joinAdmission.approveJoinRequest(endpointId)
     }
 
     override fun denyJoinRequest(endpointId: String) {
-        Log.i(TAG, "Host denied join request for $endpointId")
-        _pendingJoinRequests.update { current -> current.filterNot { it.endpointId == endpointId } }
-        pendingJoinProofs.remove(endpointId)
-        sendPayload(
-            endpointId,
-            EventControlPayloadDto(
-                eventCode = localEventId,
-                hostPeerId = localPeerId,
-                useUwb = true,
-                useWifiDirect = true,
-                acceptsNewMembers = acceptsNewMembers,
-                isFull = false,
-                isClosed = true
-            )
-        )
+        joinAdmission.denyJoinRequest(endpointId)
     }
 
     override fun confirmConnectionAuthentication(endpointId: String) = Unit
@@ -122,12 +103,8 @@ class LanDebugConnectionsManager(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var connectionJob: Job? = null
     private var rssiJob: Job? = null
-    private var socket: Socket? = null
-    private var writer: BufferedWriter? = null
-    private val writeLock = Any()
-
+    private val socketLifecycle = LanDebugSocketLifecycle(host, port, scope, TAG)
     private val connectionGeneration = AtomicInteger(0)
-    private val pendingEnvelopes = ArrayDeque<RelayEnvelope>()
 
     private var localPeerId: String = ""
     private var localEventId: String = ""
@@ -153,12 +130,7 @@ class LanDebugConnectionsManager(
             eventId = localEventId,
             senderPeerId = localPeerId
         )
-        val activeWriter = writer
-        val sent = if (activeWriter == null) {
-            false
-        } else {
-            runBlocking(Dispatchers.IO) { writeEnvelopeNow(activeWriter, envelope) }
-        }
+        val sent = runBlocking(Dispatchers.IO) { socketLifecycle.announce(envelope) }
         Log.i(TAG, "Announced event closure for $localEventId (sent=$sent)")
     }
 
@@ -176,79 +148,31 @@ class LanDebugConnectionsManager(
         val myGeneration = connectionGeneration.incrementAndGet()
         Log.i(TAG, "Starting connection attempt generation $myGeneration")
         connectionJob = scope.launch {
-            while (isActive) {
-                try {
-                    Log.d(TAG, "Connecting to relay at $host:$port for event $eventId as $localPeerId (gen $myGeneration)")
-                    val newSocket = Socket(host, port)
-                    if (connectionGeneration.get() != myGeneration) {
-                        Log.w(TAG, "Generation $myGeneration superseded, discarding")
-                        runCatching { newSocket.close() }
-                        break
-                    }
-                    socket = newSocket
-                    val newWriter = BufferedWriter(OutputStreamWriter(newSocket.getOutputStream()))
-                    writer = newWriter
-                    Log.i(TAG, "Connected to relay, joining event $eventId as $localPeerId/$localRole (gen $myGeneration)")
-                    writeEnvelopeNow(
-                        newWriter,
-                        RelayEnvelope(
-                            type = RelayEnvelope.JOIN,
-                            eventId = eventId,
-                            senderPeerId = localPeerId,
-                            role = localRole
-                        )
-                    )
-                    flushPendingEnvelopes()
-
+            socketLifecycle.run(
+                generation = myGeneration,
+                isCurrentGeneration = { connectionGeneration.get() == it },
+                eventWasClosed = { eventClosedByRelay },
+                joinEnvelope = RelayEnvelope(
+                    type = RelayEnvelope.JOIN,
+                    eventId = eventId,
+                    senderPeerId = localPeerId,
+                    role = localRole
+                ),
+                heartbeatEnvelope = {
+                    RelayEnvelope(type = RelayEnvelope.PING, eventId = eventId, senderPeerId = localPeerId)
+                },
+                onConnected = {
                     if (localRole == RelayEnvelope.ROLE_MEMBER) {
                         delay(300L)
                         sendLocalJoinProof(null)
                     }
                     startRssiSampling(myGeneration)
-
-                    val heartbeatJob = scope.launch {
-                        while (isActive) {
-                            delay(HEARTBEAT_INTERVAL_MILLIS)
-                            if (connectionGeneration.get() != myGeneration) break
-                            val currentWriter = writer ?: break
-                            if (!writeEnvelopeNow(currentWriter, RelayEnvelope(type = RelayEnvelope.PING, eventId = eventId, senderPeerId = localPeerId))) {
-                                break
-                            }
-                            publishMemberPresence()
-                        }
-                    }
-                    try {
-                        val reader = BufferedReader(InputStreamReader(newSocket.getInputStream()))
-                        while (isActive) {
-                            val line = reader.readLine() ?: break
-                            Log.d(TAG, "Received ${line.length} characters from relay")
-                            handleLine(line)
-                            if (eventClosedByRelay) {
-                                Log.i(TAG, "Relay closed event $eventId; not retrying (gen $myGeneration)")
-                                break
-                            }
-                        }
-                        Log.w(TAG, "Relay connection closed, retrying… (gen $myGeneration)")
-                    } finally {
-                        heartbeatJob.cancel()
-                    }
-                } catch (e: SocketException) {
-                    Log.w(TAG, "Relay socket error: ${e.message} (gen $myGeneration)")
-                } catch (e: Exception) {
-                    Log.e(TAG, "Relay connection failed (gen $myGeneration)", e)
-                }
-                if (eventClosedByRelay) {
-                    Log.i(TAG, "Event was closed by host, stopping retry loop (gen $myGeneration)")
-                    break
-                }
-                if (connectionGeneration.get() != myGeneration) {
-                    Log.w(TAG, "Generation $myGeneration superseded after disconnect, stopping retry loop")
-                    break
-                }
-                socket = null
-                writer = null
-                delay(RECONNECT_DELAY_MILLIS)
-            }
+                },
+                onLine = ::handleLine,
+                onHeartbeat = ::publishMemberPresence,
+                reconnectDelayMillis = RECONNECT_DELAY_MILLIS,
+                heartbeatIntervalMillis = HEARTBEAT_INTERVAL_MILLIS,
+            )
         }
     }
 
@@ -259,13 +183,9 @@ class LanDebugConnectionsManager(
         connectionJob = null
         rssiJob?.cancel()
         rssiJob = null
-        runCatching { socket?.close() }
-        socket = null
-        writer = null
+        socketLifecycle.close()
         authorizedPeers.clear()
-        scriptedRangingPeers.clear()
-        wifiRssiBaselines.clear()
-        wifiRssiUnavailable = false
+        wifiRssiProxy.reset()
     }
 
     private fun handleLine(line: String) {
@@ -284,10 +204,8 @@ class LanDebugConnectionsManager(
                 val senderId = envelope.senderPeerId ?: return
                 Log.i(TAG, "Peer left relay: $senderId")
                 authorizedPeers.remove(senderId)
-                scriptedRangingPeers.remove(senderId)
-                wifiRssiBaselines.remove(senderId)
-                _pendingJoinRequests.update { current -> current.filterNot { it.endpointId == senderId } }
-                pendingJoinProofs.remove(senderId)
+                wifiRssiProxy.removePeer(senderId)
+                joinAdmission.removePeer(senderId)
                 events.onPeerDisconnected(senderId)
             }
             RelayEnvelope.EVENT_CLOSED -> {
@@ -308,14 +226,7 @@ class LanDebugConnectionsManager(
     }
 
     private fun sendLocalJoinProof(targetPeerId: String?) {
-        sendPayload(
-            targetPeerId,
-            JoinProofPayloadDto(
-                eventCode = localEventId,
-                inviteSecret = inviteSecretProvider?.invoke(),
-                guestName = userNameProvider?.invoke(),
-            ),
-        )
+        joinAdmission.sendLocalJoinProof(targetPeerId)
     }
 
     private fun deliver(envelope: RelayEnvelope, fallbackSenderId: String): Boolean {
@@ -327,11 +238,11 @@ class LanDebugConnectionsManager(
 
     private fun deliver(payload: DecodedPayload, senderPeerId: String): Boolean = when (payload) {
         is DecodedPayload.JoinProof -> {
-            receiveJoinProof(payload.proof, senderPeerId)
+            joinAdmission.receiveJoinProof(payload.proof, senderPeerId)
             true
         }
         is DecodedPayload.InviteSecret -> {
-            receiveInviteSecret(payload.secret, senderPeerId)
+            joinAdmission.receiveInviteSecret(payload.secret, senderPeerId)
             true
         }
         is DecodedPayload.EventControl -> {
@@ -349,7 +260,7 @@ class LanDebugConnectionsManager(
             true
         }
         is DecodedPayload.MockRanging -> {
-            scriptedRangingPeers.add(payload.report.peerId)
+            wifiRssiProxy.markScriptedPeer(payload.report.peerId)
             events.onMockRanging(payload.report)
             true
         }
@@ -368,189 +279,25 @@ class LanDebugConnectionsManager(
         else -> RelayCodec.route(payload, events)
     }
 
-    private fun receiveJoinProof(proof: JoinProofPayloadDto, senderPeerId: String) {
-        if (localRole != RelayEnvelope.ROLE_HOST || proof.eventCode != localEventId || senderPeerId.isBlank()) return
-        if (senderPeerId in authorizedPeers) {
-            val secret = inviteSecretProvider?.invoke()
-            if (secret != null) {
-                sendPayload(senderPeerId, InviteSecretPayloadDto(localEventId, localPeerId, secret))
-            }
-            events.onPeerConnected(senderPeerId)
-            return
-        }
-
-        val expectedSecret = inviteSecretProvider?.invoke()
-        val hasValidInvite = expectedSecret != null && proof.inviteSecret == expectedSecret &&
-            InviteSecret.decode(proof.inviteSecret.orEmpty()) != null
-
-        val decision = decideJoinRequest(
-            isIncoming = true,
-            requiresApproval = joinRequiresHostApproval(hasValidInvite),
-            acceptsNewMembers = acceptsNewMembers,
-            connectedPeerCount = authorizedPeers.size + _pendingJoinRequests.value.size
-        )
-
-        when (decision) {
-            JoinRequestDecision.Refuse -> {
-                Log.i(TAG, "Refusing join request from $senderPeerId")
-                sendPayload(
-                    senderPeerId,
-                    EventControlPayloadDto(
-                        eventCode = localEventId,
-                        hostPeerId = localPeerId,
-                        useUwb = true,
-                        useWifiDirect = true,
-                        acceptsNewMembers = acceptsNewMembers,
-                        isFull = true,
-                        isClosed = true
-                    )
-                )
-            }
-            JoinRequestDecision.Admit -> {
-                Log.i(TAG, "Auto-admitting $senderPeerId (valid QR invite secret)")
-                authorizedPeers.add(senderPeerId)
-                proof.guestName?.let { events.onPeerName(senderPeerId, it) }
-                val secret = inviteSecretProvider?.invoke()
-                if (secret != null) {
-                    sendPayload(senderPeerId, InviteSecretPayloadDto(localEventId, localPeerId, secret))
-                }
-                events.onPeerConnected(senderPeerId)
-            }
-            JoinRequestDecision.AwaitApproval -> {
-                Log.i(TAG, "Holding join request from $senderPeerId for host approval")
-                val previousProof = pendingJoinProofs[senderPeerId]
-                val guestName = proof.guestName?.takeIf { it.isNotBlank() }
-                    ?: previousProof?.guestName?.takeIf { it.isNotBlank() }
-                pendingJoinProofs[senderPeerId] = proof.copy(guestName = guestName)
-                val previousRequest = _pendingJoinRequests.value.firstOrNull { it.endpointId == senderPeerId }
-                val request = PendingJoinRequest(
-                    endpointId = senderPeerId,
-                    deviceName = guestName ?: "Guest device",
-                    requestedAtMillis = previousRequest?.requestedAtMillis ?: System.currentTimeMillis()
-                )
-                _pendingJoinRequests.update { current ->
-                    (current.filterNot { it.endpointId == senderPeerId } + request)
-                        .sortedBy { it.requestedAtMillis }
-                }
-            }
-        }
-    }
-
-    private fun receiveInviteSecret(secret: InviteSecretPayloadDto, senderPeerId: String) {
-        if (localRole == RelayEnvelope.ROLE_HOST) return
-        if (secret.eventCode != localEventId) return
-        if (InviteSecret.decode(secret.inviteSecret) == null) return
-        val existingSecret = inviteSecretProvider?.invoke()
-        if (existingSecret != null && existingSecret != secret.inviteSecret) return
-        authorizedPeers.add(senderPeerId)
-        events.onPeerConnected(senderPeerId)
-        events.onInviteSecret(secret)
-    }
 
     private fun startRssiSampling(myGeneration: Int) {
         rssiJob?.cancel()
-        if (context == null || DeviceEnvironment.isEmulator()) return
-        rssiJob = scope.launch {
-            while (isActive && connectionGeneration.get() == myGeneration) {
-                delay(RSSI_SAMPLE_INTERVAL_MILLIS)
-                if (socket?.isConnected == true && localPeerId.isNotBlank() && localEventId.isNotBlank()) {
-                    publishWifiRssi(measureWifiRssi())
-                }
-            }
-        }
+        rssiJob = wifiRssiProxy.startSampling(
+            scope = scope,
+            shouldContinue = { connectionGeneration.get() == myGeneration },
+            shouldSample = {
+                socketLifecycle.currentWriter() != null && localPeerId.isNotBlank() && localEventId.isNotBlank()
+            },
+            onSample = ::publishWifiRssi,
+        )
     }
-
-    private var wifiRssiUnavailable = false
 
     internal fun publishWifiRssi(rssi: Int?) {
-        if (rssi == null || rssi !in -100..-20) {
-            if (!wifiRssiUnavailable) {
-                Log.w(TAG, "Wi-Fi RSSI unavailable; local peer mock sampling paused (no random fallback)")
-                wifiRssiUnavailable = true
-            }
-            return
-        }
-        if (wifiRssiUnavailable) {
-            Log.i(TAG, "Wi-Fi RSSI available again; resuming local peer mock sampling")
-            wifiRssiUnavailable = false
-        }
-        authorizedPeers.filterNot { it == localPeerId || it in scriptedRangingPeers }.forEach { peerId ->
-            val baseline = wifiRssiBaselines.getOrPut(peerId) {
-                Log.i(TAG, "Calibrating Wi-Fi proxy for $peerId at 1 m with $rssi dBm")
-                rssi
-            }
-            // Normalize Wi-Fi's stronger transmit power to the BLE curve's 1 m reference.
-            val mockRssi = RssiDistanceEstimator.RSSI_AT_ONE_METER.toInt() + rssi - baseline
-            events.onMockRanging(MockRangingDto(peerId = peerId, rssi = mockRssi))
-        }
-    }
-
-    @Suppress("DEPRECATION")
-    private fun measureWifiRssi(): Int? {
-        val ctx = context?.applicationContext ?: return null
-        return try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                val connectivity = ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
-                val network = connectivity?.activeNetwork ?: return null
-                val capabilities = connectivity.getNetworkCapabilities(network) ?: return null
-                if (!capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) return null
-                (capabilities.transportInfo as? WifiInfo)?.rssi
-            } else {
-                val wifi = ctx.getSystemService(Context.WIFI_SERVICE) as? WifiManager
-                wifi?.connectionInfo?.rssi
-            }
-        } catch (e: SecurityException) {
-            Log.w(TAG, "Wi-Fi RSSI access denied; check Wi-Fi and location permissions", e)
-            null
-        }
+        wifiRssiProxy.reportsFor(rssi, authorizedPeers, localPeerId).forEach(events::onMockRanging)
     }
 
     private fun sendEnvelope(envelope: RelayEnvelope, onComplete: (() -> Unit)? = null) {
-        scope.launch {
-            val activeWriter = writer
-            if (activeWriter == null) {
-                if (onComplete != null) {
-                    Log.w(TAG, "Not connected to relay; cannot send ${envelope.type} before shutdown")
-                    onComplete()
-                    return@launch
-                }
-                Log.w(TAG, "Not connected to relay, queuing ${envelope.type} envelope")
-                synchronized(writeLock) { pendingEnvelopes.addLast(envelope) }
-                return@launch
-            }
-            if (!writeEnvelopeNow(activeWriter, envelope)) {
-                synchronized(writeLock) { pendingEnvelopes.addLast(envelope) }
-            }
-            onComplete?.invoke()
-        }
-    }
-
-    private fun writeEnvelopeNow(activeWriter: BufferedWriter, envelope: RelayEnvelope): Boolean {
-        val json = RelayCodec.encodeEnvelope(envelope)
-        synchronized(writeLock) {
-            return try {
-                activeWriter.write(json)
-                activeWriter.newLine()
-                activeWriter.flush()
-                Log.d(TAG, "Sent ${json.length} characters to relay")
-                true
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to send to relay, queuing for retry", e)
-                false
-            }
-        }
-    }
-
-    private fun flushPendingEnvelopes() {
-        val toFlush = synchronized(writeLock) {
-            val copy = pendingEnvelopes.toList()
-            pendingEnvelopes.clear()
-            copy
-        }
-        if (toFlush.isNotEmpty()) {
-            Log.i(TAG, "Flushing ${toFlush.size} queued envelope(s) after reconnect")
-        }
-        toFlush.forEach { sendEnvelope(it) }
+        socketLifecycle.send(envelope, onComplete)
     }
 
     private fun sendPayload(targetPeerId: String?, params: Any, onComplete: (() -> Unit)? = null) {
@@ -644,8 +391,7 @@ class LanDebugConnectionsManager(
         }
         events.onMemberDeparture(departure)
         authorizedPeers.remove(peerId)
-        scriptedRangingPeers.remove(peerId)
-        wifiRssiBaselines.remove(peerId)
+        wifiRssiProxy.removePeer(peerId)
         // Keep relay notifications best-effort: local membership is removed
         // above and is never contingent on a live relay or guest connection.
         sendPayload(null, departure)
@@ -678,7 +424,7 @@ class LanDebugConnectionsManager(
 
     companion object {
         const val DEFAULT_PORT = 8942
-        internal const val RSSI_SAMPLE_INTERVAL_MILLIS = 250L
+        internal const val RSSI_SAMPLE_INTERVAL_MILLIS = LanDebugWifiRssiProxy.SAMPLE_INTERVAL_MILLIS
         private const val RECONNECT_DELAY_MILLIS = 2000L
         private const val HEARTBEAT_INTERVAL_MILLIS = 10000L
     }

@@ -1,7 +1,7 @@
 package com.fkurevija.pingring
 
 import com.fkurevija.pingring.data.PeerListOrderPolicy
-import com.fkurevija.pingring.data.RadarPeerUpdate
+import com.fkurevija.pingring.data.radar.RadarPeerUpdate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test

@@ -44,13 +44,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.fkurevija.pingring.R
 import com.fkurevija.pingring.data.BeaconInfo
-import com.fkurevija.pingring.data.ConnectivityStatus
+import com.fkurevija.pingring.data.discovery.ConnectivityStatus
 import com.fkurevija.pingring.data.DiscoveryRepository
 import com.fkurevija.pingring.data.LocalRadioAdvicePolicy
 import com.fkurevija.pingring.data.LocalRadioAdvicePolicy.Advice
 import com.fkurevija.pingring.data.MAX_PARTICIPANTS
 import com.fkurevija.pingring.data.PeerListOrderPolicy
-import com.fkurevija.pingring.data.RadarPeerUpdate
+import com.fkurevija.pingring.data.radar.RadarPeerUpdate
 
 /**
  * One local-radio notice, at the top of the member list.
@@ -105,7 +105,7 @@ private fun LocalRadioAdviceCard(
  * [com.fkurevija.pingring.data.DiscoveryRepository], which means no peers - and
  * the list is where a member actually appears, gets marked as tracked, and
  * shows its beacon. Testing it here means handing over a
- * [com.fkurevija.pingring.data.RadarPeerUpdate] directly, rather than standing up
+ * [com.fkurevija.pingring.data.radar.RadarPeerUpdate] directly, rather than standing up
  * a transport and waiting for a real peer to show up.
  */
 @Composable

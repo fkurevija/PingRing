@@ -237,6 +237,7 @@
 
     <string name="app_settings">App-Einstellungen</string>
     <string name="chat_settings">Chat-Einstellungen</string>
+    <string name="read_receipts">Lesebestätigungen</string>
     <string name="prevent_new_users_joining">Neuen Nutzern den Beitritt verhindern</string>
     <string name="prevent_new_users_joining_description">Schließe diesen PingRing für alle, die nicht bereits Mitglied sind. Gäste, die per Code beitreten, benötigen weiterhin deine Freigabe.</string>
     <string name="report_a_problem">Problem melden</string>

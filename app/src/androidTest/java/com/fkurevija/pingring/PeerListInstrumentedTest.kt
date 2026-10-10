@@ -19,8 +19,8 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.fkurevija.pingring.data.BeaconInfo
-import com.fkurevija.pingring.data.ConnectivityStatus
-import com.fkurevija.pingring.data.RadarPeerUpdate
+import com.fkurevija.pingring.data.discovery.ConnectivityStatus
+import com.fkurevija.pingring.data.radar.RadarPeerUpdate
 import com.fkurevija.pingring.ui.screens.PeerList
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue

@@ -237,6 +237,7 @@
 
     <string name="app_settings">Réglages de l’application</string>
     <string name="chat_settings">Réglages du clavardage</string>
+    <string name="read_receipts">Accusés de lecture</string>
     <string name="prevent_new_users_joining">Empêcher l’arrivée de nouveaux utilisateurs</string>
     <string name="prevent_new_users_joining_description">Fermez ce PingRing à toute personne qui ne fait pas déjà partie du groupe. Les invités qui joignent par code ont toujours besoin de votre approbation.</string>
     <string name="report_a_problem">Signaler un problème</string>

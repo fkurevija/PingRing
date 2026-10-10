@@ -1,5 +1,6 @@
 package com.fkurevija.pingring.data
 
+import com.fkurevija.pingring.data.radar.RadarPeerUpdate
 import kotlin.math.asin
 import kotlin.math.atan2
 import kotlin.math.cos

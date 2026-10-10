@@ -36,7 +36,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.fkurevija.pingring.R
 import com.fkurevija.pingring.data.TextInputPolicy
-import com.fkurevija.pingring.data.AppearanceSettingsRepository
+import com.fkurevija.pingring.data.settings.AppearanceSettingsRepository
 
 @Suppress("FunctionName")
 @OptIn(ExperimentalMaterial3Api::class)

@@ -239,6 +239,7 @@
 
     <string name="app_settings">Настройки приложения</string>
     <string name="chat_settings">Настройки чата</string>
+    <string name="read_receipts">Отчёты о прочтении</string>
     <string name="prevent_new_users_joining">Запретить присоединение новых участников</string>
     <string name="prevent_new_users_joining_description">Закрой этот PingRing для всех, кто ещё не участник. Гости, присоединяющиеся по коду, по-прежнему требуют вашего подтверждения.</string>
     <string name="report_a_problem">Сообщить о проблеме</string>

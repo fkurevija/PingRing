@@ -44,7 +44,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.fkurevija.pingring.R
-import com.fkurevija.pingring.data.ThemeMode
+import com.fkurevija.pingring.data.settings.ThemeMode
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

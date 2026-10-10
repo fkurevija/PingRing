@@ -11,7 +11,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.test.core.app.ApplicationProvider
-import com.fkurevija.pingring.data.AppearanceSettingsRepository
+import com.fkurevija.pingring.data.settings.AppearanceSettingsRepository
 import com.fkurevija.pingring.ui.screens.DeveloperSettingsScreen
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking

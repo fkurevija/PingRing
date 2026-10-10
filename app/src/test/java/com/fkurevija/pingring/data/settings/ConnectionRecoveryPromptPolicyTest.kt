@@ -1,10 +1,10 @@
-package com.fkurevija.pingring
+package com.fkurevija.pingring.data.settings
 
 import com.fkurevija.pingring.data.ConnectionRecoveryPromptPolicy
-import com.fkurevija.pingring.data.DEFAULT_CONNECTION_RECOVERY_PROMPT_DELAY_MILLIS
-import com.fkurevija.pingring.data.MAX_CONNECTION_RECOVERY_PROMPT_DELAY_MILLIS
-import com.fkurevija.pingring.data.MIN_CONNECTION_RECOVERY_PROMPT_DELAY_MILLIS
-import com.fkurevija.pingring.data.normalizeConnectionRecoveryPromptDelayMillis
+import com.fkurevija.pingring.data.settings.DEFAULT_CONNECTION_RECOVERY_PROMPT_DELAY_MILLIS
+import com.fkurevija.pingring.data.settings.MAX_CONNECTION_RECOVERY_PROMPT_DELAY_MILLIS
+import com.fkurevija.pingring.data.settings.MIN_CONNECTION_RECOVERY_PROMPT_DELAY_MILLIS
+import com.fkurevija.pingring.data.settings.normalizeConnectionRecoveryPromptDelayMillis
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

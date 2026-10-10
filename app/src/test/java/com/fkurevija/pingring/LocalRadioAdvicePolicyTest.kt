@@ -1,6 +1,6 @@
 package com.fkurevija.pingring
 
-import com.fkurevija.pingring.data.ConnectivityStatus
+import com.fkurevija.pingring.data.discovery.ConnectivityStatus
 import com.fkurevija.pingring.data.LocalRadioAdvicePolicy
 import com.fkurevija.pingring.data.LocalRadioAdvicePolicy.Advice
 import org.junit.Assert.assertEquals

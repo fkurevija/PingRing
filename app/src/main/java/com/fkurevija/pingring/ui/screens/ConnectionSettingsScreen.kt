@@ -45,9 +45,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
 import com.fkurevija.pingring.R
-import com.fkurevija.pingring.data.DEFAULT_JOIN_WAIT_TIMEOUT_MILLIS
-import com.fkurevija.pingring.data.MAX_JOIN_WAIT_TIMEOUT_MILLIS
-import com.fkurevija.pingring.data.MIN_JOIN_WAIT_TIMEOUT_MILLIS
+import com.fkurevija.pingring.data.settings.DEFAULT_JOIN_WAIT_TIMEOUT_MILLIS
+import com.fkurevija.pingring.data.settings.MAX_JOIN_WAIT_TIMEOUT_MILLIS
+import com.fkurevija.pingring.data.settings.MIN_JOIN_WAIT_TIMEOUT_MILLIS
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

@@ -20,6 +20,7 @@ import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import com.fkurevija.pingring.MainActivity
 import com.fkurevija.pingring.R
+import com.fkurevija.pingring.data.settings.AppearanceSettingsRepository
 import kotlinx.coroutines.flow.first
 
 /**

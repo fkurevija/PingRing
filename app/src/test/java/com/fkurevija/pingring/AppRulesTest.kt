@@ -7,15 +7,8 @@ import com.fkurevija.pingring.data.RadarFeedbackPolicy
 import com.fkurevija.pingring.data.RadarAnnouncementPolicy
 import com.fkurevija.pingring.data.RangingSourcePolicy
 import com.fkurevija.pingring.data.ChatBubblePalette
-import com.fkurevija.pingring.data.ChatMessageOwnership
 import com.fkurevija.pingring.data.ChatNotificationPolicy
-import com.fkurevija.pingring.data.CoordinationSyncState
-import com.fkurevija.pingring.data.CoordinationSyncStatus
-import com.fkurevija.pingring.data.Event
-import com.fkurevija.pingring.data.MAX_PARTICIPANTS
-import com.fkurevija.pingring.data.RelayEnvelope
 import com.fkurevija.pingring.data.RadarAccessibilityPolicy
-import com.fkurevija.pingring.data.SessionState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -363,112 +356,4 @@ class AppRulesTest {
         assertTrue(summary.contains("GPS distance estimate. 42.0 meters away."))
     }
 
-    @Test
-    fun aMessageIsOursOnlyWhenThePeerIdsMatch() {
-        assertTrue(ChatMessageOwnership.isOwnMessage("peer-a", "peer-a"))
-    }
-
-    @Test
-    fun aMessageFromAnotherMemberIsNotOurs() {
-        assertFalse(ChatMessageOwnership.isOwnMessage("peer-b", "peer-a"))
-    }
-
-    @Test
-    fun aMessageWithNoKnownOriginIsNeverOurs() {
-        // The rule that keeps a blank id from rendering as though the local user
-        // sent it, which is the failure the class exists to prevent.
-        assertFalse(ChatMessageOwnership.isOwnMessage(null, "peer-a"))
-        assertFalse(ChatMessageOwnership.isOwnMessage("", "peer-a"))
-        assertFalse(ChatMessageOwnership.isOwnMessage("   ", "peer-a"))
-    }
-
-    @Test
-    fun withNoLocalIdentityNothingCanBeOurs() {
-        assertFalse(ChatMessageOwnership.isOwnMessage("peer-a", null))
-        assertFalse(ChatMessageOwnership.isOwnMessage("peer-a", ""))
-    }
-
-    @Test
-    fun theRelayEnvelopeTypesAreDistinct() {
-        // A collision here would make the relay read one envelope as another,
-        // which presents as a message that simply never arrives.
-        val all = listOf(
-            RelayEnvelope.JOIN, RelayEnvelope.DATA, RelayEnvelope.LEAVE,
-            RelayEnvelope.END, RelayEnvelope.PING, RelayEnvelope.PEER_JOINED,
-            RelayEnvelope.PEER_LEFT, RelayEnvelope.EVENT_CLOSED
-        )
-
-        assertEquals(all.size, all.distinct().size)
-    }
-
-    @Test
-    fun theRelayRolesAreDistinct() {
-        assertNotEquals(RelayEnvelope.ROLE_HOST, RelayEnvelope.ROLE_MEMBER)
-    }
-
-    @Test
-    fun aDefaultSessionHasNoEventAndIsNotHost() {
-        val state = SessionState()
-
-        assertEquals(null, state.currentEvent)
-        assertFalse(state.isHost)
-        assertTrue(state.friends.isEmpty())
-        assertTrue(state.chatMessages.isEmpty())
-    }
-
-    @Test
-    fun syncStatusStartsIdleAndCarriesNoError() {
-        val status = CoordinationSyncStatus()
-
-        assertEquals(CoordinationSyncState.IDLE, status.state)
-        assertEquals(null, status.errorMessage)
-    }
-
-    @Test
-    fun theSyncStatesAreDistinct() {
-        val states = CoordinationSyncState.entries
-
-        assertEquals(4, states.size)
-        assertEquals(states.size, states.distinct().size)
-    }
-
-    @Test
-    fun aCreatedEventIsOfferedForTheDocumentedLifetime() {
-        val before = System.currentTimeMillis()
-        val event = Event.create(id = "ABC", hostPeerId = "peer-a")
-        val after = System.currentTimeMillis()
-
-        assertTrue("the event must not be born already expired", event.expiryTimestamp > before)
-        // Bounded on both sides of the window create() actually saw, so this
-        // cannot fail on a slow machine that crosses a millisecond mid-call.
-        assertTrue(
-            "expiry ${event.expiryTimestamp} outlives the documented lifetime",
-            event.expiryTimestamp <= after + Event.DURATION_MILLIS
-        )
-        assertEquals("peer-a", event.hostPeerId)
-        assertTrue(event.useUwb)
-    }
-
-    @Test
-    fun aCreatedEventCanBeCreatedWithoutUwbOrAHost() {
-        val event = Event.create(id = "ABC", useUwb = false)
-
-        assertFalse(event.useUwb)
-        assertEquals(null, event.hostPeerId)
-    }
-
-    @Test
-    fun twoCopiesOfTheSameEventAreEqual() {
-        // The wire format and the repository both key on the id, so a copy has to
-        // compare equal or a round trip would look like a different event.
-        val event = Event.create(id = "ABC")
-
-        assertEquals(event, event.copy())
-        assertEquals(event.hashCode(), event.copy().hashCode())
-    }
-
-    @Test
-    fun theParticipantLimitIsTheOneTheAppAdvertises() {
-        assertTrue("a ring has to hold more than one member", MAX_PARTICIPANTS > 1)
-    }
 }

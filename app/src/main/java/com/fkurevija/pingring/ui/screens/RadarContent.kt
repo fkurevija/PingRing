@@ -1,11 +1,5 @@
 package com.fkurevija.pingring.ui.screens
 
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -45,8 +39,9 @@ import com.fkurevija.pingring.R
 import com.fkurevija.pingring.data.BeaconInfo
 import com.fkurevija.pingring.data.RadarAccessibilityProbe
 import com.fkurevija.pingring.data.RadarDirectionPolicy
-import com.fkurevija.pingring.data.RadarPeerUpdate
+import com.fkurevija.pingring.data.radar.RadarPeerUpdate
 import com.fkurevija.pingring.data.RangingSourcePolicy
+import kotlin.math.ceil
 
 @Composable
 internal fun RadarContent(
@@ -151,34 +146,20 @@ internal fun RadarContent(
                 // the surrounding text and still fits a narrow phone.
                 modifier = Modifier.size(radarDiameter)
             )
+            peer?.displayedEstimatedDirection?.let { direction ->
+                Text(
+                    text = stringResource(
+                        R.string.gps_direction_estimate,
+                        ceil(direction.uncertaintyDegrees).toInt(),
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+            }
             Spacer(Modifier.height(verticalBuffer))
         }
     }
-}
-
-@Composable
-internal fun rememberBeaconPulse(reduceMotion: Boolean, active: Boolean): Pair<Float, Float> {
-    if (reduceMotion || !active) return 0.9f to 0.35f
-    val infiniteTransition = rememberInfiniteTransition(label = "beaconPulse")
-    val beaconPulseRadius by infiniteTransition.animateFloat(
-        initialValue = 0.8f,
-        targetValue = 1.35f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1200, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "beaconPulseRadius"
-    )
-    val beaconPulseAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.7f,
-        targetValue = 0.0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1200, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "beaconPulseAlpha"
-    )
-    return beaconPulseRadius to beaconPulseAlpha
 }
 
 @Composable

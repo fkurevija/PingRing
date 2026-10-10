@@ -5,7 +5,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.test.platform.app.InstrumentationRegistry
-import com.fkurevija.pingring.data.RadarPeerUpdate
+import com.fkurevija.pingring.data.radar.RadarPeerUpdate
 import com.fkurevija.pingring.data.RangingSourcePolicy
 import com.fkurevija.pingring.data.EstimatedRadarDirection
 import com.fkurevija.pingring.ui.screens.RadarContent

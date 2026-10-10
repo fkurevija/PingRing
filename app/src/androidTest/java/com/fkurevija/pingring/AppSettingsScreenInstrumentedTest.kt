@@ -9,7 +9,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
-import com.fkurevija.pingring.data.ThemeMode
+import com.fkurevija.pingring.data.settings.ThemeMode
 import com.fkurevija.pingring.ui.screens.AppSettingsScreen
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue

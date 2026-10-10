@@ -1,6 +1,7 @@
 package com.fkurevija.pingring
 
 import com.fkurevija.pingring.data.*
+import com.fkurevija.pingring.data.radar.RadarPeerUpdate
 import org.junit.Assert.*
 import org.junit.Test
 

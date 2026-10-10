@@ -37,6 +37,7 @@
     <string name="theme_dark">Dark Theme</string>
     <string name="chat_bubble_colour_description">The colour your messages appear in. Everyone in this PingRing sees the same colour for you.</string>
     <string name="chat_settings">Chat Settings</string>
+    <string name="read_receipts">Read receipts</string>
     <string name="set_chat_bubble_colour_to">Set chat bubble colour to %1$s</string>
     <string name="chat_colour_taken_by">%1$s is taken by %2$s</string>
     <string name="chat_colour_refused">Somebody already has that colour. Pick another one.</string>

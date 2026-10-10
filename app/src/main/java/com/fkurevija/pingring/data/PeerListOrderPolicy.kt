@@ -1,5 +1,6 @@
 package com.fkurevija.pingring.data
 
+import com.fkurevija.pingring.data.radar.RadarPeerUpdate
 /**
  * The order the member list is drawn in.
  *

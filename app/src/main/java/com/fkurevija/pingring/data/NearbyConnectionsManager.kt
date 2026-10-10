@@ -1,5 +1,9 @@
 package com.fkurevija.pingring.data
 
+import com.fkurevija.pingring.data.transport.NearbyAdmissionCoordinator
+import com.fkurevija.pingring.data.transport.NearbyInboundMeshDispatcher
+import com.fkurevija.pingring.data.transport.NearbyMessageReceiver
+import com.fkurevija.pingring.data.transport.NearbyMeshOutboundSender
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
@@ -7,14 +11,10 @@ import android.os.SystemClock
 import android.util.Log
 import java.security.SecureRandom
 import java.util.Base64
-import java.util.UUID
 import com.google.android.gms.nearby.Nearby
 import com.google.android.gms.nearby.connection.*
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
 
 /**
  * Whether a connection this device has just been notified about has to be
@@ -158,8 +158,6 @@ internal fun expiredAuthenticationRequests(
  * choose to wait less; the host cannot be made to decide faster.
  */
 const val JOIN_REQUEST_TIMEOUT_MILLIS = 45_000L
-private const val MAX_PENDING_AUTHENTICATIONS = 8
-private const val MAX_PENDING_JOIN_REQUESTS = 8
 private const val CLOSURE_SEND_GRACE_MILLIS = 2_000L
 private const val MESH_AUTHENTICATION_TIMEOUT_MILLIS = LiveKeyControlTracker.CHALLENGE_TIMEOUT_MILLIS
 private const val MESH_PRESENCE_INTERVAL_MILLIS = 5_000L
@@ -273,6 +271,23 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
     // the two transports are interchangeable to DiscoveryRepository, so their
     // buffering behaviour has to be identical rather than merely similar.
     private val events = TransportEvents(TAG)
+    private val admissionCoordinator = NearbyAdmissionCoordinator(
+        onPendingAuthenticationRemoved = events::removePendingAuthentication,
+        onPendingAuthenticationsCleared = { events.setPendingAuthentications(emptyList()) },
+        onAuthenticationExpired = { request ->
+            refuseJoinControlChannel(request.endpointId)
+            Log.w(TAG, "Join control channel timed out before admission")
+        },
+        onJoinRequestsExpired = { expired ->
+            Log.i(
+                TAG,
+                "Refusing ${expired.size} join request(s) unanswered for over " +
+                    "${JOIN_REQUEST_TIMEOUT_MILLIS / 1000}s: " +
+                    expired.joinToString { "${it.deviceName} (${it.endpointId})" }
+            )
+            expired.forEach { refuseJoinControlChannel(it.endpointId) }
+        },
+    )
 
     override val receivedPeerAddress: SharedFlow<UwbPeerAddressDto> get() = events.receivedPeerAddress
     override val receivedControllerParams: SharedFlow<UwbControllerParametersDto> get() = events.receivedControllerParams
@@ -314,7 +329,6 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
     private val liveKeyControl = LiveKeyControlTracker()
     private val meshAuthenticationTimeouts = mutableMapOf<String, Runnable>()
     private val meshDuplicateCache = MeshDuplicateCache()
-    private val meshPendingMessages = MeshPendingMessageQueue()
     private val incomingEndpoints = mutableSetOf<String>()
     private val pendingInviteProofEndpoints = mutableSetOf<String>()
     private val pendingJoinProofs = mutableMapOf<String, JoinProofPayloadDto>()
@@ -335,6 +349,22 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
     override var userNameProvider: (() -> String?)? = null
     var meshIdentityKeyProvider: ((String) -> BleIdentityKeyPayloadDto?)? = null
     var meshPrivateKeyProvider: (() -> java.security.PrivateKey?)? = null
+    private val meshOutboundSender by lazy {
+        NearbyMeshOutboundSender(
+            tag = TAG,
+            connectionsClient = connectionsClient,
+            state = NearbyMeshOutboundSender.State(
+                eventId = { localEventId },
+                localPeerId = { localPeerId },
+                privateKey = { meshPrivateKeyProvider?.invoke() },
+                authorizedEndpointIds = { authorizedEndpoints.toSet() },
+                connectedEndpointForPeer = connectedEndpoints::get,
+                connectedEndpointIds = { connectedEndpoints.values.toSet() },
+                endpointPeerId = endpointToPeerId::get,
+            ),
+            duplicateCache = meshDuplicateCache,
+        )
+    }
 
     // Endpoints this device has accepted, i.e. the ones a PayloadCallback is
     // registered for. Nearby only hands payloads to an accepted connection, and
@@ -350,19 +380,17 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
     var requireDigitComparison: Boolean = true
     override var acceptsNewMembers: Boolean = true
 
-    private val _pendingJoinRequests = MutableStateFlow<List<PendingJoinRequest>>(emptyList())
-    override val pendingJoinRequests: StateFlow<List<PendingJoinRequest>> = _pendingJoinRequests.asStateFlow()
+    override val pendingJoinRequests: StateFlow<List<PendingJoinRequest>>
+        get() = admissionCoordinator.pendingJoinRequests
     override val pendingAuthentications: StateFlow<List<ConnectionAuthenticationRequest>> =
         events.pendingAuthentications
-    private val authenticationRequests = linkedMapOf<String, ConnectionAuthenticationRequest>()
-    private val sasPromptTimes = mutableListOf<Long>()
 
     private fun hasOtherEndpointForPeer(peerId: String, endpointId: String): Boolean {
         val pendingPeerEndpoints = buildMap {
-            authenticationRequests.values
+            admissionCoordinator.authenticationRequestValues
                 .filter { it.endpointId != endpointId && it.deviceName.isNotBlank() }
                 .forEach { put(it.deviceName, it.endpointId) }
-            _pendingJoinRequests.value.forEach { request ->
+            admissionCoordinator.pendingJoinRequests.value.forEach { request ->
                 if (request.endpointId != endpointId) {
                     endpointToPeerId[request.endpointId]?.let { put(it, request.endpointId) }
                 }
@@ -381,9 +409,9 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
         endpointToPeerId[endpointId] = request.deviceName
         if (request.isIncoming) {
             incomingEndpoints.add(endpointId)
-            val reserved = authorizedEndpoints.size + _pendingJoinRequests.value.size
+            val reserved = authorizedEndpoints.size + admissionCoordinator.pendingJoinRequests.value.size
             if (!acceptsNewMembers || reserved >= MAX_PARTICIPANTS - 1) {
-                authenticationRequests.remove(endpointId)
+                admissionCoordinator.removeAuthenticationRequest(endpointId)
                 events.removePendingAuthentication(endpointId)
                 scheduleAuthenticationSweep()
                 connectionsClient.rejectConnection(endpointId)
@@ -396,41 +424,14 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
         acceptWithPayloadCallback(endpointId, "join control channel")
     }
 
-    /**
-     * Carries the expiry sweep. A [Handler] rather than a coroutine because the
-     * transport already runs on the platform's callback thread and owns no scope
-     * of its own - introducing one here would need cancelling in [stopAll] and
-     * would leak if it were forgotten.
-     */
+    /** Platform callback-thread scheduling for transport lifecycle work. */
     private val handler = Handler(Looper.getMainLooper())
-    private var sweepRunnable: Runnable? = null
-    private var authenticationSweepRunnable: Runnable? = null
     private var pendingClosureSends = 0
     private var closureStopRequested = false
     private var forceClosureStopRunnable: Runnable? = null
     private var meshPresenceRunnable: Runnable? = null
 
-    private fun scheduleAuthenticationSweep() {
-        authenticationSweepRunnable?.let(handler::removeCallbacks)
-        authenticationSweepRunnable = null
-        val oldest = authenticationRequests.values.minOfOrNull { it.requestedAtMillis } ?: return
-        val delayMillis = (oldest + JOIN_REQUEST_TIMEOUT_MILLIS + 1L - System.currentTimeMillis()).coerceAtLeast(0L)
-        authenticationSweepRunnable = Runnable { expireAuthenticationRequests() }.also { runnable ->
-            handler.postDelayed(runnable, delayMillis)
-        }
-    }
-
-    private fun expireAuthenticationRequests() {
-        authenticationSweepRunnable = null
-        val expired = expiredAuthenticationRequests(authenticationRequests.values, System.currentTimeMillis())
-        expired.forEach { request ->
-            authenticationRequests.remove(request.endpointId)
-            events.removePendingAuthentication(request.endpointId)
-            refuseJoinControlChannel(request.endpointId)
-            Log.w(TAG, "Join control channel timed out before admission")
-        }
-        scheduleAuthenticationSweep()
-    }
+    private fun scheduleAuthenticationSweep() = admissionCoordinator.scheduleAuthenticationSweep()
 
     private fun refuseJoinControlChannel(endpointId: String) {
         acceptedEndpoints.remove(endpointId)
@@ -449,13 +450,11 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
     }
 
     override fun approveJoinRequest(endpointId: String) {
-        val request = _pendingJoinRequests.value.firstOrNull { it.endpointId == endpointId }
+        val request = admissionCoordinator.takePendingJoinRequest(endpointId)
         if (request == null) {
             Log.w(TAG, "Ignoring approval of $endpointId: no such pending request")
             return
         }
-        cancelJoinRequestSweep()
-        _pendingJoinRequests.update { current -> current.filterNot { it.endpointId == endpointId } }
         if (endpointId !in pendingInviteProofEndpoints) {
             refuseJoinControlChannel(endpointId)
             scheduleJoinRequestSweep()
@@ -468,22 +467,20 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
     }
 
     override fun denyJoinRequest(endpointId: String) {
-        val request = _pendingJoinRequests.value.firstOrNull { it.endpointId == endpointId }
+        val request = admissionCoordinator.takePendingJoinRequest(endpointId)
         if (request == null) {
             // A normal race: the request may have expired, or the guest may have
             // gone, between the host tapping Deny and this arriving.
             Log.w(TAG, "Ignoring denial of $endpointId: no such pending request")
             return
         }
-        cancelJoinRequestSweep()
-        _pendingJoinRequests.update { current -> current.filterNot { it.endpointId == endpointId } }
         refuseJoinControlChannel(endpointId)
         Log.i(TAG, "Denied join request from ${request.deviceName} ($endpointId)")
         scheduleJoinRequestSweep()
     }
 
     override fun confirmConnectionAuthentication(endpointId: String) {
-        val request = authenticationRequests[endpointId]
+        val request = admissionCoordinator.authenticationRequest(endpointId)
         if (request == null || endpointId !in events.pendingAuthentications.value.map { it.endpointId }) {
             Log.w(TAG, "Ignoring authentication confirmation for $endpointId: no pending request")
             return
@@ -498,70 +495,14 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
             Log.w(TAG, "Ignoring authentication rejection for $endpointId: no pending request")
             return
         }
-        authenticationRequests.remove(endpointId)
+        admissionCoordinator.removeAuthenticationRequest(endpointId)
         events.removePendingAuthentication(endpointId)
         refuseJoinControlChannel(endpointId)
         scheduleAuthenticationSweep()
         Log.i(TAG, "Nearby connection rejected before admission")
     }
 
-    /**
-     * Refuses every request that has waited past [JOIN_REQUEST_TIMEOUT_MILLIS].
-     *
-     * Without this, a host who puts the phone down mid-decision leaves a request
-     * pinned forever: the guest is told nothing, the host's list shows somebody
-     * waiting who cannot be admitted, and re-tapping Allow much later accepts a
-     * connection the guest has long since given up on. The guest times out on
-     * its own side ([JOIN_WAIT_TIMEOUT_MILLIS] in MainActivity, deliberately
-     * longer than this window), so refusing here is what tells it the request
-     * was dropped rather than leaving it to infer that from a dead socket.
-     */
-    private fun sweepExpiredJoinRequests() {
-        val now = System.currentTimeMillis()
-        val sweep = sweepExpiredJoinRequests(_pendingJoinRequests.value, now)
-        if (sweep.expired.isNotEmpty()) {
-            Log.i(
-                TAG,
-                "Refusing ${sweep.expired.size} join request(s) unanswered for over " +
-                    "${JOIN_REQUEST_TIMEOUT_MILLIS / 1000}s: " +
-                    sweep.expired.joinToString { "${it.deviceName} (${it.endpointId})" }
-            )
-        }
-        // Removed from the queue whatever the outcome, so a refusal cannot loop
-        // on a request that somehow stays visible.
-        if (sweep.expired.isNotEmpty()) {
-            val expiredEndpoints = sweep.expired.map { it.endpointId }.toSet()
-            _pendingJoinRequests.update { current ->
-                current.filterNot { it.endpointId in expiredEndpoints }
-            }
-            sweep.expired.forEach {
-                refuseJoinControlChannel(it.endpointId)
-            }
-        }
-        scheduleJoinRequestSweep()
-    }
-
-    /**
-     * Arms a single one-shot check for whenever the oldest request is due, and
-     * disarms entirely once nothing is pending.
-     *
-     * Self-rescheduling rather than a repeating timer: an idle host should cost
-     * nothing, and a repeating 2-minute wakeup on a phone that is only hosting
-     * would be a battery cost bought for a case that cannot happen.
-     */
-    private fun scheduleJoinRequestSweep() {
-        cancelJoinRequestSweep()
-        val sweep = sweepExpiredJoinRequests(_pendingJoinRequests.value, System.currentTimeMillis())
-        val delay = sweep.nextCheckInMillis ?: return
-        sweepRunnable = Runnable { sweepExpiredJoinRequests() }.also { runnable ->
-            handler.postDelayed(runnable, delay)
-        }
-    }
-
-    private fun cancelJoinRequestSweep() {
-        sweepRunnable?.let(handler::removeCallbacks)
-        sweepRunnable = null
-    }
+    private fun scheduleJoinRequestSweep() = admissionCoordinator.scheduleJoinRequestSweep()
 
     private fun getServiceId(eventId: String): String = "com.fkurevija.pingring.$eventId"
 
@@ -705,7 +646,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
         pendingInviteProofEndpoints.clear()
         pendingJoinProofs.clear()
         meshDuplicateCache.clear()
-        meshPendingMessages.clear()
+        meshOutboundSender.clearPendingMessages()
         meshHandshakeEndpoints.clear()
         pendingMeshChallenges.clear()
         liveKeyControl.clear()
@@ -714,16 +655,8 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
         authenticatedHostEndpoint = null
         discoveredHostPeerId = null
         localEventId = null
-        // Held requests die with the endpoints holding them; leaving them would
-        // greet the next event with approvals the host never gave.
-        _pendingJoinRequests.value = emptyList()
-        authenticationRequests.clear()
-        events.setPendingAuthentications(emptyList())
-        // Disarmed before clearing, so a sweep already queued cannot fire into
-        // the next event and refuse an endpoint that now belongs to somebody else.
-        cancelJoinRequestSweep()
-        authenticationSweepRunnable?.let(handler::removeCallbacks)
-        authenticationSweepRunnable = null
+        // Held requests and their timers belong to this event, not the next one.
+        admissionCoordinator.clear()
     }
 
     /** Nearby peers receive closure through the authenticated EventControl payload. */
@@ -868,184 +801,22 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
         sendMeshBroadcast(ranging)
     }
 
-    private fun buildSignedMeshEnvelope(params: Any, targetPeerId: String? = null): Pair<RelayEnvelope, String>? {
-        val encoded = RelayCodec.encode(params) ?: run {
-            return null
-        }
-        val baseEnvelope = RelayEnvelope(
-            type = encoded.wireType,
-            eventId = localEventId,
-            senderPeerId = localPeerId,
-            targetPeerId = targetPeerId,
-            payload = encoded.json,
-        )
-        val envelope = if (MeshRoutingPolicy.isForwardable(encoded.wireType)) {
-            val privateKey = meshPrivateKeyProvider?.invoke() ?: run {
-                Log.w(TAG, "Dropping ${encoded.wireType}: local mesh signing key is unavailable")
-                return null
-            }
-            val identified = baseEnvelope.copy(
-                messageId = UUID.randomUUID().toString(),
-                originPeerId = localPeerId,
-            )
-            identified.copy(
-                originSignature = Base64.getUrlEncoder().withoutPadding().encodeToString(
-                    BleIdentityCrypto.sign(privateKey, MeshPeerAuthentication.envelopeSigningBytes(identified))
-                )
-            )
-        } else baseEnvelope
-        return envelope to encoded.wireType
-    }
+    private fun sendPayloadToEndpoint(endpointId: String, params: Any, onComplete: (() -> Unit)? = null) =
+        meshOutboundSender.sendPayloadToEndpoint(endpointId, params, onComplete)
 
-    private fun sendPayloadToEndpoint(endpointId: String, params: Any, onComplete: (() -> Unit)? = null) {
-        val (envelope, wireType) = buildSignedMeshEnvelope(params, endpointToPeerId[endpointId]) ?: run {
-            onComplete?.invoke()
-            return
-        }
-        val outgoing = if (MeshRoutingPolicy.isForwardable(wireType)) {
-            envelope.copy(hopCount = MeshRoutingPolicy.nextHopCount(0) ?: return)
-        } else envelope
-        sendEnvelopeToEndpoint(endpointId, outgoing, wireType, onComplete)
-    }
+    private fun sendMeshBroadcast(params: Any, onComplete: (() -> Unit)? = null) =
+        meshOutboundSender.sendMeshBroadcast(params, onComplete)
 
-    private fun sendMeshBroadcast(params: Any, onComplete: (() -> Unit)? = null) {
-        val (envelope, wireType) = buildSignedMeshEnvelope(params) ?: run {
-            onComplete?.invoke()
-            return
-        }
-        if (!MeshRoutingPolicy.isForwardable(wireType)) {
-            val endpoints = authorizedEndpoints.toList()
-            if (endpoints.isEmpty()) {
-                onComplete?.invoke()
-                return
-            }
-            val remaining = java.util.concurrent.atomic.AtomicInteger(endpoints.size)
-            endpoints.forEach { endpointId ->
-                sendEnvelopeToEndpoint(endpointId, envelope, wireType) {
-                    if (remaining.decrementAndGet() == 0) onComplete?.invoke()
-                }
-            }
-            return
-        }
-        val messageId = MeshRoutingPolicy.messageId(envelope)
-        if (!meshDuplicateCache.markIfNew(messageId)) {
-            onComplete?.invoke()
-            return
-        }
-        forwardToMeshNeighbors(envelope, excludedEndpointId = null, onComplete = onComplete)
-    }
-
-    private fun sendMeshTargetedPayload(peerId: String, params: Any, onComplete: (() -> Unit)? = null) {
-        if (peerId == localPeerId) {
-            onComplete?.invoke()
-            return
-        }
-        val (envelope, wireType) = buildSignedMeshEnvelope(params, peerId) ?: run {
-            onComplete?.invoke()
-            return
-        }
-        if (!MeshRoutingPolicy.isForwardable(wireType)) {
-            val endpointId = connectedEndpoints[peerId]
-            if (endpointId == null) onComplete?.invoke()
-            else sendEnvelopeToEndpoint(endpointId, envelope, wireType, onComplete)
-            return
-        }
-        val messageId = MeshRoutingPolicy.messageId(envelope)
-        if (!meshDuplicateCache.markIfNew(messageId)) {
-            onComplete?.invoke()
-            return
-        }
-        val directEndpoint = connectedEndpoints[peerId]
-        if (directEndpoint != null && directEndpoint in authorizedEndpoints) {
-            val hopCount = MeshRoutingPolicy.nextHopCount(0) ?: run {
-                onComplete?.invoke()
-                return
-            }
-            sendEnvelopeToEndpoint(directEndpoint, envelope.copy(hopCount = hopCount), wireType, onComplete)
-        } else {
-            forwardToMeshNeighbors(envelope, excludedEndpointId = null, onComplete = onComplete)
-        }
-    }
+    private fun sendMeshTargetedPayload(peerId: String, params: Any, onComplete: (() -> Unit)? = null) =
+        meshOutboundSender.sendMeshTargetedPayload(peerId, params, onComplete)
 
     private fun forwardToMeshNeighbors(
         envelope: RelayEnvelope,
         excludedEndpointId: String?,
         onComplete: (() -> Unit)? = null,
-    ) {
-        val hopCount = MeshRoutingPolicy.nextHopCount(envelope.hopCount)
-        if (hopCount == null) {
-            Log.w(TAG, "Dropping mesh message ${MeshRoutingPolicy.messageId(envelope)} at hop limit")
-            onComplete?.invoke()
-            return
-        }
-        val wireType = envelope.type
-        val outgoing = envelope.copy(senderPeerId = localPeerId, hopCount = hopCount)
-        val endpoints = authorizedEndpoints
-            .asSequence()
-            .filter { it != excludedEndpointId && it in connectedEndpoints.values }
-            .distinct()
-            .toList()
-        if (endpoints.isEmpty()) {
-            if (!MeshRoutingPolicy.isEphemeral(wireType)) meshPendingMessages.enqueue(envelope)
-            onComplete?.invoke()
-            return
-        }
-        var remaining = endpoints.size
-        endpoints.forEach { endpointId ->
-            sendEnvelopeToEndpoint(
-                endpointId,
-                outgoing,
-                wireType,
-                onComplete = {
-                    remaining--
-                    if (remaining == 0) onComplete?.invoke()
-                },
-                onFailure = { if (!MeshRoutingPolicy.isEphemeral(wireType)) meshPendingMessages.enqueue(envelope) },
-            )
-        }
-    }
+    ) = meshOutboundSender.forwardToMeshNeighbors(envelope, excludedEndpointId, onComplete)
 
-    private fun replayPendingMessages(endpointId: String) {
-        if (endpointId !in authorizedEndpoints) return
-        meshPendingMessages.snapshot().forEach { envelope ->
-            val nextHop = MeshRoutingPolicy.nextHopCount(envelope.hopCount) ?: return@forEach
-            val outgoing = envelope.copy(senderPeerId = localPeerId, hopCount = nextHop)
-            sendEnvelopeToEndpoint(
-                endpointId,
-                outgoing,
-                envelope.type,
-                onSuccess = { meshPendingMessages.remove(MeshRoutingPolicy.messageId(envelope)) },
-            )
-        }
-    }
-
-    private fun sendEnvelopeToEndpoint(
-        endpointId: String,
-        envelope: RelayEnvelope,
-        wireType: String,
-        onComplete: (() -> Unit)? = null,
-        onSuccess: (() -> Unit)? = null,
-        onFailure: (() -> Unit)? = null,
-    ) {
-        // One mapping from DTO to wire type for the whole app, so a payload type
-        // added on one side of the app cannot go missing on the other.
-        val envelopeJson = RelayCodec.encodeEnvelope(envelope)
-        val payload = Payload.fromBytes(envelopeJson.toByteArray())
-        connectionsClient.sendPayload(endpointId, payload)
-            .addOnSuccessListener {
-                Log.d(TAG, "Sent $wireType (${envelopeJson.length} chars) to $endpointId [peer=${endpointToPeerId[endpointId] ?: "?"}]")
-                onSuccess?.invoke()
-            }
-            .addOnFailureListener { error ->
-                // The status code is what says why, and guessing from the UI is
-                // hopeless: 4003 is "no such connection", 4006 "advertising or
-                // discovery is not running", 5xxx "we rejected it ourselves".
-                val status = (error as? com.google.android.gms.common.api.ApiException)?.statusCode
-                Log.e(TAG, "sendPayload($wireType) to $endpointId failed, status=$status: ${error.message}", error)
-                onFailure?.invoke()
-            }
-            .addOnCompleteListener { onComplete?.invoke() }
-    }
+    private fun replayPendingMessages(endpointId: String) = meshOutboundSender.replayPendingMessages(endpointId)
 
     /**
      * Accepts [endpointId] and thereby registers [payloadCallback] for it.
@@ -1120,16 +891,10 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
             }
             val isIncoming = info.isIncomingConnection
             val now = System.currentTimeMillis()
-            sasPromptTimes.removeAll { now - it >= SAS_PROMPT_WINDOW_MILLIS }
-            if (!isWithinSasPromptRateLimit(sasPromptTimes, now)) {
+            if (!admissionCoordinator.mayPromptForAuthentication(endpointId, now)) {
                 connectionsClient.rejectConnection(endpointId)
                 return
             }
-            if (authenticationRequests.size >= MAX_PENDING_AUTHENTICATIONS && endpointId !in authenticationRequests) {
-                connectionsClient.rejectConnection(endpointId)
-                return
-            }
-            sasPromptTimes += now
             Log.i(
                 TAG,
                 "Connection initiated for $endpointId " +
@@ -1141,7 +906,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
                 authenticationDigits = info.authenticationDigits,
                 isIncoming = isIncoming,
             )
-            authenticationRequests[endpointId] = request
+            admissionCoordinator.recordAuthenticationPrompt(request, now)
             if (requireDigitComparison) {
                 events.setPendingAuthentications(events.pendingAuthentications.value + request)
             }
@@ -1159,7 +924,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
                 // its payload channel before the host has said yes, and the
                 // onDisconnected below is what tears the request down if the
                 // host says no.
-                if (endpointId in _pendingJoinRequests.value.map { it.endpointId }) {
+                if (admissionCoordinator.containsPendingJoinRequest(endpointId)) {
                     Log.i(TAG, "Connection to $endpointId established; still awaiting host approval")
                     return
                 }
@@ -1173,7 +938,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
                     hasOtherEndpointForPeer(peerId, endpointId)
                 ) {
                     Log.w(TAG, "Rejecting duplicate connection result for peer $peerId")
-                    authenticationRequests.remove(endpointId)
+                    admissionCoordinator.removeAuthenticationRequest(endpointId)
                     events.removePendingAuthentication(endpointId)
                     incomingEndpoints.remove(endpointId)
                     pendingJoinProofs.remove(endpointId)
@@ -1213,7 +978,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
                 meshHandshakeEndpoints.remove(endpointId)
                 pendingMeshChallenges.remove(endpointId)
                 meshAuthenticationTimeouts.remove(endpointId)?.let(handler::removeCallbacks)
-                authenticationRequests.remove(endpointId)
+                admissionCoordinator.removeAuthenticationRequest(endpointId)
                 events.removePendingAuthentication(endpointId)
                 scheduleAuthenticationSweep()
                 incomingEndpoints.remove(endpointId)
@@ -1231,8 +996,8 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
             // A request that ends without an answer is a guest that gave up or
             // walked out of range, not a decision, so it leaves the host's list
             // silently rather than being reported as denied.
-            _pendingJoinRequests.update { current -> current.filterNot { it.endpointId == endpointId } }
-            authenticationRequests.remove(endpointId)
+            admissionCoordinator.takePendingJoinRequest(endpointId)
+            admissionCoordinator.removeAuthenticationRequest(endpointId)
             events.removePendingAuthentication(endpointId)
             scheduleAuthenticationSweep()
             // The guest is gone, so whatever was left of its request goes with
@@ -1304,206 +1069,6 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
         }
     }
 
-    /**
-     * Decodes a payload body, or says out loud why it could not.
-     *
-     * The whole transport used to swallow these failures (`runCatching { }
-     * .getOrNull()`), so a malformed or unexpected payload looked exactly like
-     * a device that simply never sent anything - which is the worst possible
-     * outcome when debugging "messages are not arriving".
-     */
-    /**
-     * Decodes and delivers the body of one envelope, saying why when it cannot.
-     *
-     * Failures used to be swallowed (`runCatching { }.getOrNull()`), so a
-     * malformed or unexpected payload looked exactly like a device that simply
-     * never sent anything - the worst possible outcome when the thing being
-     * debugged is "messages are not arriving".
-     */
-    private fun dispatchEnvelope(envelope: RelayEnvelope, endpointId: String): Boolean {
-        val body = envelope.payload ?: return false
-        val decoded = RelayCodec.decode(envelope.type, body)
-        if (decoded == null) {
-            Log.w(TAG, "Unknown payload type '${envelope.type}' from $endpointId; dropped")
-            return false
-        }
-        decoded.onFailure { error ->
-            Log.e(TAG, "Could not parse a '${envelope.type}' payload from $endpointId: ${error.message}", error)
-        }
-        val payload = decoded.getOrNull() ?: return false
-        when (payload) {
-            is DecodedPayload.JoinProof -> return receiveJoinProof(payload.proof, endpointId)
-            is DecodedPayload.InviteSecret -> return receiveInviteSecret(payload.secret, endpointId)
-            is DecodedPayload.MeshPeerAuthentication -> return receiveMeshPeerAuthentication(payload.authentication, endpointId)
-            is DecodedPayload.BleIdentityKey ->
-                if (isLocalHost || endpointId == authenticatedHostEndpoint) {
-                    return receiveBleIdentityKey(payload.identityKey, endpointId)
-                }
-            else -> Unit
-        }
-        if (MeshRoutingPolicy.isForwardable(envelope.type)) {
-            return receiveMeshEnvelope(envelope, payload, endpointId)
-        }
-        if (deliver(payload, envelope, endpointId)) return true
-        Log.w(TAG, "Payload of known type '${envelope.type}' from $endpointId could not be delivered; dropped")
-        return false
-    }
-
-    private fun receiveMeshEnvelope(
-        envelope: RelayEnvelope,
-        payload: DecodedPayload,
-        endpointId: String,
-    ): Boolean {
-        if (endpointId !in authorizedEndpoints || envelope.eventId != localEventId) return false
-        if (envelope.hopCount !in 1..MeshRoutingPolicy.MAX_HOPS) return false
-        if (envelope.senderPeerId != endpointToPeerId[endpointId]) return false
-        val originPeerId = envelope.originPeerId ?: return false
-        val messageId = envelope.messageId?.takeIf { it.isNotBlank() && it.length <= 128 } ?: return false
-        val identityKey = meshIdentityKeyProvider?.invoke(originPeerId) ?: return false
-        if (identityKey.eventCode != localEventId || identityKey.peerId != originPeerId) return false
-        val publicKey = BleIdentityCrypto.decodePublicKey(identityKey.publicKey) ?: return false
-        val signature = runCatching { Base64.getUrlDecoder().decode(envelope.originSignature.orEmpty()) }
-            .getOrNull() ?: return false
-        if (!BleIdentityCrypto.verify(publicKey, MeshPeerAuthentication.envelopeSigningBytes(envelope), signature)) {
-            return false
-        }
-        if (envelope.targetPeerId != null && meshIdentityKeyProvider?.invoke(envelope.targetPeerId) == null) return false
-        if (!meshDuplicateCache.markIfNew(messageId)) return true
-
-        val isForThisPeer = MeshRoutingPolicy.shouldDeliver(envelope.targetPeerId, localPeerId)
-        var delivered = false
-        if (isForThisPeer) {
-            delivered = deliverMeshPayload(payload, originPeerId, envelope)
-            if (!delivered) return false
-        }
-        if (!isForThisPeer || envelope.targetPeerId == null) {
-            forwardToMeshNeighbors(envelope, excludedEndpointId = endpointId)
-        }
-        return true
-    }
-
-    private fun deliverMeshPayload(
-        payload: DecodedPayload,
-        originPeerId: String,
-        envelope: RelayEnvelope,
-    ): Boolean = when (payload) {
-        is DecodedPayload.Chat -> payload.message.senderPeerId == originPeerId && RelayCodec.route(payload, events)
-        is DecodedPayload.Beacon -> payload.beacon.senderPeerId == originPeerId && RelayCodec.route(payload, events)
-        is DecodedPayload.ChatHistory ->
-            originPeerId == hostPeerIdProvider?.invoke() && RelayCodec.route(payload, events)
-        is DecodedPayload.BleIdentityKey -> originPeerId == hostPeerIdProvider?.invoke() && run {
-            if (BleIdentityCrypto.decodePublicKey(payload.identityKey.publicKey) == null) return false
-            events.onBleIdentityKey(payload.identityKey)
-            true
-        }
-        is DecodedPayload.MemberDeparture ->
-            payload.departure.eventCode == localEventId &&
-                isMemberDepartureOriginAuthorized(
-                    originPeerId,
-                    payload.departure.peerId,
-                    hostPeerIdProvider?.invoke(),
-                ) && run {
-            if (isLocalHost) broadcastMemberDeparture(payload.departure)
-            events.onMemberDeparture(payload.departure)
-            true
-        }
-        is DecodedPayload.MeshPresence -> originPeerId == payload.presence.peerId &&
-            payload.presence.eventCode == localEventId && run {
-                events.onMeshPresence(payload.presence)
-                true
-            }
-        is DecodedPayload.PeerRanging -> originPeerId == payload.ranging.peerId &&
-            payload.ranging.eventCode == localEventId && payload.ranging.sequence >= 0 &&
-            RelayCodec.route(payload, events)
-        is DecodedPayload.EventControl -> originPeerId == hostPeerIdProvider?.invoke() &&
-            payload.control.hostPeerId == originPeerId && payload.control.eventCode == localEventId &&
-            RelayCodec.route(payload, events)
-        is DecodedPayload.UwbAddress -> payload.address.peerId == originPeerId && RelayCodec.route(payload, events)
-        is DecodedPayload.UwbParameters -> originPeerId == hostPeerIdProvider?.invoke() &&
-            payload.params.hostPeerId == originPeerId && RelayCodec.route(payload, events)
-        is DecodedPayload.UwbOffer -> payload.offer.fromPeerId == originPeerId &&
-            payload.offer.targetPeerId == envelope.targetPeerId && payload.offer.targetPeerId == localPeerId && run {
-                events.onUwbRangingOfferReceived(payload.offer)
-                true
-            }
-        else -> false
-    }
-
-    /** Handles non-mesh payloads received directly over an authorized endpoint. */
-    private fun deliver(payload: DecodedPayload, envelope: RelayEnvelope, endpointId: String): Boolean = when (payload) {
-        is DecodedPayload.JoinProof -> receiveJoinProof(payload.proof, endpointId)
-        is DecodedPayload.InviteSecret -> receiveInviteSecret(payload.secret, endpointId)
-        is DecodedPayload.BleIdentityKey -> receiveBleIdentityKey(payload.identityKey, endpointId)
-        is DecodedPayload.MemberDeparture -> receiveMemberDeparture(payload.departure, endpointId)
-        is DecodedPayload.MeshPeerAuthentication -> receiveMeshPeerAuthentication(payload.authentication, endpointId)
-        else -> {
-            if (endpointId !in authorizedEndpoints) return false
-            val endpointPeerId = endpointToPeerId[endpointId] ?: return false
-            when (payload) {
-                is DecodedPayload.Chat ->
-                    if (isPayloadSenderAuthorized(
-                            isLocalHost,
-                            endpointPeerId,
-                            endpointToPeerId[authenticatedHostEndpoint],
-                            payload.message.senderPeerId,
-                        )
-                    ) {
-                        RelayCodec.route(payload, events)
-                    } else false
-                is DecodedPayload.Beacon ->
-                    if (isPayloadSenderAuthorized(
-                            isLocalHost,
-                            endpointPeerId,
-                            endpointToPeerId[authenticatedHostEndpoint],
-                            payload.beacon.senderPeerId,
-                        )
-                    ) {
-                        RelayCodec.route(payload, events)
-                    } else false
-                is DecodedPayload.ChatHistory ->
-                    !isLocalHost && endpointId == authenticatedHostEndpoint && RelayCodec.route(payload, events)
-                is DecodedPayload.UwbAddress ->
-                    isPayloadSenderAuthorized(
-                        isLocalHost,
-                        endpointPeerId,
-                        endpointToPeerId[authenticatedHostEndpoint],
-                        payload.address.peerId,
-                    ) && RelayCodec.route(payload, events)
-                is DecodedPayload.UwbParameters ->
-                    (!isLocalHost && endpointId == authenticatedHostEndpoint && payload.params.hostPeerId == endpointPeerId) &&
-                        RelayCodec.route(payload, events)
-                is DecodedPayload.ChatColourClaim ->
-                    // Authorized exactly like chat, and for the same reason: the
-                    // claim names the member holding the colour, so a peer able to
-                    // send one on another's behalf could take their colour and
-                    // grey it out for them. Only the host may send a granted reply.
-                    if (isPayloadSenderAuthorized(
-                            isLocalHost,
-                            endpointPeerId,
-                            endpointToPeerId[authenticatedHostEndpoint],
-                            payload.claim.peerId,
-                        )
-                    ) {
-                        RelayCodec.route(payload, events)
-                    } else false
-                is DecodedPayload.EventControl ->
-                    (!isLocalHost && endpointId == authenticatedHostEndpoint &&
-                        payload.control.eventCode == localEventId &&
-                        payload.control.hostPeerId == endpointPeerId) && RelayCodec.route(payload, events)
-                is DecodedPayload.UwbOffer -> if (isLocalHost) {
-                    payload.offer.fromPeerId == endpointPeerId && relayOffer(payload.offer, endpointId)
-                } else if (endpointId == authenticatedHostEndpoint && payload.offer.targetPeerId == localPeerId) {
-                    events.onUwbRangingOfferReceived(payload.offer)
-                    true
-                } else false
-                is DecodedPayload.InviteSecret, is DecodedPayload.BleIdentityKey,
-                is DecodedPayload.MemberDeparture, is DecodedPayload.MeshPeerAuthentication,
-                is DecodedPayload.MeshPresence, is DecodedPayload.PeerRanging,
-                is DecodedPayload.JoinProof, is DecodedPayload.MockRanging -> false
-            }
-        }
-    }
-
     private fun receiveJoinProof(proof: JoinProofPayloadDto, endpointId: String): Boolean {
         if (!isLocalHost || proof.eventCode != localEventId) return false
         if (endpointId !in acceptedEndpoints || endpointId !in incomingEndpoints) return false
@@ -1515,7 +1080,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
             refuseJoinControlChannel(endpointId)
             return true
         }
-        val otherPendingEndpoint = _pendingJoinRequests.value.firstOrNull { request ->
+        val otherPendingEndpoint = admissionCoordinator.pendingJoinRequests.value.firstOrNull { request ->
             request.endpointId != endpointId && endpointToPeerId[request.endpointId] == peerId
         }?.endpointId
         if (otherPendingEndpoint != null) {
@@ -1530,7 +1095,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
             return true
         }
         val expectedSecret = inviteSecretProvider?.invoke() ?: return false
-        authenticationRequests.remove(endpointId)
+        admissionCoordinator.removeAuthenticationRequest(endpointId)
         events.removePendingAuthentication(endpointId)
         scheduleAuthenticationSweep()
         val hasValidInvite = proof.inviteSecret == expectedSecret &&
@@ -1540,7 +1105,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
                 isIncoming = true,
                 requiresApproval = joinRequiresHostApproval(hasValidInvite),
                 acceptsNewMembers = acceptsNewMembers,
-                connectedPeerCount = authorizedEndpoints.size + _pendingJoinRequests.value.size,
+                connectedPeerCount = authorizedEndpoints.size + admissionCoordinator.pendingJoinRequests.value.size,
             )
         ) {
             JoinRequestDecision.Refuse -> {
@@ -1556,16 +1121,13 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
         }
 
         pendingInviteProofEndpoints.add(endpointId)
-        val previousRequest = _pendingJoinRequests.value.firstOrNull { it.endpointId == endpointId }
+        val previousRequest = admissionCoordinator.pendingJoinRequest(endpointId)
         val request = PendingJoinRequest(
             endpointId = endpointId,
             deviceName = guestName ?: "Guest device",
             requestedAtMillis = previousRequest?.requestedAtMillis ?: System.currentTimeMillis(),
         )
-        _pendingJoinRequests.update { current ->
-            (current.filterNot { it.endpointId == endpointId } + request)
-                .sortedBy { it.requestedAtMillis }
-        }
+        admissionCoordinator.addPendingJoinRequest(request)
         scheduleJoinRequestSweep()
         return true
     }
@@ -1577,7 +1139,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
         if (InviteSecret.decode(secret.inviteSecret) == null) return false
         val existingSecret = inviteSecretProvider?.invoke()
         if (existingSecret != null && existingSecret != secret.inviteSecret) return false
-        authenticationRequests.remove(endpointId)
+        admissionCoordinator.removeAuthenticationRequest(endpointId)
         events.removePendingAuthentication(endpointId)
         scheduleAuthenticationSweep()
         authorizedEndpoints.add(endpointId)
@@ -1717,6 +1279,40 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
         return true
     }
 
+    private val messageReceiver by lazy {
+        NearbyMessageReceiver(
+            tag = TAG,
+            endpointPeerId = { endpointId -> endpointToPeerId[endpointId] },
+            events = events,
+            duplicateCache = meshDuplicateCache,
+            state = NearbyInboundMeshDispatcher.State(
+                isLocalHost = { isLocalHost },
+                localEventId = { localEventId },
+                localPeerId = { localPeerId },
+                authenticatedHostEndpoint = { authenticatedHostEndpoint },
+                hostPeerId = { hostPeerIdProvider?.invoke() },
+                isEndpointAuthorized = { it in authorizedEndpoints },
+                endpointPeerId = { endpointId -> endpointId?.let(endpointToPeerId::get) },
+                meshIdentityKey = { meshIdentityKeyProvider?.invoke(it) },
+            ),
+            callbacks = NearbyInboundMeshDispatcher.Callbacks(
+                receiveJoinProof = ::receiveJoinProof,
+                receiveInviteSecret = ::receiveInviteSecret,
+                receiveMeshPeerAuthentication = ::receiveMeshPeerAuthentication,
+                receiveBleIdentityKey = ::receiveBleIdentityKey,
+                receiveMemberDeparture = ::receiveMemberDeparture,
+                broadcastMemberDeparture = ::broadcastMemberDeparture,
+                forwardMeshEnvelope = { envelope, endpointId ->
+                    forwardToMeshNeighbors(envelope, excludedEndpointId = endpointId)
+                },
+                relayOffer = ::relayOffer,
+                onUwbRangingOfferReceived = events::onUwbRangingOfferReceived,
+            ),
+        )
+    }
+
+    private val payloadCallback get() = messageReceiver.payloadCallback
+
     private fun relayOffer(offer: UwbRangingOfferDto, endpointId: String): Boolean {
         val targetEndpoint = connectedEndpoints[offer.targetPeerId]
         if (targetEndpoint == null) {
@@ -1732,45 +1328,6 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
         // Consumed either way: a host has no UWB session of its own for this
         // offer, and reporting it as delivered keeps it off every other flow.
         return true
-    }
-
-    private val payloadCallback = object : PayloadCallback() {
-        override fun onPayloadReceived(endpointId: String, payload: Payload) {
-            val bytes = payload.asBytes()
-            if (bytes == null) {
-                Log.w(TAG, "Ignoring a non-bytes payload (type=${payload.type}) from $endpointId")
-                return
-            }
-            // Explicit UTF-8, matching how it was written with toByteArray().
-            // String(ByteArray) would use the platform default charset, which
-            // is only ever accidentally right.
-            val json = bytes.toString(Charsets.UTF_8)
-            val peer = endpointToPeerId[endpointId] ?: "?"
-            Log.d(TAG, "Received ${bytes.size} bytes from $endpointId [peer=$peer]")
-
-            // First try parsing as structured RelayEnvelope
-            val envelope = RelayCodec.decodeEnvelope(json).getOrElse { error ->
-                Log.e(TAG, "Could not parse the envelope from $endpointId: ${error.message}", error)
-                null
-            }
-            if (envelope != null && envelope.payload != null) {
-                // [dispatchEnvelope] has already said why when it cannot deliver,
-                // so there is nothing left to report here.
-                dispatchEnvelope(envelope, endpointId)
-                return
-            }
-
-            // A mesh payload without its signed routing envelope cannot prove
-            // its origin or participate in deduplication/hop limits.
-            val legacy = RelayCodec.decodeUnwrapped(json)
-            Log.w(
-                TAG,
-                if (legacy == null) "Unrecognised ${bytes.size}-byte payload from $endpointId, dropped"
-                else "Unwrapped ${legacy::class.simpleName} payload from $endpointId lacks mesh authentication, dropped"
-            )
-        }
-
-        override fun onPayloadTransferUpdate(endpointId: String, update: PayloadTransferUpdate) {}
     }
 
 }

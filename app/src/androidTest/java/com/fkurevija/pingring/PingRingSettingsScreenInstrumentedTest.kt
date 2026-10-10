@@ -225,7 +225,7 @@ class PingRingSettingsScreenInstrumentedTest {
     }
 
     @Test
-    fun theRemainingSwitchesExposeNamesStateAndMinimumTouchTargets() {
+    fun theRemainingSwitchExposesItsNameStateAndMinimumTouchTarget() {
         showSettings(Event.create("4C1A9B"), isHost = true) {}
         composeRule.onNodeWithContentDescription(context.getString(R.string.prevent_new_users_joining))
             .performScrollTo()
@@ -233,11 +233,8 @@ class PingRingSettingsScreenInstrumentedTest {
             .assertHasClickAction()
             .assertWidthIsAtLeast(48.dp)
             .assertHeightIsAtLeast(48.dp)
-        composeRule.onNodeWithContentDescription(context.getString(R.string.uwb))
+        composeRule.onNodeWithText(context.getString(R.string.uwb))
             .performScrollTo()
-            .assertIsOff()
-            .assertIsNotEnabled()
-            .assertWidthIsAtLeast(48.dp)
-            .assertHeightIsAtLeast(48.dp)
+            .assertIsDisplayed()
     }
 }

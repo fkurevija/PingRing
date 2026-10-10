@@ -238,6 +238,7 @@
 
     <string name="app_settings">Postavke aplikacije</string>
     <string name="chat_settings">Postavke chata</string>
+    <string name="read_receipts">Potvrde čitanja</string>
     <string name="prevent_new_users_joining">Spriječi novim korisnicima pridruživanje</string>
     <string name="prevent_new_users_joining_description">Zatvori ovaj PingRing za sve koji nisu već članovi. Gosti koji se pridruže kodom i dalje trebaju tvoje odobrenje.</string>
     <string name="report_a_problem">Prijavi problem</string>

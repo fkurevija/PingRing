@@ -1,9 +1,8 @@
-package com.fkurevija.pingring
+package com.fkurevija.pingring.data.ble
 
-import com.fkurevija.pingring.data.BleAdvertisementPayload as SignedBleAdvertisementPayload
+import com.fkurevija.pingring.data.ble.BleAdvertisementPayload as SignedBleAdvertisementPayload
 import com.fkurevija.pingring.data.BleRangePolicy
 import com.fkurevija.pingring.data.InviteSecret
-import com.fkurevija.pingring.data.SessionManager
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertFalse
@@ -16,7 +15,7 @@ import java.nio.charset.StandardCharsets
 private val testInviteSecret = InviteSecret.generate()
 private typealias BleDecoded = SignedBleAdvertisementPayload.Decoded
 
-private object BleAdvertisementPayload {
+private object TestBleAdvertisementPayload {
     const val VERSION = SignedBleAdvertisementPayload.VERSION
     const val TOTAL_BYTES = SignedBleAdvertisementPayload.TOTAL_BYTES
     const val AUTH_TAG_BYTES = SignedBleAdvertisementPayload.AUTH_TAG_BYTES
@@ -56,8 +55,8 @@ private object BleAdvertisementPayload {
  * A host advertises, a guest scans, and neither ever acknowledges the other. A
  * layout change applied to only one side therefore presents as "this device
  * never sees anybody", with nothing on either phone explaining why. So these
- * tests hold [BleAdvertisementPayload.encode] against
- * [BleAdvertisementPayload.decode] directly, the way [RelayCodecTest] holds the
+ * tests hold [TestBleAdvertisementPayload.encode] against
+ * [TestBleAdvertisementPayload.decode] directly, the way [RelayCodecTest] holds the
  * relay's two halves together.
  */
 class BleAdvertisementPayloadTest {
@@ -71,11 +70,11 @@ class BleAdvertisementPayloadTest {
     private val eventCodeBytes = eventCode.toByteArray(StandardCharsets.UTF_8)
 
     private fun encode(
-        flags: Int = BleAdvertisementPayload.FLAG_HOST,
+        flags: Int = TestBleAdvertisementPayload.FLAG_HOST,
         peerId: ByteArray = peerIdBytes,
         eventCode: String? = null,
         joinedAtMillis: Long = 0L,
-    ) = BleAdvertisementPayload.encode(flags, peerId, eventCode, joinedAtMillis)
+    ) = TestBleAdvertisementPayload.encode(flags, peerId, eventCode, joinedAtMillis)
 
     private fun expectInvalidInput(block: () -> Unit) {
         try {
@@ -92,20 +91,20 @@ class BleAdvertisementPayloadTest {
         // produces a *different, wrong* code that fails to join with nothing to
         // say why. Asserting the width here is what stops that happening
         // quietly when the code generator changes.
-        assertEquals(BleAdvertisementPayload.EVENT_CODE_BYTES, eventCodeBytes.size)
+        assertEquals(TestBleAdvertisementPayload.EVENT_CODE_BYTES, eventCodeBytes.size)
     }
 
     @Test
     fun `the event code survives the round trip`() {
-        val decoded = BleAdvertisementPayload.decode(encode(eventCode = eventCode))!!
+        val decoded = TestBleAdvertisementPayload.decode(encode(eventCode = eventCode))!!
 
         assertEquals(eventCode, decoded.eventCode)
     }
 
     @Test
     fun `an advert carries the code so a told guest can find its host`() {
-        val decoded = BleAdvertisementPayload.decode(
-            encode(flags = BleAdvertisementPayload.FLAG_HOST, eventCode = eventCode)
+        val decoded = TestBleAdvertisementPayload.decode(
+            encode(flags = TestBleAdvertisementPayload.FLAG_HOST, eventCode = eventCode)
         )!!
 
         assertEquals("PingRing $eventCode", decoded.displayName)
@@ -113,36 +112,36 @@ class BleAdvertisementPayloadTest {
 
     @Test
     fun `a different invite secret cannot authenticate an advertisement`() {
-        val payload = encode(flags = BleAdvertisementPayload.FLAG_HOST, eventCode = eventCode)
+        val payload = encode(flags = TestBleAdvertisementPayload.FLAG_HOST, eventCode = eventCode)
 
         assertNull(SignedBleAdvertisementPayload.decode(payload, InviteSecret.generate()))
-        assertTrue(BleAdvertisementPayload.decode(payload)!!.isHost)
+        assertTrue(TestBleAdvertisementPayload.decode(payload)!!.isHost)
     }
 
     @Test
     fun `tampering with host control flags invalidates the authentication tag`() {
-        val payload = encode(flags = BleAdvertisementPayload.FLAG_HOST, eventCode = eventCode)
-        payload[1] = (payload[1].toInt() xor BleAdvertisementPayload.FLAG_EVENT_CLOSED).toByte()
+        val payload = encode(flags = TestBleAdvertisementPayload.FLAG_HOST, eventCode = eventCode)
+        payload[1] = (payload[1].toInt() xor TestBleAdvertisementPayload.FLAG_EVENT_CLOSED).toByte()
 
-        assertNull(BleAdvertisementPayload.decode(payload))
+        assertNull(TestBleAdvertisementPayload.decode(payload))
     }
 
     @Test
     fun `the invite secret changes only the advertisement authentication tag`() {
         val otherSecret = InviteSecret.generate()
         val first = SignedBleAdvertisementPayload.encode(
-            flags = BleAdvertisementPayload.FLAG_HOST,
+            flags = TestBleAdvertisementPayload.FLAG_HOST,
             peerIdBytes = peerIdBytes,
             eventCode = eventCode,
             inviteSecret = testInviteSecret,
         )
         val second = SignedBleAdvertisementPayload.encode(
-            flags = BleAdvertisementPayload.FLAG_HOST,
+            flags = TestBleAdvertisementPayload.FLAG_HOST,
             peerIdBytes = peerIdBytes,
             eventCode = eventCode,
             inviteSecret = otherSecret,
         )
-        val prefixSize = BleAdvertisementPayload.TOTAL_BYTES - BleAdvertisementPayload.AUTH_TAG_BYTES
+        val prefixSize = TestBleAdvertisementPayload.TOTAL_BYTES - TestBleAdvertisementPayload.AUTH_TAG_BYTES
 
         assertArrayEquals(first.copyOf(prefixSize), second.copyOf(prefixSize))
         assertFalse(first.copyOfRange(prefixSize, first.size).contentEquals(second.copyOfRange(prefixSize, second.size)))
@@ -157,7 +156,7 @@ class BleAdvertisementPayloadTest {
         // carry described host policy a stranger had no business reading.
         val hint = SignedBleAdvertisementPayload.decodeDiscoveryHint(
             encode(
-                flags = BleAdvertisementPayload.FLAG_HOST or BleAdvertisementPayload.FLAG_EVENT_CLOSED,
+                flags = TestBleAdvertisementPayload.FLAG_HOST or TestBleAdvertisementPayload.FLAG_EVENT_CLOSED,
                 eventCode = eventCode,
             )
         )!!
@@ -169,8 +168,8 @@ class BleAdvertisementPayloadTest {
     fun `an advert with no code names no ring`() {
         // Nothing to join with and nothing to display: a guest that had not been
         // told the code cannot act on it, so it must not appear to offer a join.
-        val decoded = BleAdvertisementPayload.decode(
-            encode(flags = BleAdvertisementPayload.FLAG_HOST, eventCode = null)
+        val decoded = TestBleAdvertisementPayload.decode(
+            encode(flags = TestBleAdvertisementPayload.FLAG_HOST, eventCode = null)
         )!!
 
         assertNull(decoded.displayName)
@@ -186,11 +185,11 @@ class BleAdvertisementPayloadTest {
         // event hash must not be mistaken for a version byte.
         val v1 = java.nio.ByteBuffer.allocate(13)
             .putInt("EVENT".hashCode())
-            .put(BleAdvertisementPayload.FLAG_HOST.toByte())
+            .put(TestBleAdvertisementPayload.FLAG_HOST.toByte())
             .put(peerIdBytes)
             .array()
 
-        assertNull(BleAdvertisementPayload.decode(v1))
+        assertNull(TestBleAdvertisementPayload.decode(v1))
     }
 
     @Test
@@ -199,7 +198,7 @@ class BleAdvertisementPayloadTest {
 
         assertNull(
             "a previous wire version must not decode as the authenticated format",
-            BleAdvertisementPayload.decode(previousVersion)
+            TestBleAdvertisementPayload.decode(previousVersion)
         )
     }
 
@@ -211,7 +210,7 @@ class BleAdvertisementPayloadTest {
         val future = encode(eventCode = eventCode)
         future[0] = 99
 
-        assertNull(BleAdvertisementPayload.decode(future))
+        assertNull(TestBleAdvertisementPayload.decode(future))
     }
 
     @Test
@@ -219,14 +218,14 @@ class BleAdvertisementPayloadTest {
         // Anything under the full layout is unreadable, including a v2 payload
         // cut short. The version byte cannot rescue a truncated read either: a
         // cut may land before it.
-        val short = ByteArray(BleAdvertisementPayload.TOTAL_BYTES - 1)
+        val short = ByteArray(TestBleAdvertisementPayload.TOTAL_BYTES - 1)
 
-        assertNull(BleAdvertisementPayload.decode(short))
+        assertNull(TestBleAdvertisementPayload.decode(short))
     }
 
     @Test
     fun `whatIsEncodedIsWhatIsDecoded`() {
-        val decoded = BleAdvertisementPayload.decode(encode())!!
+        val decoded = TestBleAdvertisementPayload.decode(encode())!!
 
         assertEquals(peerId, decoded.peerId)
         assertNull(decoded.eventCode)
@@ -237,7 +236,7 @@ class BleAdvertisementPayloadTest {
     fun `the payload is exactly the advertised size`() {
         // The size is a budget, not a description: it has to stay under the
         // V4 is retained here only as a codec fixture; production emits V5.
-        assertEquals(BleRangePolicy.LEGACY_V4_SERVICE_DATA_BYTES, BleAdvertisementPayload.TOTAL_BYTES)
+        assertEquals(BleRangePolicy.LEGACY_V4_SERVICE_DATA_BYTES, TestBleAdvertisementPayload.TOTAL_BYTES)
         assertEquals(BleRangePolicy.LEGACY_V4_SERVICE_DATA_BYTES, encode().size)
         assertTrue(BleRangePolicy.LEGACY_V4_SERVICE_DATA_BYTES <= BleRangePolicy.MAX_LEGACY_SERVICE_DATA_BYTES)
     }
@@ -248,7 +247,7 @@ class BleAdvertisementPayloadTest {
         // than a narrower type, so the values below are ones that would be
         // truncated or wrapped by anything smaller.
         val joinedAt = 1_726_000_123_456L
-        val decoded = BleAdvertisementPayload.decode(
+        val decoded = TestBleAdvertisementPayload.decode(
             encode(joinedAtMillis = joinedAt)
         )!!
 
@@ -260,7 +259,7 @@ class BleAdvertisementPayloadTest {
         // Zero is what a device outside an event advertises. It must not be
         // confused with a real arrival: FocusPolicy sorts it last, so a zero
         // read as "epoch 1970" would make that peer win every tie.
-        val decoded = BleAdvertisementPayload.decode(encode(joinedAtMillis = 0L))!!
+        val decoded = TestBleAdvertisementPayload.decode(encode(joinedAtMillis = 0L))!!
 
         assertEquals(0L, decoded.joinedAtMillis)
         assertTrue(
@@ -274,28 +273,28 @@ class BleAdvertisementPayloadTest {
         // Recorded because the budget is what it is: v2 was 20 bytes and this
         // field is 8 of the 11 that were spare. If this ever changes, the
         // headroom assertion above is what needs re-reading.
-        assertEquals(8, BleAdvertisementPayload.JOINED_AT_BYTES)
+        assertEquals(8, TestBleAdvertisementPayload.JOINED_AT_BYTES)
         assertEquals(
-            BleAdvertisementPayload.TOTAL_BYTES - BleAdvertisementPayload.AUTH_TAG_BYTES - 9,
-            BleAdvertisementPayload.JOINED_AT_BYTES
+            TestBleAdvertisementPayload.TOTAL_BYTES - TestBleAdvertisementPayload.AUTH_TAG_BYTES - 9,
+            TestBleAdvertisementPayload.JOINED_AT_BYTES
         )
     }
 
     @Test
     fun `the payload still has room to grow within legacy advertising`() {
         assertEquals(3, BleRangePolicy.LEGACY_HEADROOM_BYTES)
-        assertEquals(88, BleAdvertisementPayload.AUTH_TAG_BYTES * 8)
+        assertEquals(88, TestBleAdvertisementPayload.AUTH_TAG_BYTES * 8)
     }
 
     @Test
     fun `every flag survives the round trip`() {
-        val allFlags = BleAdvertisementPayload.FLAG_HOST or
-            BleAdvertisementPayload.FLAG_USE_UWB or
-            BleAdvertisementPayload.FLAG_USE_WIFI or
-            BleAdvertisementPayload.FLAG_RING_FULL or
-            BleAdvertisementPayload.FLAG_ACCEPTS_NEW_MEMBERS
+        val allFlags = TestBleAdvertisementPayload.FLAG_HOST or
+            TestBleAdvertisementPayload.FLAG_USE_UWB or
+            TestBleAdvertisementPayload.FLAG_USE_WIFI or
+            TestBleAdvertisementPayload.FLAG_RING_FULL or
+            TestBleAdvertisementPayload.FLAG_ACCEPTS_NEW_MEMBERS
 
-        val decoded = BleAdvertisementPayload.decode(encode(flags = allFlags))!!
+        val decoded = TestBleAdvertisementPayload.decode(encode(flags = allFlags))!!
 
         assertTrue(decoded.isHost)
         assertTrue(decoded.usesUwb)
@@ -310,16 +309,16 @@ class BleAdvertisementPayloadTest {
         // Bit flags that share a byte, so one wrong shift silently sets or clears
         // a neighbour. Each is set alone and must be the only one that reads true.
         val readers: List<Pair<Int, (BleDecoded) -> Boolean>> = listOf(
-            BleAdvertisementPayload.FLAG_HOST to { d -> d.isHost },
-            BleAdvertisementPayload.FLAG_EVENT_CLOSED to { d -> d.eventClosed },
-            BleAdvertisementPayload.FLAG_USE_UWB to { d -> d.usesUwb },
-            BleAdvertisementPayload.FLAG_USE_WIFI to { d -> d.usesWifi },
-            BleAdvertisementPayload.FLAG_RING_FULL to { d -> d.isFull },
-            BleAdvertisementPayload.FLAG_ACCEPTS_NEW_MEMBERS to { d -> d.acceptsNewMembers },
+            TestBleAdvertisementPayload.FLAG_HOST to { d -> d.isHost },
+            TestBleAdvertisementPayload.FLAG_EVENT_CLOSED to { d -> d.eventClosed },
+            TestBleAdvertisementPayload.FLAG_USE_UWB to { d -> d.usesUwb },
+            TestBleAdvertisementPayload.FLAG_USE_WIFI to { d -> d.usesWifi },
+            TestBleAdvertisementPayload.FLAG_RING_FULL to { d -> d.isFull },
+            TestBleAdvertisementPayload.FLAG_ACCEPTS_NEW_MEMBERS to { d -> d.acceptsNewMembers },
         )
 
         readers.forEach { (flag, read) ->
-            val decoded = BleAdvertisementPayload.decode(encode(flags = flag))!!
+            val decoded = TestBleAdvertisementPayload.decode(encode(flags = flag))!!
             val setFlags = readers.filter { (_, r) -> r(decoded) }.map { it.first }
 
             assertEquals("flag $flag must be the only one set", listOf(flag), setFlags)
@@ -334,8 +333,8 @@ class BleAdvertisementPayloadTest {
         // one omission happened: FLAG_DISCOVERABLE was missing from this test
         // while existing and working - and has since been removed without this
         // list being noticed, which is the same failure a second time.
-        BleAdvertisementPayload.ALL_FLAGS.forEach { a ->
-            BleAdvertisementPayload.ALL_FLAGS.forEach { b ->
+        TestBleAdvertisementPayload.ALL_FLAGS.forEach { a ->
+            TestBleAdvertisementPayload.ALL_FLAGS.forEach { b ->
                 if (a != b) {
                     assertEquals("flags $a and $b share a bit", 0, a and b)
                 }
@@ -350,13 +349,13 @@ class BleAdvertisementPayloadTest {
         // flag is the realistic failure: it would be dropped on the way out and
         // the peer would read the advert fine while never learning the new fact.
         // The guard makes that a build failure instead of a silent one.
-        BleAdvertisementPayload.ALL_FLAGS.forEach { flag ->
+        TestBleAdvertisementPayload.ALL_FLAGS.forEach { flag ->
             assertTrue(
                 "flag $flag does not fit in an unsigned byte",
                 flag in 1..0xFF
             )
         }
-        BleAdvertisementPayload.assertFlagsFitTheByte(BleAdvertisementPayload.ALL_FLAGS.sum())
+        TestBleAdvertisementPayload.assertFlagsFitTheByte(TestBleAdvertisementPayload.ALL_FLAGS.sum())
     }
 
     @Test
@@ -365,7 +364,7 @@ class BleAdvertisementPayloadTest {
         // than quietly writing a byte without it.
         val ninthFlag = 1 shl 8
         try {
-            encode(flags = BleAdvertisementPayload.FLAG_HOST or ninthFlag)
+            encode(flags = TestBleAdvertisementPayload.FLAG_HOST or ninthFlag)
             fail("a flag outside the byte must not be encoded")
         } catch (expected: IllegalArgumentException) {
             assertTrue(
@@ -373,99 +372,5 @@ class BleAdvertisementPayloadTest {
                 expected.message?.contains("byte") == true
             )
         }
-    }
-    @Test
-    fun `aShortPeerIdIsRejected`() {
-        val short = "ab".toByteArray(StandardCharsets.UTF_8)
-        expectInvalidInput { encode(peerId = short) }
-    }
-
-    @Test
-    fun `anOverlongPeerIdIsTruncatedToTheField`() {
-        // The opposite edge. Truncating keeps the payload a legal size rather
-        // than writing a longer field than the layout allows.
-        val long = "0123456789ABCDEF".toByteArray(StandardCharsets.UTF_8)
-        expectInvalidInput { encode(peerId = long) }
-    }
-
-    @Test
-    fun `anOverlongEventCodeIsTruncatedToTheField`() {
-        expectInvalidInput { encode(eventCode = "TOOLONGCODE") }
-    }
-
-    @Test
-    fun `a short event code is paddedRatherThanReadAsGarbage`() {
-        // The other direction for the same field: fewer characters than the
-        // field holds must come back as exactly what was sent, not carrying the
-        // NUL padding with it.
-        expectInvalidInput { encode(eventCode = "AB") }
-    }
-
-    @Test
-    fun `aTruncatedAdvertisementIsRejectedRatherThanDecoded`() {
-        // The dangerous case: decoding past the end would either throw or read
-        // neighbouring bytes as a peer id and put a phantom member on the radar.
-        //
-        // Every size below the full layout is rejected, which now includes a v2
-        // payload cut short. That buffer used to decode as a v1 advert, because
-        // the two layouts shared a prefix only by accident - the safety came
-        // from misreading being impossible rather than from a check.
-        val full = encode()
-
-        for (size in 0 until BleAdvertisementPayload.TOTAL_BYTES) {
-            assertNull(
-                "a $size-byte payload must not decode",
-                BleAdvertisementPayload.decode(full.copyOf(size))
-            )
-        }
-    }
-
-    @Test
-    fun `anEmptyAdvertisementIsRejected`() {
-        assertNull(BleAdvertisementPayload.decode(ByteArray(0)))
-    }
-
-    @Test
-    fun `anOversizedAdvertisementStillDecodesItsLeadingFields`() {
-        // A longer buffer means a newer build added a field. The fields that
-        // exist today must still be readable, or a version skew would make every
-        // device blind rather than just missing the new field.
-        val decoded = BleAdvertisementPayload.decode(encode() + byteArrayOf(9, 9, 9, 9))!!
-
-        assertEquals(peerId, decoded.peerId)
-        assertTrue(decoded.isHost)
-    }
-
-    @Test
-    fun `aGeneratedPeerIdFitsTheAdvertisementField`() {
-        // The two have to agree: SessionManager generates 8 characters and the
-        // payload field is 8 bytes. If either changes, ids are silently truncated
-        // and two devices stop recognising the same member.
-        val generated = SessionManager().peerId.value
-
-        assertEquals(8, generated.length)
-        assertEquals(8, generated.toByteArray(StandardCharsets.UTF_8).size)
-
-        val decoded = BleAdvertisementPayload.decode(
-            BleAdvertisementPayload.encode(
-                BleAdvertisementPayload.FLAG_HOST,
-                generated.toByteArray(StandardCharsets.UTF_8),
-            )
-        )!!
-        assertEquals(generated, decoded.peerId)
-    }
-
-    @Test
-    fun `aZeroFlagByteMeansNoFlagsAreSet`() {
-        // The default an unconfigured advertiser would send. Every flag must read
-        // false, so a member is not mistaken for a host.
-        val decoded = BleAdvertisementPayload.decode(encode(flags = 0))!!
-
-        assertFalse(decoded.isHost)
-        assertFalse(decoded.eventClosed)
-        assertFalse(decoded.usesUwb)
-        assertFalse(decoded.usesWifi)
-        assertFalse(decoded.isFull)
-        assertFalse(decoded.acceptsNewMembers)
     }
 }

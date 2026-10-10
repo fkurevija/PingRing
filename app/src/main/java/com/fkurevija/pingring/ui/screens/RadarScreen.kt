@@ -2,6 +2,7 @@ package com.fkurevija.pingring.ui.screens
 
 import androidx.compose.runtime.Composable
 import com.fkurevija.pingring.data.DiscoveryRepository
+import com.fkurevija.pingring.data.radar.LastKnownPeerDirection
 import com.fkurevija.pingring.data.SessionState
 import com.fkurevija.pingring.data.PendingJoinRequest
 
@@ -21,7 +22,7 @@ fun RadarScreen(
     connectionRecoveryPromptEnabled: Boolean = true,
     connectionRecoveryPromptDelayMillis: Long = 120_000L,
     hostConnectionLostAtMillis: Long? = null,
-    lastKnownPeerDirections: List<com.fkurevija.pingring.data.LastKnownPeerDirection> = emptyList(),
+    lastKnownPeerDirections: List<LastKnownPeerDirection> = emptyList(),
     isTopDestination: Boolean = true,
     reduceMotionEnabled: Boolean = false,
     proximityHapticsEnabled: Boolean = true,
@@ -30,6 +31,8 @@ fun RadarScreen(
     onApproveJoinRequest: (String) -> Unit = {},
     onDenyJoinRequest: (String) -> Unit = {},
     onUsernameChange: (String) -> Unit = {},
+    readReceiptsEnabled: Boolean = true,
+    onReadReceiptsChanged: (Boolean) -> Unit = {},
     onEventSettings: () -> Unit,
     onLeaveEvent: () -> Unit,
     onEndEvent: () -> Unit,
@@ -58,6 +61,8 @@ fun RadarScreen(
         onApproveJoinRequest = onApproveJoinRequest,
         onDenyJoinRequest = onDenyJoinRequest,
         onUsernameChange = onUsernameChange,
+        readReceiptsEnabled = readReceiptsEnabled,
+        onReadReceiptsChanged = onReadReceiptsChanged,
         onEventSettings = onEventSettings,
         onLeaveEvent = onLeaveEvent,
         onEndEvent = onEndEvent,

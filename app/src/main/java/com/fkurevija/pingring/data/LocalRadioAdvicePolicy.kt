@@ -1,5 +1,6 @@
 package com.fkurevija.pingring.data
 
+import com.fkurevija.pingring.data.discovery.ConnectivityStatus
 /**
  * Which local-radio problems are worth telling the member about, and in what
  * order.
