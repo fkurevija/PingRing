@@ -56,14 +56,9 @@ import com.fkurevija.pingring.data.ChatEntryType
 import com.fkurevija.pingring.data.ChatMessageOwnership
 import com.fkurevija.pingring.data.ChatRecipientReceipt
 import com.fkurevija.pingring.data.ChatTimelineItem
-import com.fkurevija.pingring.data.ChatTimestampPolicy
 import com.fkurevija.pingring.data.MessageStatus
 import com.fkurevija.pingring.data.TextInputPolicy
 import kotlinx.coroutines.flow.distinctUntilChanged
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-import java.util.TimeZone
 
 @Composable
 internal fun RadarChatCard(
@@ -187,15 +182,7 @@ internal fun RadarChatCard(
                                         latestColorByPeer = latestSenderColors,
                                     )
                                     ?.let(::Color)
-                                val timeStr = ChatTimestampPolicy.format(
-                                    timestampMillis = msg.timestamp,
-                                    nowMillis = System.currentTimeMillis(),
-                                    locale = Locale.getDefault(),
-                                    timeZone = TimeZone.getDefault(),
-                                    todayLabel = stringResource(R.string.today),
-                                    yesterdayLabel = stringResource(R.string.yesterday),
-                                    tomorrowLabel = stringResource(R.string.tomorrow),
-                                )
+                                val timeStr = chatHistoryTimestamp(msg.timestamp)
                                 Column(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalAlignment = if (isMe) Alignment.End else Alignment.Start
@@ -311,10 +298,7 @@ internal fun RadarChatCard(
                                     )
                                     ChatEntryType.MESSAGE -> ""
                                 }
-                                val timeStr = remember(message.timestamp) {
-                                    SimpleDateFormat("HH:mm", Locale.getDefault())
-                                        .format(Date(message.timestamp))
-                                }
+                                val timeStr = chatHistoryTimestamp(message.timestamp)
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()

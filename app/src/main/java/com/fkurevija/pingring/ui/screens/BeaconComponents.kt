@@ -33,9 +33,6 @@ import androidx.compose.ui.unit.dp
 import com.fkurevija.pingring.R
 import com.fkurevija.pingring.data.BeaconInfo
 import com.fkurevija.pingring.data.BeaconVibrationPattern
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 /**
  * The colour this beacon is sent in.
@@ -93,9 +90,7 @@ internal fun ActiveBeaconEntry(
     onToggleSilenced: (Boolean) -> Unit,
 ) {
     val beaconColor = beacon.color
-    val timeStr = remember(beacon.timestamp) {
-        SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(beacon.timestamp))
-    }
+    val timeStr = chatHistoryTimestamp(beacon.timestamp)
     Row(
         modifier = Modifier
             .fillMaxWidth()

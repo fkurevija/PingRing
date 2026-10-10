@@ -6,15 +6,16 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import com.fkurevija.pingring.data.BeaconInfo
+import com.fkurevija.pingring.data.ChatTimestampPolicy
 import com.fkurevija.pingring.ui.screens.ActiveBeaconEntry
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.text.SimpleDateFormat
-import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 
 /**
  * Silencing one beacon without being able to hide it.
@@ -85,7 +86,16 @@ class BeaconSilenceInstrumentedTest {
     fun beaconShowsItsTimestampInChat() {
         show(silenced = false)
 
-        val timestamp = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(beacon.timestamp))
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val timestamp = ChatTimestampPolicy.format(
+            timestampMillis = beacon.timestamp,
+            nowMillis = System.currentTimeMillis(),
+            locale = Locale.getDefault(),
+            timeZone = TimeZone.getDefault(),
+            todayLabel = context.getString(R.string.today),
+            yesterdayLabel = context.getString(R.string.yesterday),
+            tomorrowLabel = context.getString(R.string.tomorrow),
+        )
         composeRule.onNodeWithText(timestamp).assertIsDisplayed()
     }
 

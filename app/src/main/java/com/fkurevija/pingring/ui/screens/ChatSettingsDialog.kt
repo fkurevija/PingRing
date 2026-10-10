@@ -6,24 +6,31 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Switch
-import androidx.compose.foundation.layout.Row
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -37,8 +44,10 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
 import com.fkurevija.pingring.R
 import com.fkurevija.pingring.data.ChatBubblePalette
 import com.fkurevija.pingring.data.TextInputPolicy
@@ -93,60 +102,84 @@ internal fun ChatSettingsDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.chat_settings)) },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
-            ) {
-                OutlinedTextField(
-                    value = editedUsername,
-                    onValueChange = {
-                        editedUsername = TextInputPolicy.sanitizeUsername(it)
-                        usernameSubmitted = false
-                    },
-                    label = { Text(stringResource(R.string.username)) },
-                    placeholder = { Text(stringResource(R.string.username_example)) },
-                    singleLine = true,
-                    isError = usernameError != null && (usernameChanged || usernameSubmitted),
-                    supportingText = {
-                        if (usernameChanged || usernameSubmitted) {
-                            when (usernameError) {
-                                TextInputPolicy.UsernameError.REQUIRED -> Text(stringResource(R.string.join_username_required))
-                                TextInputPolicy.UsernameError.TAKEN ->
-                                    Text(stringResource(R.string.join_username_taken, editedUsername.trim()))
-                                null -> Unit
-                            }
-                        }
-                    },
-                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
-                    modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+        shape = RoundedCornerShape(24.dp),
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.AutoMirrored.Filled.Chat,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp),
                 )
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.width(12.dp))
                 Text(
-                    stringResource(R.string.chat_bubble_colour_description),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    stringResource(R.string.chat_settings),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
                 )
-                if (refusedColorArgb != null) {
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        stringResource(R.string.chat_colour_refused),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
-                Spacer(Modifier.height(12.dp))
-                // Wraps rather than scrolls sideways: twelve swatches in one
-                // row needs more width than a phone has, and a horizontal
-                // scroller hides the fact that there are eleven other choices.
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth().selectableGroup(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
+            }
+        },
+        text = {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                ),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                        .padding(14.dp),
                 ) {
-                    ChatBubblePalette.presets.forEach { colorArgb ->
+                    OutlinedTextField(
+                        value = editedUsername,
+                        onValueChange = {
+                            editedUsername = TextInputPolicy.sanitizeUsername(it)
+                            usernameSubmitted = false
+                        },
+                        label = { Text(stringResource(R.string.username)) },
+                        placeholder = { Text(stringResource(R.string.username_example)) },
+                        singleLine = true,
+                        isError = usernameError != null && (usernameChanged || usernameSubmitted),
+                        supportingText = {
+                            if (usernameChanged || usernameSubmitted) {
+                                when (usernameError) {
+                                    TextInputPolicy.UsernameError.REQUIRED ->
+                                        Text(stringResource(R.string.join_username_required))
+                                    TextInputPolicy.UsernameError.TAKEN ->
+                                        Text(stringResource(R.string.join_username_taken, editedUsername.trim()))
+                                    null -> Unit
+                                }
+                            }
+                        },
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        stringResource(R.string.chat_bubble_colour_description),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    if (refusedColorArgb != null) {
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            stringResource(R.string.chat_colour_refused),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth().selectableGroup(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        ChatBubblePalette.presets.forEach { colorArgb ->
                         val selected = draftColor == colorArgb
                         // Ours is not taken, and ours is the one thing that must
                         // never grey out or a member cannot see or keep their own.
@@ -216,25 +249,25 @@ internal fun ChatSettingsDialog(
                                     )
                             )
                         }
+                        }
                     }
-        // Read receipts toggle UI
-        Spacer(Modifier.height(12.dp))
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                stringResource(R.string.read_receipts),
-                style = MaterialTheme.typography.bodyMedium
-            )
-            Switch(
-                checked = draftReadReceiptsEnabled,
-                onCheckedChange = { draftReadReceiptsEnabled = it }
-            )
-        }
+                    Spacer(Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text(
+                            stringResource(R.string.read_receipts),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Switch(
+                            checked = draftReadReceiptsEnabled,
+                            onCheckedChange = { draftReadReceiptsEnabled = it },
+                        )
+                    }
                 }
             }
         },
