@@ -91,14 +91,19 @@ internal fun ChatSettingsDialog(
 ) {
     var editedUsername by remember(username) { mutableStateOf(username) }
     var draftColor by remember(selectedColorArgb) { mutableStateOf(selectedColorArgb ?: ChatBubblePalette.random()) }
+    var colorSelectionMade by remember(selectedColorArgb) { mutableStateOf(false) }
     var draftReadReceiptsEnabled by remember(readReceiptsEnabled) { mutableStateOf(readReceiptsEnabled) }
     var usernameSubmitted by remember { mutableStateOf(false) }
     var saveCompleted by remember { mutableStateOf(false) }
     val usernameError = TextInputPolicy.usernameError(editedUsername, existingMemberNames)
     val usernameChanged = editedUsername.trim() != username
-    // Only consider colour changed if an initial colour was provided and the user picks a different one.
-    val colorChanged = selectedColorArgb != null && draftColor != selectedColorArgb
+    val colorChanged = if (selectedColorArgb == null) {
+        colorSelectionMade
+    } else {
+        draftColor != selectedColorArgb
+    }
     val readReceiptChanged = draftReadReceiptsEnabled != readReceiptsEnabled
+    val hasChanges = usernameChanged || colorChanged || readReceiptChanged
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -225,7 +230,10 @@ internal fun ChatSettingsDialog(
                                     selected = selected,
                                     enabled = !heldByOther,
                                     role = Role.RadioButton,
-                                    onClick = { draftColor = colorArgb },
+                                    onClick = {
+                                        draftColor = colorArgb
+                                        colorSelectionMade = true
+                                    },
                                 ),
                             contentAlignment = Alignment.Center,
                         ) {
@@ -272,7 +280,7 @@ internal fun ChatSettingsDialog(
             }
         },
         confirmButton = {
-            if (!saveCompleted && (usernameChanged || colorChanged || readReceiptChanged)) {
+            if (!saveCompleted) {
                 TextButton(
                     onClick = {
                         usernameSubmitted = true
@@ -290,7 +298,7 @@ internal fun ChatSettingsDialog(
                             onDismiss()
                         }
                     },
-                    enabled = usernameError == null,
+                    enabled = hasChanges && usernameError == null,
                 ) {
                     Text(stringResource(R.string.save_changes))
                 }

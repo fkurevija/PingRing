@@ -125,9 +125,11 @@ class AppRulesTest {
     }
 
     @Test
-    fun chatBubblePresetsAreTwelveDistinctOpaqueColors() {
-        assertEquals(12, ChatBubblePalette.presets.size)
-        assertEquals(12, ChatBubblePalette.presets.distinct().size)
+    fun chatBubblePresetsAreTenDistinctOpaqueColors() {
+        assertEquals(10, ChatBubblePalette.presets.size)
+        assertEquals(10, ChatBubblePalette.presets.distinct().size)
+        assertFalse(ChatBubblePalette.presets.contains(0xFF00897BL))
+        assertFalse(ChatBubblePalette.presets.contains(0xFF43A047L))
         // Fully opaque, or a bubble would show the chat background through it and
         // two members could be given colours that render identically.
         assertTrue(ChatBubblePalette.presets.all { it ushr 24 == 0xFFL })
@@ -232,7 +234,7 @@ class AppRulesTest {
             ChatBubblePalette.presets,
             ChatBubblePalette.presets,
         )
-        assertEquals(12, ChatBubblePalette.presets.size)
+        assertEquals(10, ChatBubblePalette.presets.size)
     }
 
     @Test

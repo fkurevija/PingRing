@@ -166,7 +166,7 @@ enum class BeaconVibrationPattern(val displayName: String, val pattern: LongArra
 }
 
 /**
- * The twelve chat bubble colours a member can pick from.
+ * The ten chat bubble colours a member can pick from.
  *
  * A fixed list, not a generated one. This used to hash the ring and the member
  * id into a shuffled four-colour subset, which meant every device derived a
@@ -174,9 +174,9 @@ enum class BeaconVibrationPattern(val displayName: String, val pattern: LongArra
  * was not the preset that had been applied to their messages, and the choice
  * had to be made without being able to see what the alternatives were.
  *
- * Twelve hues spanning the spectrum a person would name without hesitating:
- * red, orange, amber, yellow, lime, green, teal, cyan, blue, indigo, violet and
- * pink. The earlier set was Material 800 tones - teal, brown, blue-grey - which
+ * Ten preset colours spanning warm and cool hues, with distinct bright and
+ * soft pink options. The earlier set was Material 800 tones - teal, brown,
+ * blue-grey - which
  * are three or four neighbouring hues wearing different names, and a member
  * picking "the brown one" in a crowded transcript was relying on a difference
  * most people cannot see. Naming a colour and getting that colour is the whole
@@ -198,22 +198,17 @@ object ChatBubblePalette {
     /**
      * Every selectable colour, in the order they are offered.
      *
-     * Twelve named hues a person would reach for without hesitating: red, orange,
-     * amber, yellow, lime, green, teal, cyan, blue, indigo, violet and pink. The
+     * Ten preset colours across warm and cool hues, with distinct bright and
+     * soft pink options. The
      * set this replaces was Material 800 tones - teal, brown, blue-grey - which
      * are three or four neighbouring hues wearing different names, so a member
      * picking "the brown one" out of a crowded transcript was relying on a
      * difference most people cannot see.
      *
      * The order alternates warm and cool rather than running the spectrum, and
-     * that is deliberate. Sorted by hue it looks tidier, but it puts the two
-     * colours most likely to be confused next to each other: lime and green sit
-     * at a CIE L*a*b* distance of 18 from each other, against 46 for red and
-     * orange. In a wrapping FlowRow - where the end of one row sits beside the
-     * start of the next - "adjacent" means adjacent on screen, so the rainbow
-     * order offered two near-identical swatches as a pair to choose between.
-     * Interleaving puts the worst neighbouring pair at 66, nearly four times
-     * further apart, and still scans as a set of distinct colours.
+     * that is deliberate. In a wrapping FlowRow - where the end of one row sits
+     * beside the start of the next - "adjacent" means adjacent on screen, so
+     * interleaving keeps similar hues from appearing side by side.
      */
     val presets: List<Long> = listOf(
         0xFFE53935, // red
@@ -221,11 +216,9 @@ object ChatBubblePalette {
         0xFF7CB342, // lime
         0xFF1E88E5, // blue
         0xFFFFB300, // amber
-        0xFF00897B, // teal
         0xFF8E24AA, // violet
         0xFFFF80AB, // soft bright pink
         0xFF3949AB, // indigo
-        0xFF43A047, // green
         0xFFFB8C00, // orange
         0xFFD81B60, // pink
     )

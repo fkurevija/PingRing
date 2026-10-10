@@ -173,7 +173,7 @@ class RadarChatColourInstrumentedTest : RadarScreenTestSupport() {
     }
 
     @Test
-    fun chatSettingsOffersTheTwelvePresetsAndSelectsTheirActualColour() {
+    fun chatSettingsOffersTheTenPresetsAndSelectsTheirActualColour() {
         var selected: Long? = null
         showRadar(
             sessionState = SessionState(userName = "Ana"),

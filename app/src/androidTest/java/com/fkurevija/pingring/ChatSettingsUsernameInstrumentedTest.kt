@@ -3,16 +3,22 @@ package com.fkurevija.pingring
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextReplacement
+import androidx.test.platform.app.InstrumentationRegistry
+import com.fkurevija.pingring.R
+import com.fkurevija.pingring.data.ChatBubblePalette
 import com.fkurevija.pingring.ui.screens.ChatSettingsDialog
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
+import java.util.Locale
 
 class ChatSettingsUsernameInstrumentedTest {
     @get:Rule
@@ -21,6 +27,7 @@ class ChatSettingsUsernameInstrumentedTest {
     private fun show(
         readReceiptsEnabled: Boolean = true,
         onSave: (String) -> Unit = {},
+        onColorSelected: (Long) -> Unit = {},
         onReadReceiptsChanged: (Boolean) -> Unit = {},
     ) {
         val name = mutableStateOf("Ana")
@@ -28,7 +35,7 @@ class ChatSettingsUsernameInstrumentedTest {
             MaterialTheme {
                 ChatSettingsDialog(
                     selectedColorArgb = null,
-                    onColorSelected = {},
+                    onColorSelected = onColorSelected,
                     onDismiss = {},
                     username = name.value,
                     existingMemberNames = listOf("Bo"),
@@ -81,7 +88,7 @@ class ChatSettingsUsernameInstrumentedTest {
     fun ownUnchangedNameIsAllowedAndDoesNotNeedSaving() {
         show()
         composeRule.onNodeWithText("Ana").assertIsDisplayed()
-        composeRule.onNodeWithText("Save Changes").assertDoesNotExist()
+        composeRule.onNodeWithText("Save Changes").assertIsDisplayed().assertIsNotEnabled()
     }
 
     @Test
@@ -94,5 +101,23 @@ class ChatSettingsUsernameInstrumentedTest {
         composeRule.onNodeWithText("Save Changes").performClick()
 
         assertEquals(false, savedSetting)
+    }
+
+    @Test
+    fun firstBubbleColourIsNotAppliedUntilSaveIsClicked() {
+        var savedColor: Long? = null
+        show(onColorSelected = { savedColor = it })
+        val color = ChatBubblePalette.presets.first()
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val swatchDescription = context.getString(
+            R.string.set_chat_bubble_colour_to,
+            String.format(Locale.ROOT, "#%06X", color and 0xFFFFFFL),
+        )
+
+        composeRule.onNodeWithContentDescription(swatchDescription).performClick()
+        assertEquals(null, savedColor)
+        composeRule.onNodeWithText("Save Changes").assertIsEnabled().performClick()
+
+        assertEquals(color, savedColor)
     }
 }
