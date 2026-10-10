@@ -1,6 +1,7 @@
 package com.fkurevija.pingring
 
 import com.fkurevija.pingring.data.ChatMessage
+import com.fkurevija.pingring.data.ChatEntryType
 import com.fkurevija.pingring.data.ChatReceiptPayloadDto
 import com.fkurevija.pingring.data.ChatRecipientReceipt
 import com.fkurevija.pingring.data.ChatReceiptPolicy
@@ -21,6 +22,39 @@ class ChatReceiptPolicyTest {
             ChatRecipientReceipt("peer-b", "Bob"),
         ),
     )
+
+    @Test
+    fun onlyVisibleUnreadIncomingMessagesAddressedToMeAreEligibleForReadAcknowledgment() {
+        val incoming = message.copy(senderPeerId = "peer-b")
+        val outgoing = message.copy(id = "outgoing", senderPeerId = "peer-a")
+        val alreadyRead = incoming.copy(
+            id = "already-read",
+            recipientReceipts = incoming.recipientReceipts.map { recipient ->
+                if (recipient.peerId == "peer-a") recipient.copy(status = MessageStatus.READ) else recipient
+            },
+        )
+        val systemEntry = incoming.copy(id = "system", entryType = ChatEntryType.MEMBER_JOINED)
+        val messages = listOf(incoming, outgoing, alreadyRead, systemEntry)
+
+        assertEquals(
+            listOf(incoming),
+            ChatReceiptPolicy.visibleIncomingMessagesToAcknowledge(
+                messages = messages,
+                visibleMessageIds = listOf("message-1", "outgoing", "system"),
+                localPeerId = "peer-a",
+                readReceiptsEnabled = true,
+            ),
+        )
+        assertEquals(
+            emptyList<ChatMessage>(),
+            ChatReceiptPolicy.visibleIncomingMessagesToAcknowledge(
+                messages = messages,
+                visibleMessageIds = listOf("message-1"),
+                localPeerId = "peer-a",
+                readReceiptsEnabled = false,
+            ),
+        )
+    }
 
     @Test
     fun appliesMonotonicReceiptsOnlyForTheMatchingSenderEventMessageAndRecipient() {
@@ -70,18 +104,27 @@ class ChatReceiptPolicyTest {
 
     @Test
     fun calculatesAggregateStatusAndKeepsItWhenOlderHistoryArrives() {
-        val peerARead = ChatReceiptPolicy.apply(
+        val peerADelivered = ChatReceiptPolicy.apply(
             message,
-            ChatReceiptPayloadDto("event", "message-1", "peer-a", MessageStatus.READ),
+            ChatReceiptPayloadDto("event", "message-1", "peer-a", MessageStatus.DELIVERED),
             "sender",
             "event",
         )!!
-        val allRead = ChatReceiptPolicy.apply(
-            peerARead,
+        val peerBRead = ChatReceiptPolicy.apply(
+            peerADelivered,
             ChatReceiptPayloadDto("event", "message-1", "peer-b", MessageStatus.READ),
             "sender",
             "event",
         )!!
+        assertEquals(MessageStatus.DELIVERED, peerBRead.status)
+
+        val peerARead = ChatReceiptPolicy.apply(
+            peerBRead,
+            ChatReceiptPayloadDto("event", "message-1", "peer-a", MessageStatus.READ),
+            "sender",
+            "event",
+        )!!
+        val allRead = peerARead
 
         assertEquals(MessageStatus.READ, allRead.status)
         assertEquals(
@@ -90,5 +133,4 @@ class ChatReceiptPolicyTest {
         )
         assertEquals(allRead, ChatReceiptPolicy.merge(allRead, message.copy(recipientReceipts = emptyList())))
     }
-
 }

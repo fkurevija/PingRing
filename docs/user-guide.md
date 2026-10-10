@@ -188,6 +188,8 @@ Each beacon in the transcript has a bell button beside it. Tapping it stops your
 
 - Type in the field at the bottom and tap the send button. The chat window floats over the radar while the keyboard is up and docks again when it closes.
 - Bubbles are labelled with the sender. Everyone in the ring receives every message.
+- Your outgoing group messages show **Delivered x/y · Read x/y**. Tap the counts to see each person and their current state. The recipient list is fixed when you send; it does not change if someone later joins or leaves. **Delivered** means their device received the message; **Read** means it was visible in their foreground chat.
+- **Read Receipts** in **Chat Settings** controls whether your device sends read acknowledgments. Turn it off and tap **Save Changes** to stop sharing when you read a message; delivery acknowledgments continue to work. You will still see delivery/read progress reported by other members.
 - If you joined late or reconnected, the host replays the transcript so far.
 - **Notifications** for incoming messages are on/off app-wide in [App Settings](#app-settings), with independent **sound** and **vibration**. There is no per-PingRing notification switch — the operating system's own settings for PingRing can also silence them. While you are already watching the radar with the screen on and unlocked, the notification banner is suppressed — but the device can still sound or vibrate.
 
@@ -204,6 +206,7 @@ In English the two share the row on one line. In German or Canadian French the l
 - There is no custom picker and no "use the theme colour" option. Everyone in the ring sees the same colour for your messages, which is the entire point: two phones drawing your messages differently is what makes a busy transcript unreadable.
 - **A colour already in use cannot be picked.** Whoever holds it is named on the swatch, and the swatch is dimmed and unselectable. The **host** decides who gets what, so two people cannot pick the same colour by tapping at the same moment.
 - **Switching hands your old colour back.** The one you had before becomes free for anybody else immediately, so you can change your mind as often as you like without losing options. The same happens if you leave the PingRing.
+- **Read Receipts** — let other members know when their messages addressed to you are visible in your foreground chat. Turn the switch off and tap **Save Changes** to stop sending read acknowledgments; it does not turn off delivery acknowledgments or hide receipt progress for your own messages.
 
 ---
 

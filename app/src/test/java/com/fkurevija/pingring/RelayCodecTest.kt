@@ -293,6 +293,13 @@ class RelayCodecTest {
         val coloredChat = chat.copy(colorArgb = 0xFF00695C)
 
         assertEquals(coloredChat, payloadOf(decoded(RelayCodec.CHAT, encodedJson(coloredChat))))
+        val groupChat = chat.copy(
+            recipientReceipts = listOf(
+                com.fkurevija.pingring.data.ChatRecipientReceipt("peer-a", "Alice"),
+                com.fkurevija.pingring.data.ChatRecipientReceipt("peer-c", "Chao"),
+            ),
+        )
+        assertEquals(groupChat, payloadOf(decoded(RelayCodec.CHAT, encodedJson(groupChat))))
 
         val olderChat = payloadOf(
             RelayCodec.decodeUnwrapped(
@@ -300,6 +307,7 @@ class RelayCodecTest {
             )!!
         ) as ChatPayloadDto
         assertNull("messages from older builds retain the theme color", olderChat.colorArgb)
+        assertTrue("legacy messages have no recipient snapshot", olderChat.recipientReceipts.isEmpty())
     }
 
     @Test

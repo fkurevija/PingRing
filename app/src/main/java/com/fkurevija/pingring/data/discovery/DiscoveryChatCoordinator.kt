@@ -141,7 +141,8 @@ internal class DiscoveryChatCoordinator(
     }
 
     suspend fun markVisibleMessagesRead(messageIds: List<String>) {
-        if (!appearanceSettings.readReceiptsEnabled.first()) return
+        val readReceiptsEnabled = appearanceSettings.readReceiptsEnabled.first()
+        if (!readReceiptsEnabled) return
         val state = sessionManager.sessionState.value
         val eventId = state.currentEvent?.id ?: return
         if (readAcknowledgedEventId != eventId) {
@@ -149,20 +150,14 @@ internal class DiscoveryChatCoordinator(
             readAcknowledgedEventId = eventId
         }
         val localPeerId = sessionManager.peerId.value
-        val messagesById = state.chatMessages.associateBy { it.id }
-        messageIds.distinct().forEach { messageId ->
-            if (messageId in readAcknowledgedMessageIds) return@forEach
-            val message = messagesById[messageId] ?: return@forEach
-            if (message.entryType != ChatEntryType.MESSAGE || message.senderPeerId == localPeerId) {
-                return@forEach
-            }
-            val recipient = message.recipientReceipts.firstOrNull { it.peerId == localPeerId }
-                ?: return@forEach
-            if (recipient.status == MessageStatus.READ) {
-                readAcknowledgedMessageIds.add(messageId)
-                return@forEach
-            }
-            readAcknowledgedMessageIds.add(messageId)
+        val messages = ChatReceiptPolicy.visibleIncomingMessagesToAcknowledge(
+            messages = state.chatMessages,
+            visibleMessageIds = messageIds,
+            localPeerId = localPeerId,
+            readReceiptsEnabled = readReceiptsEnabled,
+        )
+        messages.forEach { message ->
+            if (!readAcknowledgedMessageIds.add(message.id)) return@forEach
             transport.sendChatReceiptToPeer(
                 message.senderPeerId,
                 ChatReceiptPayloadDto(

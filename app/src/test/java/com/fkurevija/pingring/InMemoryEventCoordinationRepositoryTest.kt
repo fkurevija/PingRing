@@ -5,6 +5,8 @@ import com.fkurevija.pingring.data.Event
 import com.fkurevija.pingring.data.Friend
 import com.fkurevija.pingring.data.InMemoryEventCoordinationRepository
 import com.fkurevija.pingring.data.ChatMessage
+import com.fkurevija.pingring.data.ChatRecipientReceipt
+import com.fkurevija.pingring.data.MessageStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -86,5 +88,31 @@ class InMemoryEventCoordinationRepositoryTest {
         repository.receiveChatHistory(listOf(updatedMessage))
 
         assertEquals(listOf(updatedMessage), repository.sessionState.value.chatMessages)
+    }
+
+    @Test
+    fun messageAndHistoryUpdatesDoNotRegressPerMemberReceipts() {
+        val repository = InMemoryEventCoordinationRepository()
+        val deliveredMessage = ChatMessage(
+            id = "message-1",
+            senderPeerId = "peer-1",
+            senderName = "Peer 1",
+            messageText = "Hello",
+            timestamp = 200L,
+            recipientReceipts = listOf(
+                ChatRecipientReceipt("peer-2", "Peer 2", MessageStatus.DELIVERED),
+            ),
+            status = MessageStatus.DELIVERED,
+        )
+        repository.receiveChatMessage(deliveredMessage)
+        val oldPendingMessage = deliveredMessage.copy(
+            recipientReceipts = listOf(ChatRecipientReceipt("peer-2", "Peer 2")),
+            status = MessageStatus.SENT,
+        )
+
+        repository.receiveChatHistory(listOf(oldPendingMessage))
+        repository.receiveChatMessage(oldPendingMessage)
+
+        assertEquals(deliveredMessage, repository.sessionState.value.chatMessages.single())
     }
 }

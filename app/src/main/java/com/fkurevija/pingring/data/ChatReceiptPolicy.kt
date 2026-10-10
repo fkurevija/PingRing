@@ -2,6 +2,24 @@ package com.fkurevija.pingring.data
 
 /** Applies authenticated per-recipient receipt updates without allowing state regression. */
 object ChatReceiptPolicy {
+    fun visibleIncomingMessagesToAcknowledge(
+        messages: List<ChatMessage>,
+        visibleMessageIds: Collection<String>,
+        localPeerId: String,
+        readReceiptsEnabled: Boolean,
+    ): List<ChatMessage> {
+        if (!readReceiptsEnabled || visibleMessageIds.isEmpty()) return emptyList()
+        val visibleIds = visibleMessageIds.toSet()
+        return messages.filter { message ->
+            message.id in visibleIds &&
+                message.entryType == ChatEntryType.MESSAGE &&
+                message.senderPeerId != localPeerId &&
+                message.recipientReceipts.any {
+                    it.peerId == localPeerId && it.status != MessageStatus.READ
+                }
+        }
+    }
+
     fun merge(existing: ChatMessage, incoming: ChatMessage): ChatMessage {
         if (existing.id != incoming.id) return incoming
         if (incoming.recipientReceipts.isEmpty()) {

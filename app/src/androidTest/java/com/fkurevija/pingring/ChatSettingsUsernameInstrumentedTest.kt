@@ -4,6 +4,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -17,7 +18,11 @@ class ChatSettingsUsernameInstrumentedTest {
     @get:Rule
     val composeRule = createComposeRule()
 
-    private fun show(onSave: (String) -> Unit = {}) {
+    private fun show(
+        readReceiptsEnabled: Boolean = true,
+        onSave: (String) -> Unit = {},
+        onReadReceiptsChanged: (Boolean) -> Unit = {},
+    ) {
         val name = mutableStateOf("Ana")
         composeRule.setContent {
             MaterialTheme {
@@ -31,6 +36,8 @@ class ChatSettingsUsernameInstrumentedTest {
                         name.value = it
                         onSave(it)
                     },
+                    readReceiptsEnabled = readReceiptsEnabled,
+                    onReadReceiptsChanged = onReadReceiptsChanged,
                 )
             }
         }
@@ -39,7 +46,7 @@ class ChatSettingsUsernameInstrumentedTest {
     @Test
     fun validEditsAreSanitizedTrimmedAndSaved() {
         var saved: String? = null
-        show { saved = it }
+        show(onSave = { saved = it })
         composeRule.onNodeWithText("Username").performTextReplacement("  A\u200Blex  ")
         composeRule.onNodeWithText("Save Changes").performClick()
         assertEquals("Alex", saved)
@@ -64,7 +71,7 @@ class ChatSettingsUsernameInstrumentedTest {
     @Test
     fun closingDoesNotSaveUnsubmittedChanges() {
         var saved: String? = null
-        show { saved = it }
+        show(onSave = { saved = it })
         composeRule.onNodeWithText("Username").performTextReplacement("Alex")
         composeRule.onNodeWithText("Close").performClick()
         assertEquals(null, saved)
@@ -75,5 +82,17 @@ class ChatSettingsUsernameInstrumentedTest {
         show()
         composeRule.onNodeWithText("Ana").assertIsDisplayed()
         composeRule.onNodeWithText("Save Changes").assertDoesNotExist()
+    }
+
+    @Test
+    fun readReceiptPreferenceIsAppliedOnlyWhenSaved() {
+        var savedSetting: Boolean? = null
+        show(onReadReceiptsChanged = { savedSetting = it })
+
+        composeRule.onNode(isToggleable()).performClick()
+        assertEquals(null, savedSetting)
+        composeRule.onNodeWithText("Save Changes").performClick()
+
+        assertEquals(false, savedSetting)
     }
 }
