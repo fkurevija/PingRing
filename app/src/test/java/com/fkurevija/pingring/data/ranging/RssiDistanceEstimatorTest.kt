@@ -108,9 +108,9 @@ class RssiDistanceEstimatorTest {
     @Test
     fun firstSampleSeedsTheEstimateExactly() {
         val raw = RssiDistanceEstimator.estimate(-70)!!
-        val smoother = RssiKalmanFilter()
+        val filter = RssiKalmanFilter()
 
-        assertEquals(raw, smoother.add(-70, 0L)!!, 0.0001f)
+        assertEquals(raw, filter.add(-70, 0L)!!, 0.0001f)
     }
 
     @Test
@@ -120,8 +120,8 @@ class RssiDistanceEstimatorTest {
         filter.add(-60, 0L)
         filter.add(-80, 500L)
 
-        assertNotNull(filter.smoothedRssi(1_000L))
-        assertNull(filter.smoothedRssi(1_001L))
+        assertNotNull(filter.filteredRssi(1_000L))
+        assertNull(filter.filteredRssi(1_001L))
         assertEquals(
             RssiDistanceEstimator.estimate(-80)!!,
             filter.add(-80, 1_001L)!!,

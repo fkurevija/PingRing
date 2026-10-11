@@ -133,14 +133,14 @@ class RssiKalmanFilter(
     }
 
     /** The filtered RSSI, or null when no recent valid report is held. */
-    fun smoothedRssi(nowMillis: Long): Float? {
+    fun filteredRssi(nowMillis: Long): Float? {
         expireIfStale(nowMillis)
         return estimateDbm
     }
 
     /** The distance the filtered RSSI implies, or null when nothing is held. */
     fun distance(nowMillis: Long): Float? =
-        smoothedRssi(nowMillis)?.let { RssiDistanceEstimator.estimateFromRssi(it) }
+        filteredRssi(nowMillis)?.let { RssiDistanceEstimator.estimateFromRssi(it) }
 
     /**
      * Adds a reading and returns the resulting filtered distance, or null when

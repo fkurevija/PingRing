@@ -10,17 +10,17 @@ internal class BleSignalWarningTracker(
     private val warningPeerIds = mutableSetOf<String>()
 
     @Synchronized
-    fun update(peerId: String, smoothedRssiDbm: Float?, nowMillis: Long): Boolean {
-        if (smoothedRssiDbm == null) {
+    fun update(peerId: String, filteredRssiDbm: Float?, nowMillis: Long): Boolean {
+        if (filteredRssiDbm == null) {
             if (peerId !in warningPeerIds) weakSinceByPeer.remove(peerId)
             return peerId in warningPeerIds
         }
-        if (smoothedRssiDbm >= recoveryThresholdDbm) {
+        if (filteredRssiDbm >= recoveryThresholdDbm) {
             weakSinceByPeer.remove(peerId)
             warningPeerIds.remove(peerId)
             return false
         }
-        if (smoothedRssiDbm > warningThresholdDbm) {
+        if (filteredRssiDbm > warningThresholdDbm) {
             if (peerId !in warningPeerIds) weakSinceByPeer.remove(peerId)
             return peerId in warningPeerIds
         }

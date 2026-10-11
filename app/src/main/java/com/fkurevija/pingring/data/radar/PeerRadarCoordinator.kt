@@ -195,7 +195,7 @@ internal class PeerRadarCoordinator(
         val rssiEstimate = rssiFilter.add(rssi, filterNowMillis)
         val signalWeak = bleSignalWarningTracker.update(
             peerId = peerId,
-            smoothedRssiDbm = rssiFilter.smoothedRssi(filterNowMillis),
+            filteredRssiDbm = rssiFilter.filteredRssi(filterNowMillis),
             nowMillis = filterNowMillis,
         )
         val hasUwbFix = existing?.distanceSource == RangingSourcePolicy.RangingSource.UWB &&

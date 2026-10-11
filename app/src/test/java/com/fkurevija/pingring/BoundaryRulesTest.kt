@@ -135,51 +135,49 @@ class BoundaryRulesTest {
     }
 
     @Test
-    fun `smoothing is a no-op when every sample agrees`() {
-        val smoother = RssiKalmanFilter()
+    fun `the filter stays at a stationary signal when every sample agrees`() {
+        val filter = RssiKalmanFilter()
         val expected = RssiDistanceEstimator.estimate(-70)!!
 
         var at = 0L
         repeat(5) {
-            smoother.add(-70, at)
+            filter.add(-70, at)
             at += 200
         }
 
-        assertEquals(expected, smoother.distance(at)!!, 0.0001f)
+        assertEquals(expected, filter.distance(at)!!, 0.0001f)
     }
 
     @Test
-    fun `the smoothed value never sits outside the readings it averaged`() {
-        // A mean of the window is bounded by its inputs, so an estimate beyond
-        // the strongest and weakest reading in the window would be a bug in the
-        // averaging rather than a consequence of it. The curve is monotonic, so
-        // the bound on RSSI carries over to the distance.
-        val smoother = RssiKalmanFilter()
+    fun `the filtered estimate stays within the observed RSSI range`() {
+        // A scalar Kalman update uses a gain between zero and one, so without
+        // prediction the estimate must remain bounded by valid observations.
+        val filter = RssiKalmanFilter()
         var at = 0L
         listOf(-50, -90, -70, -55, -85).forEach {
-            smoother.add(it, at)
+            filter.add(it, at)
             at += 100
         }
         val strongest = RssiDistanceEstimator.estimate(-50)!!
         val weakest = RssiDistanceEstimator.estimate(-90)!!
-        val smoothed = smoother.distance(at)!!
+        val filtered = filter.distance(at)!!
 
         assertTrue(
-            "smoothed $smoothed escaped [$strongest, $weakest]",
-            smoothed >= strongest && smoothed <= weakest
+            "filtered $filtered escaped [$strongest, $weakest]",
+            filtered >= strongest && filtered <= weakest
         )
     }
 
     @Test
-    fun `readings older than the window stop counting`() {
+    fun `filter state expires after the silence timeout`() {
         // A peer that has gone quiet must not keep a distance on screen. This
-        // is the reason the window is measured in time rather than in samples.
-        val smoother = RssiKalmanFilter()
-        smoother.add(-70, 0L)
-        val atFirstWindowEnd = RssiDistanceEstimator.FILTER_RESET_AFTER_MILLIS
-        smoother.add(-70, atFirstWindowEnd / 2)
+        // timeout is measured in elapsed time rather than number of samples.
+        val filter = RssiKalmanFilter()
+        filter.add(-70, 0L)
+        val silenceTimeout = RssiDistanceEstimator.FILTER_RESET_AFTER_MILLIS
+        filter.add(-70, silenceTimeout / 2)
 
-        assertNull("a stale reading should not hold a value on screen", smoother.distance(atFirstWindowEnd * 10))
+        assertNull("a stale reading should not hold a value on screen", filter.distance(silenceTimeout * 10))
     }
     // --- UwbRetentionPolicy: the window is measured from the drop, not from
     // --- when ranging started.

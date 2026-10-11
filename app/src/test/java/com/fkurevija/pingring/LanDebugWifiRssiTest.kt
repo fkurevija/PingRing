@@ -146,9 +146,11 @@ class LanDebugWifiRssiTest {
         }
 
         assertEquals(listOf(-59, -65, -70, -59, -53), reports.map { it.rssi })
-        val smoother = RssiKalmanFilter()
+        val filter = RssiKalmanFilter()
         val distances = reports.mapIndexed { index, report ->
-            requireNotNull(smoother.add(requireNotNull(report.rssi), index * 2_500L))
+            // Reports are deliberately separated beyond the filter's 500 ms
+            // hold interval, so this checks that a returning signal reseeds.
+            requireNotNull(filter.add(requireNotNull(report.rssi), index * 2_500L))
         }
         assertEquals(1f, distances[0], 0.01f)
         assertTrue(distances[1] > 1.8f)

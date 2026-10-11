@@ -214,7 +214,7 @@ internal class PeerDirectionCoordinator(
 
     fun updateUwbPosition(peerId: String, result: RangingResult) {
         val position = (result as? RangingResult.RangingResultPosition)?.position ?: return
-        // Keep the RSSI smoother alive so independent BLE readings can still
+        // Keep the per-peer RSSI filter alive so independent BLE readings can still
         // cross-check this fix for obstruction.
         val measuredAtMillis = System.currentTimeMillis()
         rangingCoordinator.recordUwbMeasurement(peerId, measuredAtMillis)
