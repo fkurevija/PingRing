@@ -104,6 +104,16 @@
     <string name="allow_camera">Allow Camera</string>
     <string name="camera_scan_failed">Camera scan failed. Try again.</string>
     <string name="camera_unavailable">Camera unavailable on this device.</string>
+    <string name="nfc_service_description">PingRing secure invitation sharing</string>
+    <string name="nfc_host_tap">Tap to pair: keep this screen open and unlocked while your guest taps their phone here. The same invitation secret as the QR code is shared over NFC.</string>
+    <string name="nfc_host_unavailable">NFC tap-to-pair is not available on this host. Share the QR code instead.</string>
+    <string name="nfc_host_disabled">Turn on NFC in system settings to allow tap-to-pair. The QR code is still available.</string>
+    <string name="nfc_join_button">Tap to Join with NFC</string>
+    <string name="nfc_cancel">Cancel NFC scan</string>
+    <string name="nfc_not_available">NFC is not available on this device. Use the QR code or PingRing Code instead.</string>
+    <string name="nfc_not_enabled">Turn on NFC in system settings, or use the QR code or PingRing Code.</string>
+    <string name="nfc_join_prompt">Hold this phone against the host phone and keep both screens awake.</string>
+    <string name="nfc_read_failed">Could not read a valid PingRing invitation. Try again or scan the QR code.</string>
     <string name="pingring_settings">PingRing Settings</string>
     <string name="pingring_event">PingRing Event</string>
     <string name="closed">Closed</string>

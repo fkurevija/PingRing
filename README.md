@@ -52,7 +52,7 @@ Every document links back here at the top and bottom.
 
 ### 👤 Identity & Join
 - **Custom usernames**, saved locally and unique within a session.
-- **Join via QR** or a **6-character PingRing Code** (`e.g. AB12CD`), with a validated handshake. Every Nearby link requires both users to compare and confirm shared digits; a code-only join is additionally held for the host to allow or deny.
+- **Join via QR, NFC tap-to-pair,** or a **6-character PingRing Code** (`e.g. AB12CD`), with the same validated invitation-secret handshake for QR and NFC. NFC requires host card-emulation support and NFC enabled on both phones; QR and code joining remain available as fallbacks. A code-only join is additionally held for the host to allow or deny.
 - **Per-member BLE identity**: V5 advertisements use ephemeral per-event signing keys registered over the SAS-confirmed Nearby connection; the radar rejects unregistered or invalid signatures.
 - **Localized interface** in English, Croatian, Spanish, French, Canadian French, German, and Russian. Android 13+ offers an app-specific language setting; older versions follow the device language.
 
@@ -80,6 +80,7 @@ Full detail, and the reasoning behind each of these: **[Features](docs/features.
 | **P2P Transport** | Google Nearby Connections API (`play-services-nearby`) |
 | **Spatial Ranging** | Jetpack UWB (`androidx.core.uwb`) |
 | **QR Scanning** | CameraX + Google ML Kit Barcode Scanning |
+| **NFC Pairing** | Android Host Card Emulation + ISO-DEP reader mode |
 | **Serialization** | Moshi (relay payloads) + kotlinx.serialization |
 | **Persistence / Asynchrony** | Jetpack DataStore Preferences, Kotlin Coroutines & StateFlow |
 | **Testing** | JUnit 4, `kotlinx-coroutines-test`, Compose UI Test, JaCoCo |

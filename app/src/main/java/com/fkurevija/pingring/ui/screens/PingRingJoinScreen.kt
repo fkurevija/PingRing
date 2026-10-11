@@ -267,6 +267,16 @@ fun PingRingJoinScreen(
                             fontWeight = FontWeight.SemiBold
                         )
                     }
+
+                    Spacer(Modifier.height(8.dp))
+                    NfcJoinControl(
+                        enabled = !isConnecting,
+                        onInvite = { invite ->
+                            eventCode = invite.eventCode
+                            inputError = null
+                            attemptJoin(invite.eventCode, invite.secret)
+                        },
+                    )
                 }
             }
         }

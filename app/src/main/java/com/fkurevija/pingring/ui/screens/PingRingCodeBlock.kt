@@ -28,7 +28,16 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import android.nfc.NfcAdapter
+import android.content.pm.PackageManager
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -40,6 +49,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.fkurevija.pingring.R
+import com.fkurevija.pingring.data.nfc.NfcInviteExchange
 
 /**
  * The invitation as a guest receives it: a QR code, the code to read out, and how
@@ -73,6 +83,47 @@ fun PingRingCodeBlock(
         // re-encoding a QR code is the expensive part of the block.
         val qrValue = remember(eventCode, inviteSecret) {
             PingRingInvite(eventCode, inviteSecret).toQrValue()
+        }
+        val context = LocalContext.current
+        val lifecycleOwner = LocalLifecycleOwner.current
+        val hostCardEmulationAvailable = remember(context) {
+            context.packageManager.hasSystemFeature(PackageManager.FEATURE_NFC_HOST_CARD_EMULATION)
+        }
+        val nfcAdapter = remember(context) { NfcAdapter.getDefaultAdapter(context) }
+        var nfcEnabled by remember(nfcAdapter) { mutableStateOf(nfcAdapter?.isEnabled == true) }
+        DisposableEffect(lifecycleOwner, nfcAdapter) {
+            val observer = LifecycleEventObserver { _, event ->
+                if (event == Lifecycle.Event.ON_RESUME) {
+                    nfcEnabled = nfcAdapter?.isEnabled == true
+                }
+            }
+            lifecycleOwner.lifecycle.addObserver(observer)
+            onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+        }
+        DisposableEffect(
+            qrValue,
+            eventCode,
+            inviteSecret,
+            hostCardEmulationAvailable,
+            nfcEnabled,
+            lifecycleOwner,
+        ) {
+            fun updateInviteAvailability() {
+                val inviteIsVisible = lifecycleOwner.lifecycle.currentState
+                    .isAtLeast(Lifecycle.State.RESUMED)
+                if (hostCardEmulationAvailable && nfcEnabled && inviteSecret != null && inviteIsVisible) {
+                    NfcInviteExchange.activate(eventCode, inviteSecret)
+                } else {
+                    NfcInviteExchange.deactivate(qrValue)
+                }
+            }
+            val observer = LifecycleEventObserver { _, _ -> updateInviteAvailability() }
+            lifecycleOwner.lifecycle.addObserver(observer)
+            updateInviteAvailability()
+            onDispose {
+                lifecycleOwner.lifecycle.removeObserver(observer)
+                NfcInviteExchange.deactivate(qrValue)
+            }
         }
         val qrCodeBitmap = remember(qrValue) {
             generateQrCode(qrValue).asImageBitmap()
@@ -115,7 +166,6 @@ fun PingRingCodeBlock(
         // gesture with no keyboard or screen-reader equivalent, so without it
         // the copy is unreachable for exactly the people least able to
         // transcribe six characters correctly.
-        val context = LocalContext.current
         val clipboard = LocalClipboardManager.current
         val copyActionLabel = stringResource(R.string.copy_pingring_code)
         Box(
@@ -180,5 +230,18 @@ fun PingRingCodeBlock(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+        Spacer(Modifier.height(12.dp))
+        val nfcGuidance = when {
+            !hostCardEmulationAvailable || nfcAdapter == null ->
+                stringResource(R.string.nfc_host_unavailable)
+            !nfcEnabled -> stringResource(R.string.nfc_host_disabled)
+            inviteSecret == null -> stringResource(R.string.nfc_host_unavailable)
+            else -> stringResource(R.string.nfc_host_tap)
+        }
+        Text(
+            nfcGuidance,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }

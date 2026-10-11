@@ -102,6 +102,16 @@
     <string name="allow_camera">Разрешить камеру</string>
     <string name="camera_scan_failed">Не удалось отсканировать код. Попробуйте ещё раз.</string>
     <string name="camera_unavailable">Камера недоступна на этом устройстве.</string>
+    <string name="nfc_service_description">Безопасная передача приглашения PingRing</string>
+    <string name="nfc_host_tap">Коснитесь для сопряжения: оставьте этот экран открытым и разблокированным, пока гость прикладывает телефон. NFC передаёт тот же секрет приглашения, что и QR-код.</string>
+    <string name="nfc_host_unavailable">Сопряжение по NFC на этом устройстве недоступно. Поделитесь QR-кодом.</string>
+    <string name="nfc_host_disabled">Включите NFC в системных настройках. QR-код по-прежнему доступен.</string>
+    <string name="nfc_join_button">Вступить через NFC</string>
+    <string name="nfc_cancel">Отменить чтение NFC</string>
+    <string name="nfc_not_available">NFC на этом устройстве недоступен. Используйте QR-код или код PingRing.</string>
+    <string name="nfc_not_enabled">Включите NFC в системных настройках или используйте QR-код либо код PingRing.</string>
+    <string name="nfc_join_prompt">Приложите этот телефон к телефону хоста и не выключайте экраны.</string>
+    <string name="nfc_read_failed">Не удалось прочитать действительное приглашение PingRing. Повторите попытку или отсканируйте QR-код.</string>
     <string name="pingring_settings">Настройки PingRing</string>
     <string name="pingring_event">Событие PingRing</string>
     <string name="closed">Закрыто</string>

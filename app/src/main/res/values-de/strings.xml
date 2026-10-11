@@ -102,6 +102,16 @@
     <string name="allow_camera">Kamera erlauben</string>
     <string name="camera_scan_failed">Kamerascanner fehlgeschlagen. Bitte versuche es erneut.</string>
     <string name="camera_unavailable">Kamera auf diesem Gerät nicht verfügbar.</string>
+    <string name="nfc_service_description">Sicheres Teilen einer PingRing-Einladung</string>
+    <string name="nfc_host_tap">Zum Koppeln antippen: Lass diesen Bildschirm geöffnet und entsperrt, während dein Gast sein Telefon daran hält. NFC teilt dasselbe Einladungstoken wie der QR-Code.</string>
+    <string name="nfc_host_unavailable">NFC-Kopplung ist auf diesem Host nicht verfügbar. Teile stattdessen den QR-Code.</string>
+    <string name="nfc_host_disabled">Aktiviere NFC in den Systemeinstellungen für die Kopplung. Der QR-Code ist weiterhin verfügbar.</string>
+    <string name="nfc_join_button">Mit NFC beitreten</string>
+    <string name="nfc_cancel">NFC-Lesen abbrechen</string>
+    <string name="nfc_not_available">NFC ist auf diesem Gerät nicht verfügbar. Nutze den QR-Code oder den PingRing-Code.</string>
+    <string name="nfc_not_enabled">Aktiviere NFC in den Systemeinstellungen oder nutze den QR-Code oder PingRing-Code.</string>
+    <string name="nfc_join_prompt">Halte dieses Telefon an das Host-Telefon und lass beide Bildschirme eingeschaltet.</string>
+    <string name="nfc_read_failed">Keine gültige PingRing-Einladung gelesen. Versuche es erneut oder scanne den QR-Code.</string>
     <string name="color_preset_ocean">Ozean</string>
     <string name="color_preset_berry">Beere</string>
     <string name="color_preset_gold">Gold</string>

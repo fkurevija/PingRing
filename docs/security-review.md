@@ -49,6 +49,10 @@ GPS sharing is unconditional while a Ring is running; it is no longer a host-con
 
 The six-hex code is a locator, not a credential. A typed-code join has no secret proof and always requires host approval; a QR scan carries the 256-bit secret and is admitted directly when host policy permits. The code is still advertised over BLE so a guest who was told it can find the host. Unauthenticated BLE/Nearby discovery hints can be forged. If digit comparison is off, a user can connect to an impersonating endpoint; subsequent key signatures do not repair a compromised initial admission. Keep the switch on when this additional identity check is required. Protect the QR like an invitation and approve only intended guests; neither usernames nor role hints prove human identity.
 
+### NFC carries the same bearer invitation as QR
+
+Tap-to-pair transfers the exact QR invitation URI, including its 256-bit secret, through a host-card-emulation APDU exchange. The guest validates it with the QR parser and enters the same secret-proof join path; NFC does not grant admission from the event code alone. The host serves it only while its invitation UI is composed, keeps it in process memory, requires the device to be unlocked, and does not log it. NFC itself is not an encrypted channel or secure distance-bounding protocol. A person able to intercept the short-range exchange may obtain the bearer secret, just as someone able to copy the QR can; treat both as invitations and expose them only to intended guests. Host NFC/HCE support and NFC enabled on both devices are required; otherwise use QR or code-only approval.
+
 ### The host's control over a ring is a single yes/no
 
 There is no per-join approval switch and no way for a host to hold a guest it personally invited. Anyone holding the six-character code can request to join, and the host's standing control is closing the ring to new arrivals. A code-only join still needs explicit Allow and capacity still refuses the ninth member. Disabling the optional Nearby digit comparison weakens initial peer authentication.

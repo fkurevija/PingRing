@@ -32,7 +32,7 @@ How to use PingRing as it exists today — what each screen does and which switc
 
 1. Tap **Create a PingRing** on the home screen.
 2. Enter a **Username**. It is saved on the device and pre-filled next time. Names must be unique within a session — a collision is refused with an alert.
-3. Share the **QR code** when possible; it contains the 256-bit invitation secret. The 6-character **PingRing Code** (`e.g. AB12CD`) is a public event locator, not a secret. **Long-press the code to copy it** — reading six characters aloud is exactly how one of them gets misheard, and copying beats transcribing. Screen readers get the same thing as a **Copy PingRing Code** action.
+3. Share the **QR code** or use **NFC tap-to-pair** when both phones support NFC and the host supports card emulation; each carries the 256-bit invitation secret. For NFC, keep this invitation screen open and unlocked while the guest starts NFC join and taps the phones together. The 6-character **PingRing Code** (`e.g. AB12CD`) is a public event locator, not a secret. **Long-press the code to copy it** — reading six characters aloud is exactly how one of them gets misheard, and copying beats transcribing. Screen readers get the same thing as a **Copy PingRing Code** action.
 4. The screen also states **Max Capacity** — PingRing is limited to 8 members (1 host + 7 guests) — because you are the one deciding who to invite.
 5. If you want to change who may join or whether this device uses UWB, tap **PingRing Settings** further down the same panel.
 6. Tap **Launch Radar**.
@@ -56,10 +56,11 @@ There are exactly two ways in, and both start with you:
 ## Joining a PingRing
 
 1. Tap **Join a PingRing**.
-2. Enter your **Username** and one of:
+2. Enter your **Username** and choose one of:
   - the **6-character PingRing Code** — the field forces capitals and holds six characters at most, so a pasted code cannot leave extra digits behind; the host must approve this code-only request;
-  - the host's **QR code** — tap **Scan Host QR Code** (disabled with a reason if there is no camera); this includes the invitation secret.
-3. Tap **Connect**.
+  - the host's **QR code** — tap **Scan Host QR Code** (disabled with a reason if there is no camera); this includes the invitation secret;
+  - **Tap to Join with NFC** — tap the button, then hold your unlocked phone against the host's unlocked invitation screen. Both phones need NFC enabled, and the host phone needs NFC Host Card Emulation. If NFC is unsupported or unavailable, use QR or the PingRing Code.
+3. Tap **Connect** for a typed code. QR and NFC invitations continue directly to the same secret-protected join flow.
 
 A typed-code join waits for the host's Allow/Deny decision in the join request card; unanswered requests expire after **45 seconds**. QR-secret joins are admitted directly when the ring allows them. When **Verify Nearby connections** is on, compare the six digits shown on both phones and confirm only if they match. If joining fails or is denied, the session is cleaned up and you can retry.
 

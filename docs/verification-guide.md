@@ -176,6 +176,10 @@ Stand 1 m from the access point for admission and the first valid sample: the he
 
 **Evidence:** Screenshots on both sides without invitation secrets, request/decision timestamps, and admission logs. Test a missing join-proof timeout separately from the subsequent host-approval timeout.
 
+**NFC tap-to-pair:** On two unlocked NFC phones, keep the host's invitation view open. On the guest, start **Tap to Join with NFC** and tap the phones together. Verify the invite reaches the same QR-secret join callback and is admitted under the same host policy; the event code alone must never be sufficient. Repeat with NFC disabled on either phone, no NFC/HCE host hardware, a malformed APDU response, and the wrong phone/tag; each must fail closed and leave QR/code joining available. Turn the host screen away and verify it no longer serves the invitation. Do not record or share raw NFC responses or invite secrets.
+
+**Pass:** Valid NFC invitations produce the same parsed event code and secret as the host QR and follow the QR-secret admission flow. Invalid or absent invitation data does not call the join path. Unsupported/disabled NFC has a visible fallback, and ending the invitation view removes the in-memory host payload.
+
 **Member controls:** Verify the Members drawer has selectable rows and no tracking dropdown. Selecting another row changes tracking; selecting the same row cannot clear it. In Chat Settings, save a new username and verify the local session, remote member rows, subsequent messages and future-session prefill use the new name. Reject blank/whitespace-only and case-insensitive duplicate names; repeat sanitization/length checks from hosting/joining. Closing without Save Changes must not rename the user.
 
 ## V07 - Radio Power And Battery

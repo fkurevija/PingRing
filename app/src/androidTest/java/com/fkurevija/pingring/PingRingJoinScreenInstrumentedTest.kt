@@ -196,4 +196,14 @@ class PingRingJoinScreenInstrumentedTest {
         composeRule.onNodeWithText(context.getString(R.string.ask_host_for_code))
             .assertIsDisplayed()
     }
+
+    @Test
+    fun nfcJoinOptionIsShownAlongsideQrAndCodeFallbacks() {
+        showJoin()
+
+        composeRule.onNodeWithText(context.getString(R.string.nfc_join_button))
+            .assertIsDisplayed()
+        composeRule.onNodeWithText(context.getString(R.string.scan_host_qr))
+            .assertIsDisplayed()
+    }
 }
