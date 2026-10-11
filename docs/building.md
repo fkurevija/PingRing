@@ -36,7 +36,7 @@ cd PingRing
 
 On Windows (PowerShell): `.\gradlew.bat testDebugUnitTest assembleDebug`
 
-The APK lands at `app/build/outputs/apk/debug/app-debug.apk`.
+The APK lands at `app/build/outputs/apk/debug/app-debug.apk`. The **Build APK** workflow uploads it as `Pingring-debug.apk`; when release signing is configured, it uploads the signed APK as `PingRing-v<versionName>.apk` (for example, `PingRing-v1.0.apk`).
 
 For physical-radio, recovery, security, accessibility, and release-key checks, follow the [Roadmap Verification Guide](verification-guide.md). It separates runnable manual checks from scenarios requiring extra hardware or a protocol harness.
 
@@ -69,7 +69,7 @@ keytool -genkeypair -v -keystore /secure/path/pingring-release.jks -alias pingri
 
 Before relying on the key, make two encrypted backups on separate offline media. Restore one backup to a temporary secure path and run `keytool -list -v -keystore <restored-path> -alias pingring`; verify that the certificate fingerprint matches the original. Do not put the keystore, passwords, or a temporary restored copy in the repository.
 
-In CI, set all four secrets: `PINGRING_KEYSTORE_BASE64` (the keystore, base64-encoded), `PINGRING_KEYSTORE_PASSWORD`, `PINGRING_KEY_ALIAS`, and `PINGRING_KEY_PASSWORD`. With none configured, signing is skipped; a partial set fails the workflow. CI runs `apksigner verify --verbose --print-certs` on the resulting release APK before uploading it as `pingring-release-apk`. Keystores are gitignored.
+In CI, set all four secrets: `PINGRING_KEYSTORE_BASE64` (the keystore, base64-encoded), `PINGRING_KEYSTORE_PASSWORD`, `PINGRING_KEY_ALIAS`, and `PINGRING_KEY_PASSWORD`. With none configured, signing is skipped; a partial set fails the workflow. CI runs `apksigner verify --verbose --print-certs` on the resulting release APK before uploading it as `pingring-release-apk`. The **Build APK** workflow names this file `PingRing-v<versionName>.apk`. Keystores are gitignored.
 
 After the first signed APK exists and a later release has a higher `versionCode`, verify an upgrade on a test device before publishing: install the earlier signed APK, add non-sensitive test data, then install the new APK with `adb install -r <new-release.apk>`. Confirm that the update succeeds without an uninstall/signature error and that app data remains. Compare both APKs' certificate fingerprints with `apksigner verify --print-certs`; they must match. A debug-signed APK cannot serve as the baseline for this check because it has a different signing identity.
 

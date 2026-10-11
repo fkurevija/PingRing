@@ -65,6 +65,9 @@ jobs:
       - name: Assemble debug APK
         run: ./gradlew assembleDebug --stacktrace
 
+      - name: Name debug APK
+        run: mv app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/Pingring-debug.apk
+
       - name: Check release signing configuration
         id: release-signing
         env:
@@ -111,7 +114,18 @@ jobs:
             -PPINGRING_KEY_ALIAS="$PINGRING_KEY_ALIAS" \
             -PPINGRING_KEY_PASSWORD="$PINGRING_KEY_PASSWORD"
           sdk_root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:?Android SDK is not configured}}"
-          apk="$GITHUB_WORKSPACE/app/build/outputs/apk/release/app-release.apk"
+          release_dir="$GITHUB_WORKSPACE/app/build/outputs/apk/release"
+          apk="$release_dir/app-release.apk"
+          version_name="$("$sdk_root/build-tools/36.0.0/aapt" dump badging "$apk" \
+            | sed -n "s/^package:.* versionName='\([^']*\)'.*/\1/p" | head -n 1)"
+          if [ -z "$version_name" ]; then
+            echo "::error::Could not read the release APK version name."
+            exit 1
+          fi
+          safe_version_name="$(printf '%s' "$version_name" | sed 's/[^A-Za-z0-9._-]/_/g')"
+          named_apk="$release_dir/PingRing-v${safe_version_name}.apk"
+          mv "$apk" "$named_apk"
+          apk="$named_apk"
           "$sdk_root/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$apk"
 
       - name: Upload signed release APK
@@ -119,7 +133,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: pingring-release-apk
-          path: app/build/outputs/apk/release/*.apk
+          path: app/build/outputs/apk/release/PingRing-v*.apk
           if-no-files-found: error
           overwrite: true
 
@@ -127,7 +141,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: pingring-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
+          path: app/build/outputs/apk/debug/Pingring-debug.apk
           if-no-files-found: error
           overwrite: true
 
