@@ -15,6 +15,7 @@ class RadarChatReceiptsInstrumentedTest : RadarScreenTestSupport() {
             recipientReceipts = listOf(
                 ChatRecipientReceipt("alice", "Alice", MessageStatus.READ),
                 ChatRecipientReceipt("bob", "Bob", MessageStatus.DELIVERED),
+                ChatRecipientReceipt("charlie", "Charlie", MessageStatus.SENT),
             ),
         )
         showRadar(
@@ -23,7 +24,7 @@ class RadarChatReceiptsInstrumentedTest : RadarScreenTestSupport() {
         )
 
         composeRule.onNodeWithText(
-            context.getString(com.fkurevija.pingring.R.string.chat_receipt_counts, 2, 2, 1, 2)
+            context.getString(com.fkurevija.pingring.R.string.chat_receipt_counts, 2, 3, 1, 3)
         ).assertIsDisplayed().performClick()
         composeRule.settle()
 
@@ -32,6 +33,8 @@ class RadarChatReceiptsInstrumentedTest : RadarScreenTestSupport() {
         composeRule.onNodeWithText("Alice: ${context.getString(com.fkurevija.pingring.R.string.chat_receipt_read)}")
             .assertIsDisplayed()
         composeRule.onNodeWithText("Bob: ${context.getString(com.fkurevija.pingring.R.string.chat_receipt_delivered)}")
+            .assertIsDisplayed()
+        composeRule.onNodeWithText("Charlie: ${context.getString(com.fkurevija.pingring.R.string.chat_receipt_sent)}")
             .assertIsDisplayed()
     }
 

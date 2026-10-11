@@ -304,6 +304,18 @@ Stand 1 m from the access point for admission and the first valid sample: the he
 
 **Evidence:** Non-secret fingerprints, versionCodes, CI run/artifact references, verification output, and before/after preference/data checks. Do not publish keystore files, passwords, base64 contents, or temporary restored copies. Do not test destructive uninstall/different-key replacement on a phone containing real data. Restore/delete temporary test material using the owner's secure-handling process.
 
+## V19 - Nearby Delivery Versus Radar Reach
+
+**Needs:** At least two physical phones for direct-link tests; three phones for a relay path; representative supported Android/device combinations; synchronized timestamps or a test harness able to record sends and receipts. Use synthetic chat/beacon content and a safe, controlled venue.
+
+**Steps:** For each device pair, record model, Android/Google Play services versions, Wi-Fi/Bluetooth state, placement, obstacles, and whether the selected peer's distance/direction is fresh, retained, or stale. At repeatable distances and placements, send uniquely identified chat messages and beacons in both directions. Correlate the sender's `sendPayload` result with the recipient's actual displayed/accepted message and the sender's per-recipient **Delivered** receipt; they are different observations. Repeat with a forced multi-hop topology and after a short partition/recovery, recording route changes, missing/duplicate messages, delivery latency, and receipt recovery. Include control runs where radar proximity is absent or stale. Repeat each condition enough times to distinguish a reproducible gap from a transient radio loss; do not use BLE RSSI or a lingering UWB direction alone as evidence that Nearby should still deliver.
+
+**Pass:** Report delivery success rate and latency by pair, distance, topology, and condition. Identify every case where a member has a fresh proximity reading but a message remains **Sent · delivery not confirmed**, and distinguish that from a fresh receipt arriving later. A single anecdote is not enough to justify a new transport; define a repeatable, user-visible delivery threshold and compare against the baseline before recommending an upgrade.
+
+**Conditional upgrade experiment:** If the baseline shows a repeatable gap, prototype one separately managed Wi-Fi Aware data path first; compare Wi-Fi Direct only if Aware is unsupported, unavailable concurrently with existing Wi-Fi RTT, or fails the measured requirement. Keep Nearby as the control/fallback. Run the same placement/topology matrix on both paths, then exercise admission, signed-origin validation, duplicate/hop limits, per-member delivery receipts, disconnect/reconnect, Wi-Fi disabled, unsupported devices, coexistence with RTT, and battery/latency cost. Accept an upgrade only if it materially improves end-to-end delivery in the failing cases without weakening authorization or making unsupported-device behavior worse; otherwise retain Nearby and improve delivery/reachability messaging.
+
+**Evidence:** Sanitized per-message timestamps/IDs, sender transport-send outcomes, recipient receive/display observations, delivery receipts, proximity source and freshness, topology, device matrix, repeated-run counts, recovery outcomes, and power observations. Never record chat contents or invite secrets. Mark unsupported radios or an unverifiable route Blocked rather than assuming a result.
+
 ## Closing A Roadmap Item
 
 1. Attach results for every applicable subcase, including negative and recovery cases, to the exact tested build/device matrix.
