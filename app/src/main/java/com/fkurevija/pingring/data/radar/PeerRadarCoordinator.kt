@@ -1,6 +1,7 @@
 package com.fkurevija.pingring.data.radar
 
 import android.content.Context
+import android.os.SystemClock
 import androidx.core.uwb.RangingResult
 import com.fkurevija.pingring.R
 import com.fkurevija.pingring.data.*
@@ -17,7 +18,7 @@ import com.fkurevija.pingring.data.ranging.MockRangingDto
 import com.fkurevija.pingring.data.ranging.RangingConfidence
 import com.fkurevija.pingring.data.ranging.RangingSourcePolicy
 import com.fkurevija.pingring.data.ranging.RssiDistanceEstimator
-import com.fkurevija.pingring.data.ranging.RssiSmoother
+import com.fkurevija.pingring.data.ranging.RssiKalmanFilter
 import com.fkurevija.pingring.data.ranging.UwbRetentionPolicy
 import com.fkurevija.pingring.data.session.Event
 import com.fkurevija.pingring.data.session.Friend
@@ -83,7 +84,7 @@ internal class PeerRadarCoordinator(
     val lastKnownPeerDirections: StateFlow<List<LastKnownPeerDirection>> = _lastKnownPeerDirections.asStateFlow()
 
     private val additionalRangingSequences = ConcurrentHashMap<String, Long>()
-    private val rssiSmoothers = mutableMapOf<String, RssiSmoother>()
+    private val rssiFilters = mutableMapOf<String, RssiKalmanFilter>()
     private val bleSignalWarningTracker = BleSignalWarningTracker()
     private val _connectedPeerIds = mutableSetOf<String>()
     private val _departedPeerIds = mutableSetOf<String>()
@@ -185,16 +186,17 @@ internal class PeerRadarCoordinator(
 
         // A UWB measurement is real ranging, so it always wins over an RSSI
         // guess. Only peers that have never been ranged fall back to the
-        // estimate, which is a rolling average over the last second
-        // of adverts - the curve is applied to the mean, not to each reading,
-        // so one reflected packet cannot move the readout.
+        // estimate, which is a time-aware Kalman-filtered RSSI value. Applying
+        // the path-loss curve after filtering keeps a reflected packet from
+        // directly becoming a large distance jump.
         val nowMillis = System.currentTimeMillis()
-        val rssiSmoother = rssiSmoothers.getOrPut(peerId) { RssiSmoother() }
-        val rssiEstimate = rssiSmoother.add(rssi, nowMillis)
+        val filterNowMillis = SystemClock.elapsedRealtime()
+        val rssiFilter = rssiFilters.getOrPut(peerId) { RssiKalmanFilter() }
+        val rssiEstimate = rssiFilter.add(rssi, filterNowMillis)
         val signalWeak = bleSignalWarningTracker.update(
             peerId = peerId,
-            smoothedRssiDbm = rssiSmoother.smoothedRssi(nowMillis),
-            nowMillis = nowMillis,
+            smoothedRssiDbm = rssiFilter.smoothedRssi(filterNowMillis),
+            nowMillis = filterNowMillis,
         )
         val hasUwbFix = existing?.distanceSource == RangingSourcePolicy.RangingSource.UWB &&
             rangingCoordinator.hasUwbMeasurement(peerId)
@@ -282,7 +284,7 @@ internal class PeerRadarCoordinator(
         // old flags would suppress its RSSI estimate, and keeping the old
         // average would seed it with a distance from a session that is over.
         rangingCoordinator.forgetPeer(peerId)
-        rssiSmoothers.remove(peerId)
+        rssiFilters.remove(peerId)
         bleSignalWarningTracker.remove(peerId)
         removeWifiAnchor(peerId)
         // The display label is keyed to the member rather than to their
@@ -531,13 +533,13 @@ internal class PeerRadarCoordinator(
         //    signal history: a UWB measurement outranks an estimate, and the
         //    two must not be blended.
         //  - An rssi with no distance is a *signal* reading, which is what a
-        //    non-UWB peer actually provides. It goes through RssiSmoother on
+        //    non-UWB peer actually provides. It goes through RssiKalmanFilter on
         //    the same path a BLE advert takes, so scripted noise, outliers and
         //    dropouts exercise the real filter instead of bypassing it.
         val isRangingFix = dto.distance != null
         if (isRangingFix) {
             rangingCoordinator.markUwbMeasurement(peerId)
-            rssiSmoothers.remove(peerId)
+            rssiFilters.remove(peerId)
         }
         // Mirrors the BLE path: the estimate is what the distance becomes, and
         // a null estimate means the peer has dropped below the noise floor, in
@@ -545,7 +547,8 @@ internal class PeerRadarCoordinator(
         val rssiEstimate = if (isRangingFix) {
             null
         } else {
-            rssi?.let { rssiSmoothers.getOrPut(peerId) { RssiSmoother() }.add(it, System.currentTimeMillis()) }
+            val filterNowMillis = SystemClock.elapsedRealtime()
+            rssi?.let { rssiFilters.getOrPut(peerId) { RssiKalmanFilter() }.add(it, filterNowMillis) }
         }
 
         val updated = RadarPeerUpdate(

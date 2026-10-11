@@ -78,7 +78,7 @@ data class MockRangingDto(
      * makes it useless for testing the *smoothing* of signal readings, because
      * a scripted distance is never noisy - it goes on screen exactly as sent.
      * A report with [rssi] and no [distance] is the BLE case instead: the
-     * reading is fed through [RssiSmoother] like a real advert, so noise,
+     * reading is fed through [RssiKalmanFilter] like a real advert, so noise,
      * outliers and dropouts can be exercised against the real filter.
      */
     val rssi: Int? = null

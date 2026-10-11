@@ -9,7 +9,6 @@ import com.fkurevija.pingring.data.session.EventControlPayloadDto
 import com.fkurevija.pingring.data.session.MemberDeparturePayloadDto
 import com.fkurevija.pingring.data.ranging.MockRangingDto
 import com.fkurevija.pingring.data.session.MeshPresencePayloadDto
-import com.fkurevija.pingring.data.ranging.RssiSmoother
 import com.fkurevija.pingring.data.RelayCodec
 import com.fkurevija.pingring.data.RelayEnvelope
 import kotlinx.coroutines.CoroutineStart

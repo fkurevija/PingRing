@@ -144,7 +144,7 @@ These are implementation windows for the tested build, not guarantees of radio d
 
 **Analysis:** Fit `RSSI = A - 10n log10(distance)` using measured distance. Compare fitted A/n with the shipped defaults (-59 dBm and 2.2); report median absolute error, large outliers, and conditions. A repeatable large bias is a calibration finding, not evidence that more smoothing will fix it.
 
-**Future calibration evaluation (not an in-app feature):** Collect repeated readings at 1 m, 3 m, and 5 m in the target room with consistent phone placement. Fit A/n using RSSI versus `log10(distance)` and validate on a separate set of known-distance measurements. Record device pair, room, orientation, fitted parameters, and error distribution; repeat after changing these conditions. Compare filtering candidates using the same recorded traces, checking movement lag as well as stationary jitter. The current 1-second moving average is the baseline, not a sub-metre accuracy guarantee. Fixed-anchor trilateration and BLE AoA need separate hardware/setup evaluation; see [tracking measurement quality proposals](roadmap.md#tracking-measurement-quality-documented-proposals-not-implemented).
+**Calibration evaluation (not an in-app feature):** Collect repeated readings at 1 m, 3 m, and 5 m in the target room with consistent phone placement. Fit A/n using RSSI versus `log10(distance)` and validate on a separate set of known-distance measurements. Record device pair, room, orientation, fitted parameters, and error distribution; repeat after changing these conditions. Evaluate the current RSSI Kalman filter against a recorded 1-second moving-average baseline using the same traces, checking movement lag as well as stationary jitter; see [V20](#v20---rssi-kalman-filter-evaluation). Neither filter is an accuracy guarantee. Fixed-anchor trilateration and BLE AoA need separate hardware/setup evaluation; see [tracking measurement quality proposals](roadmap.md#tracking-measurement-quality-documented-proposals-not-implemented).
 
 ## V05 - LAN Relay Teardown
 
@@ -315,6 +315,18 @@ Stand 1 m from the access point for admission and the first valid sample: the he
 **Conditional upgrade experiment:** If the baseline shows a repeatable gap, prototype one separately managed Wi-Fi Aware data path first; compare Wi-Fi Direct only if Aware is unsupported, unavailable concurrently with existing Wi-Fi RTT, or fails the measured requirement. Keep Nearby as the control/fallback. Run the same placement/topology matrix on both paths, then exercise admission, signed-origin validation, duplicate/hop limits, per-member delivery receipts, disconnect/reconnect, Wi-Fi disabled, unsupported devices, coexistence with RTT, and battery/latency cost. Accept an upgrade only if it materially improves end-to-end delivery in the failing cases without weakening authorization or making unsupported-device behavior worse; otherwise retain Nearby and improve delivery/reachability messaging.
 
 **Evidence:** Sanitized per-message timestamps/IDs, sender transport-send outcomes, recipient receive/display observations, delivery receipts, proximity source and freshness, topology, device matrix, repeated-run counts, recovery outcomes, and power observations. Never record chat contents or invite secrets. Mark unsupported radios or an unverifiable route Blocked rather than assuming a result.
+
+## V20 - RSSI Kalman Filter Evaluation
+
+**Needs:** Two phones that support signed BLE presence; a repeatable way to capture timestamped RSSI reports and displayed estimates; tape-measured positions or a marked walking path. Use the same phone pair, placement, and path for each filtering comparison. UWB may provide an additional reference when both phones support it, but do not treat it as error-free ground truth.
+
+**Steps:** Record stationary traces at several known separations, then record repeatable approach/retreat movement and turns with consistent phone placement. Capture raw RSSI, filtered RSSI, displayed distance, timestamps, and any fresh UWB distance. Include hand-held, front/back pocket, line-of-sight, and body-obstructed conditions. Replay each trace through the scalar Kalman implementation and, where available, the prior rolling-mean baseline using the same RSSI samples. Record the configured process/measurement variances and do not tune on the validation traces.
+
+The shipped defaults are process variance `9 dBm²/s` and measurement variance `36 dBm²`; these are initial engineering values, not fitted handset statistics.
+
+**Pass:** The filter produces finite, correctly attributed estimates; document rather than assume a benefit. Report stationary spread/error, response lag and overshoot after movement, and sensitivity to isolated strong reflections for both filters. Keep the Kalman implementation only if the measured trade-off meets an explicitly stated product threshold; otherwise adjust or revert it based on evidence. Passing a synthetic unit test or scripted trace alone does not establish radio accuracy or field improvement.
+
+**Evidence:** Sanitized timestamped RSSI/distance traces, device models and builds, placement/environment, parameter values, analysis method, and per-trace comparison results. Do not include identifiers, chat content, invite secrets, or private coordinates.
 
 ## Closing A Roadmap Item
 

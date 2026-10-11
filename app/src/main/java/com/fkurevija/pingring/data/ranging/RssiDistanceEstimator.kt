@@ -1,6 +1,7 @@
 package com.fkurevija.pingring.data.ranging
+
+import kotlin.math.max
 import kotlin.math.pow
-import com.fkurevija.pingring.data.DiscoveryRepository
 
 /**
  * Turns a BLE RSSI reading into a distance estimate, and keeps the estimate
@@ -19,8 +20,7 @@ import com.fkurevija.pingring.data.DiscoveryRepository
  *    the middle of the screen regardless of how far away they really were.
  *
  * The model here is the usual log-distance path-loss fit. Kept free of Android
- * APIs so the curve can be unit tested; [DiscoveryRepository] supplies the
- * readings and applies the smoothing.
+ * APIs so the curve and the upstream RSSI filter can be tested independently.
  */
 object RssiDistanceEstimator {
 
@@ -62,19 +62,8 @@ object RssiDistanceEstimator {
      */
     const val MAX_DISTANCE_METERS = 40f
 
-    /**
-     * How far back a reading still counts toward the smoothed RSSI, in
-     * milliseconds. A half-second window reduces movement lag while still
-     * averaging several fast LAN samples to damp individual reflected packets.
-     *
-     * A window rather than an exponential moving average, because an EMA
-     * weighted per *sample* has a time constant that depends on how often the
-     * peer happens to advertise. The same alpha that averages out noise on a
-     * phone advertising every 100 ms will lag badly on one advertising every
-     * second, and the app cannot see the advertising interval - it only gets
-     * the reports that actually arrive.
-     */
-    const val SMOOTHING_WINDOW_MILLIS = 500L
+    /** How long the filter can hold its last estimate without a fresh report. */
+    const val FILTER_RESET_AFTER_MILLIS = 500L
 
     /**
      * Single-sample RSSI -> distance estimate, or `null` when the reading is
@@ -83,13 +72,11 @@ object RssiDistanceEstimator {
     fun estimate(rssi: Int): Float? = estimateFromRssi(rssi.toFloat())
 
     /**
-     * The curve on its own, for an already-smoothed RSSI value.
+     * The curve on its own, for an already-filtered RSSI value.
      *
-     * Split out from [estimate] so the window can average in dBm - where the
-     * mean is meaningful, since power is what falls off linearly with distance
-     * - and the curve is applied once at the end. Smoothing the *distances*
-     * instead would average the log of the readings, which is not the same
-     * thing and flattens the result.
+     * [RssiKalmanFilter] filters in dBm before applying the nonlinear
+     * path-loss conversion; filtering distances instead would average the log
+     * of the readings and flatten the result.
      */
     fun estimateFromRssi(rssi: Float): Float? {
         if (rssi < SENSITIVITY_FLOOR_DBM) return null
@@ -114,84 +101,99 @@ object RssiDistanceEstimator {
 }
 
 /**
- * A rolling average of one peer's RSSI over the last [windowMillis], and the
- * distance that average implies.
+ * A time-aware scalar Kalman filter for one peer's RSSI in dBm.
  *
  * One instance per peer, so the readings of eight members in a ring cannot
- * contaminate each other. [DiscoveryRepository] keeps them in a map keyed by
+ * contaminate each other. The radar coordinator keeps them in a map keyed by
  * peer id and drops the entry when the peer does.
  *
- * The average is taken in dBm rather than in metres. Received power is what
- * falls off with distance and dBm is already a logarithmic scale, so the plain
- * arithmetic mean of a set of readings is the right thing to average. Averaging
- * the resulting *distances* instead would average the logarithms and pull every
- * estimate toward the middle of the range - a worse filter, because it shrinks
- * a genuinely far peer instead of merely steadying them.
+ * The filter runs in dBm, before the nonlinear path-loss conversion. Its random
+ * walk process variance is scaled by elapsed time, so sparse adverts naturally
+ * receive less smoothing than rapid reports without depending on an assumed
+ * advertising interval. The noise parameters are engineering defaults, not
+ * hardware-calibrated values; their response and noise trade-off is covered by
+ * deterministic tests and still needs validation against recorded radio traces.
  *
  * The timestamp is a parameter rather than read from a clock here, so this is a
  * pure function of what it is given and can be tested without real time passing.
  */
-class RssiSmoother(
-    private val windowMillis: Long = RssiDistanceEstimator.SMOOTHING_WINDOW_MILLIS,
-    private val sensorFusionFilter: AdvancedSensorFusionFilter = AdvancedSensorFusionFilter(),
+class RssiKalmanFilter(
+    private val resetAfterMillis: Long = RssiDistanceEstimator.FILTER_RESET_AFTER_MILLIS,
+    private val processNoiseVariancePerSecond: Float = DEFAULT_PROCESS_NOISE_VARIANCE_PER_SECOND,
+    private val measurementNoiseVariance: Float = DEFAULT_MEASUREMENT_NOISE_VARIANCE,
 ) {
-    /** One reading, and when it was taken. */
-    private data class Sample(val rssi: Float, val atMillis: Long)
+    private var estimateDbm: Float? = null
+    private var estimateVariance: Float = measurementNoiseVariance
+    private var lastSampleMillis: Long? = null
 
-    private val samples = ArrayDeque<Sample>()
-
-    /** The smoothed RSSI over the window, or null when nothing recent is held. */
-    fun smoothedRssi(nowMillis: Long): Float? {
-        prune(nowMillis)
-        if (samples.isEmpty()) return null
-        // Summed as Double: a mean of many Float readings accumulates error in
-        // Float, and the whole point of averaging is to be more precise than any
-        // one sample.
-        return (samples.sumOf { it.rssi.toDouble() } / samples.size).toFloat()
+    init {
+        require(resetAfterMillis >= 0L)
+        require(processNoiseVariancePerSecond.isFinite() && processNoiseVariancePerSecond >= 0f)
+        require(measurementNoiseVariance.isFinite() && measurementNoiseVariance > 0f)
     }
 
-    /** The distance the smoothed RSSI implies, or null when nothing is held. */
+    /** The filtered RSSI, or null when no recent valid report is held. */
+    fun smoothedRssi(nowMillis: Long): Float? {
+        expireIfStale(nowMillis)
+        return estimateDbm
+    }
+
+    /** The distance the filtered RSSI implies, or null when nothing is held. */
     fun distance(nowMillis: Long): Float? =
         smoothedRssi(nowMillis)?.let { RssiDistanceEstimator.estimateFromRssi(it) }
 
-    /** The Kalman-filtered sensor fusion distance estimate. */
-    fun fusedDistance(
-        nowMillis: Long,
-        source: RangingSourcePolicy.RangingSource? = RangingSourcePolicy.RangingSource.BLE_RSSI,
-    ): Float? = distance(nowMillis)?.let { rawEstimate ->
-        sensorFusionFilter.update(rawEstimate, nowMillis, source)
-    }
-
     /**
-     * Adds a reading and returns the resulting smoothed distance, or null when
+     * Adds a reading and returns the resulting filtered distance, or null when
      * the peer is below the noise floor.
      *
      * A below-floor reading is treated as missing rather than as a real signal
-     * level. Keep the recent valid samples so a transient fade does not replace
-     * a useful distance with "unknown"; the normal time window still expires
-     * old samples when the peer has been out of range long enough.
+     * level. Keep the current estimate so a transient fade does not replace a
+     * useful distance with "unknown"; it expires after the normal hold interval.
      */
     fun add(rssi: Int, nowMillis: Long): Float? {
         if (rssi < RssiDistanceEstimator.SENSITIVITY_FLOOR_DBM) {
             return distance(nowMillis)
         }
-        samples.addLast(Sample(rssi.toFloat(), nowMillis))
-        // Pruned before averaging so a stale reading cannot hold a value on
-        // screen after the peer has gone quiet.
-        prune(nowMillis)
+        expireIfStale(nowMillis)
+
+        val previousSampleMillis = lastSampleMillis
+        val previousEstimate = estimateDbm
+        if (previousSampleMillis == null || previousEstimate == null) {
+            estimateDbm = rssi.toFloat()
+            estimateVariance = measurementNoiseVariance
+            lastSampleMillis = nowMillis
+            return distance(nowMillis)
+        }
+
+        val elapsedSeconds = max(0L, nowMillis - previousSampleMillis).toFloat() / 1_000f
+        val predictedVariance = estimateVariance + processNoiseVariancePerSecond * elapsedSeconds
+        val kalmanGain = predictedVariance / (predictedVariance + measurementNoiseVariance)
+        estimateDbm = previousEstimate + kalmanGain * (rssi - previousEstimate)
+        estimateVariance = (1f - kalmanGain) * predictedVariance
+        lastSampleMillis = maxOf(previousSampleMillis, nowMillis)
         return distance(nowMillis)
     }
 
     /** Forgets every reading, for a peer that has left or been dropped. */
     fun clear() {
-        samples.clear()
-        sensorFusionFilter.reset()
+        estimateDbm = null
+        estimateVariance = measurementNoiseVariance
+        lastSampleMillis = null
     }
 
-    /** Drops readings older than the window. */
-    private fun prune(nowMillis: Long) {
-        while (samples.isNotEmpty() && nowMillis - samples.first().atMillis > windowMillis) {
-            samples.removeFirst()
+    /** Discards stale state so a returning peer starts from its new measurement. */
+    private fun expireIfStale(nowMillis: Long) {
+        val lastSample = lastSampleMillis ?: return
+        if (nowMillis - lastSample > resetAfterMillis) {
+            clear()
         }
+    }
+
+    private companion object {
+        /** Random-walk RSSI variance per second, in dBm squared per second. */
+        const val DEFAULT_PROCESS_NOISE_VARIANCE_PER_SECOND = 9f
+
+        /** BLE observation variance in dBm squared. */
+        const val DEFAULT_MEASUREMENT_NOISE_VARIANCE = 36f
     }
 }

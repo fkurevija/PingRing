@@ -1,6 +1,6 @@
 package com.fkurevija.pingring.data.ranging
 import com.fkurevija.pingring.data.ranging.RssiDistanceEstimator
-import com.fkurevija.pingring.data.ranging.RssiSmoother
+import com.fkurevija.pingring.data.ranging.RssiKalmanFilter
 import com.fkurevija.pingring.data.BleSignalWarningTracker
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertEquals
@@ -108,52 +108,50 @@ class RssiDistanceEstimatorTest {
     @Test
     fun firstSampleSeedsTheEstimateExactly() {
         val raw = RssiDistanceEstimator.estimate(-70)!!
-        val smoother = RssiSmoother()
+        val smoother = RssiKalmanFilter()
 
         assertEquals(raw, smoother.add(-70, 0L)!!, 0.0001f)
     }
 
     @Test
-    fun defaultWindowIncludesHalfSecondButDropsOlderReadings() {
-        assertEquals(500L, RssiDistanceEstimator.SMOOTHING_WINDOW_MILLIS)
-        val smoother = RssiSmoother()
-        smoother.add(-60, 0L)
-        smoother.add(-80, 500L)
-        assertEquals(-70f, smoother.smoothedRssi(500L)!!, 0.001f)
-        assertEquals(-80f, smoother.smoothedRssi(501L)!!, 0.001f)
-        assertEquals(RssiDistanceEstimator.estimate(-80)!!, smoother.distance(501L)!!, 0.001f)
-        assertNull(smoother.distance(1_001L))
+    fun staleFilterStateExpiresAndTheNextSampleSeedsItExactly() {
+        assertEquals(500L, RssiDistanceEstimator.FILTER_RESET_AFTER_MILLIS)
+        val filter = RssiKalmanFilter()
+        filter.add(-60, 0L)
+        filter.add(-80, 500L)
+
+        assertNotNull(filter.smoothedRssi(1_000L))
+        assertNull(filter.smoothedRssi(1_001L))
+        assertEquals(
+            RssiDistanceEstimator.estimate(-80)!!,
+            filter.add(-80, 1_001L)!!,
+            0.0001f
+        )
     }
 
     @Test
-    fun smoothingMovesTowardTheNewReadingWithoutJumpingToIt() {
-        // A reading that differs sharply from the window is outvoted by the rest
-        // rather than replacing the estimate outright: one reflected packet
-        // should not move the readout the length of the room.
-        val smoother = RssiSmoother()
+    fun filterRespondsToMovementWithoutJumpingToOneMeasurement() {
+        val filter = RssiKalmanFilter()
         val near = RssiDistanceEstimator.estimate(-50)!!
         val far = RssiDistanceEstimator.estimate(-90)!!
         var at = 0L
         repeat(6) {
-            smoother.add(-50, at)
+            filter.add(-50, at)
             at += 100
         }
-        val before = smoother.distance(at)!!
-        val after = smoother.add(-90, at)!!
+        val before = filter.distance(at)!!
+        val after = filter.add(-90, at)!!
 
         assertEquals("a steady peer should have settled near the near value", near, before, 0.5f)
         assertTrue(
-            "expected to move toward the far reading but not reach it",
+            "expected to move toward the far reading without taking one sample literally",
             after > before && after < far
         )
     }
 
     @Test
-    fun smoothingDampsJitterAroundASteadyPeer() {
-        // A peer standing still still produces noisy RSSI. This is the property
-        // the whole window exists for: the estimate moves much less for the same
-        // sequence of readings than the raw samples do.
-        val smoother = RssiSmoother()
+    fun kalmanFilterDampsJitterAroundAStationaryPeer() {
+        val filter = RssiKalmanFilter()
         val readings = listOf(-68, -72, -69, -71, -67, -73, -68, -70, -69, -72)
         var at = 0L
         val rawSteps = mutableListOf<Float>()
@@ -163,7 +161,7 @@ class RssiDistanceEstimatorTest {
 
         readings.forEach { noisy ->
             val raw = RssiDistanceEstimator.estimate(noisy)!!
-            val smoothed = smoother.add(noisy, at)!!
+            val smoothed = filter.add(noisy, at)!!
             previousRaw?.let { rawSteps += kotlin.math.abs(raw - it) }
             previousSmoothed?.let { smoothedSteps += kotlin.math.abs(smoothed - it) }
             previousRaw = raw
@@ -175,26 +173,39 @@ class RssiDistanceEstimatorTest {
         val smoothedTotal = smoothedSteps.sum()
         assertTrue(
             "a steady peer should not move the readout: raw drifted $rawTotal m, " +
-                "smoothed drifted $smoothedTotal m",
+                "filtered drifted $smoothedTotal m",
             smoothedTotal < rawTotal
         )
     }
 
     @Test
-    fun outOfRangeReadingIsIgnoredAndRecentSamplesStillSmoothTheNextReading() {
-        val smoother = RssiSmoother()
+    fun elapsedTimeChangesHowMuchTheFilterTrustsANewSample() {
+        val rapid = RssiKalmanFilter()
+        val sparse = RssiKalmanFilter()
+        rapid.add(-60, 0L)
+        sparse.add(-60, 0L)
+
+        val rapidUpdate = rapid.add(-80, 100L)!!
+        val sparseUpdate = sparse.add(-80, 400L)!!
+
+        assertTrue(
+            "a longer interval should increase process uncertainty and measurement gain",
+            sparseUpdate > rapidUpdate
+        )
+    }
+
+    @Test
+    fun belowFloorReadingPreservesTheEstimateAndLaterValidReportsStillUpdateIt() {
+        val filter = RssiKalmanFilter()
         var at = 0L
         repeat(4) {
-            smoother.add(-70, at)
+            filter.add(-70, at)
             at += 100
         }
 
-        assertEquals(RssiDistanceEstimator.estimate(-70)!!, smoother.add(-120, at)!!, 0.0001f)
-        assertEquals(
-            RssiDistanceEstimator.estimateFromRssi((-70f * 4f - 80f) / 5f)!!,
-            smoother.add(-80, at + 100)!!,
-            0.0001f
-        )
+        val beforeFade = filter.distance(at)!!
+        assertEquals(beforeFade, filter.add(-120, at)!!, 0.0001f)
+        assertTrue("a later valid report should update the estimate", filter.add(-80, at + 100)!! > beforeFade)
     }
 
     @Test
@@ -203,35 +214,27 @@ class RssiDistanceEstimatorTest {
         // holding a steady distance whose adverts occasionally arrive far
         // stronger than the path deserves, because a packet reflected off a
         // wall or a body. Every one of those readings is a real, decodable
-        // advert, so nothing upstream rejects them - the window is the only
-        // thing standing between one reflection and a peer appearing in your
-        // face. This is the case the filter exists for, and it is the one a
-        // smooth scripted trajectory could never produce.
-        val smoother = RssiSmoother()
+        // advert, so nothing upstream rejects them. This is the case the
+        // filter exists for, and it is the one a smooth trajectory misses.
+        val filter = RssiKalmanFilter()
         val steady = -70
         val steadyDistance = RssiDistanceEstimator.estimate(steady)!!
-        // One reading in twenty is a reflection. That is a busy indoor rate, not
-        // a pathological one: measured against the window, 2% holds the readout
-        // within ~0.3 m and 5% within ~0.6 m, while the reflection itself claims
-        // a peer under 0.6 m. At a rate like this the window is doing real work
-        // rather than meeting a caricature of one.
+        // One reading in twenty is a reflection: a repeatable synthetic stress
+        // trace, not a claim about how often reflections occur in a venue.
         val readings = mutableListOf(steady)
         repeat(40) { index ->
             readings += if (index % 20 == 0) steady + 20 else steady
         }
 
-        // The window has to be full before a reflection means anything. An
-        // outlier arriving against two samples averages to 1.1 m, which says
-        // nothing about the filter - it says the filter had barely started. A
-        // peer that has been in range for a moment is the case being tested.
+        // Let the filter settle on the stationary peer before injecting noise.
         var at = 0L
         var worstDrift = 0f
         repeat(20) {
-            smoother.add(steady, at)
+            filter.add(steady, at)
             at += 100
         }
         readings.forEach { rssi ->
-            val shown = smoother.add(rssi, at)!!
+            val shown = filter.add(rssi, at)!!
             at += 100
             worstDrift = maxOf(worstDrift, kotlin.math.abs(shown - steadyDistance))
         }
@@ -247,27 +250,26 @@ class RssiDistanceEstimatorTest {
     }
 
     @Test
-    fun aBelowFloorReadingPreservesRecentSamplesForTheNextDistanceEstimate() {
-        // A transient fade is not a useful range reading. Keep the valid recent
-        // signal samples so the next advert averages with them rather than
-        // flashing "unknown" or jumping to the new sample alone.
-        val smoother = RssiSmoother()
+    fun aBelowFloorReadingPreservesTheEstimateForTheNextDistanceEstimate() {
+        // A transient fade is not a useful range reading, so keep the current
+        // estimate rather than flashing "unknown".
+        val filter = RssiKalmanFilter()
         var at = 0L
         repeat(10) {
-            smoother.add(-70, at)
+            filter.add(-70, at)
             at += 100
         }
-        val previous = smoother.distance(at)
+        val previous = filter.distance(at)
         assertNotNull("the peer should be reported while it is audible", previous)
         assertEquals(
             "a below-floor sample should leave the last usable estimate available",
             previous,
-            smoother.add(RssiDistanceEstimator.SENSITIVITY_FLOOR_DBM.toInt() - 1, at),
+            filter.add(RssiDistanceEstimator.SENSITIVITY_FLOOR_DBM.toInt() - 1, at),
         )
         assertEquals(
-            "the next valid sample should still be averaged with recent readings",
+            "a matching valid sample should preserve the steady estimate",
             previous,
-            smoother.add(-70, at + 100),
+            filter.add(-70, at + 100),
         )
     }
 

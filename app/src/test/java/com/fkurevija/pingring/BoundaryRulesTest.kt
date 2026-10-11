@@ -1,7 +1,7 @@
 package com.fkurevija.pingring
 
 import com.fkurevija.pingring.data.ranging.RssiDistanceEstimator
-import com.fkurevija.pingring.data.ranging.RssiSmoother
+import com.fkurevija.pingring.data.ranging.RssiKalmanFilter
 import com.fkurevija.pingring.data.ranging.UwbRetentionPolicy
 import com.fkurevija.pingring.ui.screens.PingRingCodeParser
 import org.junit.Assert.assertEquals
@@ -136,7 +136,7 @@ class BoundaryRulesTest {
 
     @Test
     fun `smoothing is a no-op when every sample agrees`() {
-        val smoother = RssiSmoother()
+        val smoother = RssiKalmanFilter()
         val expected = RssiDistanceEstimator.estimate(-70)!!
 
         var at = 0L
@@ -154,7 +154,7 @@ class BoundaryRulesTest {
         // the strongest and weakest reading in the window would be a bug in the
         // averaging rather than a consequence of it. The curve is monotonic, so
         // the bound on RSSI carries over to the distance.
-        val smoother = RssiSmoother()
+        val smoother = RssiKalmanFilter()
         var at = 0L
         listOf(-50, -90, -70, -55, -85).forEach {
             smoother.add(it, at)
@@ -174,9 +174,9 @@ class BoundaryRulesTest {
     fun `readings older than the window stop counting`() {
         // A peer that has gone quiet must not keep a distance on screen. This
         // is the reason the window is measured in time rather than in samples.
-        val smoother = RssiSmoother()
+        val smoother = RssiKalmanFilter()
         smoother.add(-70, 0L)
-        val atFirstWindowEnd = RssiDistanceEstimator.SMOOTHING_WINDOW_MILLIS
+        val atFirstWindowEnd = RssiDistanceEstimator.FILTER_RESET_AFTER_MILLIS
         smoother.add(-70, atFirstWindowEnd / 2)
 
         assertNull("a stale reading should not hold a value on screen", smoother.distance(atFirstWindowEnd * 10))

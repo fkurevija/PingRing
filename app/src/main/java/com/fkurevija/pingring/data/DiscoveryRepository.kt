@@ -218,11 +218,9 @@ class DiscoveryRepository(
         },
     )
 
-    // Running RSSI distance estimate per peer, fed through an exponential
-    // moving average so the readout does not jitter with every advertisement.
-    // Rolling RSSI average per peer, so the radar does not show a distance that
-    // twitches with every advert. One instance per peer: the readings of eight
-    // members in a ring must not average into each other.
+    // Per-peer RSSI Kalman filters smooth signal variation before the nonlinear
+    // path-loss conversion. Separate state prevents members' readings from
+    // contaminating each other's estimates.
     /**
      * The member the user has chosen to track, or null for "auto" (nearest).
      *

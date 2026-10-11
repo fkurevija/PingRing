@@ -7,7 +7,7 @@ import com.fkurevija.pingring.data.LanDebugConnectionsManager
 import com.fkurevija.pingring.data.ranging.MockRangingDto
 import com.fkurevija.pingring.data.RelayCodec
 import com.fkurevija.pingring.data.RelayEnvelope
-import com.fkurevija.pingring.data.ranging.RssiSmoother
+import com.fkurevija.pingring.data.ranging.RssiKalmanFilter
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
@@ -146,7 +146,7 @@ class LanDebugWifiRssiTest {
         }
 
         assertEquals(listOf(-59, -65, -70, -59, -53), reports.map { it.rssi })
-        val smoother = RssiSmoother()
+        val smoother = RssiKalmanFilter()
         val distances = reports.mapIndexed { index, report ->
             requireNotNull(smoother.add(requireNotNull(report.rssi), index * 2_500L))
         }
