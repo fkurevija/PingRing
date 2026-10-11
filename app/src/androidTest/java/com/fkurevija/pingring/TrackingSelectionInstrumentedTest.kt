@@ -3,17 +3,18 @@ package com.fkurevija.pingring
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.fkurevija.pingring.data.DiscoveryRepository
-import com.fkurevija.pingring.data.Event
+import com.fkurevija.pingring.data.session.Event
 import com.fkurevija.pingring.data.LanDebugConnectionsManager
 import com.fkurevija.pingring.data.NearbyTransport
-import com.fkurevija.pingring.data.MeshPresencePayloadDto
-import com.fkurevija.pingring.data.SessionManager
+import com.fkurevija.pingring.data.session.MeshPresencePayloadDto
+import com.fkurevija.pingring.data.session.SessionManager
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import com.fkurevija.pingring.data.session.SessionState
 
 class TrackingSelectionInstrumentedTest {
     private class TestTransport : NearbyTransport by LanDebugConnectionsManager("127.0.0.1") {

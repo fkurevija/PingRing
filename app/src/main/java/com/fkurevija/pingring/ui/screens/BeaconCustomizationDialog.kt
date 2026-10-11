@@ -62,9 +62,9 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import com.fkurevija.pingring.R
-import com.fkurevija.pingring.data.BeaconInfo
-import com.fkurevija.pingring.data.BeaconPreset
-import com.fkurevija.pingring.data.BeaconVibrationPattern
+import com.fkurevija.pingring.data.session.BeaconInfo
+import com.fkurevija.pingring.data.chat.BeaconPreset
+import com.fkurevija.pingring.data.chat.BeaconVibrationPattern
 import com.fkurevija.pingring.data.TextInputPolicy
 import java.util.Locale
 

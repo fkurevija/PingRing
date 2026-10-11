@@ -29,12 +29,14 @@ import com.fkurevija.pingring.data.NearbyConnectionsManager
 import com.fkurevija.pingring.data.NearbyTransport
 import com.fkurevija.pingring.data.PingRingRuntime
 import com.fkurevija.pingring.data.PingRingService
-import com.fkurevija.pingring.data.SessionManager
+import com.fkurevija.pingring.data.session.SessionManager
 import com.fkurevija.pingring.data.settings.AppearanceSettingsRepository
 import com.fkurevija.pingring.data.settings.ThemeMode
 import com.fkurevija.pingring.ui.navigation.MainNavigation
 import com.fkurevija.pingring.ui.permissions.PermissionWrapper
 import com.fkurevija.pingring.ui.theme.PingRingTheme
+import com.fkurevija.pingring.data.session.Event
+import com.fkurevija.pingring.data.session.SessionState
 
 class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {

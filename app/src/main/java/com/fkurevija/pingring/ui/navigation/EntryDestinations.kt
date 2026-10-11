@@ -14,10 +14,10 @@ import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
 import com.fkurevija.pingring.R
 import com.fkurevija.pingring.data.DiscoveryRepository
-import com.fkurevija.pingring.data.Event
-import com.fkurevija.pingring.data.InviteSecret
-import com.fkurevija.pingring.data.SessionManager
-import com.fkurevija.pingring.data.SessionState
+import com.fkurevija.pingring.data.session.Event
+import com.fkurevija.pingring.data.session.InviteSecret
+import com.fkurevija.pingring.data.session.SessionManager
+import com.fkurevija.pingring.data.session.SessionState
 import com.fkurevija.pingring.data.PendingJoinRequest
 import com.fkurevija.pingring.data.settings.AppearanceSettingsRepository
 import com.fkurevija.pingring.ui.screens.HomeScreen

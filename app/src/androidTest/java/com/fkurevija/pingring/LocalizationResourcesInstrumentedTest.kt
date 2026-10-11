@@ -5,7 +5,7 @@ import android.content.res.Configuration
 import android.os.LocaleList
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.fkurevija.pingring.data.RadarAccessibilityProbe
+import com.fkurevija.pingring.data.radar.RadarAccessibilityProbe
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue

@@ -49,7 +49,7 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import com.fkurevija.pingring.R
-import com.fkurevija.pingring.data.ChatBubblePalette
+import com.fkurevija.pingring.data.chat.ChatBubblePalette
 import com.fkurevija.pingring.data.TextInputPolicy
 import java.util.Locale
 

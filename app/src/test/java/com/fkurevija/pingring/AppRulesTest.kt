@@ -1,14 +1,14 @@
 package com.fkurevija.pingring
 
-import com.fkurevija.pingring.data.BeaconPreset
-import com.fkurevija.pingring.data.BeaconVibrationPattern
+import com.fkurevija.pingring.data.chat.BeaconPreset
+import com.fkurevija.pingring.data.chat.BeaconVibrationPattern
 import com.fkurevija.pingring.data.AccessibilityFeature
-import com.fkurevija.pingring.data.RadarFeedbackPolicy
-import com.fkurevija.pingring.data.RadarAnnouncementPolicy
-import com.fkurevija.pingring.data.RangingSourcePolicy
-import com.fkurevija.pingring.data.ChatBubblePalette
-import com.fkurevija.pingring.data.ChatNotificationPolicy
-import com.fkurevija.pingring.data.RadarAccessibilityPolicy
+import com.fkurevija.pingring.data.radar.RadarFeedbackPolicy
+import com.fkurevija.pingring.data.radar.RadarAnnouncementPolicy
+import com.fkurevija.pingring.data.ranging.RangingSourcePolicy
+import com.fkurevija.pingring.data.chat.ChatBubblePalette
+import com.fkurevija.pingring.data.chat.ChatNotificationPolicy
+import com.fkurevija.pingring.data.radar.RadarAccessibilityPolicy
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals

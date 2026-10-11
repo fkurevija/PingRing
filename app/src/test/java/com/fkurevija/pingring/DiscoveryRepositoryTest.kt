@@ -7,6 +7,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Test
 import kotlin.math.cos
 import kotlin.math.sin
+import com.fkurevija.pingring.data.DiscoveryRepository
 
 class DiscoveryRepositoryTest {
 

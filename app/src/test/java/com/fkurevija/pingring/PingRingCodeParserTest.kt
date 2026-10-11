@@ -2,11 +2,12 @@ package com.fkurevija.pingring
 
 import com.fkurevija.pingring.ui.screens.PingRingCodeParser
 import com.fkurevija.pingring.ui.screens.PingRingInvite
-import com.fkurevija.pingring.data.InviteSecret
+import com.fkurevija.pingring.data.session.InviteSecret
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import com.fkurevija.pingring.data.session.Event
 
 class PingRingCodeParserTest {
 

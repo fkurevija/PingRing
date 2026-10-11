@@ -1,5 +1,7 @@
 package com.fkurevija.pingring.data
 
+import com.fkurevija.pingring.data.session.MAX_PARTICIPANTS
+
 import java.util.LinkedHashMap
 import java.security.MessageDigest
 

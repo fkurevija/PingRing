@@ -2,20 +2,20 @@ package com.fkurevija.pingring.data.transport
 
 import android.util.Log
 import com.fkurevija.pingring.data.BleIdentityCrypto
-import com.fkurevija.pingring.data.BleIdentityKeyPayloadDto
+import com.fkurevija.pingring.data.session.BleIdentityKeyPayloadDto
 import com.fkurevija.pingring.data.DecodedPayload
-import com.fkurevija.pingring.data.InviteSecretPayloadDto
-import com.fkurevija.pingring.data.JoinProofPayloadDto
-import com.fkurevija.pingring.data.MemberDeparturePayloadDto
+import com.fkurevija.pingring.data.session.InviteSecretPayloadDto
+import com.fkurevija.pingring.data.session.JoinProofPayloadDto
+import com.fkurevija.pingring.data.session.MemberDeparturePayloadDto
 import com.fkurevija.pingring.data.MeshDuplicateCache
-import com.fkurevija.pingring.data.MeshLinkAuthenticationPayloadDto
+import com.fkurevija.pingring.data.session.MeshLinkAuthenticationPayloadDto
 import com.fkurevija.pingring.data.MeshPeerAuthentication
 import com.fkurevija.pingring.data.MeshRoutingPolicy
-import com.fkurevija.pingring.data.MessageStatus
+import com.fkurevija.pingring.data.chat.MessageStatus
 import com.fkurevija.pingring.data.PayloadSink
 import com.fkurevija.pingring.data.RelayCodec
 import com.fkurevija.pingring.data.RelayEnvelope
-import com.fkurevija.pingring.data.UwbRangingOfferDto
+import com.fkurevija.pingring.data.ranging.UwbRangingOfferDto
 import com.fkurevija.pingring.data.isMemberDepartureOriginAuthorized
 import com.fkurevija.pingring.data.isPayloadSenderAuthorized
 import java.util.Base64

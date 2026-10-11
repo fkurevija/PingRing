@@ -24,6 +24,9 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import com.fkurevija.pingring.data.NearbyConnectionsManager
+import com.fkurevija.pingring.data.session.Event
+import com.fkurevija.pingring.data.session.SessionManager
 
 /**
  * The screen a host configures a new PingRing on.
@@ -80,7 +83,7 @@ class HostSetupScreenInstrumentedTest {
         // host to connect to.
         val repository = DiscoveryRepository(
             context = context,
-            sessionManager = com.fkurevija.pingring.data.SessionManager(),
+            sessionManager = com.fkurevija.pingring.data.session.SessionManager(),
             nearbyConnectionsManager = com.fkurevija.pingring.data.NearbyConnectionsManager(context)
         )
         composeRule.setContent {

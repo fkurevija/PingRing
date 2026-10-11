@@ -4,7 +4,7 @@ import com.fkurevija.pingring.data.settings.DEFAULT_JOIN_WAIT_TIMEOUT_MILLIS
 import com.fkurevija.pingring.data.settings.JOIN_APPROVAL_GRACE_MILLIS
 import com.fkurevija.pingring.data.JOIN_REQUEST_TIMEOUT_MILLIS
 import com.fkurevija.pingring.data.JoinRequestDecision
-import com.fkurevija.pingring.data.MAX_PARTICIPANTS
+import com.fkurevija.pingring.data.session.MAX_PARTICIPANTS
 import com.fkurevija.pingring.data.PendingJoinRequest
 import com.fkurevija.pingring.data.decideJoinRequest
 import com.fkurevija.pingring.data.expiredJoinRequest

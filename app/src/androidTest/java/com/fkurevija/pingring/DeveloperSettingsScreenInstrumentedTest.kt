@@ -19,6 +19,7 @@ import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
+import com.fkurevija.pingring.data.TextInputPolicy
 
 /**
  * The Developer Options screen, driven on a device.

@@ -1,9 +1,9 @@
 package com.fkurevija.pingring.data.transport
 
-import com.fkurevija.pingring.data.EventControlPayloadDto
-import com.fkurevija.pingring.data.InviteSecret
-import com.fkurevija.pingring.data.InviteSecretPayloadDto
-import com.fkurevija.pingring.data.JoinProofPayloadDto
+import com.fkurevija.pingring.data.session.EventControlPayloadDto
+import com.fkurevija.pingring.data.session.InviteSecret
+import com.fkurevija.pingring.data.session.InviteSecretPayloadDto
+import com.fkurevija.pingring.data.session.JoinProofPayloadDto
 import com.fkurevija.pingring.data.JoinRequestDecision
 import com.fkurevija.pingring.data.PendingJoinRequest
 import com.fkurevija.pingring.data.RelayEnvelope

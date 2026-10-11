@@ -1,7 +1,7 @@
 package com.fkurevija.pingring
 
-import com.fkurevija.pingring.data.BeaconInfo
-import com.fkurevija.pingring.data.RangingConfidence
+import com.fkurevija.pingring.data.session.BeaconInfo
+import com.fkurevija.pingring.data.ranging.RangingConfidence
 import com.fkurevija.pingring.data.settings.ThemeMode
 import com.fkurevija.pingring.ui.permissions.UwbAvailability
 import org.junit.Assert.assertEquals

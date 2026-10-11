@@ -1,4 +1,4 @@
-﻿package com.fkurevija.pingring.data
+package com.fkurevija.pingring.data
 
 /**
  * What this device can actually do, and which of those ways of joining a ring

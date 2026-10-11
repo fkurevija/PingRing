@@ -7,6 +7,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import com.fkurevija.pingring.R
+import com.fkurevija.pingring.data.session.SessionManager
 
 /**
  * The confirmation shown before a live PingRing is ended or left, whichever
@@ -16,7 +17,7 @@ import com.fkurevija.pingring.R
  *
  * It is role-aware on purpose. A guest cannot end a PingRing - only the host
  * can - and sending one down the host path would call
- * [com.fkurevija.pingring.data.SessionManager.endHostedEvent], which asserts
+ * [com.fkurevija.pingring.data.session.SessionManager.endHostedEvent], which asserts
  * the session is hosted and throws. So a guest is asked about *leaving*, and
  * confirming calls [onConfirm] only for the action that role is allowed to
  * take.

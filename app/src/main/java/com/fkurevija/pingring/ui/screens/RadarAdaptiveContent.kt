@@ -8,9 +8,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.fkurevija.pingring.data.BeaconInfo
+import com.fkurevija.pingring.data.session.BeaconInfo
 import com.fkurevija.pingring.data.DiscoveryRepository
-import com.fkurevija.pingring.data.SessionState
+import com.fkurevija.pingring.data.session.SessionState
 import com.fkurevija.pingring.data.discovery.ConnectivityStatus
 import com.fkurevija.pingring.data.radar.RadarPeerUpdate
 

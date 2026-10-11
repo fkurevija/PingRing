@@ -1,9 +1,9 @@
 package com.fkurevija.pingring.data.transport
 
 import com.fkurevija.pingring.data.BleIdentityCrypto
-import com.fkurevija.pingring.data.ChatPayloadDto
+import com.fkurevija.pingring.data.chat.ChatPayloadDto
 import com.fkurevija.pingring.data.DecodedPayload
-import com.fkurevija.pingring.data.JoinProofPayloadDto
+import com.fkurevija.pingring.data.session.JoinProofPayloadDto
 import com.fkurevija.pingring.data.MeshPeerAuthentication
 import com.fkurevija.pingring.data.RelayCodec
 import org.junit.Assert.assertEquals
@@ -11,6 +11,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.fkurevija.pingring.data.session.InviteSecret
 
 class NearbyMeshEnvelopeFactoryTest {
     private val chat = ChatPayloadDto(

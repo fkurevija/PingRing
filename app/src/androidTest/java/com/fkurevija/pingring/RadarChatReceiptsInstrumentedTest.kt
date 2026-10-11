@@ -3,10 +3,11 @@ package com.fkurevija.pingring
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import com.fkurevija.pingring.data.ChatRecipientReceipt
-import com.fkurevija.pingring.data.MessageStatus
-import com.fkurevija.pingring.data.SessionState
+import com.fkurevija.pingring.data.chat.ChatRecipientReceipt
+import com.fkurevija.pingring.data.chat.MessageStatus
+import com.fkurevija.pingring.data.session.SessionState
 import org.junit.Test
+import com.fkurevija.pingring.data.session.ChatMessage
 
 class RadarChatReceiptsInstrumentedTest : RadarScreenTestSupport() {
     @Test

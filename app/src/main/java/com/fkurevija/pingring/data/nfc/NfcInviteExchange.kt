@@ -1,6 +1,7 @@
 package com.fkurevija.pingring.data.nfc
 
-import com.fkurevija.pingring.data.InviteSecret
+import com.fkurevija.pingring.data.session.InviteSecret
+import com.fkurevija.pingring.data.session.Event
 
 /** Holds the foreground host's invite in memory only while its invite is visible. */
 internal object NfcInviteExchange {

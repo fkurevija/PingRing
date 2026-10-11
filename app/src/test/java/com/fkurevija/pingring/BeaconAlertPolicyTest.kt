@@ -3,7 +3,7 @@ package com.fkurevija.pingring
 import com.fkurevija.pingring.data.BeaconAlertPolicy
 import com.fkurevija.pingring.data.BeaconAlertRepeat
 import com.fkurevija.pingring.data.BeaconAlertSettings
-import com.fkurevija.pingring.data.BeaconVibrationPattern
+import com.fkurevija.pingring.data.chat.BeaconVibrationPattern
 import com.fkurevija.pingring.data.DEFAULT_BEACON_REPEAT_GAP_MILLIS
 import com.fkurevija.pingring.data.MAX_BEACON_REPEAT_GAP_MILLIS
 import com.fkurevija.pingring.data.MIN_BEACON_REPEAT_GAP_MILLIS

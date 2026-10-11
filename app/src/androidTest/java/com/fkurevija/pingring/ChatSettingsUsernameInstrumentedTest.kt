@@ -13,7 +13,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextReplacement
 import androidx.test.platform.app.InstrumentationRegistry
 import com.fkurevija.pingring.R
-import com.fkurevija.pingring.data.ChatBubblePalette
+import com.fkurevija.pingring.data.chat.ChatBubblePalette
 import com.fkurevija.pingring.ui.screens.ChatSettingsDialog
 import org.junit.Assert.assertEquals
 import org.junit.Rule

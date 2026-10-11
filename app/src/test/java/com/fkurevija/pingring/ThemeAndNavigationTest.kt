@@ -34,6 +34,7 @@ import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.fkurevija.pingring.data.session.Event
 
 /**
  * The app's visual vocabulary and its navigation keys.

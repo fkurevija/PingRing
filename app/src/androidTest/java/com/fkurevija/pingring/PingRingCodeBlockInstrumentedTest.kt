@@ -14,6 +14,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import com.fkurevija.pingring.data.session.InviteSecret
 
 /**
  * The invitation block, on its own.

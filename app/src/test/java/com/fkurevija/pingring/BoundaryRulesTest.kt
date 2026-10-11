@@ -1,14 +1,15 @@
 package com.fkurevija.pingring
 
-import com.fkurevija.pingring.data.RssiDistanceEstimator
-import com.fkurevija.pingring.data.RssiSmoother
-import com.fkurevija.pingring.data.UwbRetentionPolicy
+import com.fkurevija.pingring.data.ranging.RssiDistanceEstimator
+import com.fkurevija.pingring.data.ranging.RssiSmoother
+import com.fkurevija.pingring.data.ranging.UwbRetentionPolicy
 import com.fkurevija.pingring.ui.screens.PingRingCodeParser
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.fkurevija.pingring.data.session.Event
 
 /**
  * Boundary and abuse cases for the pure decision logic, gathered in one place

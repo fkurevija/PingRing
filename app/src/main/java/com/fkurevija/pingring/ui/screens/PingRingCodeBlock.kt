@@ -50,6 +50,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.fkurevija.pingring.R
 import com.fkurevija.pingring.data.nfc.NfcInviteExchange
+import com.fkurevija.pingring.data.session.Event
+import com.fkurevija.pingring.data.session.InviteSecret
 
 /**
  * The invitation as a guest receives it: a QR code, the code to read out, and how

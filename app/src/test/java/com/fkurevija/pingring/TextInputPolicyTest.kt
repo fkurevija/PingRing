@@ -6,6 +6,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.fkurevija.pingring.data.session.Event
 
 /**
  * What PingRing lets a person type, and what it stops leaving the device.

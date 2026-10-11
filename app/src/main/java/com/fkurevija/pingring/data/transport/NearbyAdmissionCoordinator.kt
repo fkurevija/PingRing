@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import com.fkurevija.pingring.data.session.Event
 
 /**
  * Owns the queues and expiry timers that gate Nearby connection admission.

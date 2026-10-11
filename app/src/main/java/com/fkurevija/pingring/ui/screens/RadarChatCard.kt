@@ -51,14 +51,14 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.snapshotFlow
 import com.fkurevija.pingring.R
-import com.fkurevija.pingring.data.ChatBubbleColorPolicy
-import com.fkurevija.pingring.data.ChatEntryType
-import com.fkurevija.pingring.data.ChatMessageOwnership
-import com.fkurevija.pingring.data.ChatRecipientReceipt
-import com.fkurevija.pingring.data.ChatTimelineItem
-import com.fkurevija.pingring.data.MessageStatus
+import com.fkurevija.pingring.data.chat.ChatBubbleColorPolicy
+import com.fkurevija.pingring.data.chat.ChatEntryType
+import com.fkurevija.pingring.data.chat.ChatMessageOwnership
+import com.fkurevija.pingring.data.chat.ChatRecipientReceipt
+import com.fkurevija.pingring.data.chat.MessageStatus
 import com.fkurevija.pingring.data.TextInputPolicy
 import kotlinx.coroutines.flow.distinctUntilChanged
+import com.fkurevija.pingring.data.chat.ChatTimelineItem
 
 @Composable
 internal fun RadarChatCard(

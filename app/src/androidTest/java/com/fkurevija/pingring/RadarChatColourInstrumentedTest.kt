@@ -20,24 +20,25 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.printToString
 import androidx.compose.ui.unit.dp
 import androidx.test.espresso.Espresso
-import com.fkurevija.pingring.data.ChatBubblePalette
-import com.fkurevija.pingring.data.MAX_PARTICIPANTS
+import com.fkurevija.pingring.data.chat.ChatBubblePalette
+import com.fkurevija.pingring.data.session.MAX_PARTICIPANTS
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
-import com.fkurevija.pingring.data.BeaconVibrationPattern
-import com.fkurevija.pingring.data.ChatMessage
+import com.fkurevija.pingring.data.chat.BeaconVibrationPattern
+import com.fkurevija.pingring.data.session.ChatMessage
 import com.fkurevija.pingring.data.radar.LastKnownPeerDirection
 import com.fkurevija.pingring.data.PendingJoinRequest
-import com.fkurevija.pingring.data.SessionState
+import com.fkurevija.pingring.data.session.SessionState
 import com.fkurevija.pingring.ui.screens.RadarScreen
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import com.fkurevija.pingring.data.DiscoveryRepository
 
 /**
  * The screen a live PingRing actually runs on, driven on a real device.

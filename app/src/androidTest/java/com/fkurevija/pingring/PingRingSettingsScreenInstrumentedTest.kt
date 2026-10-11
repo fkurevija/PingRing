@@ -17,7 +17,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.dp
 import androidx.test.platform.app.InstrumentationRegistry
-import com.fkurevija.pingring.data.Event
+import com.fkurevija.pingring.data.session.Event
 import com.fkurevija.pingring.ui.screens.PingRingSettingsScreen
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull

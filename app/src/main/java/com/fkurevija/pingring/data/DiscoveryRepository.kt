@@ -25,10 +25,8 @@ import com.fkurevija.pingring.MainActivity
 import com.fkurevija.pingring.R
 import com.fkurevija.pingring.data.ble.BleAdvertisingCoordinator
 import com.fkurevija.pingring.data.ble.BleIdentityScanner
-import com.fkurevija.pingring.data.discovery.ChatColourCoordinator
 import com.fkurevija.pingring.data.discovery.ConnectivityStatus
 import com.fkurevija.pingring.data.discovery.DiscoveryBeaconCoordinator
-import com.fkurevija.pingring.data.discovery.DiscoveryChatCoordinator
 import com.fkurevija.pingring.data.discovery.DiscoveryEventCoordinator
 import com.fkurevija.pingring.data.radar.PeerGnssAccess
 import com.fkurevija.pingring.data.radar.PeerMembershipAccess
@@ -39,6 +37,32 @@ import com.fkurevija.pingring.data.radar.RadarPeerUpdate
 import com.fkurevija.pingring.data.settings.AppearanceSettingsRepository
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
+import com.fkurevija.pingring.data.chat.ChatColourCoordinator
+import com.fkurevija.pingring.data.chat.DiscoveryChatCoordinator
+import com.fkurevija.pingring.data.radar.FocusPolicy
+import com.fkurevija.pingring.data.radar.GnssFixDto
+import com.fkurevija.pingring.data.radar.GnssPolicy
+import com.fkurevija.pingring.data.radar.PeerRangingPayloadDto
+import com.fkurevija.pingring.data.ranging.BleRangeProbe
+import com.fkurevija.pingring.data.ranging.DeviceOrientationTracker
+import com.fkurevija.pingring.data.ranging.GnssRangingManager
+import com.fkurevija.pingring.data.ranging.MockRangingDto
+import com.fkurevija.pingring.data.ranging.RangingSourcePolicy
+import com.fkurevija.pingring.data.ranging.UwbRangingCoordinator
+import com.fkurevija.pingring.data.ranging.UwbRetentionPolicy
+import com.fkurevija.pingring.data.ranging.WifiAwareRangingManager
+import com.fkurevija.pingring.data.session.BeaconInfo
+import com.fkurevija.pingring.data.session.BleIdentityKeyPayloadDto
+import com.fkurevija.pingring.data.session.Event
+import com.fkurevija.pingring.data.session.EventControlPayloadDto
+import com.fkurevija.pingring.data.session.Friend
+import com.fkurevija.pingring.data.session.InviteSecret
+import com.fkurevija.pingring.data.session.InviteSecretPayloadDto
+import com.fkurevija.pingring.data.session.MembershipPolicy
+import com.fkurevija.pingring.data.session.MeshPresencePayloadDto
+import com.fkurevija.pingring.data.session.SessionManager
+import com.fkurevija.pingring.data.session.SessionState
+import com.fkurevija.pingring.data.session.MAX_PARTICIPANTS
 
 @SuppressLint("MissingPermission")
 class DiscoveryRepository(

@@ -10,6 +10,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import com.fkurevija.pingring.data.settings.ThemeMode
+import com.fkurevija.pingring.data.session.Event
 
 // Every role Material draws with is named. Leaving any of these unset does not
 // fall back to the platform default quietly - it produces a hole in the scheme

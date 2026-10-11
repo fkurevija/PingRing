@@ -31,8 +31,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.fkurevija.pingring.R
-import com.fkurevija.pingring.data.BeaconInfo
-import com.fkurevija.pingring.data.BeaconVibrationPattern
+import com.fkurevija.pingring.data.session.BeaconInfo
+import com.fkurevija.pingring.data.chat.BeaconVibrationPattern
 
 /**
  * The colour this beacon is sent in.

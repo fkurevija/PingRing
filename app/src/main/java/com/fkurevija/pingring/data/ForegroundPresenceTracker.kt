@@ -4,6 +4,7 @@ import android.app.KeyguardManager
 import android.content.Context
 import android.os.PowerManager
 import java.util.concurrent.atomic.AtomicBoolean
+import com.fkurevija.pingring.data.chat.ChatNotificationPolicy
 
 /**
  * Process-wide record of what the user is currently looking at, so that

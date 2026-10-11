@@ -10,6 +10,7 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import com.fkurevija.pingring.R
+import com.fkurevija.pingring.data.DiscoveryRepository
 
 /**
  * Whether Ultra-wideband ranging can actually be used right now: the device

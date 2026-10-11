@@ -1,8 +1,8 @@
 package com.fkurevija.pingring.data.ble
 
 import com.fkurevija.pingring.data.ble.BleAdvertisementPayload as SignedBleAdvertisementPayload
-import com.fkurevija.pingring.data.BleRangePolicy
-import com.fkurevija.pingring.data.InviteSecret
+import com.fkurevija.pingring.data.ranging.BleRangePolicy
+import com.fkurevija.pingring.data.session.InviteSecret
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertFalse
@@ -11,6 +11,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
 import java.nio.charset.StandardCharsets
+import com.fkurevija.pingring.data.radar.FocusPolicy
+import com.fkurevija.pingring.data.session.Event
+import com.fkurevija.pingring.data.session.SessionManager
 
 private val testInviteSecret = InviteSecret.generate()
 private typealias BleDecoded = SignedBleAdvertisementPayload.Decoded

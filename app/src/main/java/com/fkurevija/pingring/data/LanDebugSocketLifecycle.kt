@@ -13,6 +13,7 @@ import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.net.Socket
 import java.net.SocketException
+import com.fkurevija.pingring.data.session.Event
 
 /**
  * Owns the relay TCP connection and its line-oriented read/write lifecycle.

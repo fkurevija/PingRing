@@ -1,9 +1,10 @@
 package com.fkurevija.pingring.data.radar
 
-import com.fkurevija.pingring.data.EstimatedRadarDirection
-import com.fkurevija.pingring.data.FocusPolicy
-import com.fkurevija.pingring.data.RangingConfidence
-import com.fkurevija.pingring.data.RangingSourcePolicy
+import com.fkurevija.pingring.data.radar.FocusPolicy
+import com.fkurevija.pingring.data.ranging.RangingConfidence
+import com.fkurevija.pingring.data.ranging.RangingSourcePolicy
+import com.fkurevija.pingring.data.ranging.EstimatedRadarDirection
+import com.fkurevija.pingring.data.session.Event
 
 data class RadarPeerUpdate(
     val peerId: String,

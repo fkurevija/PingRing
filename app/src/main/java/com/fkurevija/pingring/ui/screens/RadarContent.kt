@@ -36,11 +36,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.fkurevija.pingring.R
-import com.fkurevija.pingring.data.BeaconInfo
-import com.fkurevija.pingring.data.RadarAccessibilityProbe
-import com.fkurevija.pingring.data.RadarDirectionPolicy
+import com.fkurevija.pingring.data.session.BeaconInfo
+import com.fkurevija.pingring.data.radar.RadarAccessibilityProbe
+import com.fkurevija.pingring.data.radar.RadarDirectionPolicy
 import com.fkurevija.pingring.data.radar.RadarPeerUpdate
-import com.fkurevija.pingring.data.RangingSourcePolicy
+import com.fkurevija.pingring.data.ranging.RangingSourcePolicy
 import kotlin.math.ceil
 
 @Composable

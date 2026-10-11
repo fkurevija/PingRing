@@ -18,7 +18,7 @@ import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import com.fkurevija.pingring.data.BeaconInfo
+import com.fkurevija.pingring.data.session.BeaconInfo
 import com.fkurevija.pingring.data.discovery.ConnectivityStatus
 import com.fkurevija.pingring.data.radar.RadarPeerUpdate
 import com.fkurevija.pingring.ui.screens.PeerList
@@ -26,6 +26,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import com.fkurevija.pingring.data.DiscoveryRepository
+import com.fkurevija.pingring.data.session.Event
 
 /**
  * The member list, composed directly.

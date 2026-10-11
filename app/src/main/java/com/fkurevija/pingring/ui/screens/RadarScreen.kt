@@ -3,7 +3,7 @@ package com.fkurevija.pingring.ui.screens
 import androidx.compose.runtime.Composable
 import com.fkurevija.pingring.data.DiscoveryRepository
 import com.fkurevija.pingring.data.radar.LastKnownPeerDirection
-import com.fkurevija.pingring.data.SessionState
+import com.fkurevija.pingring.data.session.SessionState
 import com.fkurevija.pingring.data.PendingJoinRequest
 
 @Composable

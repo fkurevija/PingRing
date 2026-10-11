@@ -3,7 +3,8 @@ package com.fkurevija.pingring.ui.screens
 import java.net.URI
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
-import com.fkurevija.pingring.data.InviteSecret
+import com.fkurevija.pingring.data.session.InviteSecret
+import com.fkurevija.pingring.data.session.Event
 
 data class PingRingInvite(val eventCode: String, val secret: String?) {
     fun toQrValue(): String = "pingring://join?event=$eventCode" +

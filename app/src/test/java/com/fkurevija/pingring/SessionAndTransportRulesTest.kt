@@ -1,12 +1,12 @@
 package com.fkurevija.pingring
 
-import com.fkurevija.pingring.data.ChatMessageOwnership
-import com.fkurevija.pingring.data.CoordinationSyncState
-import com.fkurevija.pingring.data.CoordinationSyncStatus
-import com.fkurevija.pingring.data.Event
-import com.fkurevija.pingring.data.MAX_PARTICIPANTS
+import com.fkurevija.pingring.data.chat.ChatMessageOwnership
+import com.fkurevija.pingring.data.session.CoordinationSyncState
+import com.fkurevija.pingring.data.session.CoordinationSyncStatus
+import com.fkurevija.pingring.data.session.Event
+import com.fkurevija.pingring.data.session.MAX_PARTICIPANTS
 import com.fkurevija.pingring.data.RelayEnvelope
-import com.fkurevija.pingring.data.SessionState
+import com.fkurevija.pingring.data.session.SessionState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals

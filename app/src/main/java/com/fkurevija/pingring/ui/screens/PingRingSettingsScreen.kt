@@ -51,7 +51,7 @@ import com.fkurevija.pingring.R
 import com.fkurevija.pingring.data.BeaconAlertSettings
 import com.fkurevija.pingring.data.ConnectionMethodPolicy
 import com.fkurevija.pingring.data.ConnectionMethodPolicy.Unavailable
-import com.fkurevija.pingring.data.Event
+import com.fkurevija.pingring.data.session.Event
 import com.fkurevija.pingring.ui.permissions.rememberUwbAvailability
 
 /**

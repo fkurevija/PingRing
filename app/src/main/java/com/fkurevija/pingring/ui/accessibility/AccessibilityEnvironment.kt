@@ -13,7 +13,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
-import com.fkurevija.pingring.data.RadarFeedbackPolicy
+import com.fkurevija.pingring.data.radar.RadarFeedbackPolicy
 
 internal data class AccessibilityEnvironment(val reduceMotion: Boolean, val screenReaderActive: Boolean)
 

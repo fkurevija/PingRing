@@ -1,12 +1,17 @@
 package com.fkurevija.pingring.data.ble
 
-import com.fkurevija.pingring.data.InviteSecret
+import com.fkurevija.pingring.data.session.InviteSecret
 
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
+import com.fkurevija.pingring.data.DiscoveryRepository
+import com.fkurevija.pingring.data.radar.FocusPolicy
+import com.fkurevija.pingring.data.ranging.BleRangePolicy
+import com.fkurevija.pingring.data.session.Event
+import com.fkurevija.pingring.data.session.SessionManager
 
 /**
  * The bytes PingRing puts in the service-data field of its BLE advertisement,
@@ -210,7 +215,7 @@ object BleAdvertisementPayload {
         /**
          * The name to show for a discovered session.
          *
-         * Derived rather than transmitted. [com.fkurevija.pingring.data.Event]
+         * Derived rather than transmitted. [com.fkurevija.pingring.data.session.Event]
          * already names every event "PingRing <code>", so sending the code is
          * enough to render the name on the far side - which is what keeps the
          * advert inside the legacy size limit, and keeps two copies of a name

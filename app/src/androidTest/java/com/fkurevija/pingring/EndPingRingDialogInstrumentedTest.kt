@@ -9,12 +9,13 @@ import com.fkurevija.pingring.ui.screens.EndPingRingDialog
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
+import com.fkurevija.pingring.data.session.SessionManager
 
 /**
  * The leave/end confirmation, which is role-aware for a reason worth testing.
  *
  * A guest is offered "Leave" and a host "End": sending a guest down the end
- * path calls [com.fkurevija.pingring.data.SessionManager.endHostedEvent], which
+ * path calls [com.fkurevija.pingring.data.session.SessionManager.endHostedEvent], which
  * asserts the session is hosted and throws. The wording is the only thing that
  * tells the user which they are about to do, so the difference has to survive.
  */

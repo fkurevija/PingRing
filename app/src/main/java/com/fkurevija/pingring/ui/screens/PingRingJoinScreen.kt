@@ -23,9 +23,10 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.fkurevija.pingring.data.TextInputPolicy
-import com.fkurevija.pingring.data.MAX_PARTICIPANTS
+import com.fkurevija.pingring.data.session.MAX_PARTICIPANTS
 import com.fkurevija.pingring.R
 import com.fkurevija.pingring.ui.theme.PingRingTheme
+import com.fkurevija.pingring.data.session.InviteSecret
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

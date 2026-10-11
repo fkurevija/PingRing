@@ -5,7 +5,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.platform.app.InstrumentationRegistry
-import com.fkurevija.pingring.data.BeaconInfo
+import com.fkurevija.pingring.data.session.BeaconInfo
 import com.fkurevija.pingring.ui.screens.BeaconActionButton
 import org.junit.Assert.assertEquals
 import org.junit.Rule

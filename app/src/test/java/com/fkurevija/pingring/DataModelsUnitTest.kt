@@ -1,26 +1,26 @@
 package com.fkurevija.pingring
 
-import com.fkurevija.pingring.data.BeaconInfo
-import com.fkurevija.pingring.data.BeaconPayloadDto
-import com.fkurevija.pingring.data.BeaconPreset
-import com.fkurevija.pingring.data.BeaconVibrationPattern
-import com.fkurevija.pingring.data.BleIdentityKeyPayloadDto
-import com.fkurevija.pingring.data.ChatHistoryPayloadDto
-import com.fkurevija.pingring.data.ChatMessage
-import com.fkurevija.pingring.data.ChatPayloadDto
-import com.fkurevija.pingring.data.ChatTimelineItem
-import com.fkurevija.pingring.data.EventControlPayloadDto
-import com.fkurevija.pingring.data.InviteSecretPayloadDto
-import com.fkurevija.pingring.data.JoinProofPayloadDto
-import com.fkurevija.pingring.data.MemberDeparturePayloadDto
-import com.fkurevija.pingring.data.MeshLinkAuthenticationPayloadDto
-import com.fkurevija.pingring.data.MeshPresencePayloadDto
-import com.fkurevija.pingring.data.PeerRangingPayloadDto
-import com.fkurevija.pingring.data.UwbPeerAddressDto
+import com.fkurevija.pingring.data.session.BeaconInfo
+import com.fkurevija.pingring.data.chat.BeaconPayloadDto
+import com.fkurevija.pingring.data.chat.BeaconPreset
+import com.fkurevija.pingring.data.chat.BeaconVibrationPattern
+import com.fkurevija.pingring.data.session.BleIdentityKeyPayloadDto
+import com.fkurevija.pingring.data.chat.ChatHistoryPayloadDto
+import com.fkurevija.pingring.data.session.ChatMessage
+import com.fkurevija.pingring.data.chat.ChatPayloadDto
+import com.fkurevija.pingring.data.chat.ChatTimelineItem
+import com.fkurevija.pingring.data.session.EventControlPayloadDto
+import com.fkurevija.pingring.data.session.InviteSecretPayloadDto
+import com.fkurevija.pingring.data.session.JoinProofPayloadDto
+import com.fkurevija.pingring.data.session.MemberDeparturePayloadDto
+import com.fkurevija.pingring.data.session.MeshLinkAuthenticationPayloadDto
+import com.fkurevija.pingring.data.session.MeshPresencePayloadDto
+import com.fkurevija.pingring.data.ranging.UwbPeerAddressDto
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.fkurevija.pingring.data.radar.PeerRangingPayloadDto
 
 class DataModelsUnitTest {
 

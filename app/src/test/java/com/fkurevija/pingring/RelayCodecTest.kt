@@ -1,33 +1,36 @@
 package com.fkurevija.pingring
 
-import com.fkurevija.pingring.data.BeaconPayloadDto
-import com.fkurevija.pingring.data.BleIdentityKeyPayloadDto
-import com.fkurevija.pingring.data.MemberDeparturePayloadDto
-import com.fkurevija.pingring.data.MeshPresencePayloadDto
-import com.fkurevija.pingring.data.PeerRangingPayloadDto
-import com.fkurevija.pingring.data.GnssFixDto
-import com.fkurevija.pingring.data.MeshLinkAuthenticationPayloadDto
-import com.fkurevija.pingring.data.ChatHistoryPayloadDto
-import com.fkurevija.pingring.data.ChatColourClaimPayloadDto
-import com.fkurevija.pingring.data.ChatPayloadDto
-import com.fkurevija.pingring.data.ChatReceiptPayloadDto
-import com.fkurevija.pingring.data.ChatEntryType
+import com.fkurevija.pingring.data.chat.BeaconPayloadDto
+import com.fkurevija.pingring.data.session.BleIdentityKeyPayloadDto
+import com.fkurevija.pingring.data.session.MemberDeparturePayloadDto
+import com.fkurevija.pingring.data.session.MeshPresencePayloadDto
+import com.fkurevija.pingring.data.session.MeshLinkAuthenticationPayloadDto
+import com.fkurevija.pingring.data.chat.ChatHistoryPayloadDto
+import com.fkurevija.pingring.data.session.ChatColourClaimPayloadDto
+import com.fkurevija.pingring.data.chat.ChatPayloadDto
+import com.fkurevija.pingring.data.chat.ChatReceiptPayloadDto
+import com.fkurevija.pingring.data.chat.ChatEntryType
 import com.fkurevija.pingring.data.DecodedPayload
-import com.fkurevija.pingring.data.EventControlPayloadDto
-import com.fkurevija.pingring.data.InviteSecretPayloadDto
-import com.fkurevija.pingring.data.JoinProofPayloadDto
-import com.fkurevija.pingring.data.MockRangingDto
+import com.fkurevija.pingring.data.session.EventControlPayloadDto
+import com.fkurevija.pingring.data.session.InviteSecretPayloadDto
+import com.fkurevija.pingring.data.session.JoinProofPayloadDto
+import com.fkurevija.pingring.data.ranging.MockRangingDto
 import com.fkurevija.pingring.data.PayloadSink
 import com.fkurevija.pingring.data.RelayCodec
 import com.fkurevija.pingring.data.RelayEnvelope
-import com.fkurevija.pingring.data.UwbControllerParametersDto
-import com.fkurevija.pingring.data.UwbPeerAddressDto
-import com.fkurevija.pingring.data.UwbRangingOfferDto
+import com.fkurevija.pingring.data.ranging.UwbControllerParametersDto
+import com.fkurevija.pingring.data.ranging.UwbPeerAddressDto
+import com.fkurevija.pingring.data.ranging.UwbRangingOfferDto
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.fkurevija.pingring.data.chat.ChatRecipientReceipt
+import com.fkurevija.pingring.data.chat.MessageStatus
+import com.fkurevija.pingring.data.MeshPeerAuthentication
+import com.fkurevija.pingring.data.radar.GnssFixDto
+import com.fkurevija.pingring.data.radar.PeerRangingPayloadDto
 
 /**
  * The wire format is the one thing every device in a PingRing has to agree on,
@@ -169,7 +172,7 @@ class RelayCodecTest {
     )
     private val joinProof = JoinProofPayloadDto("4C1A9B", null)
     private val eventControl = EventControlPayloadDto("4C1A9B", "peer-a", true, true, true, true, false)
-    private val chatReceipt = ChatReceiptPayloadDto("4C1A9B", "m1", "peer-c", com.fkurevija.pingring.data.MessageStatus.READ)
+    private val chatReceipt = ChatReceiptPayloadDto("4C1A9B", "m1", "peer-c", com.fkurevija.pingring.data.chat.MessageStatus.READ)
 
     @Test
     fun aChatColourClaimSurvivesTheWireInBothDirections() {
@@ -295,8 +298,8 @@ class RelayCodecTest {
         assertEquals(coloredChat, payloadOf(decoded(RelayCodec.CHAT, encodedJson(coloredChat))))
         val groupChat = chat.copy(
             recipientReceipts = listOf(
-                com.fkurevija.pingring.data.ChatRecipientReceipt("peer-a", "Alice"),
-                com.fkurevija.pingring.data.ChatRecipientReceipt("peer-c", "Chao"),
+                com.fkurevija.pingring.data.chat.ChatRecipientReceipt("peer-a", "Alice"),
+                com.fkurevija.pingring.data.chat.ChatRecipientReceipt("peer-c", "Chao"),
             ),
         )
         assertEquals(groupChat, payloadOf(decoded(RelayCodec.CHAT, encodedJson(groupChat))))

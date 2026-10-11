@@ -1,4 +1,6 @@
 package com.fkurevija.pingring.data
+import com.fkurevija.pingring.data.ranging.BleRangePolicy
+import com.fkurevija.pingring.data.ranging.UwbRetentionPolicy
 
 /**
  * How hard each radio should work, given what the device is actually doing.

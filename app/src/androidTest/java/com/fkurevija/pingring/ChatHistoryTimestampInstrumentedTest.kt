@@ -4,8 +4,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.Text
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.onAllNodesWithText
-import com.fkurevija.pingring.data.BeaconInfo
-import com.fkurevija.pingring.data.ChatTimestampPolicy
+import com.fkurevija.pingring.data.session.BeaconInfo
+import com.fkurevija.pingring.data.chat.ChatTimestampPolicy
 import com.fkurevija.pingring.ui.screens.ActiveBeaconEntry
 import com.fkurevija.pingring.ui.screens.chatHistoryTimestamp
 import org.junit.Test

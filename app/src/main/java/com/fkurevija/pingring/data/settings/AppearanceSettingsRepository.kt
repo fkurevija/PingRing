@@ -14,6 +14,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import com.fkurevija.pingring.data.LanDebugConnectionsManager
 
 const val DEFAULT_CONNECTION_RECOVERY_PROMPT_DELAY_MILLIS = 120_000L
 const val MIN_CONNECTION_RECOVERY_PROMPT_DELAY_MILLIS = 60_000L

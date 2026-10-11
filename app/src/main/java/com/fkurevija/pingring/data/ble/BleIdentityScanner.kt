@@ -11,15 +11,17 @@ import android.os.ParcelUuid
 import android.util.Log
 import com.fkurevija.pingring.data.BleIdentityAdvertisement
 import com.fkurevija.pingring.data.BleIdentityCrypto
-import com.fkurevija.pingring.data.BleIdentityKeyPayloadDto
-import com.fkurevija.pingring.data.BleRangePolicy
-import com.fkurevija.pingring.data.BleRangeProbe
+import com.fkurevija.pingring.data.session.BleIdentityKeyPayloadDto
+import com.fkurevija.pingring.data.ranging.BleRangePolicy
+import com.fkurevija.pingring.data.ranging.BleRangeProbe
 import com.fkurevija.pingring.data.NearbyConnectionsManager
 import com.fkurevija.pingring.data.NearbyTransport
 import com.fkurevija.pingring.data.RadioPowerPolicy
-import com.fkurevija.pingring.data.SessionManager
+import com.fkurevija.pingring.data.session.SessionManager
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import com.fkurevija.pingring.data.DiscoveryRepository
+import com.fkurevija.pingring.data.session.SessionState
 
 /** Scans for signed identity advertisements and forwards verified peer sightings. */
 internal class BleIdentityScanner(

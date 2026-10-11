@@ -1,6 +1,7 @@
 package com.fkurevija.pingring.data
 
 import com.squareup.moshi.JsonClass
+import com.fkurevija.pingring.data.session.Event
 
 /**
  * Line-delimited JSON envelope used by [LanDebugConnectionsManager] to talk to

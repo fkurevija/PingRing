@@ -43,13 +43,13 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.fkurevija.pingring.R
-import com.fkurevija.pingring.data.BeaconInfo
+import com.fkurevija.pingring.data.session.BeaconInfo
 import com.fkurevija.pingring.data.discovery.ConnectivityStatus
 import com.fkurevija.pingring.data.DiscoveryRepository
 import com.fkurevija.pingring.data.LocalRadioAdvicePolicy
 import com.fkurevija.pingring.data.LocalRadioAdvicePolicy.Advice
-import com.fkurevija.pingring.data.MAX_PARTICIPANTS
-import com.fkurevija.pingring.data.PeerListOrderPolicy
+import com.fkurevija.pingring.data.session.MAX_PARTICIPANTS
+import com.fkurevija.pingring.data.radar.PeerListOrderPolicy
 import com.fkurevija.pingring.data.radar.RadarPeerUpdate
 
 /**

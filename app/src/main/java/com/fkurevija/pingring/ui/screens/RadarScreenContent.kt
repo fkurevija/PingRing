@@ -71,26 +71,27 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.fkurevija.pingring.R
 import com.fkurevija.pingring.data.BeaconAlertSettings
-import com.fkurevija.pingring.data.ChatBubbleColorPolicy
-import com.fkurevija.pingring.data.ChatTimelineItem
-import com.fkurevija.pingring.data.ChatTimelinePolicy
+import com.fkurevija.pingring.data.chat.ChatBubbleColorPolicy
+import com.fkurevija.pingring.data.chat.ChatTimelinePolicy
 import com.fkurevija.pingring.data.ConnectionRecoveryPromptPolicy
 import com.fkurevija.pingring.data.discovery.ConnectivityStatus
 import com.fkurevija.pingring.data.DiscoveryRepository
-import com.fkurevija.pingring.data.FocusPolicy
+import com.fkurevija.pingring.data.radar.FocusPolicy
 import com.fkurevija.pingring.data.radar.LastKnownPeerDirection
-import com.fkurevija.pingring.data.MAX_PARTICIPANTS
 import com.fkurevija.pingring.data.PendingJoinRequest
-import com.fkurevija.pingring.data.RadarAccessibilityProbe
-import com.fkurevija.pingring.data.RadarAnnouncementPolicy
-import com.fkurevija.pingring.data.RadarDirectionPolicy
-import com.fkurevija.pingring.data.RadarFeedbackPolicy
+import com.fkurevija.pingring.data.radar.RadarAccessibilityProbe
+import com.fkurevija.pingring.data.radar.RadarDirectionPolicy
+import com.fkurevija.pingring.data.radar.RadarFeedbackPolicy
 import com.fkurevija.pingring.data.radar.RadarPeerUpdate
-import com.fkurevija.pingring.data.RangingSourcePolicy
-import com.fkurevija.pingring.data.SessionState
+import com.fkurevija.pingring.data.ranging.RangingSourcePolicy
+import com.fkurevija.pingring.data.session.SessionState
 import com.fkurevija.pingring.ui.accessibility.rememberAccessibilityEnvironment
 import kotlinx.coroutines.delay
 import kotlin.math.atan2
+import com.fkurevija.pingring.data.chat.ChatTimelineItem
+import com.fkurevija.pingring.data.radar.RadarAnnouncementPolicy
+import com.fkurevija.pingring.data.session.MAX_PARTICIPANTS
+import com.fkurevija.pingring.data.session.Event
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

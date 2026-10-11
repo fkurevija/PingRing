@@ -10,7 +10,7 @@ import androidx.compose.ui.test.click
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.fkurevija.pingring.data.BeaconAlertRepeat
 import com.fkurevija.pingring.data.BeaconAlertSettings
-import com.fkurevija.pingring.data.Event
+import com.fkurevija.pingring.data.session.Event
 import com.fkurevija.pingring.ui.screens.PingRingSettingsScreen
 import org.junit.Assert.assertEquals
 import org.junit.Rule

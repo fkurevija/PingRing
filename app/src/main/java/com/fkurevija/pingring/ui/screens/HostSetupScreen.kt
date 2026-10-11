@@ -53,6 +53,8 @@ import com.fkurevija.pingring.data.TextInputPolicy
 import com.fkurevija.pingring.data.DiscoveryRepository
 import com.fkurevija.pingring.data.PendingJoinRequest
 import com.fkurevija.pingring.R
+import com.fkurevija.pingring.data.session.Event
+import com.fkurevija.pingring.data.session.InviteSecret
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

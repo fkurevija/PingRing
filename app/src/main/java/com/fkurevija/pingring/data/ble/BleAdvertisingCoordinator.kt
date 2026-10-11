@@ -17,11 +17,11 @@ import android.os.Build
 import android.os.ParcelUuid
 import android.util.Log
 import com.fkurevija.pingring.data.BleIdentityAdvertisement
-import com.fkurevija.pingring.data.BleRangePolicy
-import com.fkurevija.pingring.data.BleRangeProbe
+import com.fkurevija.pingring.data.ranging.BleRangePolicy
+import com.fkurevija.pingring.data.ranging.BleRangeProbe
 import com.fkurevija.pingring.data.ConnectionMethodPolicy
 import com.fkurevija.pingring.data.RadioPowerPolicy
-import com.fkurevija.pingring.data.SessionManager
+import com.fkurevija.pingring.data.session.SessionManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -33,6 +33,10 @@ import java.nio.charset.StandardCharsets
 import java.security.KeyPair
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicLong
+import com.fkurevija.pingring.data.DiscoveryRepository
+import com.fkurevija.pingring.data.session.Event
+import com.fkurevija.pingring.data.session.InviteSecret
+import com.fkurevija.pingring.data.session.SessionState
 
 /** Owns BLE advertisement encoding, callbacks, refresh, and stop/restart cleanup. */
 @SuppressLint("MissingPermission")

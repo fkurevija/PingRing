@@ -7,6 +7,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.fkurevija.pingring.data.ranging.UwbRetentionPolicy
 
 /**
  * How hard the radios work for a given load.

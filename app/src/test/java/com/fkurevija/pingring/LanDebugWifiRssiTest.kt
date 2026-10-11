@@ -1,13 +1,13 @@
 package com.fkurevija.pingring
 
-import com.fkurevija.pingring.data.InviteSecret
-import com.fkurevija.pingring.data.InviteSecretPayloadDto
-import com.fkurevija.pingring.data.JoinProofPayloadDto
+import com.fkurevija.pingring.data.session.InviteSecret
+import com.fkurevija.pingring.data.session.InviteSecretPayloadDto
+import com.fkurevija.pingring.data.session.JoinProofPayloadDto
 import com.fkurevija.pingring.data.LanDebugConnectionsManager
-import com.fkurevija.pingring.data.MockRangingDto
+import com.fkurevija.pingring.data.ranging.MockRangingDto
 import com.fkurevija.pingring.data.RelayCodec
 import com.fkurevija.pingring.data.RelayEnvelope
-import com.fkurevija.pingring.data.RssiSmoother
+import com.fkurevija.pingring.data.ranging.RssiSmoother
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first

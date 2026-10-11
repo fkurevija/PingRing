@@ -1,15 +1,15 @@
 package com.fkurevija.pingring
 
-import com.fkurevija.pingring.data.BeaconPayloadDto
-import com.fkurevija.pingring.data.ChatHistoryPayloadDto
-import com.fkurevija.pingring.data.ChatPayloadDto
-import com.fkurevija.pingring.data.MockRangingDto
-import com.fkurevija.pingring.data.MemberDeparturePayloadDto
-import com.fkurevija.pingring.data.MeshPresencePayloadDto
+import com.fkurevija.pingring.data.chat.BeaconPayloadDto
+import com.fkurevija.pingring.data.chat.ChatHistoryPayloadDto
+import com.fkurevija.pingring.data.chat.ChatPayloadDto
+import com.fkurevija.pingring.data.ranging.MockRangingDto
+import com.fkurevija.pingring.data.session.MemberDeparturePayloadDto
+import com.fkurevija.pingring.data.session.MeshPresencePayloadDto
 import com.fkurevija.pingring.data.TransportEvents
-import com.fkurevija.pingring.data.UwbControllerParametersDto
-import com.fkurevija.pingring.data.UwbPeerAddressDto
-import com.fkurevija.pingring.data.UwbRangingOfferDto
+import com.fkurevija.pingring.data.ranging.UwbControllerParametersDto
+import com.fkurevija.pingring.data.ranging.UwbPeerAddressDto
+import com.fkurevija.pingring.data.ranging.UwbRangingOfferDto
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
@@ -24,6 +24,7 @@ import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import com.fkurevija.pingring.data.DiscoveryRepository
 
 /**
  * Every transport publishes the same flows with the same buffer sizes, because

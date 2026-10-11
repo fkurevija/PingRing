@@ -1,6 +1,6 @@
 package com.fkurevija.pingring
 
-import com.fkurevija.pingring.data.InviteSecret
+import com.fkurevija.pingring.data.session.InviteSecret
 import com.fkurevija.pingring.data.nfc.NfcInviteApdu
 import com.fkurevija.pingring.data.nfc.NfcInviteExchange
 import com.fkurevija.pingring.ui.screens.PingRingCodeParser
@@ -9,6 +9,7 @@ import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import com.fkurevija.pingring.data.session.Event
 
 class NfcInviteApduTest {
 

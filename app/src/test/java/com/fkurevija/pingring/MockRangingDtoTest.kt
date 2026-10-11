@@ -1,6 +1,6 @@
 package com.fkurevija.pingring
 
-import com.fkurevija.pingring.data.MockRangingDto
+import com.fkurevija.pingring.data.ranging.MockRangingDto
 import com.squareup.moshi.JsonDataException
 import com.squareup.moshi.Moshi
 import org.junit.Assert.assertEquals

@@ -10,11 +10,11 @@ import com.fkurevija.pingring.data.BEACON_REPEAT_DURATION_UNTIL_STOPPED
 import com.fkurevija.pingring.data.BeaconAlertPolicy
 import com.fkurevija.pingring.data.BeaconAlertRepeat
 import com.fkurevija.pingring.data.BeaconAlertSettings
-import com.fkurevija.pingring.data.BeaconInfo
-import com.fkurevija.pingring.data.BeaconPayloadDto
-import com.fkurevija.pingring.data.BeaconVibrationPattern
+import com.fkurevija.pingring.data.session.BeaconInfo
+import com.fkurevija.pingring.data.chat.BeaconPayloadDto
+import com.fkurevija.pingring.data.chat.BeaconVibrationPattern
 import com.fkurevija.pingring.data.NearbyTransport
-import com.fkurevija.pingring.data.SessionManager
+import com.fkurevija.pingring.data.session.SessionManager
 import com.fkurevija.pingring.data.settings.AppearanceSettingsRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

@@ -6,6 +6,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.fkurevija.pingring.data.BeaconAlertRepeat
+import com.fkurevija.pingring.data.BeaconAlertSettings
 
 /**
  * The value a repeated beacon alert is played from.

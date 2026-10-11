@@ -7,8 +7,8 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import com.fkurevija.pingring.data.BeaconInfo
-import com.fkurevija.pingring.data.ChatTimestampPolicy
+import com.fkurevija.pingring.data.session.BeaconInfo
+import com.fkurevija.pingring.data.chat.ChatTimestampPolicy
 import com.fkurevija.pingring.ui.screens.ActiveBeaconEntry
 import org.junit.Assert.assertEquals
 import org.junit.Rule

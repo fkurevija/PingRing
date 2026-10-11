@@ -11,6 +11,7 @@ import com.fkurevija.pingring.ui.screens.HomeScreen
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
+import com.fkurevija.pingring.data.session.Event
 
 /**
  * The screen a user sees first, driven on a real device.

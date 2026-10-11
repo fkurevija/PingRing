@@ -15,10 +15,10 @@ import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
-import com.fkurevija.pingring.data.ChatBubblePalette
+import com.fkurevija.pingring.data.chat.ChatBubblePalette
 import com.fkurevija.pingring.data.DiscoveryRepository
 import com.fkurevija.pingring.data.ForegroundPresenceTracker
-import com.fkurevija.pingring.data.SessionManager
+import com.fkurevija.pingring.data.session.SessionManager
 import com.fkurevija.pingring.data.discovery.ConnectivityStatus
 import com.fkurevija.pingring.data.settings.AppearanceSettingsRepository
 import com.fkurevija.pingring.data.settings.DEFAULT_JOIN_WAIT_TIMEOUT_MILLIS
@@ -26,6 +26,7 @@ import com.fkurevija.pingring.data.settings.ThemeMode
 import com.fkurevija.pingring.ui.screens.ConnectionAuthenticationDialog
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import com.fkurevija.pingring.data.session.SessionState
 
 @Composable
 fun MainNavigation(

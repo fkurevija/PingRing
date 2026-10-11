@@ -7,14 +7,16 @@ import androidx.compose.runtime.collectAsState
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
 import com.fkurevija.pingring.data.DiscoveryRepository
-import com.fkurevija.pingring.data.SessionManager
-import com.fkurevija.pingring.data.SessionState
+import com.fkurevija.pingring.data.session.SessionManager
+import com.fkurevija.pingring.data.session.SessionState
 import com.fkurevija.pingring.data.PendingJoinRequest
 import com.fkurevija.pingring.data.discovery.ConnectivityStatus
 import com.fkurevija.pingring.data.radar.LastKnownPeerDirection
 import com.fkurevija.pingring.data.settings.AppearanceSettingsRepository
 import com.fkurevija.pingring.ui.screens.PingRingSettingsScreen
 import com.fkurevija.pingring.ui.screens.RadarScreen
+import com.fkurevija.pingring.data.BeaconAlertSettings
+import com.fkurevija.pingring.data.session.Event
 
 @Composable
 internal fun PingRingSettingsDestination(

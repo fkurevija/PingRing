@@ -38,12 +38,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.fkurevija.pingring.R
-import com.fkurevija.pingring.data.BeaconInfo
-import com.fkurevija.pingring.data.ChatBubbleColorPolicy
-import com.fkurevija.pingring.data.ChatTimelinePolicy
+import com.fkurevija.pingring.data.session.BeaconInfo
+import com.fkurevija.pingring.data.chat.ChatBubbleColorPolicy
+import com.fkurevija.pingring.data.chat.ChatTimelinePolicy
 import com.fkurevija.pingring.data.DiscoveryRepository
 import com.fkurevija.pingring.data.radar.RadarPeerUpdate
-import com.fkurevija.pingring.data.SessionState
+import com.fkurevija.pingring.data.session.SessionState
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable

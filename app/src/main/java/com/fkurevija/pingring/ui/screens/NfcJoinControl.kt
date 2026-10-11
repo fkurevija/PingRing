@@ -35,6 +35,7 @@ import com.fkurevija.pingring.R
 import com.fkurevija.pingring.data.nfc.NfcInviteApdu
 import java.io.IOException
 import java.util.concurrent.atomic.AtomicBoolean
+import com.fkurevija.pingring.data.session.Event
 
 @Composable
 internal fun NfcJoinControl(

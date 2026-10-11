@@ -1,6 +1,6 @@
 package com.fkurevija.pingring
 
-import com.fkurevija.pingring.data.MAX_PARTICIPANTS
+import com.fkurevija.pingring.data.session.MAX_PARTICIPANTS
 import com.fkurevija.pingring.data.ConnectionAuthenticationRequest
 import com.fkurevija.pingring.data.JOIN_REQUEST_TIMEOUT_MILLIS
 import com.fkurevija.pingring.data.JoinRequestDecision
@@ -19,6 +19,7 @@ import com.fkurevija.pingring.data.SAS_PROMPT_WINDOW_MILLIS
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.fkurevija.pingring.data.session.Event
 
 /**
  * The host's admission policy is applied to devices asking to join, and only

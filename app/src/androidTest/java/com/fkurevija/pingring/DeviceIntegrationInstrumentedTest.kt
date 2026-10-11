@@ -5,9 +5,9 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.fkurevija.pingring.data.ble.BleAdvertisementPayload
 import com.fkurevija.pingring.data.BleIdentityAdvertisement
-import com.fkurevija.pingring.data.BleRangePolicy
-import com.fkurevija.pingring.data.InviteSecret
-import com.fkurevija.pingring.data.SessionManager
+import com.fkurevija.pingring.data.ranging.BleRangePolicy
+import com.fkurevija.pingring.data.session.InviteSecret
+import com.fkurevija.pingring.data.session.SessionManager
 import com.fkurevija.pingring.data.settings.ThemeMode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -15,6 +15,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.nio.charset.StandardCharsets
+import com.fkurevija.pingring.data.DiscoveryRepository
 
 /**
  * The parts of the app that can only be checked against a real Android runtime.

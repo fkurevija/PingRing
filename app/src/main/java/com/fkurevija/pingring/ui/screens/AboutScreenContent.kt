@@ -44,7 +44,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import com.fkurevija.pingring.R
-import com.fkurevija.pingring.data.BleRangeProbe
+import com.fkurevija.pingring.data.ranging.BleRangeProbe
 import com.fkurevija.pingring.data.DiagnosticsFacts
 import com.fkurevija.pingring.data.DiagnosticsPolicy
 import com.fkurevija.pingring.data.DiagnosticsPolicy.Key

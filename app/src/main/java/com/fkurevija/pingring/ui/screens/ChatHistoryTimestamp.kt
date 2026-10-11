@@ -4,7 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.res.stringResource
 import com.fkurevija.pingring.R
-import com.fkurevija.pingring.data.ChatTimestampPolicy
+import com.fkurevija.pingring.data.chat.ChatTimestampPolicy
 import java.util.Locale
 import java.util.TimeZone
 

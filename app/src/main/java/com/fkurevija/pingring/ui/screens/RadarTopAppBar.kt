@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import com.fkurevija.pingring.R
+import com.fkurevija.pingring.data.session.Event
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

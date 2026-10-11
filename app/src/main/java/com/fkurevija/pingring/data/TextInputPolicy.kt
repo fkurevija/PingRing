@@ -1,5 +1,9 @@
 package com.fkurevija.pingring.data
 
+import com.fkurevija.pingring.data.chat.MAX_BEACON_TITLE_LENGTH
+import com.fkurevija.pingring.data.chat.MAX_CHAT_LENGTH
+import com.fkurevija.pingring.data.chat.MAX_USERNAME_LENGTH
+
 /**
  * What a person is allowed to type, and what is allowed to leave the device.
  *

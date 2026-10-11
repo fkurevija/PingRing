@@ -3,12 +3,14 @@ package com.fkurevija.pingring.data.discovery
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
-import com.fkurevija.pingring.data.Event
-import com.fkurevija.pingring.data.EventControlPayloadDto
-import com.fkurevija.pingring.data.MAX_PARTICIPANTS
-import com.fkurevija.pingring.data.MemberDeparturePayloadDto
+import com.fkurevija.pingring.data.session.Event
+import com.fkurevija.pingring.data.session.EventControlPayloadDto
+import com.fkurevija.pingring.data.session.MAX_PARTICIPANTS
+import com.fkurevija.pingring.data.session.MemberDeparturePayloadDto
 import com.fkurevija.pingring.data.NearbyTransport
-import com.fkurevija.pingring.data.SessionManager
+import com.fkurevija.pingring.data.session.SessionManager
+import com.fkurevija.pingring.data.DiscoveryRepository
+import com.fkurevija.pingring.data.session.SessionState
 
 /**
  * Coordinates host/member actions that publish PingRing membership and event

@@ -6,8 +6,8 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.test.platform.app.InstrumentationRegistry
 import com.fkurevija.pingring.data.radar.RadarPeerUpdate
-import com.fkurevija.pingring.data.RangingSourcePolicy
-import com.fkurevija.pingring.data.EstimatedRadarDirection
+import com.fkurevija.pingring.data.ranging.RangingSourcePolicy
+import com.fkurevija.pingring.data.ranging.EstimatedRadarDirection
 import com.fkurevija.pingring.ui.screens.RadarContent
 import org.junit.Rule
 import org.junit.Test

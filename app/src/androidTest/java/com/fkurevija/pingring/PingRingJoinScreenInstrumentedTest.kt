@@ -9,11 +9,12 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.test.platform.app.InstrumentationRegistry
-import com.fkurevija.pingring.data.MAX_PARTICIPANTS
+import com.fkurevija.pingring.data.session.MAX_PARTICIPANTS
 import com.fkurevija.pingring.ui.screens.PingRingJoinScreen
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
+import com.fkurevija.pingring.data.DiscoveryRepository
 
 /**
  * The join screen, driven on a device.

@@ -1,4 +1,5 @@
 package com.fkurevija.pingring.data
+import com.fkurevija.pingring.data.session.Event
 
 /**
  * The facts an About screen shows, and the plain-text report a member can paste
