@@ -334,18 +334,20 @@ class LanDebugConnectionsManager(
     }
 
     private fun sendPayload(targetPeerId: String?, params: Any, onComplete: (() -> Unit)? = null) {
-        val encoded = RelayCodec.encode(params) ?: run { onComplete?.invoke(); return }
+        val envelope = payloadEnvelope(targetPeerId, params) ?: run { onComplete?.invoke(); return }
+        sendEnvelope(envelope, onComplete)
+    }
+
+    private fun payloadEnvelope(targetPeerId: String?, params: Any): RelayEnvelope? {
+        val encoded = RelayCodec.encode(params) ?: return null
         val innerEnvelope = RelayEnvelope(type = encoded.wireType, payload = encoded.json)
         val innerJson = RelayCodec.encodeEnvelope(innerEnvelope)
-        sendEnvelope(
-            RelayEnvelope(
-                type = RelayEnvelope.DATA,
-                eventId = localEventId,
-                senderPeerId = localPeerId,
-                targetPeerId = targetPeerId,
-                payload = innerJson
-            ),
-            onComplete,
+        return RelayEnvelope(
+            type = RelayEnvelope.DATA,
+            eventId = localEventId,
+            senderPeerId = localPeerId,
+            targetPeerId = targetPeerId,
+            payload = innerJson,
         )
     }
 
@@ -431,9 +433,12 @@ class LanDebugConnectionsManager(
         wifiRssiProxy.removePeer(peerId)
         // Keep relay notifications best-effort: local membership is removed
         // above and is never contingent on a live relay or guest connection.
-        sendPayload(null, departure) {
-            sendPayload(peerId, removalControl)
-        }
+        socketLifecycle.sendInOrder(
+            listOfNotNull(
+                payloadEnvelope(null, departure),
+                payloadEnvelope(peerId, removalControl),
+            ),
+        )
     }
 
     override fun sendEventControl(peerId: String, control: EventControlPayloadDto) {

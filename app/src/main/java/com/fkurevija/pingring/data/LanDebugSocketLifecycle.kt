@@ -139,6 +139,26 @@ internal class LanDebugSocketLifecycle(
         }
     }
 
+    fun sendInOrder(envelopes: List<RelayEnvelope>) {
+        if (envelopes.isEmpty()) return
+        scope.launch {
+            val activeWriter = writer
+            if (activeWriter == null) {
+                synchronized(writeLock) { pendingEnvelopes.addAll(envelopes) }
+                return@launch
+            }
+            for (index in envelopes.indices) {
+                if (writeEnvelopeNow(activeWriter, envelopes[index])) continue
+                synchronized(writeLock) {
+                    for (pending in envelopes.subList(index, envelopes.size)) {
+                        pendingEnvelopes.addLast(pending)
+                    }
+                }
+                break
+            }
+        }
+    }
+
     private fun writeEnvelopeNow(activeWriter: BufferedWriter, envelope: RelayEnvelope): Boolean {
         val json = RelayCodec.encodeEnvelope(envelope)
         synchronized(writeLock) {
@@ -164,6 +184,6 @@ internal class LanDebugSocketLifecycle(
         if (toFlush.isNotEmpty()) {
             Log.i(tag, "Flushing ${toFlush.size} queued envelope(s) after reconnect")
         }
-        toFlush.forEach(::send)
+        sendInOrder(toFlush)
     }
 }
