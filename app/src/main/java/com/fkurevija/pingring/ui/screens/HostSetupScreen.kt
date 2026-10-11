@@ -55,6 +55,7 @@ import com.fkurevija.pingring.data.PendingJoinRequest
 import com.fkurevija.pingring.R
 import com.fkurevija.pingring.data.session.Event
 import com.fkurevija.pingring.data.session.InviteSecret
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -64,7 +65,7 @@ fun HostSetupScreen(
     savedUsername: String,
     discoveryRepository: DiscoveryRepository,
     onEndEvent: () -> Unit,
-    onSaveUsername: (String) -> Unit,
+    onUsernameChange: (String) -> Unit,
     onView: () -> Unit,
     /**
      * Opens PingRing Settings, which owns every event switch.
@@ -84,9 +85,21 @@ fun HostSetupScreen(
     existingMemberNames: List<String> = emptyList(),
 ) {
     val defaultHostName = stringResource(R.string.host_default_name)
-    var username by remember(savedUsername, defaultHostName) { mutableStateOf(savedUsername.ifBlank { defaultHostName }) }
+    var username by remember(defaultHostName) { mutableStateOf(savedUsername.ifBlank { defaultHostName }) }
+    var propagatedUsername by remember(defaultHostName) {
+        mutableStateOf(savedUsername.ifBlank { defaultHostName })
+    }
     var showEndConfirmation by remember { mutableStateOf(false) }
     val usernameError = TextInputPolicy.usernameError(username, existingMemberNames)
+
+    LaunchedEffect(username, usernameError) {
+        val candidate = username.trim()
+        if (usernameError == null && candidate != propagatedUsername) {
+            delay(USERNAME_PROPAGATION_DEBOUNCE_MILLIS)
+            onUsernameChange(candidate)
+            propagatedUsername = candidate
+        }
+    }
 
     // The PingRing is already live on this screen - the host is advertising as
     // soon as it opens - so system back must not slip past the question. The
@@ -197,6 +210,7 @@ fun HostSetupScreen(
                         eventCode = eventCode,
                         inviteSecret = inviteSecret,
                         modifier = Modifier.fillMaxWidth(),
+                        qrSize = 136.dp,
                     )
 
                     HorizontalDivider(Modifier.padding(vertical = 16.dp))
@@ -246,7 +260,7 @@ fun HostSetupScreen(
                     // tacked on below a boundary rather than being part of the
                     // same panel. The 16dp that separated them still does that
                     // job, and costs 1dp less than the rule did.
-                    Spacer(Modifier.height(16.dp))
+                    Spacer(Modifier.height(12.dp))
 
                     // One link, not a second copy of the switches. Every event switch
                     // lives on PingRing Settings, which is one tap away and the only
@@ -269,7 +283,7 @@ fun HostSetupScreen(
                             Spacer(Modifier.width(8.dp))
                             Text(stringResource(R.string.pingring_settings), fontWeight = FontWeight.SemiBold)
                         }
-                        Spacer(Modifier.height(12.dp))
+                        Spacer(Modifier.height(8.dp))
                         Text(
                             stringResource(R.string.event_settings_description),
                             style = MaterialTheme.typography.bodySmall,
@@ -286,12 +300,13 @@ fun HostSetupScreen(
             //
             // Guarded on a trimmed name as well as enabled on a blank one, so a
             // name of only spaces cannot open a session called " ".
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(10.dp))
             Button(
                 onClick = {
                     val trimmed = username.trim()
                     if (TextInputPolicy.usernameError(trimmed, existingMemberNames) == null) {
-                        onSaveUsername(trimmed)
+                        onUsernameChange(trimmed)
+                        propagatedUsername = trimmed
                         onView()
                     }
                 },
@@ -320,4 +335,7 @@ fun HostSetupScreen(
             )
         }
     }
+
 }
+
+private const val USERNAME_PROPAGATION_DEBOUNCE_MILLIS = 300L

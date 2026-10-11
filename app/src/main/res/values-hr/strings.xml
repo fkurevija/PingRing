@@ -103,10 +103,11 @@
     <string name="camera_scan_failed">Skeniranje kamerom nije uspjelo. Pokušajte ponovno.</string>
     <string name="camera_unavailable">Kamera nije dostupna na ovom uređaju.</string>
     <string name="nfc_service_description">Sigurno dijeljenje pozivnice za PingRing</string>
-    <string name="nfc_host_tap">Dodirnite za uparivanje: ostavite ovaj zaslon otvorenim i otključanim dok gost prisloni svoj telefon. NFC dijeli isti tajni ključ pozivnice kao QR kod.</string>
+    <string name="nfc_host_tap">Ostavite ovaj zaslon otvorenim i otključanim dok gost prisloni svoj telefon.</string>
+    <string name="tap_to_pair">Dodirnite za uparivanje</string>
     <string name="nfc_host_unavailable">NFC uparivanje dodirom nije dostupno na ovom uređaju. Podijelite QR kod.</string>
     <string name="nfc_host_disabled">Uključite NFC u postavkama sustava za uparivanje dodirom. QR kod je i dalje dostupan.</string>
-    <string name="nfc_join_button">Pridruži se dodirom NFC-om</string>
+    <string name="nfc_join_button">Dodirnite za pridruživanje</string>
     <string name="nfc_cancel">Odustani od NFC skeniranja</string>
     <string name="nfc_not_available">NFC nije dostupan na ovom uređaju. Upotrijebite QR kod ili PingRing kod.</string>
     <string name="nfc_not_enabled">Uključite NFC u postavkama sustava ili upotrijebite QR kod ili PingRing kod.</string>

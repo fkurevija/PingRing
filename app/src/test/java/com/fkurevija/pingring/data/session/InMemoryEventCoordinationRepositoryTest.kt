@@ -4,6 +4,7 @@ import com.fkurevija.pingring.data.session.Event
 import com.fkurevija.pingring.data.session.Friend
 import com.fkurevija.pingring.data.session.InMemoryEventCoordinationRepository
 import com.fkurevija.pingring.data.session.ChatMessage
+import com.fkurevija.pingring.data.chat.ChatEntryType
 import com.fkurevija.pingring.data.chat.ChatRecipientReceipt
 import com.fkurevija.pingring.data.chat.MessageStatus
 import org.junit.Assert.assertEquals
@@ -70,11 +71,27 @@ class InMemoryEventCoordinationRepositoryTest {
         repository.receiveChatMessage(
             ChatMessage("message-1", "peer-1", "Old name", "Hello", 200L),
         )
+        repository.receiveChatMessage(
+            ChatMessage(
+                id = "created-1",
+                senderPeerId = "peer-1",
+                senderName = "Old name",
+                messageText = "",
+                timestamp = 150L,
+                entryType = ChatEntryType.PINGRING_CREATED,
+                subjectPeerId = "peer-1",
+                subjectName = "Old name",
+            ),
+        )
 
         repository.renameMemberHistory("peer-1", "New name")
 
         assertEquals("New name", repository.sessionState.value.friends.single().name)
-        assertEquals("New name", repository.sessionState.value.chatMessages.single().senderName)
+        assertEquals(
+            listOf("New name", "New name"),
+            repository.sessionState.value.chatMessages.map { it.senderName },
+        )
+        assertEquals("New name", repository.sessionState.value.chatMessages.last().subjectName)
     }
 
     @Test

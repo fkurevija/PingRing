@@ -103,9 +103,9 @@ internal fun HostSetupDestination(
                 sessionManager.endHostedEvent()
                 backStack.resetTo(HomeKey)
             },
-            onSaveUsername = { username ->
+            onUsernameChange = { username ->
+                discoveryRepository.updateLocalUsername(username)
                 appearanceSettings.setUserName(username)
-                sessionManager.setUserName(username)
             },
             onView = {
                 backStack.resetTo(RadarKey(key.eventCode))

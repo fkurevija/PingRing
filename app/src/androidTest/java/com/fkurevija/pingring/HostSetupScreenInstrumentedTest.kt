@@ -14,7 +14,9 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performTextClearance
+import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
 import com.fkurevija.pingring.data.DiscoveryRepository
@@ -75,6 +77,8 @@ class HostSetupScreenInstrumentedTest {
         pendingJoinRequestsProvider: () -> List<PendingJoinRequest> = { pendingJoinRequests },
         onApproveJoinRequest: (String) -> Unit = {},
         onDenyJoinRequest: (String) -> Unit = {},
+        onUsernameChange: (String) -> Unit = {},
+        onView: () -> Unit = {},
     ) {
         val context = ApplicationProvider.getApplicationContext<Context>()
         // The screen asks the repository only whether this device can range, so
@@ -93,8 +97,8 @@ class HostSetupScreenInstrumentedTest {
                     savedUsername = savedUsername,
                     discoveryRepository = repository,
                     onEndEvent = {},
-                    onSaveUsername = {},
-                    onView = {},
+                    onUsernameChange = onUsernameChange,
+                    onView = onView,
                     onOpenSettings = onOpenSettings,
                     pendingJoinRequests = pendingJoinRequestsProvider(),
                     onApproveJoinRequest = onApproveJoinRequest,
@@ -214,6 +218,43 @@ class HostSetupScreenInstrumentedTest {
         composeRule.onNodeWithText(
             "PingRing is limited to 8 members (1 host + 7 guests)."
         ).assertIsDisplayed()
+    }
+
+    @Test
+    fun hostTapToJoinInstructionsAppearBeforeCapacity() {
+        show()
+
+        composeRule.onNodeWithText("Tap to Pair").assertIsDisplayed()
+        val guidance = composeRule.onNodeWithTag("host-nfc-guidance").getUnclippedBoundsInRoot()
+        val capacity = composeRule.onNodeWithTag("pingring-capacity").getUnclippedBoundsInRoot()
+
+        assertTrue("tap-to-join guidance should precede capacity", guidance.bottom <= capacity.top)
+    }
+
+    @Test
+    fun validHostUsernameEditsPropagateAutomatically() {
+        var propagatedName: String? = null
+        show(onUsernameChange = { propagatedName = it })
+
+        composeRule.onNodeWithText("Alex").performTextReplacement("Taylor")
+        composeRule.waitUntil(timeoutMillis = 2_000) { propagatedName == "Taylor" }
+        assertEquals("Taylor", propagatedName)
+    }
+
+    @Test
+    fun launchingRadarCommitsTheDisplayedUsernameBeforeNavigation() {
+        var propagatedName: String? = null
+        var nameAtNavigation: String? = null
+        show(
+            savedUsername = "Taylor",
+            onUsernameChange = { propagatedName = it },
+            onView = { nameAtNavigation = propagatedName },
+        )
+
+        composeRule.onNodeWithText("Launch Radar").performClick()
+
+        assertEquals("Taylor", propagatedName)
+        assertEquals("Taylor", nameAtNavigation)
     }
 
     @Test

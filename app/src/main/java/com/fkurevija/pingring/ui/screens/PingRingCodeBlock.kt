@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.GroupAdd
+import androidx.compose.material.icons.filled.Nfc
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -48,6 +49,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.testTag
 import com.fkurevija.pingring.R
 import com.fkurevija.pingring.data.nfc.NfcInviteExchange
 import com.fkurevija.pingring.data.session.Event
@@ -207,10 +209,42 @@ fun PingRingCodeBlock(
 
         Spacer(Modifier.height(12.dp))
 
+        val nfcGuidance = when {
+            !hostCardEmulationAvailable || nfcAdapter == null ->
+                stringResource(R.string.nfc_host_unavailable)
+            !nfcEnabled -> stringResource(R.string.nfc_host_disabled)
+            inviteSecret == null -> stringResource(R.string.nfc_host_unavailable)
+            else -> stringResource(R.string.nfc_host_tap)
+        }
+        Column(Modifier.fillMaxWidth().testTag("pingring-tap-to-pair")) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.Nfc,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(22.dp),
+                )
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    stringResource(R.string.tap_to_pair),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                nfcGuidance,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.testTag("host-nfc-guidance"),
+            )
+        }
+        Spacer(Modifier.height(12.dp))
+
         // Capacity, directly under the code it qualifies, and phrased exactly as
         // Host Setup phrases it. It is a property of the ring rather than a
         // setting, so nothing here is interactive.
-        Column(Modifier.fillMaxWidth()) {
+        Column(Modifier.fillMaxWidth().testTag("pingring-capacity")) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     Icons.Default.GroupAdd,
@@ -232,18 +266,5 @@ fun PingRingCodeBlock(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        Spacer(Modifier.height(12.dp))
-        val nfcGuidance = when {
-            !hostCardEmulationAvailable || nfcAdapter == null ->
-                stringResource(R.string.nfc_host_unavailable)
-            !nfcEnabled -> stringResource(R.string.nfc_host_disabled)
-            inviteSecret == null -> stringResource(R.string.nfc_host_unavailable)
-            else -> stringResource(R.string.nfc_host_tap)
-        }
-        Text(
-            nfcGuidance,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
     }
 }

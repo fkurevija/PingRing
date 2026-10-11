@@ -103,10 +103,11 @@
     <string name="camera_scan_failed">Échec du scan. Veuillez réessayer.</string>
     <string name="camera_unavailable">Caméra non disponible sur cet appareil.</string>
     <string name="nfc_service_description">Partage sécurisé d’invitation PingRing</string>
-    <string name="nfc_host_tap">Touchez pour associer : gardez cet écran ouvert et déverrouillé pendant que votre invité approche son téléphone. Le NFC partage le même secret d’invitation que le code QR.</string>
+    <string name="nfc_host_tap">Gardez cet écran ouvert et déverrouillé pendant que votre invité approche son téléphone.</string>
+    <string name="tap_to_pair">Touchez pour associer</string>
     <string name="nfc_host_unavailable">L’association NFC n’est pas disponible sur cet hôte. Partagez plutôt le code QR.</string>
     <string name="nfc_host_disabled">Activez le NFC dans les paramètres système pour autoriser l’association. Le code QR reste disponible.</string>
-    <string name="nfc_join_button">Rejoindre avec le NFC</string>
+    <string name="nfc_join_button">Touchez pour rejoindre</string>
     <string name="nfc_cancel">Annuler la lecture NFC</string>
     <string name="nfc_not_available">Le NFC n’est pas disponible sur cet appareil. Utilisez le code QR ou PingRing.</string>
     <string name="nfc_not_enabled">Activez le NFC dans les paramètres système, ou utilisez le code QR ou PingRing.</string>

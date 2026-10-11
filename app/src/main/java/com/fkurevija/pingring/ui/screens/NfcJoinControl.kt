@@ -9,10 +9,16 @@ import android.nfc.tech.IsoDep
 import android.os.Handler
 import android.os.Looper
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Nfc
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -118,6 +124,12 @@ internal fun NfcJoinControl(
             modifier = Modifier.fillMaxWidth().height(50.dp),
             shape = RoundedCornerShape(14.dp),
         ) {
+            Icon(
+                Icons.Default.Nfc,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+            )
+            Spacer(Modifier.width(8.dp))
             Text(
                 stringResource(
                     when {

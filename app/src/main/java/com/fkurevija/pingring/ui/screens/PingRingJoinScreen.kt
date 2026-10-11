@@ -22,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.testTag
 import com.fkurevija.pingring.data.TextInputPolicy
 import com.fkurevija.pingring.data.session.MAX_PARTICIPANTS
 import com.fkurevija.pingring.R
@@ -226,7 +227,7 @@ fun PingRingJoinScreen(
                         }
                     }
 
-                    Spacer(Modifier.height(20.dp))
+                    Spacer(Modifier.height(12.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
@@ -235,12 +236,12 @@ fun PingRingJoinScreen(
                         Text(
                             stringResource(R.string.or),
                             style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.testTag("code-nfc-or"),
                         )
                         HorizontalDivider(modifier = Modifier.weight(1f))
                     }
-
-                    Spacer(Modifier.height(20.dp))
+                    Spacer(Modifier.height(12.dp))
 
                     // The two ways in: the host's QR code, or the six-character
                     // code they read out. There is no third list of nearby
@@ -253,12 +254,40 @@ fun PingRingJoinScreen(
                         context.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY)
                     }
 
+                    Column(Modifier.testTag("nfc-join-option")) {
+                        NfcJoinControl(
+                            enabled = !isConnecting,
+                            onInvite = { invite ->
+                                eventCode = invite.eventCode
+                                inputError = null
+                                attemptJoin(invite.eventCode, invite.secret)
+                            },
+                        )
+                    }
+
+                    Spacer(Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        HorizontalDivider(modifier = Modifier.weight(1f))
+                        Text(
+                            stringResource(R.string.or),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.testTag("join-methods-or"),
+                        )
+                        HorizontalDivider(modifier = Modifier.weight(1f))
+                    }
+                    Spacer(Modifier.height(12.dp))
+
                     OutlinedButton(
                         onClick = { if (hasCamera) showScanner = true },
                         enabled = hasCamera,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(50.dp),
+                            .height(50.dp)
+                            .testTag("qr-join-option"),
                         shape = RoundedCornerShape(14.dp)
                     ) {
                         Icon(Icons.Default.QrCodeScanner, contentDescription = null, modifier = Modifier.size(20.dp))
@@ -269,15 +298,6 @@ fun PingRingJoinScreen(
                         )
                     }
 
-                    Spacer(Modifier.height(8.dp))
-                    NfcJoinControl(
-                        enabled = !isConnecting,
-                        onInvite = { invite ->
-                            eventCode = invite.eventCode
-                            inputError = null
-                            attemptJoin(invite.eventCode, invite.secret)
-                        },
-                    )
                 }
             }
         }

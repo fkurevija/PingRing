@@ -5,6 +5,8 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
@@ -206,5 +208,21 @@ class PingRingJoinScreenInstrumentedTest {
             .assertIsDisplayed()
         composeRule.onNodeWithText(context.getString(R.string.scan_host_qr))
             .assertIsDisplayed()
+    }
+
+    @Test
+    fun nfcJoinAppearsAboveQrWithOrSeparatorBetween() {
+        showJoin()
+
+        val connect = composeRule.onNodeWithText(context.getString(R.string.connect)).getUnclippedBoundsInRoot()
+        val firstSeparator = composeRule.onNodeWithTag("code-nfc-or").getUnclippedBoundsInRoot()
+        val nfc = composeRule.onNodeWithTag("nfc-join-option").getUnclippedBoundsInRoot()
+        val secondSeparator = composeRule.onNodeWithTag("join-methods-or").getUnclippedBoundsInRoot()
+        val qr = composeRule.onNodeWithTag("qr-join-option").getUnclippedBoundsInRoot()
+
+        assert(connect.bottom <= firstSeparator.top)
+        assert(firstSeparator.bottom <= nfc.top)
+        assert(nfc.bottom <= secondSeparator.top)
+        assert(secondSeparator.bottom <= qr.top)
     }
 }
