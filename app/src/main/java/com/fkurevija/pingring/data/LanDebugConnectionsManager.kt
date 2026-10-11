@@ -431,8 +431,9 @@ class LanDebugConnectionsManager(
         wifiRssiProxy.removePeer(peerId)
         // Keep relay notifications best-effort: local membership is removed
         // above and is never contingent on a live relay or guest connection.
-        sendPayload(null, departure)
-        sendPayload(peerId, removalControl)
+        sendPayload(null, departure) {
+            sendPayload(peerId, removalControl)
+        }
     }
 
     override fun sendEventControl(peerId: String, control: EventControlPayloadDto) {
