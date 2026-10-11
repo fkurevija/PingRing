@@ -3,8 +3,8 @@ name: Build APK
 on:
   workflow_dispatch:
 
-# Needed by the publish job: creating/updating Releases and the rolling
-# `latest` tag requires write access to repository contents.
+# Needed by the publish job: creating Releases requires write access to
+# repository contents.
 permissions:
   contents: write
 
@@ -63,23 +63,6 @@ jobs:
 
       - name: Run JVM unit tests
         run: ./gradlew test --stacktrace
-
-      - name: Generate unit test coverage report
-        run: ./gradlew jacocoTestReport --stacktrace
-
-      - name: Upload coverage report
-        uses: actions/upload-artifact@v4
-        with:
-          name: unit-test-coverage
-          path: app/build/reports/jacoco/jacocoTestReport
-          if-no-files-found: warn
-
-      - name: Summarise unit test coverage
-        if: ${{ always() }}
-        run: |
-          python3 tools/coverage_summary.py \
-            app/build/reports/jacoco/jacocoTestReport/jacocoTestReport.xml \
-            80 "JVM unit test coverage" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Assemble debug APK
         run: ./gradlew assembleDebug --stacktrace
@@ -160,17 +143,11 @@ jobs:
     needs: build-apk
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
-    # Repeated at job level as well as workflow level. Job-level permissions
-    # replace rather than extend the workflow-level block, so declaring it here
-    # makes the requirement explicit and immune to a job-level override being
-    # added later. Releases are written through the contents permission, and a
-    # read-only token fails with the opaque "Resource not accessible by
-    # integration" rather than anything mentioning permissions.
     permissions:
       contents: write
     steps:
       - name: Require signed artifact for versioned releases
-        if: startsWith(github.ref, 'refs/tags/v') && needs.build-apk.outputs.signed-release-configured != 'true'
+        if: needs.build-apk.outputs.signed-release-configured != 'true'
         run: |
           echo "::error::Refusing to publish a versioned release without a configured signed release APK."
           exit 1
@@ -182,14 +159,14 @@ jobs:
           path: apk
 
       - name: Download signed release APK
-        if: startsWith(github.ref, 'refs/tags/v') && needs.build-apk.outputs.signed-release-configured == 'true'
+        if: needs.build-apk.outputs.signed-release-configured == 'true'
         uses: actions/download-artifact@v4
         with:
           name: pingring-release-apk
           path: signed-apk
 
       - name: Publish versioned release
-        if: startsWith(github.ref, 'refs/tags/v') && needs.build-apk.outputs.signed-release-configured == 'true'
+        if: needs.build-apk.outputs.signed-release-configured == 'true'
         uses: softprops/action-gh-release@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
