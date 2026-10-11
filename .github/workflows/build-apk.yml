@@ -3,10 +3,8 @@ name: Build APK
 on:
   workflow_dispatch:
 
-# Needed by the publish job: creating Releases requires write access to
-# repository contents.
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: build-apk-${{ github.ref }}
@@ -130,52 +128,3 @@ jobs:
           name: pingring-debug-apk
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
-
-      - name: Suggest a release if the changes are notable
-        continue-on-error: true
-        run: |
-          python3 tools/tag_release.py >> "$GITHUB_STEP_SUMMARY" || \
-            echo "::notice::Release suggestion unavailable; continuing."
-
-  # Publishing is a separate job so the release path can be conditioned on
-  # the trigger without duplicating the whole Android build.
-  publish-apk:
-    needs: build-apk
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
-    permissions:
-      contents: write
-    steps:
-      - name: Require signed artifact for versioned releases
-        if: needs.build-apk.outputs.signed-release-configured != 'true'
-        run: |
-          echo "::error::Refusing to publish a versioned release without a configured signed release APK."
-          exit 1
-
-      - name: Download built APK
-        uses: actions/download-artifact@v4
-        with:
-          name: pingring-debug-apk
-          path: apk
-
-      - name: Download signed release APK
-        if: needs.build-apk.outputs.signed-release-configured == 'true'
-        uses: actions/download-artifact@v4
-        with:
-          name: pingring-release-apk
-          path: signed-apk
-
-      - name: Publish versioned release
-        if: needs.build-apk.outputs.signed-release-configured == 'true'
-        uses: softprops/action-gh-release@v2
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          tag_name: ${{ github.ref_name }}
-          files: signed-apk/*.apk
-          name: PingRing ${{ github.ref_name }}
-          body: |
-            Signed APK for **${{ github.ref_name }}**.
-
-            Commit: ${{ github.sha }}
-            Built: ${{ github.run_number }} on ${{ github.actor }}
-          fail_on_unmatched_files: true
