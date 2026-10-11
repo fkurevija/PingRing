@@ -121,6 +121,7 @@ jobs:
           name: pingring-release-apk
           path: app/build/outputs/apk/release/*.apk
           if-no-files-found: error
+          overwrite: true
 
       - name: Upload debug APK artifact
         uses: actions/upload-artifact@v4
@@ -128,3 +129,50 @@ jobs:
           name: pingring-debug-apk
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
+          overwrite: true
+
+  # Rolls the `latest` release forward to this build's debug APK. The release
+  # is deleted and recreated on every run, so it always holds exactly the
+  # newest APK and the `latest` tag always points at the commit that built it.
+  publish-latest:
+    needs: build-apk
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download debug APK
+        uses: actions/download-artifact@v4
+        with:
+          name: pingring-debug-apk
+          path: apk
+
+      - name: Overwrite rolling latest release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          apk_path="$(find apk -name '*.apk' -print -quit)"
+          if [ -z "$apk_path" ]; then
+            echo "::error::No APK found under apk/"
+            exit 1
+          fi
+
+          notes="$(mktemp)"
+          {
+            echo "Rolling debug build, overwritten on every Build APK run."
+            echo
+            echo "Commit: ${{ github.sha }}"
+            echo "Branch: ${{ github.ref_name }}"
+            echo "Build: ${{ github.run_number }}"
+          } > "$notes"
+
+          # Remove the previous release and its tag, if any, then recreate.
+          gh release delete latest --cleanup-tag --yes 2>/dev/null || true
+
+          gh release create latest "$apk_path" \
+            --title "Latest debug APK" \
+            --notes-file "$notes" \
+            --target "${{ github.sha }}" \
+            --prerelease
+          echo "Rolling latest release now holds build ${{ github.run_number }}"
