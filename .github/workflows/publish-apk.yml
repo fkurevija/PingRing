@@ -1,0 +1,137 @@
+name: Publish APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Git tag to publish, e.g. v1.2.3'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  publish-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository at selected tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag }}
+          fetch-depth: 0
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Install Android SDK packages
+        run: sdkmanager "platforms;android-37.0" "build-tools;36.0.0"
+
+      - name: Alias API 37 platform directory
+        run: |
+          sdk_root="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          platforms_dir="$sdk_root/platforms"
+          if [ -d "$platforms_dir/android-37.0" ] && [ ! -e "$platforms_dir/android-37" ]; then
+            ln -s android-37.0 "$platforms_dir/android-37"
+            echo "Aliased android-37 -> android-37.0"
+          else
+            echo "No alias needed; android-37 already resolvable"
+          fi
+          ls -1 "$platforms_dir" | grep -E '^android-37' || true
+
+      - name: Verify AGP can resolve the compileSdk target
+        run: |
+          sdk_root="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          test -f "$sdk_root/platforms/android-37/android.jar" \
+            || { echo "::error::android-37/android.jar missing"; exit 1; }
+          echo "android-37 target is resolvable"
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x ./gradlew
+
+      - name: Check release signing configuration
+        id: release-signing
+        env:
+          PINGRING_KEYSTORE_BASE64: ${{ secrets.PINGRING_KEYSTORE_BASE64 }}
+          PINGRING_KEYSTORE_PASSWORD: ${{ secrets.PINGRING_KEYSTORE_PASSWORD }}
+          PINGRING_KEY_ALIAS: ${{ secrets.PINGRING_KEY_ALIAS }}
+          PINGRING_KEY_PASSWORD: ${{ secrets.PINGRING_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          configured=0
+          missing=0
+          for value in \
+            "$PINGRING_KEYSTORE_BASE64" \
+            "$PINGRING_KEYSTORE_PASSWORD" \
+            "$PINGRING_KEY_ALIAS" \
+            "$PINGRING_KEY_PASSWORD"; do
+            if [ -n "$value" ]; then configured=1; else missing=1; fi
+          done
+          if [ "$configured" -eq 0 ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          elif [ "$missing" -eq 1 ]; then
+            echo "::error::Release signing requires the keystore, store password, alias, and key password secrets together."
+            exit 1
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Assemble signed release APK
+        if: ${{ steps.release-signing.outputs.enabled == 'true' }}
+        env:
+          PINGRING_KEYSTORE_BASE64: ${{ secrets.PINGRING_KEYSTORE_BASE64 }}
+          PINGRING_KEYSTORE_PASSWORD: ${{ secrets.PINGRING_KEYSTORE_PASSWORD }}
+          PINGRING_KEY_ALIAS: ${{ secrets.PINGRING_KEY_ALIAS }}
+          PINGRING_KEY_PASSWORD: ${{ secrets.PINGRING_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          keystore="$RUNNER_TEMP/pingring-release.jks"
+          cleanup() { shred -u "$keystore" 2>/dev/null || rm -f "$keystore"; }
+          trap cleanup EXIT
+          printf '%s' "$PINGRING_KEYSTORE_BASE64" | base64 --decode > "$keystore"
+          ./gradlew assembleRelease \
+            -PPINGRING_KEYSTORE="$keystore" \
+            -PPINGRING_KEYSTORE_PASSWORD="$PINGRING_KEYSTORE_PASSWORD" \
+            -PPINGRING_KEY_ALIAS="$PINGRING_KEY_ALIAS" \
+            -PPINGRING_KEY_PASSWORD="$PINGRING_KEY_PASSWORD"
+          sdk_root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:?Android SDK is not configured}}"
+          apk="$GITHUB_WORKSPACE/app/build/outputs/apk/release/app-release.apk"
+          "$sdk_root/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$apk"
+
+      - name: Require signed artifact for tag publication
+        if: ${{ steps.release-signing.outputs.enabled != 'true' }}
+        run: |
+          echo "::error::A signed release APK is required before publishing a tag."
+          exit 1
+
+      - name: Upload signed release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: pingring-release-apk
+          path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag_name: ${{ github.event.inputs.tag }}
+          files: app/build/outputs/apk/release/*.apk
+          name: PingRing ${{ github.event.inputs.tag }}
+          body: |
+            Signed APK for **${{ github.event.inputs.tag }}**.
+
+            Built from tag: ${{ github.event.inputs.tag }}
+            Run: ${{ github.run_number }}
+          fail_on_unmatched_files: true
