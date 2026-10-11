@@ -1,18 +1,6 @@
 name: Build APK
 
 on:
-  push:
-    # Direct pushes to master build and roll the `latest` release forward.
-    branches:
-      - master
-    # Tagged version builds publish a real GitHub Release.
-    tags:
-      - 'v*'
-  # PR merges land as a push to master, so the `branches` filter above already
-  # covers them. This additionally builds every PR for review feedback.
-  pull_request:
-    branches:
-      - master
   workflow_dispatch:
 
 # Needed by the publish job: creating/updating Releases and the rolling
@@ -31,14 +19,6 @@ jobs:
       signed-release-configured: ${{ steps.release-signing.outputs.enabled }}
 
     steps:
-      # For pull_request, actions/checkout defaults to the PR's merge commit,
-      # so the build validates the change as it would land on master without
-      # needing an explicit ref.
-      # fetch-depth: 0 is required, not an optimisation. tag_release.py reports
-      # on what has landed since the last version tag, and the default
-      # shallow clone (fetch-depth 1) has neither tags nor history: it saw
-      # "no version tag" and "nothing new since the last tag" on a repository
-      # with both, then exited non-zero and failed the build.
       - name: Check out repository
         uses: actions/checkout@v4
         with:
@@ -53,28 +33,12 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      # Must be v4, not v3. v3's `packages` input defaults to
-      # "tools platform-tools", and Google no longer serves the deprecated
-      # tools package, so v3 dies during setup with:
-      #   Warning: Failed to find package 'tools'
-      # v4 defaults to "platform-tools" only. v4 also defaults to a current
-      # cmdline-tools (22.0) rather than v3's 16.0, which predates the API 37
-      # minor-version packages and cannot see them.
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
 
-      # API 37 ships as the "37.0" minor release, so the only package
-      # sdkmanager offers is platforms;android-37.0. Asking for
-      # platforms;android-37 fails outright, and even when the platform is
-      # present it lands in the directory android-37.0 while AGP resolves the
-      # compileSdk target as android-37. See actions/runner-images#13859.
       - name: Install Android SDK packages
         run: sdkmanager "platforms;android-37.0" "build-tools;36.0.0"
 
-      # Bridge the android-37.0 directory to the android-37 name AGP looks
-      # for, otherwise the build dies with:
-      #   Failed to find target with hash string 'android-37'
-      # Done before the build so it applies to the Gradle daemon's SDK scan.
       - name: Alias API 37 platform directory
         run: |
           sdk_root="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
@@ -97,35 +61,21 @@ jobs:
       - name: Make Gradle wrapper executable
         run: chmod +x ./gradlew
 
-      # The unit tests ran nowhere before this step existed: the job only ever
-      # called `assembleDebug`, so a red test could not stop a build. It runs
-      # before the APK is assembled so a regression fails the run before anything
-      # is published, rather than after. Master pushes follow a PR that already
-      # ran these checks, so they build/publish without repeating the tests.
       - name: Run JVM unit tests
-        if: ${{ github.event_name != 'push' || github.ref != 'refs/heads/master' }}
         run: ./gradlew test --stacktrace
 
-      # The coverage report is uploaded as an artifact rather than gating the
-      # build. A hard coverage gate on a codebase whose UI is not unit-testable
-      # would fail every run for a reason nobody can act on; the floor belongs in
-      # the build, and the detail belongs in the report.
       - name: Generate unit test coverage report
-        if: ${{ github.event_name != 'push' || github.ref != 'refs/heads/master' }}
         run: ./gradlew jacocoTestReport --stacktrace
 
       - name: Upload coverage report
-        if: ${{ github.event_name != 'push' || github.ref != 'refs/heads/master' }}
         uses: actions/upload-artifact@v4
         with:
           name: unit-test-coverage
           path: app/build/reports/jacoco/jacocoTestReport
           if-no-files-found: warn
 
-      # Rendered into the run summary so the number is visible without opening an
-      # artifact. A report nobody reads is a report that decays.
       - name: Summarise unit test coverage
-        if: ${{ always() && (github.event_name != 'push' || github.ref != 'refs/heads/master') }}
+        if: ${{ always() }}
         run: |
           python3 tools/coverage_summary.py \
             app/build/reports/jacoco/jacocoTestReport/jacocoTestReport.xml \
@@ -134,9 +84,6 @@ jobs:
       - name: Assemble debug APK
         run: ./gradlew assembleDebug --stacktrace
 
-      # No signing secrets means this is a development build: skip signing.
-      # A partial set is a configuration error, not a reason to upload an
-      # unsigned APK under the signed-release artifact name.
       - name: Check release signing configuration
         id: release-signing
         env:
@@ -201,20 +148,7 @@ jobs:
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
 
-      # Advise rather than act. `latest` is overwritten on every master push, so
-      # a build only becomes permanent once tagged, and that is a judgement call
-      # about whether a change is worth keeping - not something CI should make
-      # on the author's behalf. This surfaces the suggestion in the run summary
-      # where it will actually be seen, and stays quiet when only docs, CI or
-      # internal changes have landed.
-      #
-      # continue-on-error because the step is advisory: tag_release.py exits
-      # non-zero to mean "nothing worth tagging", which is a normal outcome
-      # rather than a build failure. The `||` fallback covers its other exit
-      # codes the same way - no git, no python, anything else - because none of
-      # those should turn a green build red.
       - name: Suggest a release if the changes are notable
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         continue-on-error: true
         run: |
           python3 tools/tag_release.py >> "$GITHUB_STEP_SUMMARY" || \
@@ -225,11 +159,7 @@ jobs:
   publish-apk:
     needs: build-apk
     runs-on: ubuntu-latest
-    # Never publish from a pull_request. A PR from a fork gets a read-only
-    # GITHUB_TOKEN, so the release steps would fail outright, and rolling
-    # `latest` from unreviewed code would publish a build nobody approved.
-    # The APK is still downloadable from the build-apk run artifact.
-    if: github.event_name != 'pull_request'
+    if: startsWith(github.ref, 'refs/tags/v')
     # Repeated at job level as well as workflow level. Job-level permissions
     # replace rather than extend the workflow-level block, so declaring it here
     # makes the requirement explicit and immune to a job-level override being
@@ -238,8 +168,6 @@ jobs:
     # integration" rather than anything mentioning permissions.
     permissions:
       contents: write
-    # Always upload the APK as a run artifact regardless of whether a release
-    # is published, so a green run is always downloadable.
     steps:
       - name: Require signed artifact for versioned releases
         if: startsWith(github.ref, 'refs/tags/v') && needs.build-apk.outputs.signed-release-configured != 'true'
@@ -260,16 +188,11 @@ jobs:
           name: pingring-release-apk
           path: signed-apk
 
-      # A tag push (v1.2.3) produces a real, immutable versioned release.
       - name: Publish versioned release
         if: startsWith(github.ref, 'refs/tags/v') && needs.build-apk.outputs.signed-release-configured == 'true'
         uses: softprops/action-gh-release@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          # github.ref_name is "v1.2.3"; github.ref would be "refs/tags/v1.2.3",
-          # which is not a tag name. Left implicit, the action searches for a
-          # release tagged with the full ref and never finds one - the same
-          # class of bug that broke the rolling release.
           tag_name: ${{ github.ref_name }}
           files: signed-apk/*.apk
           name: PingRing ${{ github.ref_name }}
@@ -279,111 +202,3 @@ jobs:
             Commit: ${{ github.sha }}
             Built: ${{ github.run_number }} on ${{ github.actor }}
           fail_on_unmatched_files: true
-
-      # Roll the `latest` release forward on every successful build, so there is
-      # always exactly one obvious download and it is never stale.
-      #
-      # This is deliberately explicit `gh api` rather than a release action.
-      # The action reported "Resource not accessible by integration" while
-      # naming a tag of "refs/heads/master" - a branch - and kept doing so with
-      # tag_name set explicitly, so its own resolution could not be trusted to
-      # tell us what it was actually doing. Every call here prints the response
-      # body, so a failure names the endpoint and the API's own reason instead
-      # of collapsing into one opaque message.
-      - name: Publish rolling latest release
-        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
-        run: |
-          # No `set -e`: every failure below is handled and reported
-          # explicitly, so one expected 404 cannot abort the step silently.
-          set -uo pipefail
-
-          echo "== who am I =="
-          gh auth status 2>&1 | sed -E 's/(token:).*/\1 [redacted]/' || true
-
-          apk_path="$(find apk -name '*.apk' -print -quit)"
-          if [ -z "$apk_path" ]; then
-            echo "::error::No APK found under apk/"
-            exit 1
-          fi
-          echo "apk: $apk_path"
-
-          notes="$(mktemp)"
-          cat > "$notes" <<EOF
-          Rolling debug build from the most recent successful \`master\` push.
-
-          Commit: ${{ github.sha }}
-          Branch: ${{ github.ref_name }}
-          Build: ${{ github.run_number }}
-
-          Overwritten on every build. Tagged \`v*\` releases are permanent.
-          EOF
-
-          echo "== resolve release for tag 'latest' =="
-          existing="$(gh api "repos/$GH_REPO/releases/tags/latest" 2>&1)" && found=1 || found=0
-
-          if [ "$found" = 1 ]; then
-            release_id="$(printf '%s' "$existing" | jq -r .id)"
-            asset_name="$(basename "$apk_path")"
-            echo "found release id=$release_id"
-
-            # Remove the previous asset first. Re-uploading under the same name
-            # is a 422 on an existing release, which is the one failure mode
-            # --clobber hides by deleting it for us; doing it here makes the
-            # step succeed even where that flag is unavailable.
-            old_asset="$(printf '%s' "$existing" | jq -r --arg n "$asset_name" '.assets[]? | select(.name==$n) | .id' | head -1)"
-            if [ -n "$old_asset" ] && [ "$old_asset" != "null" ]; then
-              echo "deleting previous asset id=$old_asset"
-              gh api -X DELETE "repos/$GH_REPO/releases/assets/$old_asset" 2>&1 | head -5 || true
-            fi
-
-            echo "updating release metadata"
-            gh api -X PATCH "repos/$GH_REPO/releases/$release_id" \
-              -f tag_name=latest \
-              -f name="Latest debug APK" \
-              -F body=@"$notes" \
-              -f draft=false -f prerelease=false 2>&1 | head -20 || true
-
-            echo "uploading asset"
-            if ! out="$(gh release upload latest "$apk_path" 2>&1)"; then
-              echo "::error::Asset upload failed: $out"
-              exit 1
-            fi
-            echo "Updated rolling latest release"
-          else
-            echo "no release for 'latest'; creating one. Response was:"
-            printf '%s\n' "$existing" | head -5
-            if ! out="$(gh release create latest "$apk_path" \
-                  --title "Latest debug APK" \
-                  --notes-file "$notes" \
-                  --target "${{ github.sha }}" 2>&1)"; then
-              echo "::error::Release create failed: $out"
-              exit 1
-            fi
-            echo "Created rolling latest release"
-          fi
-
-      # Move the rolling tag to the commit that was just published, so the
-      # release page's source link matches the APK it holds.
-      #
-      # Tolerated, because the release itself is already updated by this point
-      # and a blocked tag must not turn a good build red. But the failure is
-      # reported as a warning annotation rather than swallowed: a step that
-      # fails quietly is exactly what made the original publish problem so hard
-      # to diagnose. The most likely cause is a tag protection rule on `latest`,
-      # which a force-push cannot override.
-      - name: Move the latest tag to this build
-        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
-        continue-on-error: true
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if out="$(git tag -f latest "${{ github.sha }}" 2>&1 && \
-                   git push -f origin refs/tags/latest 2>&1)"; then
-            echo "latest tag moved to ${{ github.sha }}"
-          else
-            echo "::warning::Could not move the 'latest' tag to ${{ github.sha }}. The release and its APK are up to date; only the tag lags. A tag protection rule on 'latest' is the usual cause."
-            echo "$out"
-          fi
