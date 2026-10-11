@@ -163,6 +163,7 @@ internal fun ChatSettingsDialog(
                         },
                         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                         modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
                     )
                     Spacer(Modifier.height(12.dp))
                     Text(

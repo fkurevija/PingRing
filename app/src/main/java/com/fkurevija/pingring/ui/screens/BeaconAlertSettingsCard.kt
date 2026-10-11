@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -26,6 +25,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.fkurevija.pingring.R
@@ -73,25 +73,7 @@ internal fun BeaconAlertSettingsCard(
             )
 
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .toggleable(
-                        value = repeatEnabled,
-                        onValueChange = { checked ->
-                            repeatEnabled = checked
-                            val newRepeat = if (checked) BeaconAlertRepeat.REPEAT else BeaconAlertRepeat.ONCE
-                            val durSec = durationDraft.roundToInt()
-                            val newDuration = if (durSec >= 300) BEACON_REPEAT_DURATION_UNTIL_STOPPED else (durSec * 1000L)
-                            val newGap = (((frequencyDraft / 5f).roundToInt() * 5).coerceIn(5, 30) * 1000L)
-                            onBeaconAlertSettingsChange(
-                                BeaconAlertSettings(
-                                    repeat = newRepeat,
-                                    repeatGapMillis = newGap,
-                                    repeatDurationMillis = newDuration
-                                )
-                            )
-                        }
-                    ),
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
@@ -110,7 +92,25 @@ internal fun BeaconAlertSettingsCard(
                 Spacer(Modifier.width(8.dp))
                 Switch(
                     checked = repeatEnabled,
-                    onCheckedChange = {} // No-op; row handles toggle
+                    onCheckedChange = { checked ->
+                        repeatEnabled = checked
+                        val newRepeat = if (checked) BeaconAlertRepeat.REPEAT else BeaconAlertRepeat.ONCE
+                        val durSec = durationDraft.roundToInt()
+                        val newDuration = if (durSec >= 300) {
+                            BEACON_REPEAT_DURATION_UNTIL_STOPPED
+                        } else {
+                            durSec * 1000L
+                        }
+                        val newGap = (((frequencyDraft / 5f).roundToInt() * 5).coerceIn(5, 30) * 1000L)
+                        onBeaconAlertSettingsChange(
+                            BeaconAlertSettings(
+                                repeat = newRepeat,
+                                repeatGapMillis = newGap,
+                                repeatDurationMillis = newDuration,
+                            )
+                        )
+                    },
+                    modifier = Modifier.testTag("beaconRepetitionSwitch"),
                 )
             }
 
