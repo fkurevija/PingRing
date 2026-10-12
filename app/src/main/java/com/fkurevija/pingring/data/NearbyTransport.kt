@@ -4,6 +4,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import com.fkurevija.pingring.data.chat.BeaconPayloadDto
 import com.fkurevija.pingring.data.chat.ChatHistoryPayloadDto
+import com.fkurevija.pingring.data.chat.ChatHistoryRequestPayloadDto
 import com.fkurevija.pingring.data.chat.ChatPayloadDto
 import com.fkurevija.pingring.data.chat.ChatReceiptPayloadDto
 import com.fkurevija.pingring.data.radar.PeerRangingPayloadDto
@@ -36,6 +37,7 @@ interface NearbyTransport {
     val receivedControllerParams: SharedFlow<UwbControllerParametersDto>
     val receivedChatMessage: SharedFlow<ChatPayloadDto>
     val receivedChatHistory: SharedFlow<ChatHistoryPayloadDto>
+    val receivedChatHistoryRequest: SharedFlow<ChatHistoryRequestPayloadDto>
     val receivedChatReceipt: SharedFlow<ChatReceiptPayloadDto>
     val connectionEstablished: SharedFlow<String>
     val peerDisconnected: SharedFlow<String>
@@ -62,6 +64,7 @@ interface NearbyTransport {
 
     /** The host's standing answer to devices asking to join. */
     var acceptsNewMembers: Boolean
+    var hostPeerIdProvider: (() -> String?)?
     var inviteSecretProvider: (() -> String?)?
     var userNameProvider: (() -> String?)?
 
@@ -118,6 +121,7 @@ interface NearbyTransport {
     fun broadcastChatMessage(chatMsg: ChatPayloadDto)
     fun broadcastChatHistory(messages: List<ChatPayloadDto>)
     fun sendChatHistoryToPeer(peerId: String, messages: List<ChatPayloadDto>)
+    fun requestChatHistoryFromHost(hostPeerId: String, request: ChatHistoryRequestPayloadDto)
     fun sendChatMessageToPeer(peerId: String, chatMsg: ChatPayloadDto)
     fun sendChatReceiptToPeer(peerId: String, receipt: ChatReceiptPayloadDto)
 

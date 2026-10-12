@@ -404,11 +404,36 @@ class DiscoveryRepository(
                 .collect { onFocusChanged() }
         }
 
+        // Subscribe before starting the transport; a fast join can deliver history immediately.
+        repositoryScope?.launch(start = CoroutineStart.UNDISPATCHED) {
+            nearbyConnectionsManager.receivedChatMessage.collect { dto ->
+                chatCoordinator.receiveMessage(dto)
+            }
+        }
+
+        repositoryScope?.launch(start = CoroutineStart.UNDISPATCHED) {
+            nearbyConnectionsManager.receivedChatHistory.collect { history ->
+                chatCoordinator.receiveHistory(history)
+            }
+        }
+
+        repositoryScope?.launch(start = CoroutineStart.UNDISPATCHED) {
+            nearbyConnectionsManager.receivedChatHistoryRequest.collect { request ->
+                chatCoordinator.receiveHistoryRequest(request)
+            }
+        }
+
+        repositoryScope?.launch(start = CoroutineStart.UNDISPATCHED) {
+            nearbyConnectionsManager.receivedChatReceipt.collect { receipt ->
+                chatCoordinator.receiveReceipt(receipt)
+            }
+        }
+
         // 1. Start Nearby Connections
         if (event != null) {
-            // Lets the transport route a guest's UWB ranging offer to the host
-            // without this class reaching into the session itself.
-            (nearbyConnectionsManager as? NearbyConnectionsManager)?.hostPeerIdProvider = {
+            // Lets transports authenticate and route host-addressed payloads
+            // without reaching into the session themselves.
+            nearbyConnectionsManager.hostPeerIdProvider = {
                 sessionManager.sessionState.value.currentEvent?.hostPeerId
             }
             nearbyConnectionsManager.inviteSecretProvider = {
@@ -611,18 +636,6 @@ class DiscoveryRepository(
         }
 
         repositoryScope?.launch {
-            nearbyConnectionsManager.receivedChatMessage.collect { dto ->
-                chatCoordinator.receiveMessage(dto)
-            }
-        }
-
-        repositoryScope?.launch {
-            nearbyConnectionsManager.receivedChatReceipt.collect { receipt ->
-                chatCoordinator.receiveReceipt(receipt)
-            }
-        }
-
-        repositoryScope?.launch {
             nearbyConnectionsManager.peerNames.collect { (peerId, name) ->
                 updatePeerName(peerId, name)
             }
@@ -634,6 +647,7 @@ class DiscoveryRepository(
                 val state = sessionManager.sessionState.value
                 if (!state.isHost && state.currentEvent?.hostPeerId == peerId) {
                     _hostConnectionLostAtMillis.value = null
+                    chatCoordinator.requestHistoryFromHost()
                 }
                 addConnectedPeer(peerId)
                 if (sessionManager.sessionState.value.isHost) {
@@ -794,12 +808,6 @@ class DiscoveryRepository(
                 Log.i(TAG, "Host ended or removed this member from the PingRing")
                 stopDiscovery()
                 sessionManager.endEventFromHost()
-            }
-        }
-
-        repositoryScope?.launch {
-            nearbyConnectionsManager.receivedChatHistory.collect { history ->
-                chatCoordinator.receiveHistory(history)
             }
         }
 

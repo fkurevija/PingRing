@@ -2,6 +2,7 @@ package com.fkurevija.pingring
 
 import com.fkurevija.pingring.data.chat.BeaconPayloadDto
 import com.fkurevija.pingring.data.chat.ChatHistoryPayloadDto
+import com.fkurevija.pingring.data.chat.ChatHistoryRequestPayloadDto
 import com.fkurevija.pingring.data.chat.ChatPayloadDto
 import com.fkurevija.pingring.data.ranging.MockRangingDto
 import com.fkurevija.pingring.data.session.MemberDeparturePayloadDto
@@ -33,8 +34,8 @@ import com.fkurevija.pingring.data.DiscoveryRepository
  * only that a message it expected never arrived.
  *
  * These tests pin that contract: each [TransportEvents] callback lands on the
- * flow named after it, the one replayed flow survives a late subscriber, and the
- * others deliberately do not.
+ * flow named after it. Connection establishment and history requests survive a
+ * late subscriber; transient updates deliberately do not.
  *
  * Plain JUnit, not Robolectric: the only Android call in this path is
  * `android.util.Log.i`, and `isReturnDefaultValues` makes that a no-op, so the
@@ -53,10 +54,9 @@ class TransportEventsTest {
     /**
      * Subscribes before the caller emits.
      *
-     * Every flow here has `replay = 0` except `connectionEstablished`, so an
-     * emission made with nobody listening is dropped outright rather than
-     * buffered - which is the behaviour the repository relies on for chat, where
-     * a message nobody has collected yet is genuinely not wanted. UNDISPATCHED
+     * Most flows have `replay = 0`, so an emission made with nobody listening
+     * is dropped outright rather than buffered. History requests are replayed
+     * because they must survive startup racing their collector. UNDISPATCHED
      * matters: it runs the collector up to its first suspension point
      * immediately, so the subscription is in place before the emit below rather
      * than after the test coroutine next yields.
@@ -116,6 +116,16 @@ class TransportEventsTest {
         events.onChatHistory(history)
 
         assertEquals(history, received.await())
+    }
+
+    @Test
+    fun chatHistoryRequestsAreRetainedUntilTheHostCollectorStarts() = runTest {
+        val events = TransportEvents("test")
+        val request = ChatHistoryRequestPayloadDto("event-1", "peer-b")
+
+        events.onChatHistoryRequest(request)
+
+        assertEquals(request, events.receivedChatHistoryRequest.first())
     }
 
     @Test

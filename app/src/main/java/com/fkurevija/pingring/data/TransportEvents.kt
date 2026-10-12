@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import com.fkurevija.pingring.data.chat.BeaconPayloadDto
 import com.fkurevija.pingring.data.chat.ChatHistoryPayloadDto
+import com.fkurevija.pingring.data.chat.ChatHistoryRequestPayloadDto
 import com.fkurevija.pingring.data.chat.ChatPayloadDto
 import com.fkurevija.pingring.data.chat.ChatReceiptPayloadDto
 import com.fkurevija.pingring.data.radar.PeerRangingPayloadDto
@@ -35,6 +36,7 @@ import com.fkurevija.pingring.data.session.MeshPresencePayloadDto
 internal interface PayloadSink {
     fun onChatMessage(message: ChatPayloadDto)
     fun onChatHistory(history: ChatHistoryPayloadDto)
+    fun onChatHistoryRequest(request: ChatHistoryRequestPayloadDto)
     fun onChatReceipt(receipt: ChatReceiptPayloadDto)
     fun onBeacon(beacon: BeaconPayloadDto)
     fun onInviteSecret(secret: InviteSecretPayloadDto)
@@ -51,7 +53,7 @@ internal interface PayloadSink {
 /**
  * The received side of a [NearbyTransport], in one place.
  *
- * Both transports expose the same ten flows with the same buffer sizes
+ * Both transports expose the same flows with the same buffer sizes
  * (scripted range reports being the one only one of them can fill). They used to
  * declare a copy of every one of them, which meant the contract
  * [DiscoveryRepository] consumes - how deep each buffer is, and what an overflow
@@ -107,6 +109,14 @@ internal class TransportEvents(private val tag: String) : PayloadSink {
         onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
     val receivedChatHistory: SharedFlow<ChatHistoryPayloadDto> = _receivedChatHistory.asSharedFlow()
+
+    private val _receivedChatHistoryRequest = MutableSharedFlow<ChatHistoryRequestPayloadDto>(
+        replay = 1,
+        extraBufferCapacity = 4,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+    val receivedChatHistoryRequest: SharedFlow<ChatHistoryRequestPayloadDto> =
+        _receivedChatHistoryRequest.asSharedFlow()
 
     private val _receivedChatReceipt = MutableSharedFlow<ChatReceiptPayloadDto>(
         extraBufferCapacity = 16,
@@ -244,6 +254,10 @@ internal class TransportEvents(private val tag: String) : PayloadSink {
     override fun onChatHistory(history: ChatHistoryPayloadDto) {
         Log.i(tag, "Received chat history with ${history.messages.size} msgs")
         _receivedChatHistory.tryEmit(history)
+    }
+
+    override fun onChatHistoryRequest(request: ChatHistoryRequestPayloadDto) {
+        _receivedChatHistoryRequest.tryEmit(request)
     }
 
     override fun onChatReceipt(receipt: ChatReceiptPayloadDto) {

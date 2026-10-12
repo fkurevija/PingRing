@@ -6,6 +6,7 @@ import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import com.fkurevija.pingring.data.chat.BeaconPayloadDto
 import com.fkurevija.pingring.data.chat.ChatHistoryPayloadDto
+import com.fkurevija.pingring.data.chat.ChatHistoryRequestPayloadDto
 import com.fkurevija.pingring.data.chat.ChatPayloadDto
 import com.fkurevija.pingring.data.chat.ChatReceiptPayloadDto
 import com.fkurevija.pingring.data.radar.PeerRangingPayloadDto
@@ -40,6 +41,7 @@ internal data class EncodedPayload(val wireType: String, val json: String)
 internal sealed interface DecodedPayload {
     data class Chat(val message: ChatPayloadDto) : DecodedPayload
     data class ChatHistory(val history: ChatHistoryPayloadDto) : DecodedPayload
+    data class ChatHistoryRequest(val request: ChatHistoryRequestPayloadDto) : DecodedPayload
     data class ChatReceipt(val receipt: ChatReceiptPayloadDto) : DecodedPayload
     data class Beacon(val beacon: BeaconPayloadDto) : DecodedPayload
     data class InviteSecret(val secret: InviteSecretPayloadDto) : DecodedPayload
@@ -76,6 +78,7 @@ internal object RelayCodec {
 
     const val CHAT = "chat"
     const val CHAT_HISTORY = "chat-history"
+    const val CHAT_HISTORY_REQUEST = "chat-history-request"
     const val CHAT_RECEIPT = "chat-receipt"
     const val BEACON = "beacon"
     const val INVITE_SECRET = "invite-secret"
@@ -101,7 +104,7 @@ internal object RelayCodec {
 
     /** Every payload type this build understands inside an envelope. */
     val knownWireTypes: Set<String> = setOf(
-        CHAT, CHAT_HISTORY, CHAT_RECEIPT, BEACON, INVITE_SECRET, BLE_IDENTITY_KEY, MEMBER_DEPARTURE, MESH_PRESENCE,
+        CHAT, CHAT_HISTORY, CHAT_HISTORY_REQUEST, CHAT_RECEIPT, BEACON, INVITE_SECRET, BLE_IDENTITY_KEY, MEMBER_DEPARTURE, MESH_PRESENCE,
         MESH_PEER_AUTHENTICATION, JOIN_PROOF, EVENT_CONTROL, PEER_RANGING,
         UWB_ADDRESS, UWB_PARAMS, UWB_OFFER, MOCK_RANGING, CHAT_COLOUR_CLAIM
     )
@@ -115,6 +118,8 @@ internal object RelayCodec {
     private val envelopeAdapter: JsonAdapter<RelayEnvelope> = moshi.adapter(RelayEnvelope::class.java)
     private val chatAdapter: JsonAdapter<ChatPayloadDto> = moshi.adapter(ChatPayloadDto::class.java)
     private val chatHistoryAdapter: JsonAdapter<ChatHistoryPayloadDto> = moshi.adapter(ChatHistoryPayloadDto::class.java)
+    private val chatHistoryRequestAdapter: JsonAdapter<ChatHistoryRequestPayloadDto> =
+        moshi.adapter(ChatHistoryRequestPayloadDto::class.java)
     private val chatReceiptAdapter: JsonAdapter<ChatReceiptPayloadDto> = moshi.adapter(ChatReceiptPayloadDto::class.java)
     private val beaconAdapter: JsonAdapter<BeaconPayloadDto> = moshi.adapter(BeaconPayloadDto::class.java)
     private val inviteSecretAdapter: JsonAdapter<InviteSecretPayloadDto> = moshi.adapter(InviteSecretPayloadDto::class.java)
@@ -157,6 +162,7 @@ internal object RelayCodec {
     fun decode(wireType: String, json: String): Result<DecodedPayload>? = when (wireType) {
         CHAT -> decodeBody(chatAdapter, json, DecodedPayload::Chat)
         CHAT_HISTORY -> decodeBody(chatHistoryAdapter, json, DecodedPayload::ChatHistory)
+        CHAT_HISTORY_REQUEST -> decodeBody(chatHistoryRequestAdapter, json, DecodedPayload::ChatHistoryRequest)
         CHAT_RECEIPT -> decodeBody(chatReceiptAdapter, json, DecodedPayload::ChatReceipt)
         BEACON -> decodeBody(beaconAdapter, json, DecodedPayload::Beacon)
         INVITE_SECRET -> decodeBody(inviteSecretAdapter, json, DecodedPayload::InviteSecret)
@@ -205,6 +211,7 @@ internal object RelayCodec {
     fun route(payload: DecodedPayload, sink: PayloadSink): Boolean = when (payload) {
         is DecodedPayload.Chat -> { sink.onChatMessage(payload.message); true }
         is DecodedPayload.ChatHistory -> { sink.onChatHistory(payload.history); true }
+        is DecodedPayload.ChatHistoryRequest -> { sink.onChatHistoryRequest(payload.request); true }
         is DecodedPayload.ChatReceipt -> { sink.onChatReceipt(payload.receipt); true }
         is DecodedPayload.Beacon -> { sink.onBeacon(payload.beacon); true }
         is DecodedPayload.InviteSecret -> { sink.onInviteSecret(payload.secret); true }
@@ -233,6 +240,8 @@ internal object RelayCodec {
     fun encode(params: Any): EncodedPayload? = when (params) {
         is ChatPayloadDto -> EncodedPayload(CHAT, chatAdapter.toJson(params))
         is ChatHistoryPayloadDto -> EncodedPayload(CHAT_HISTORY, chatHistoryAdapter.toJson(params))
+        is ChatHistoryRequestPayloadDto ->
+            EncodedPayload(CHAT_HISTORY_REQUEST, chatHistoryRequestAdapter.toJson(params))
         is ChatReceiptPayloadDto -> EncodedPayload(CHAT_RECEIPT, chatReceiptAdapter.toJson(params))
         is BeaconPayloadDto -> EncodedPayload(BEACON, beaconAdapter.toJson(params))
         is InviteSecretPayloadDto -> EncodedPayload(INVITE_SECRET, inviteSecretAdapter.toJson(params))

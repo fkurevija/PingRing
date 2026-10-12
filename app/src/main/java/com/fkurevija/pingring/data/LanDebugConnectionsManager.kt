@@ -17,6 +17,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 import com.fkurevija.pingring.data.chat.BeaconPayloadDto
 import com.fkurevija.pingring.data.chat.ChatHistoryPayloadDto
+import com.fkurevija.pingring.data.chat.ChatHistoryRequestPayloadDto
 import com.fkurevija.pingring.data.chat.ChatPayloadDto
 import com.fkurevija.pingring.data.chat.ChatReceiptPayloadDto
 import com.fkurevija.pingring.data.chat.MessageStatus
@@ -62,6 +63,8 @@ class LanDebugConnectionsManager(
     override val receivedUwbRangingOffer: SharedFlow<UwbRangingOfferDto> get() = events.receivedUwbRangingOffer
     override val receivedChatMessage: SharedFlow<ChatPayloadDto> get() = events.receivedChatMessage
     override val receivedChatHistory: SharedFlow<ChatHistoryPayloadDto> get() = events.receivedChatHistory
+    override val receivedChatHistoryRequest: SharedFlow<ChatHistoryRequestPayloadDto>
+        get() = events.receivedChatHistoryRequest
     override val receivedChatReceipt: SharedFlow<ChatReceiptPayloadDto> get() = events.receivedChatReceipt
     override val connectionEstablished: SharedFlow<String> get() = events.connectionEstablished
     override val peerDisconnected: SharedFlow<String> get() = events.peerDisconnected
@@ -78,6 +81,7 @@ class LanDebugConnectionsManager(
     override val peerNames: SharedFlow<Pair<String, String>> get() = events.peerNames
 
     override var acceptsNewMembers: Boolean = true
+    override var hostPeerIdProvider: (() -> String?)? = null
     override var inviteSecretProvider: (() -> String?)? = null
     override var userNameProvider: (() -> String?)? = null
 
@@ -111,7 +115,6 @@ class LanDebugConnectionsManager(
     override fun approveJoinRequest(endpointId: String) {
         joinAdmission.approveJoinRequest(endpointId)
     }
-
     override fun denyJoinRequest(endpointId: String) {
         joinAdmission.denyJoinRequest(endpointId)
     }
@@ -257,6 +260,26 @@ class LanDebugConnectionsManager(
     }
 
     private fun deliver(payload: DecodedPayload, senderPeerId: String): Boolean = when (payload) {
+        is DecodedPayload.Chat -> {
+            if (senderPeerId in authorizedPeers && payload.message.senderPeerId == senderPeerId) {
+                events.onChatMessage(payload.message)
+                true
+            } else {
+                Log.w(TAG, "Ignoring chat message from an unadmitted or mismatched peer")
+                false
+            }
+        }
+        is DecodedPayload.ChatHistory -> {
+            if (localRole == RelayEnvelope.ROLE_MEMBER &&
+                senderPeerId == hostPeerIdProvider?.invoke()
+            ) {
+                events.onChatHistory(payload.history)
+                true
+            } else {
+                Log.w(TAG, "Ignoring chat history that did not come from the host")
+                false
+            }
+        }
         is DecodedPayload.JoinProof -> {
             joinAdmission.receiveJoinProof(payload.proof, senderPeerId)
             true
@@ -306,6 +329,19 @@ class LanDebugConnectionsManager(
                 true
             } else {
                 Log.w(TAG, "Ignoring chat receipt from an unadmitted or mismatched peer")
+                false
+            }
+        }
+        is DecodedPayload.ChatHistoryRequest -> {
+            if (senderPeerId in authorizedPeers &&
+                payload.request.requesterPeerId == senderPeerId &&
+                payload.request.eventCode == localEventId &&
+                localRole == RelayEnvelope.ROLE_HOST
+            ) {
+                events.onChatHistoryRequest(payload.request)
+                true
+            } else {
+                Log.w(TAG, "Ignoring chat history request from an unadmitted or mismatched peer")
                 false
             }
         }
@@ -380,6 +416,10 @@ class LanDebugConnectionsManager(
 
     override fun sendChatHistoryToPeer(peerId: String, messages: List<ChatPayloadDto>) {
         sendPayload(peerId, ChatHistoryPayloadDto(messages))
+    }
+
+    override fun requestChatHistoryFromHost(hostPeerId: String, request: ChatHistoryRequestPayloadDto) {
+        sendPayload(hostPeerId, request)
     }
 
     override fun sendChatMessageToPeer(peerId: String, chatMsg: ChatPayloadDto) {

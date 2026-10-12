@@ -135,6 +135,12 @@ data class ChatHistoryPayloadDto(
 )
 
 @JsonClass(generateAdapter = true)
+data class ChatHistoryRequestPayloadDto(
+    val eventCode: String,
+    val requesterPeerId: String,
+)
+
+@JsonClass(generateAdapter = true)
 data class ChatReceiptPayloadDto(
     val eventCode: String,
     val messageId: String,

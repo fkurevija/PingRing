@@ -94,6 +94,13 @@ internal class DiscoveryChatCoordinator(
     }
 
     suspend fun receiveMessage(dto: ChatPayloadDto) {
+        val state = sessionManager.sessionState.value
+        if (dto.entryType == ChatEntryType.MESSAGE && !state.isHost &&
+            dto.senderPeerId != state.currentEvent?.hostPeerId
+        ) {
+            Log.w(TAG, "Ignoring guest chat message that was not relayed by the host: ${dto.id}")
+            return
+        }
         if (dto.entryType != ChatEntryType.MESSAGE && !isValidSystemEntry(dto)) {
             Log.w(TAG, "Ignoring invalid system chat entry ${dto.id}")
             return
@@ -103,6 +110,11 @@ internal class DiscoveryChatCoordinator(
         }
         val message = dto.toChatMessage()
         sessionManager.receiveLocalChatMessage(message)
+        if (state.isHost && dto.entryType == ChatEntryType.MESSAGE &&
+            dto.senderPeerId != sessionManager.peerId.value
+        ) {
+            broadcastHistory()
+        }
 
         if (dto.entryType == ChatEntryType.MESSAGE &&
             dto.senderPeerId != sessionManager.peerId.value
@@ -182,6 +194,34 @@ internal class DiscoveryChatCoordinator(
         sessionManager.receiveChatHistory(validMessages)
     }
 
+    fun requestHistoryFromHost() {
+        val state = sessionManager.sessionState.value
+        val event = state.currentEvent ?: return
+        val hostPeerId = event.hostPeerId?.takeIf(String::isNotBlank) ?: run {
+            Log.w(TAG, "Cannot request chat history without the host peer id")
+            return
+        }
+        if (state.isHost) return
+        transport.requestChatHistoryFromHost(
+            hostPeerId,
+            ChatHistoryRequestPayloadDto(
+                eventCode = event.id,
+                requesterPeerId = sessionManager.peerId.value,
+            ),
+        )
+    }
+
+    fun receiveHistoryRequest(request: ChatHistoryRequestPayloadDto) {
+        val state = sessionManager.sessionState.value
+        if (!state.isHost || request.eventCode != state.currentEvent?.id ||
+            request.requesterPeerId.isBlank()
+        ) {
+            Log.w(TAG, "Ignoring invalid chat history request")
+            return
+        }
+        sendHistoryToPeer(request.requesterPeerId)
+    }
+
     fun currentHistory(): List<ChatPayloadDto> =
         sessionManager.sessionState.value.chatMessages.map { message ->
             ChatPayloadDto(
@@ -239,8 +279,19 @@ internal class DiscoveryChatCoordinator(
     }
 
     private fun publish(dto: ChatPayloadDto) {
+        val state = sessionManager.sessionState.value
+        val hostPeerId = if (state.isHost) null else {
+            state.currentEvent?.hostPeerId?.takeIf(String::isNotBlank) ?: run {
+                Log.w(TAG, "Cannot send chat before the host peer id is known")
+                return
+            }
+        }
         sessionManager.receiveLocalChatMessage(dto.toChatMessage())
-        transport.broadcastChatMessage(dto)
+        if (hostPeerId == null) {
+            transport.broadcastChatMessage(dto)
+        } else {
+            transport.sendChatMessageToPeer(hostPeerId, dto)
+        }
     }
 
     private fun isValidSystemEntry(dto: ChatPayloadDto): Boolean {

@@ -132,6 +132,12 @@ internal class NearbyInboundMeshDispatcher(
         is DecodedPayload.Beacon -> payload.beacon.senderPeerId == originPeerId && RelayCodec.route(payload, events)
         is DecodedPayload.ChatHistory ->
             originPeerId == state.hostPeerId() && RelayCodec.route(payload, events)
+        is DecodedPayload.ChatHistoryRequest ->
+            state.isLocalHost() &&
+                payload.request.requesterPeerId == originPeerId &&
+                payload.request.eventCode == state.localEventId() &&
+                envelope.targetPeerId == state.localPeerId() &&
+                RelayCodec.route(payload, events)
         is DecodedPayload.BleIdentityKey -> originPeerId == state.hostPeerId() && run {
             if (BleIdentityCrypto.decodePublicKey(payload.identityKey.publicKey) == null) return false
             events.onBleIdentityKey(payload.identityKey)
@@ -199,6 +205,12 @@ internal class NearbyInboundMeshDispatcher(
                     ) RelayCodec.route(payload, events) else false
                 is DecodedPayload.ChatHistory ->
                     !state.isLocalHost() && endpointId == state.authenticatedHostEndpoint() &&
+                        RelayCodec.route(payload, events)
+                is DecodedPayload.ChatHistoryRequest ->
+                    state.isLocalHost() &&
+                        payload.request.requesterPeerId == endpointPeerId &&
+                        payload.request.eventCode == state.localEventId() &&
+                        envelope.targetPeerId == state.localPeerId() &&
                         RelayCodec.route(payload, events)
                 is DecodedPayload.ChatReceipt ->
                     payload.receipt.recipientPeerId == endpointPeerId &&

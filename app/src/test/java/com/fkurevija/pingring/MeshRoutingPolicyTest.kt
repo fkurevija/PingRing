@@ -24,6 +24,7 @@ class MeshRoutingPolicyTest {
     @Test
     fun onlyGroupTrafficMayBeForwarded() {
         assertTrue(MeshRoutingPolicy.isForwardable(RelayCodec.CHAT))
+        assertTrue(MeshRoutingPolicy.isForwardable(RelayCodec.CHAT_HISTORY_REQUEST))
         assertTrue(MeshRoutingPolicy.isForwardable(RelayCodec.BEACON))
         assertTrue(MeshRoutingPolicy.isForwardable(RelayCodec.UWB_OFFER))
         assertTrue(MeshRoutingPolicy.isForwardable(RelayCodec.MESH_PRESENCE))

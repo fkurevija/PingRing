@@ -6,6 +6,7 @@ import com.fkurevija.pingring.data.session.MemberDeparturePayloadDto
 import com.fkurevija.pingring.data.session.MeshPresencePayloadDto
 import com.fkurevija.pingring.data.session.MeshLinkAuthenticationPayloadDto
 import com.fkurevija.pingring.data.chat.ChatHistoryPayloadDto
+import com.fkurevija.pingring.data.chat.ChatHistoryRequestPayloadDto
 import com.fkurevija.pingring.data.session.ChatColourClaimPayloadDto
 import com.fkurevija.pingring.data.chat.ChatPayloadDto
 import com.fkurevija.pingring.data.chat.ChatReceiptPayloadDto
@@ -64,6 +65,10 @@ class RelayCodecTest {
 
         override fun onChatHistory(history: ChatHistoryPayloadDto) {
             delivered += history
+        }
+
+        override fun onChatHistoryRequest(request: ChatHistoryRequestPayloadDto) {
+            delivered += request
         }
 
         override fun onChatReceipt(receipt: ChatReceiptPayloadDto) {
@@ -204,6 +209,7 @@ class RelayCodecTest {
         val payloads = listOf<Any>(
             chat,
             ChatHistoryPayloadDto(listOf(chat)),
+            ChatHistoryRequestPayloadDto("event-1", "peer-b"),
             chatReceipt,
             beacon,
             inviteSecret,
@@ -384,6 +390,7 @@ class RelayCodecTest {
     private fun payloadOf(decoded: DecodedPayload): Any = when (decoded) {
         is DecodedPayload.Chat -> decoded.message
         is DecodedPayload.ChatHistory -> decoded.history
+        is DecodedPayload.ChatHistoryRequest -> decoded.request
         is DecodedPayload.ChatReceipt -> decoded.receipt
         is DecodedPayload.Beacon -> decoded.beacon
         is DecodedPayload.InviteSecret -> decoded.secret

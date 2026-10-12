@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import com.fkurevija.pingring.data.chat.BeaconPayloadDto
 import com.fkurevija.pingring.data.chat.ChatHistoryPayloadDto
+import com.fkurevija.pingring.data.chat.ChatHistoryRequestPayloadDto
 import com.fkurevija.pingring.data.chat.ChatPayloadDto
 import com.fkurevija.pingring.data.chat.ChatReceiptPayloadDto
 import com.fkurevija.pingring.data.radar.PeerRangingPayloadDto
@@ -317,6 +318,8 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
     override val receivedUwbRangingOffer: SharedFlow<UwbRangingOfferDto> get() = events.receivedUwbRangingOffer
     override val receivedChatMessage: SharedFlow<ChatPayloadDto> get() = events.receivedChatMessage
     override val receivedChatHistory: SharedFlow<ChatHistoryPayloadDto> get() = events.receivedChatHistory
+    override val receivedChatHistoryRequest: SharedFlow<ChatHistoryRequestPayloadDto>
+        get() = events.receivedChatHistoryRequest
     override val receivedChatReceipt: SharedFlow<ChatReceiptPayloadDto> get() = events.receivedChatReceipt
     override val connectionEstablished: SharedFlow<String> get() = events.connectionEstablished
     override val peerDisconnected: SharedFlow<String> get() = events.peerDisconnected
@@ -366,7 +369,7 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
      * pure transport: it needs to know *which* peer is the host only to route
      * a guest's UWB ranging offer to it.
      */
-    var hostPeerIdProvider: (() -> String?)? = null
+    override var hostPeerIdProvider: (() -> String?)? = null
     override var inviteSecretProvider: (() -> String?)? = null
     override var userNameProvider: (() -> String?)? = null
     var meshIdentityKeyProvider: ((String) -> BleIdentityKeyPayloadDto?)? = null
@@ -720,6 +723,10 @@ class NearbyConnectionsManager(private val context: Context) : NearbyTransport {
 
     override fun sendChatHistoryToPeer(peerId: String, messages: List<ChatPayloadDto>) {
         sendMeshTargetedPayload(peerId, ChatHistoryPayloadDto(messages))
+    }
+
+    override fun requestChatHistoryFromHost(hostPeerId: String, request: ChatHistoryRequestPayloadDto) {
+        sendMeshTargetedPayload(hostPeerId, request)
     }
 
     override fun sendChatMessageToPeer(peerId: String, chatMsg: ChatPayloadDto) {
