@@ -110,18 +110,9 @@ internal fun RadarContent(
                 directionIsLastKnown = directionIsLastKnown,
                 trackedPeerName = peer?.takeIf { hasPeers }?.name,
                 trackedPeerDistance = peer?.takeIf { hasPeers }?.let {
-                    // Show distance with uncertainty when source is GNSS and accuracy is available
-                    if (it.distanceSource == RangingSourcePolicy.RangingSource.GNSS && it.distance != null && it.distanceAccuracyMeters != null) {
-                        stringResource(
-                            R.string.distance_with_uncertainty,
-                            it.distance,
-                            it.distanceAccuracyMeters
-                        )
-                    } else {
-                        it.distance?.let { distance ->
-                            stringResource(R.string.distance_away, distance)
-                        } ?: stringResource(R.string.proximity_signal, proximityLabel)
-                    }
+                    it.distance?.let { distance ->
+                        stringResource(R.string.distance_away, distance)
+                    } ?: stringResource(R.string.proximity_signal, proximityLabel)
                 },
                 beacon = beacon,
                 accessibilityDescription = RadarAccessibilityProbe.describeLocalized(
@@ -240,7 +231,7 @@ private fun ProximityRing(
             // rather than a circle. Subtracting the stroke width pulls the
             // centre line in by half a stroke, so the full width fits.
             drawCircle(
-                color = color.copy(alpha = if (beacon != null) 0.25f else .12f),
+                color = color.copy(alpha = if (beacon != null) 0.25f else 0.32f),
                 radius = ringRadius,
                 style = Stroke(stroke)
             )
@@ -259,7 +250,7 @@ private fun ProximityRing(
             val directionColor = color.copy(
                 alpha = (if (directionUncertaintyDegrees != null) 0.6f else 1f) * directionAlpha
             )
-            if (segment != null) {
+            if (directionAlpha > 0f) {
                 drawArc(
                     color = directionColor,
                     startAngle = segment.startAngleDegrees,

@@ -65,9 +65,10 @@ class RadarHeadingInstrumentedTest {
     }
 
     @Test
-    fun gpsHeadingPreservesEstimateAndUncertaintyWithoutAModeLabel() {
+    fun gpsHeadingShowsBaseRangeWithoutUncertaintyOrModeLabel() {
         showPeer(peer.copy(distanceSource = RangingSourcePolicy.RangingSource.GNSS, distanceAccuracyMeters = 10f))
-        assertHeading(context.getString(R.string.distance_with_uncertainty, 1.5f, 10f))
+        assertHeading(context.getString(R.string.distance_away, 1.5f))
+        composeRule.onNodeWithText(context.getString(R.string.distance_with_uncertainty, 1.5f, 10f)).assertDoesNotExist()
         composeRule.onNodeWithText(context.getString(R.string.gnss_distance_estimate)).assertDoesNotExist()
     }
 
