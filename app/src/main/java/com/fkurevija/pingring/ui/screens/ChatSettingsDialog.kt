@@ -23,6 +23,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -282,7 +283,7 @@ internal fun ChatSettingsDialog(
         },
         confirmButton = {
             if (!saveCompleted) {
-                TextButton(
+                Button(
                     onClick = {
                         usernameSubmitted = true
                         if (usernameError == null) {
@@ -299,14 +300,16 @@ internal fun ChatSettingsDialog(
                             onDismiss()
                         }
                     },
+                    modifier = Modifier.height(48.dp),
+                    shape = RoundedCornerShape(14.dp),
                     enabled = hasChanges && usernameError == null,
                 ) {
-                    Text(stringResource(R.string.save_changes))
+                    Text(stringResource(R.string.save_changes), fontWeight = FontWeight.SemiBold)
                 }
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
         },
     )
 }

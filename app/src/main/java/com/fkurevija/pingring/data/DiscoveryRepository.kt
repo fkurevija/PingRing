@@ -638,6 +638,10 @@ class DiscoveryRepository(
                 addConnectedPeer(peerId)
                 if (sessionManager.sessionState.value.isHost) {
                     announceMemberJoined(peerId)
+                    // The live join notice can arrive before a guest is ready
+                    // to collect chat updates. Re-send the host's transcript as
+                    // the authoritative state whenever a member connects.
+                    chatCoordinator.broadcastHistory()
                 }
                 // A peer with a live connection is the only kind that can be
                 // UWB-ranged, so this is what makes it eligible as a focus.

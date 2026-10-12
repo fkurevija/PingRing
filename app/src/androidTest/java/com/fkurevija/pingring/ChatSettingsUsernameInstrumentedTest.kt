@@ -80,7 +80,7 @@ class ChatSettingsUsernameInstrumentedTest {
         var saved: String? = null
         show(onSave = { saved = it })
         composeRule.onNodeWithText("Username").performTextReplacement("Alex")
-        composeRule.onNodeWithText("Close").performClick()
+        composeRule.onNodeWithText("Cancel").performClick()
         assertEquals(null, saved)
     }
 
