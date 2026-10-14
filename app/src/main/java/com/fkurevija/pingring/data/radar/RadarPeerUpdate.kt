@@ -48,7 +48,8 @@ data class RadarPeerUpdate(
      * than a boolean, because "no second opinion yet" and "a second opinion
      * that agrees" are different states and the radar shows them differently.
      */
-    val rangingConfidence: RangingConfidence? = null
+    val rangingConfidence: RangingConfidence? = null,
+    val syntheticRanging: Boolean = false
 ) {
     val displayedEstimatedDirection: EstimatedRadarDirection?
         get() = estimatedDirection?.takeIf { azimuth?.isFinite() != true || directionIsLastKnown }

@@ -1,6 +1,7 @@
 package com.fkurevija.pingring
 
 import com.fkurevija.pingring.data.ranging.MockRangingDto
+import com.fkurevija.pingring.data.ranging.MockRangingSource
 import com.squareup.moshi.JsonDataException
 import com.squareup.moshi.Moshi
 import org.junit.Assert.assertEquals
@@ -29,6 +30,7 @@ class MockRangingDtoTest {
         assertEquals(90.0f, dto?.azimuth)
         assertEquals(-3.0f, dto?.elevation)
         assertEquals("Alice", dto?.name)
+        assertEquals(MockRangingSource.UWB, dto?.source)
     }
 
     @Test
@@ -47,6 +49,7 @@ class MockRangingDtoTest {
         assertNull(dto?.azimuth)
         assertNull(dto?.elevation)
         assertNull(dto?.name)
+        assertEquals(MockRangingSource.UWB, dto?.source)
     }
 
     @Test
@@ -55,20 +58,33 @@ class MockRangingDtoTest {
             MockRangingDto(peerId = "M1", distance = 0.5f, azimuth = 12.0f, elevation = 0.0f)
         )
         assertEquals(
-            """{"peerId":"M1","distance":0.5,"azimuth":12.0,"elevation":0.0}""",
+            """{"peerId":"M1","distance":0.5,"azimuth":12.0,"elevation":0.0,"source":"UWB"}""",
             json
         )
     }
 
     @Test
     fun aSignalOnlyReportParsesWithoutADistance() {
-        // What mock_radar.py sends under --rssi-only. The app treats this as a
+        // What mock_radar.py sends under --radio ble. The app treats this as a
         // BLE advert and smooths it, rather than as a ranging fix it trusts
         // exactly, so it is the only report that can exercise the filter.
-        val dto = adapter.fromJson("""{"peerId":"M1","rssi":-71,"azimuth":90.0}""")
+        val dto = adapter.fromJson("""{"peerId":"M1","rssi":-71,"source":"BLE_RSSI"}""")
         assertEquals("M1", dto?.peerId)
         assertEquals(-71, dto?.rssi)
+        assertEquals(MockRangingSource.BLE_RSSI, dto?.source)
         assertNull("a signal report must not claim a distance", dto?.distance)
+    }
+
+    @Test
+    fun aWifiRttReportCarriesUncertaintyWithoutBearing() {
+        val dto = adapter.fromJson(
+            """{"peerId":"M1","distance":3.2,"source":"WIFI_RTT","accuracyMeters":0.8}"""
+        )
+        assertEquals(MockRangingSource.WIFI_RTT, dto?.source)
+        assertEquals(3.2f, dto?.distance)
+        assertEquals(0.8f, dto?.accuracyMeters)
+        assertNull(dto?.azimuth)
+        assertNull(dto?.elevation)
     }
 
     @Test

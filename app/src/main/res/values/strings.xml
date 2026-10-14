@@ -168,6 +168,7 @@
     <string name="proximity_cold">Cold</string>
     <string name="proximity_unknown">Unknown</string>
     <string name="distance_away">%1$.1f m away</string>
+    <string name="simulated_peer_label">SIMULATED · %1$s</string>
     <string name="gps_direction_estimate">Estimated GPS direction · ±%1$d°</string>
     <string name="radar_gps_direction">Estimated GPS direction %1$d degrees, uncertainty %2$d degrees.</string>
     <string name="proximity_signal">%1$s signal</string>

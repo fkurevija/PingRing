@@ -12,7 +12,9 @@ Run it next to the relay and the app:
 
     python tools/lan_debug_relay.py
     python tools/mock_radar.py <event-id> --pattern approach
-    python tools/mock_radar.py <event-id> --pattern orbit --distance 3
+    python tools/mock_radar.py <event-id> --radio uwb --pattern orbit --distance 3
+    python tools/mock_radar.py <event-id> --radio wifi-rtt --pattern approach
+    python tools/mock_radar.py <event-id> --radio ble --pattern approach --noise-db 3 --seed 42
     python tools/mock_radar.py <event-id> --peer a1b2c3d4 --name Alice
 
 Every member of the event is driven by default; --peer narrows that down to
@@ -27,8 +29,9 @@ script joins as a plain member (so it can never end the event) and sends one
      "targetPeerId": "a1b2c3d4",
      "payload": "{\"type\":\"mock-range\",\"payload\":\"{\\\"peerId\\\":...}\"}"}
 
-which the app turns into exactly the update a real UWB ranging result would
-produce (see DiscoveryRepository.updateMockRanging).
+which the app routes through its BLE RSSI, Wi-Fi RTT distance, or UWB-shaped
+radar update path. The measurement is always synthetic; Android radio APIs are
+not involved.
 """
 import argparse
 import asyncio
@@ -129,10 +132,20 @@ class Radio:
                  window still holds.
     """
 
-    def __init__(self, noise_db=0.0, outlier_rate=0.0, dropout_rate=0.0, rng=None):
+    def __init__(
+        self,
+        noise_db=0.0,
+        outlier_rate=0.0,
+        dropout_rate=0.0,
+        range_noise_m=0.0,
+        range_outlier_rate=0.0,
+        rng=None,
+    ):
         self.noise_db = noise_db
         self.outlier_rate = outlier_rate
         self.dropout_rate = dropout_rate
+        self.range_noise_m = range_noise_m
+        self.range_outlier_rate = range_outlier_rate
         self.rng = rng or random.Random()
 
     def apply(self, rssi):
@@ -148,6 +161,15 @@ class Radio:
             # the case a naive average gets visibly wrong.
             value += abs(_gaussian(self.rng)) * self.noise_db * 4.0 + 12.0
         return int(round(max(SENSITIVITY_FLOOR_DBM, min(0.0, value))))
+
+    def apply_range(self, distance):
+        """Add range uncertainty and the positive bias of an NLOS RTT result."""
+        value = float(distance)
+        if self.range_noise_m > 0.0:
+            value += _gaussian(self.rng) * self.range_noise_m
+        if self.range_outlier_rate > 0.0 and self.rng.random() < self.range_outlier_rate:
+            value += abs(_gaussian(self.rng)) * self.range_noise_m * 4.0 + 1.0
+        return clamp_distance(value)
 
 def _triangle(phase, start, end):
     """Ping-pong between `start` and `end`, one leg per half cycle."""
@@ -180,8 +202,20 @@ def sample(pattern, phase, start, end, distance, azimuth, elevation):
     raise ValueError(f"unknown pattern {pattern!r}")
 
 
-def build_range_envelope(event_id, peer_id, distance, azimuth, elevation, name=None,
-                         sender_peer_id=SCRIPT_PEER_ID, radio=None, as_rssi=False):
+def build_range_envelope(
+    event_id,
+    peer_id,
+    distance,
+    azimuth,
+    elevation,
+    name=None,
+    sender_peer_id=SCRIPT_PEER_ID,
+    radio=None,
+    as_rssi=False,
+    source="uwb",
+    accuracy_m=0.8,
+    bearing_noise_deg=0.0,
+):
     """The "data" envelope carrying one range report for `peer_id`.
 
     Returns None when this sample was dropped, so the caller sends nothing that
@@ -196,11 +230,8 @@ def build_range_envelope(event_id, peer_id, distance, azimuth, elevation, name=N
             return None
     else:
         noisy = None
-    # Two quite different readings are on offer, and which one the app *uses*
-    # is the whole point. A distance is a ranging fix: precise, so it wins and
-    # the smoothing filter is skipped. An rssi on its own is what a peer
-    # without UWB actually provides, and it goes through the real rolling-window
-    # filter - which is the only way to test that filter at all.
+    # The source determines the report shape: BLE has RSSI only, RTT has range
+    # but no bearing, and UWB has range plus bearing.
     report = {"peerId": peer_id}
     if as_rssi:
         # Without a radio there is no reading to send, and sending the clean
@@ -208,12 +239,21 @@ def build_range_envelope(event_id, peer_id, distance, azimuth, elevation, name=N
         if noisy is None:
             return None
         report["rssi"] = noisy
+        report["source"] = "BLE_RSSI"
     else:
-        report["distance"] = round(distance, 3)
+        measured_distance = radio.apply_range(distance) if radio is not None else distance
+        report["distance"] = round(measured_distance, 3)
         if noisy is not None:
             report["rssi"] = noisy
-    report["azimuth"] = round(azimuth % 360.0, 2)
-    report["elevation"] = round(elevation, 2)
+        if source == "wifi-rtt":
+            report["source"] = "WIFI_RTT"
+            report["accuracyMeters"] = round(accuracy_m, 2)
+        else:
+            measured_azimuth = azimuth
+            if radio is not None and bearing_noise_deg > 0.0:
+                measured_azimuth += _gaussian(radio.rng) * bearing_noise_deg
+            report["azimuth"] = round(measured_azimuth % 360.0, 2)
+            report["elevation"] = round(elevation, 2)
     if name:
         report["name"] = name
     inner = {"type": "mock-range", "payload": json.dumps(report, separators=(",", ":"))}
@@ -243,6 +283,8 @@ class MockRadar:
             getattr(args, "noise_db", 0.0),
             getattr(args, "outlier_rate", 0.0),
             getattr(args, "dropout_rate", 0.0),
+            getattr(args, "range_noise_m", 0.0),
+            getattr(args, "range_outliers", 0.0),
             random.Random(getattr(args, "seed", None)),
         )
 
@@ -388,7 +430,10 @@ class MockRadar:
                     elevation,
                     name=self.args.name,
                     radio=self.radio,
-                    as_rssi=getattr(self.args, "rssi_only", False),
+                    as_rssi=self.args.radio == "ble",
+                    source=self.args.radio,
+                    accuracy_m=self.args.accuracy_m,
+                    bearing_noise_deg=self.args.bearing_noise_deg,
                 )
                 # A dropped sample sends nothing at all: the point of --dropout
                 # is a peer whose adverts simply fail to arrive, and repeating
@@ -444,11 +489,10 @@ def parse_args(argv):
     parser.add_argument("--rate", type=float, default=5.0, help="reports sent per second per peer")
     parser.add_argument("--spread", action="store_true",
                         help="give each driven peer its own slice of the circle instead of the same bearing")
+    parser.add_argument("--radio", choices=("ble", "wifi-rtt", "uwb"), default=None,
+                        help="synthetic measurement model: BLE RSSI, Wi-Fi RTT distance, or UWB distance and bearing")
     parser.add_argument("--rssi-only", action="store_true",
-                        help="report signal strength instead of distance, so the reading goes through the "
-                             "app's real RSSI smoothing. Without this a report is a ranging fix and the "
-                             "smoother is skipped, so --noise and --outliers would only add jitter to a "
-                             "number the app already trusts exactly")
+                        help="legacy alias for --radio ble")
     parser.add_argument("--noise-db", type=float, default=0.0,
                         help="standard deviation of symmetric jitter added to each reading, in dBm "
                              "(try 3.0 for a realistic indoor peer)")
@@ -459,15 +503,30 @@ def parse_args(argv):
     parser.add_argument("--dropout", type=float, default=0.0, metavar="RATE",
                         help="probability (0-1) that an advert never arrives. The reading is dropped "
                              "entirely rather than replaced with a stale value")
+    parser.add_argument("--range-noise-m", type=float, default=None,
+                        help="standard deviation of range error in metres (default: 0.8 for RTT, 0.05 for UWB)")
+    parser.add_argument("--range-outliers", type=float, default=0.0, metavar="RATE",
+                        help="probability (0-1) of a positive non-line-of-sight range bias")
+    parser.add_argument("--accuracy-m", type=float, default=0.8,
+                        help="reported Wi-Fi RTT distance uncertainty in metres")
+    parser.add_argument("--bearing-noise-deg", type=float, default=2.0,
+                        help="standard deviation of UWB bearing error in degrees")
     parser.add_argument("--seed", type=int, default=None,
                         help="seed the noise, so a failing run replays identically")
     args = parser.parse_args(argv)
+    if args.rssi_only and args.radio not in (None, "ble"):
+        parser.error("--rssi-only cannot be combined with --radio other than ble")
+    args.radio = "ble" if args.rssi_only else (args.radio or "uwb")
+    if args.range_noise_m is None:
+        args.range_noise_m = 0.8 if args.radio == "wifi-rtt" else 0.05
     if args.rate <= 0:
         parser.error("--rate must be greater than zero")
     if args.period <= 0:
         parser.error("--period must be greater than zero")
     for name, value in (("--noise-db", args.noise_db), ("--outliers", args.outliers),
-                        ("--dropout", args.dropout)):
+                        ("--dropout", args.dropout), ("--range-noise-m", args.range_noise_m),
+                        ("--accuracy-m", args.accuracy_m), ("--bearing-noise-deg", args.bearing_noise_deg),
+                        ("--range-outliers", args.range_outliers)):
         if value < 0:
             parser.error(f"{name} must not be negative")
     # A probability outside 0-1 is always a typo, and a silent clamp would hide
@@ -475,6 +534,10 @@ def parse_args(argv):
     for name, value in (("--outliers", args.outliers), ("--dropout", args.dropout)):
         if value > 1:
             parser.error(f"{name} is a probability and must be between 0 and 1")
+    if args.range_outliers > 1:
+        parser.error("--range-outliers is a probability and must be between 0 and 1")
+    if args.radio == "wifi-rtt" and args.accuracy_m == 0:
+        parser.error("--accuracy-m must be greater than zero for Wi-Fi RTT")
     # Distances outside the app's own range are refused rather than clamped. A
     # silent clamp here is the worst outcome: the run looks like it worked, the
     # radar shows a plausible number, and what was actually tested was the
@@ -492,7 +555,8 @@ async def main(argv):
     args = parse_args(argv)
     targets = ", ".join(args.peer) if args.peer else "every member"
     print(
-        f"[mock] driving event {args.event} ({targets}) with the '{args.pattern}' pattern: "
+        f"[mock] synthetic {args.radio} reports driving event {args.event} ({targets}) "
+        f"with the '{args.pattern}' pattern: "
         f"one cycle every {args.period}s, {args.rate} reports/s. Press Ctrl+C to stop.",
         flush=True,
     )
@@ -505,6 +569,3 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("[mock] stopped", flush=True)
         sys.exit(0)
-
-
-

@@ -244,6 +244,7 @@ def test_signal_only_reports_carry_dbm_and_no_distance():
     report = json.loads(json.loads(envelope["payload"])["payload"])
     assert "distance" not in report, report
     assert isinstance(report["rssi"], int), report
+    assert report["source"] == "BLE_RSSI", report
     # Plausible for 3 m: the app's own curve puts it near -69 dBm.
     assert -80 < report["rssi"] < -60, report
     print("[test] a signal-only report carries dBm and no distance, so the app filters it")
@@ -260,6 +261,67 @@ def test_a_default_run_still_sends_no_signal_field():
         "elevation": -3.0, "name": "Alice",
     }, report
     print("[test] with no noise configured the report is unchanged from before")
+
+
+def test_radio_profiles_have_distinct_measurement_shapes():
+    ble = json.loads(json.loads(mock_radar.build_range_envelope(
+        "E", "M1", 3.0, 90.0, 0.0,
+        radio=mock_radar.Radio(noise_db=1.0, rng=random.Random(1)),
+        as_rssi=True,
+    )["payload"])["payload"])
+    assert ble["source"] == "BLE_RSSI" and "rssi" in ble, ble
+    assert not {"distance", "azimuth", "elevation"} & ble.keys(), ble
+
+    rtt = json.loads(json.loads(mock_radar.build_range_envelope(
+        "E", "M1", 3.0, 90.0, 0.0,
+        radio=mock_radar.Radio(range_noise_m=0.0, rng=random.Random(1)),
+        source="wifi-rtt",
+        accuracy_m=0.7,
+    )["payload"])["payload"])
+    assert rtt["source"] == "WIFI_RTT" and rtt["distance"] == 3.0, rtt
+    assert rtt["accuracyMeters"] == 0.7, rtt
+    assert not {"azimuth", "elevation"} & rtt.keys(), rtt
+
+    uwb = json.loads(json.loads(mock_radar.build_range_envelope(
+        "E", "M1", 3.0, 90.0, 2.0,
+        source="uwb",
+    )["payload"])["payload"])
+    assert uwb["distance"] == 3.0 and uwb["azimuth"] == 90.0, uwb
+    assert uwb["elevation"] == 2.0, uwb
+    print("[test] BLE, RTT, and UWB profiles report distinct source-shaped measurements")
+
+
+def test_range_noise_is_seeded_and_bounded():
+    a = mock_radar.Radio(range_noise_m=0.5, range_outlier_rate=0.2, rng=random.Random(42))
+    b = mock_radar.Radio(range_noise_m=0.5, range_outlier_rate=0.2, rng=random.Random(42))
+    readings_a = [a.apply_range(3.0) for _ in range(100)]
+    readings_b = [b.apply_range(3.0) for _ in range(100)]
+    assert readings_a == readings_b
+    assert all(mock_radar.MIN_DISTANCE_METERS <= value <= mock_radar.MAX_DISTANCE_METERS
+               for value in readings_a)
+    assert max(readings_a) > 3.0
+    print("[test] seeded RTT/UWB range noise replays identically and stays in app bounds")
+
+
+def test_radio_profile_arguments_and_invalid_probabilities():
+    assert mock_radar.parse_args(["E", "--radio", "ble"]).radio == "ble"
+    rtt = mock_radar.parse_args(["E", "--radio", "wifi-rtt"])
+    assert rtt.radio == "wifi-rtt" and rtt.range_noise_m == 0.8
+    uwb = mock_radar.parse_args(["E", "--radio", "uwb"])
+    assert uwb.radio == "uwb" and uwb.range_noise_m == 0.05
+    assert mock_radar.parse_args(["E", "--rssi-only"]).radio == "ble"
+    for argv in (
+        ["E", "--radio", "uwb", "--rssi-only"],
+        ["E", "--range-outliers", "1.1"],
+        ["E", "--radio", "wifi-rtt", "--accuracy-m", "0"],
+    ):
+        try:
+            mock_radar.parse_args(argv)
+        except SystemExit as exit_error:
+            assert exit_error.code != 0
+        else:
+            raise AssertionError(f"{argv} should have been rejected")
+    print("[test] radio profiles apply defaults and refuse incompatible or invalid options")
 
 
 def test_noise_is_symmetric_around_the_true_reading():
@@ -330,6 +392,9 @@ async def main():
     test_range_envelope_shape()
     test_signal_only_reports_carry_dbm_and_no_distance()
     test_a_default_run_still_sends_no_signal_field()
+    test_radio_profiles_have_distinct_measurement_shapes()
+    test_range_noise_is_seeded_and_bounded()
+    test_radio_profile_arguments_and_invalid_probabilities()
     test_noise_is_symmetric_around_the_true_reading()
     test_outliers_are_rare_and_always_too_strong()
     test_dropout_removes_readings_rather_than_inventing_them()
@@ -375,7 +440,7 @@ def test_the_scripted_range_is_the_apps_own():
     source = pathlib.Path(mock_radar.__file__).read_text(encoding="utf-8")
     estimator = (
         pathlib.Path(mock_radar.__file__).resolve().parents[1]
-        / "app/src/main/java/com/fkurevija/pingring/data/RssiDistanceEstimator.kt"
+        / "app/src/main/java/com/fkurevija/pingring/data/ranging/RssiDistanceEstimator.kt"
     ).read_text(encoding="utf-8")
     assert "RSSI_AT_ONE_METER = -59.0" in source
     assert "PATH_LOSS_EXPONENT = 2.2" in source
@@ -414,4 +479,3 @@ def test_a_distance_past_the_noise_floor_still_yields_a_real_reading():
 
 if __name__ == "__main__":
     asyncio.run(main())
-

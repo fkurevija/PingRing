@@ -267,10 +267,13 @@ fun RadarScreenContent(
         RadarFeedbackPolicy.proximityState(focusedPeer?.distance, focusedPeer?.distanceSource, focusedPeer?.proximity),
         focusedBeacon?.title,
     )
+    val focusedPeerName = focusedPeer?.let {
+        if (it.syntheticRanging) context.getString(R.string.simulated_peer_label, it.name) else it.name
+    }
     val spokenSummary by rememberUpdatedState(
         RadarAccessibilityProbe.describeLocalized(
             resources = context.resources,
-            peerName = focusedPeer?.name,
+            peerName = focusedPeerName,
             distanceMeters = focusedPeer?.distance,
             azimuthDegrees = focusedPeer?.radarAzimuth,
             directionUncertaintyDegrees = focusedPeer?.displayedEstimatedDirection?.uncertaintyDegrees,

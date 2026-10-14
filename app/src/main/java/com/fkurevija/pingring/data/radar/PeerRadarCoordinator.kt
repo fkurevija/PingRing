@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.update
 import java.util.concurrent.ConcurrentHashMap
 import com.fkurevija.pingring.data.ranging.DeviceOrientationTracker
 import com.fkurevija.pingring.data.ranging.MockRangingDto
+import com.fkurevija.pingring.data.ranging.MockRangingSource
 import com.fkurevija.pingring.data.ranging.RangingConfidence
 import com.fkurevija.pingring.data.ranging.RangingSourcePolicy
 import com.fkurevija.pingring.data.ranging.RssiDistanceEstimator
@@ -217,6 +218,7 @@ internal class PeerRadarCoordinator(
             worldDirectionZ = existing?.worldDirectionZ,
             lastSeen = nowMillis,
             signalWeak = signalWeak,
+            syntheticRanging = (hasUwbFix || hasAdditionalFix) && existing?.syntheticRanging == true,
             meshPresenceLastSeenAtMillis = existing?.meshPresenceLastSeenAtMillis,
             distanceSource = if (hasUwbFix || hasAdditionalFix) existing?.distanceSource else RangingSourcePolicy.RangingSource.BLE_RSSI,
             distanceAccuracyMeters = existing?.distanceAccuracyMeters.takeIf { hasUwbFix || hasAdditionalFix },
@@ -436,6 +438,7 @@ internal class PeerRadarCoordinator(
         accuracy: Float,
         source: RangingSourcePolicy.RangingSource,
         measurementAgeMillis: Long = 0L,
+        synthetic: Boolean = false,
     ) {
         val state = membership.sessionState.value
         val event = state.currentEvent ?: return
@@ -468,6 +471,7 @@ internal class PeerRadarCoordinator(
                 meshOnlyPresence = false,
                 directionIsLastKnown = false,
                 rangingConfidence = RangingConfidence.UNKNOWN,
+                syntheticRanging = synthetic,
             ))
         }
         _peerUpdates.value[peerId]?.let(::syncFriend)
@@ -497,12 +501,10 @@ internal class PeerRadarCoordinator(
      * Applies a scripted range report received over the LAN debug transport
      * (see tools/mock_radar.py).
      *
-     * This performs exactly the update [updateUwbPosition] would for a real
-     * report, so the code under test is the production one: the rings, the
-     * compass-corrected arrow, the distance readout, the "Direction locked" /
-     * "BLE proximity mode" switch, the sub-2 m haptic and the staleness sweep
-     * all react to a scripted walk just as they would to a real one. Only the
-     * measurement is fake, never the rendering.
+     * Applies source-shaped synthetic reports through the corresponding radar
+     * paths: BLE RSSI uses the real signal filter, Wi-Fi RTT uses the real
+     * distance-only source path, and UWB-shaped reports drive the real range
+     * and direction rendering. None of these reports exercise radio hardware.
      *
      * Unlike a UWB update this also *creates* the peer entry when it is
      * missing, because a device on the LAN debug transport never sees a BLE
@@ -513,6 +515,19 @@ internal class PeerRadarCoordinator(
         val peerId = dto.peerId
         if (peerId.isEmpty() || peerId == membership.localPeerId) return
         if (membership.sessionState.value.currentEvent == null) return
+        if (dto.source == MockRangingSource.WIFI_RTT) {
+            val distance = dto.distance?.takeIf { it.isFinite() && it > 0f } ?: return
+            val accuracy = dto.accuracyMeters?.takeIf { it.isFinite() && it > 0f } ?: return
+            updateAdditionalDistance(
+                peerId = peerId,
+                distance = distance,
+                accuracy = accuracy,
+                source = RangingSourcePolicy.RangingSource.WIFI_RTT,
+                synthetic = true,
+            )
+            return
+        }
+        if (dto.source == MockRangingSource.BLE_RSSI && (dto.distance != null || dto.rssi == null)) return
 
         // A scripted report carries a distance but no real signal strength, so
         // an RSSI is derived by inverting the curve the BLE scan path uses, via
@@ -536,7 +551,7 @@ internal class PeerRadarCoordinator(
         //    non-UWB peer actually provides. It goes through RssiKalmanFilter on
         //    the same path a BLE advert takes, so scripted noise, outliers and
         //    dropouts exercise the real filter instead of bypassing it.
-        val isRangingFix = dto.distance != null
+        val isRangingFix = dto.source == MockRangingSource.UWB && dto.distance != null
         if (isRangingFix) {
             rangingCoordinator.markUwbMeasurement(peerId)
             rssiFilters.remove(peerId)
@@ -569,6 +584,16 @@ internal class PeerRadarCoordinator(
             worldDirectionY = existing?.worldDirectionY,
             worldDirectionZ = existing?.worldDirectionZ,
             lastSeen = System.currentTimeMillis(),
+            lastUwbMeasurementAtMillis = if (isRangingFix) System.currentTimeMillis() else existing?.lastUwbMeasurementAtMillis,
+            distanceSource = when (dto.source) {
+                MockRangingSource.UWB -> RangingSourcePolicy.RangingSource.UWB.takeIf { isRangingFix }
+                MockRangingSource.BLE_RSSI -> RangingSourcePolicy.RangingSource.BLE_RSSI
+                MockRangingSource.WIFI_RTT -> RangingSourcePolicy.RangingSource.WIFI_RTT
+            },
+            distanceAccuracyMeters = null,
+            lastAdditionalRangingAtMillis = null,
+            rangingConfidence = RangingConfidence.UNKNOWN,
+            syntheticRanging = true,
             // Mock ranging reports carry no advert, so this peer has no arrival
             // time to learn from one. Carrying the existing value keeps it
             // ranked where BLE put it rather than dropping it to last.

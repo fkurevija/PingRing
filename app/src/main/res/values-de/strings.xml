@@ -165,6 +165,7 @@
     <string name="proximity_cold">Weit</string>
     <string name="proximity_unknown">Unbekannt</string>
     <string name="distance_away">%1$.1f m entfernt</string>
+    <string name="simulated_peer_label">SIMULIERT · %1$s</string>
     <string name="proximity_signal">%1$s-Signal</string>
     <string name="direction_locked">Richtung festgelegt · %1$d°</string>
     <string name="ble_proximity_mode">BLE-Näherungsmodus</string>

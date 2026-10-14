@@ -127,7 +127,9 @@ Over this transport nothing can measure a distance: neither the emulator (no UWB
 
 ```powershell
 python tools\mock_radar.py <event-id> --pattern approach
-python tools\mock_radar.py <event-id> --pattern orbit --distance 3
+python tools\mock_radar.py <event-id> --radio uwb --pattern orbit --distance 3 --seed 42
+python tools\mock_radar.py <event-id> --radio wifi-rtt --pattern approach --range-noise-m 0.8 --accuracy-m 1.0
+python tools\mock_radar.py <event-id> --radio ble --pattern approach --noise-db 3 --outliers 0.05 --dropout 0.02 --seed 42
 python tools\mock_radar.py <event-id> --peer a1b2c3d4 --name "Alice"
 
 # A peer with no UWB, so the distance comes from the noisy signal instead
@@ -143,10 +145,14 @@ python tools\mock_radar.py <event-id> --rssi-only --noise-db 3 --outliers 0.05 -
 | `--peer` | Only drive these peer ids (repeatable). Default: every member of the event |
 | `--name` | Display name for the driven peer(s), so two scripted pins are told apart |
 | `--period`, `--rate`, `--azimuth`, `--elevation`, `--spread` | Cycle length, reports/second, starting bearing, elevation, and one bearing slice per peer |
-| `--rssi-only` | Send a signal strength instead of a distance, so the reading goes through the real RSSI smoothing. **Required for the noise flags to mean anything** — see below |
+| `--radio uwb` | Synthetic UWB-shaped distance and bearing reports |
+| `--radio wifi-rtt` | Synthetic distance-only RTT reports, including a reported uncertainty |
+| `--radio ble` | Synthetic RSSI-only reports, sent through the app's real BLE RSSI smoothing path |
+| `--rssi-only` | Legacy alias for `--radio ble` |
 | `--start`, `--end`, `--distance` | Distances in metres. Must be between **0.3 m and 40 m**, the same bounds `RssiDistanceEstimator` uses. Anything outside is refused, not clamped — see below |
+| `--range-noise-m`, `--range-outliers`, `--accuracy-m`, `--bearing-noise-deg` | Synthetic range error, positive non-line-of-sight bias, RTT uncertainty, and UWB bearing noise |
 
-**Mocked signal strength.** Every report carries an `rssi` derived by inverting the app's own estimator, so a scripted distance and a scripted dBm mean the same thing. On top of that sit `--noise-db` (symmetric jitter, `3.0` is a realistic indoor peer), `--outliers` (a multi-path reflection arriving far too strong) and `--dropout` (an advert that never arrives, dropped rather than replaced with a stale value). The signal strength is mocked either way; `--rssi-only` changes what the app *does* with it, which is the part that matters and is explained next.
+**Mocked signal strength.** Range reports can carry an `rssi` derived by inverting the app's estimator, so a scripted distance and dBm are consistent. `--noise-db` adds symmetric signal jitter; `--outliers` models an unusually strong multipath sample; and `--dropout` omits a measurement entirely rather than sending a stale value. `--radio ble` uses only the signal measurement, so the app applies its RSSI filter.
 
 **Why distances are bounded at 0.3–40 m.** Those are the app's own `RssiDistanceEstimator` limits, mirrored so a script cannot claim something the app could never report. Below 0.3 m is a bogus reading; above 40 m the estimate is noise-dominated and the app clamps it there anyway, so a scripted 200 m would render as exactly 40 m and quietly test nothing. Past the point where the curve falls under the sensitivity floor the dBm saturates too, which is the more insidious version: a peer at 60 m and one at 600 m would report identical signal strength, so the mock would be asserting they were indistinguishable. Out-of-range arguments are **refused with an error rather than silently clamped** — a silent clamp looks like a successful run while exercising the ceiling instead of the trajectory you asked for, which is the same reasoning that already rejects an out-of-range `--outliers`.
 
@@ -156,11 +162,15 @@ A test reads `RssiDistanceEstimator.kt` and fails if either bound moves there an
 | `--dropout` | Probability an advert never arrives. It is dropped, never replaced with a stale value |
 | `--seed` | Seed the noise, so a failing run replays identically |
 
-**Why `--rssi-only` matters.** A report carrying a distance is treated by the app as a ranging fix: precise by definition, so it wins outright and the RSSI filter is skipped. Adding noise to such a report only produces jitter on a number the app already trusts exactly — the filter is never involved. Sending `rssi` instead reproduces the case the filter actually exists for: a peer with no UWB, whose distance is inferred from noisy adverts. Under that mode the app runs the reading through the same time-aware `RssiKalmanFilter` a BLE advert takes, so `--noise-db` and `--outliers` test the live filter.
+**Why BLE mode matters.** A report carrying a distance follows a ranging source path; its distance is not inferred from RSSI. `--radio ble` instead sends only RSSI, so the app runs the reading through the same time-aware `RssiKalmanFilter` used for BLE advertisements. This is the mode in which `--noise-db` and `--outliers` exercise the live RSSI filter.
+
+**Source-shaped simulation is not radio emulation.** `--radio ble` sends RSSI without distance or bearing and exercises the app's BLE RSSI filter. `--radio wifi-rtt` sends a distance and uncertainty without bearing and follows the app's Wi-Fi RTT distance-source path. `--radio uwb` sends distance and bearing and exercises the radar's directional rendering. Noise, outliers, and dropouts are deterministic when `--seed` is supplied. The reports are still injected over the LAN debug transport: they do **not** invoke Play Services Nearby, BLE scanning/advertising, Android Wi-Fi RTT, UWB session setup, or the devices' radio drivers. They cannot validate hardware support, permissions, RF multipath, real accuracy, or inter-device compatibility.
+
+The LAN relay has separate relay-level disconnect tests: `python tools\test_lan_debug_relay.py` covers member loss, host reconnect within the grace period, and host loss past the grace period. For a manual app-side socket recovery exercise, stop the relay with Ctrl+C and restart it while the debug clients remain active. That tests the debug TCP transport's reconnect behavior, not Nearby's radio reconnection behavior. You can use two emulators on the relay to exercise two app UIs without a second phone; the system radios remain simulated.
 
 The deterministic RSSI estimator test replays a steady peer with one reading in twenty replaced by a 20 dB reflection — each claiming the peer is under 0.6 m away — and asserts the filtered estimate stays within 1 m of its stationary value. This synthetic bound checks the configured filter against a repeatable trace; it is not a measured reflection rate or evidence of improved physical-device accuracy. See [V20](verification-guide.md#v20---rssi-kalman-filter-evaluation) for recorded-trace evaluation.
 
-The radar reacts as it would to real UWB: distance readout, "Direction locked" line, rings, arrow, haptics and the 15 s staleness sweep all follow the script. Run `python tools/test_mock_radar.py` to check the script and relay path with no device attached.
+The report is visibly marked **SIMULATED** in the peer list, radar heading, and screen-reader summary. In UWB mode, distance readout, "Direction locked" line, rings, arrow, haptics and the 15 s staleness sweep follow the script. Run `python tools/test_mock_radar.py` to check the script and relay path with no device attached.
 
 ## 📱 Driving the UI by Text (device scripts)
 

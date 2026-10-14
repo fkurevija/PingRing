@@ -1,5 +1,6 @@
 package com.fkurevija.pingring.data.ranging
 import com.squareup.moshi.JsonClass
+import com.squareup.moshi.Json
 import com.fkurevija.pingring.data.DiscoveryRepository
 import com.fkurevija.pingring.data.NearbyTransport
 
@@ -46,9 +47,9 @@ data class UwbRangingOfferDto(
 )
 
 /**
- * Debug-only stand-in for a UWB ranging report, pushed into the app by
- * tools/mock_radar.py through the LAN debug relay so that distance/azimuth can
- * be scripted from the development machine.
+ * Debug-only synthetic measurement pushed by tools/mock_radar.py through the
+ * LAN debug relay. It can model BLE RSSI, Wi-Fi RTT distance, or UWB-shaped
+ * distance/bearing reports at the app's radar input boundary.
  *
  * The emulator has neither a UWB nor a BLE radio, so without this the radar
  * has no source for range at all and nothing but the chat/beacon flows can be
@@ -57,10 +58,10 @@ data class UwbRangingOfferDto(
  * ranging path performs, so what is being tested is the production rendering
  * code and not a mock of it.
  *
- * The field names match the real report (`RangingResult.RangingResultPosition`
- * has distance/azimuth/elevation too) and the units are the same: metres and
- * degrees. [name] is optional: when set it also renames the peer label, which is how
- * you can tell two scripted peers apart on the radar.
+ * Measurement units match the corresponding Android results: metres, degrees,
+ * dBm, and metres of RTT uncertainty. The payload is synthetic and does not
+ * exercise any Android radio API. [name] is optional: when set it renames the
+ * peer label, which is how two scripted peers can be distinguished.
  */
 @JsonClass(generateAdapter = true)
 data class MockRangingDto(
@@ -69,17 +70,27 @@ data class MockRangingDto(
     val azimuth: Float? = null,
     val elevation: Float? = null,
     val name: String? = null,
+    val source: MockRangingSource = MockRangingSource.UWB,
+    val accuracyMeters: Float? = null,
     /**
      * A raw signal strength in dBm, for driving the RSSI path instead of
      * pretending to be a ranging fix.
      *
-     * A report carrying [distance] is treated as a UWB-style measurement: it is
-     * precise by definition, so it wins over any signal-derived estimate. That
-     * makes it useless for testing the *smoothing* of signal readings, because
-     * a scripted distance is never noisy - it goes on screen exactly as sent.
-     * A report with [rssi] and no [distance] is the BLE case instead: the
-     * reading is fed through [RssiKalmanFilter] like a real advert, so noise,
-     * outliers and dropouts can be exercised against the real filter.
+     * BLE reports carry [rssi] without [distance] and go through
+     * [RssiKalmanFilter]. UWB and Wi-Fi RTT reports carry [distance], while
+     * only UWB reports include a bearing. The synthetic source selects the
+     * corresponding production radar update path.
      */
     val rssi: Int? = null
 )
+
+enum class MockRangingSource {
+    @Json(name = "UWB")
+    UWB,
+
+    @Json(name = "WIFI_RTT")
+    WIFI_RTT,
+
+    @Json(name = "BLE_RSSI")
+    BLE_RSSI,
+}

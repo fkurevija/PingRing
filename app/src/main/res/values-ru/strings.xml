@@ -163,6 +163,7 @@
     <string name="proximity_cold">Далеко</string>
     <string name="proximity_unknown">Неизвестно</string>
     <string name="distance_away">%1$.1f м</string>
+    <string name="simulated_peer_label">СИМУЛЯЦИЯ · %1$s</string>
     <string name="proximity_signal">Сигнал: %1$s</string>
     <string name="direction_locked">Направление определено · %1$d°</string>
     <string name="ble_proximity_mode">Режим близости BLE</string>

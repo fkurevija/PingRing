@@ -232,6 +232,7 @@ internal class PeerDirectionCoordinator(
                     distanceAccuracyMeters = null,
                     lastAdditionalRangingAtMillis = null,
                     directionIsLastKnown = false,
+                    syntheticRanging = false,
                 )
             )
         }

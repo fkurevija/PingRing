@@ -93,6 +93,9 @@ internal fun RadarContent(
         // radar grows on a tablet. A fixed spacer would match on one screen size
         // and drift on every other.
         val verticalBuffer = (radarDiameter * 0.05f).coerceIn(8.dp, 20.dp)
+        val displayedPeerName = peer?.let {
+            if (it.syntheticRanging) stringResource(R.string.simulated_peer_label, it.name) else it.name
+        }
 
         Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
             // The beacon's title used to be repeated here in a chip above the ring.
@@ -108,7 +111,7 @@ internal fun RadarContent(
                 distanceMeters = peer?.distance,
                 directionAlpha = directionAlpha,
                 directionIsLastKnown = directionIsLastKnown,
-                trackedPeerName = peer?.takeIf { hasPeers }?.name,
+                trackedPeerName = displayedPeerName.takeIf { hasPeers },
                 trackedPeerDistance = peer?.takeIf { hasPeers }?.let {
                     it.distance?.let { distance ->
                         stringResource(R.string.distance_away, distance)
@@ -117,7 +120,7 @@ internal fun RadarContent(
                 beacon = beacon,
                 accessibilityDescription = RadarAccessibilityProbe.describeLocalized(
                     resources = resources,
-                    peerName = peer?.name,
+                    peerName = displayedPeerName,
                     distanceMeters = peer?.distance,
                     azimuthDegrees = peer?.radarAzimuth,
                     directionUncertaintyDegrees = peer?.displayedEstimatedDirection?.uncertaintyDegrees,
