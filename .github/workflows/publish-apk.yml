@@ -9,6 +9,7 @@ on:
         type: string
 
 permissions:
+  actions: write
   contents: write
 
 jobs:
@@ -17,6 +18,17 @@ jobs:
     timeout-minutes: 30
 
     steps:
+      - name: Check out cleanup tool
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: cleanup-tools
+
+      - name: Remove artifacts from previous completed runs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash cleanup-tools/tools/cleanup_github_artifacts.sh
+
       - name: Check out repository at selected tag
         uses: actions/checkout@v4
         with:
@@ -121,6 +133,7 @@ jobs:
           name: pingring-release-apk
           path: app/build/outputs/apk/release/*.apk
           if-no-files-found: error
+          overwrite: true
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
@@ -129,6 +142,7 @@ jobs:
           tag_name: ${{ github.event.inputs.tag }}
           files: app/build/outputs/apk/release/*.apk
           name: PingRing ${{ github.event.inputs.tag }}
+          overwrite_files: true
           body: |
             Signed APK for **${{ github.event.inputs.tag }}**.
 

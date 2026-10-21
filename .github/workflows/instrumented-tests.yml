@@ -30,6 +30,7 @@ on:
 # runs, and a push to `coverage` is a branch, not one of the `v*` tags matched
 # above.
 permissions:
+  actions: write
   contents: write
 
 concurrency:
@@ -56,6 +57,12 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+
+      - name: Remove artifacts from previous completed runs
+        id: cleanup-artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash tools/cleanup_github_artifacts.sh
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -200,12 +207,13 @@ jobs:
       # The report is uploaded even when the tests fail, because the HTML page
       # is the fastest way to see which assertion broke and on which screen.
       - name: Upload instrumented test report
-        if: always()
+        if: ${{ always() && steps.cleanup-artifacts.outcome == 'success' }}
         uses: actions/upload-artifact@v4
         with:
           name: instrumented-test-report
           path: app/build/reports/androidTests/connected/**
           if-no-files-found: warn
+          overwrite: true
 
       # Non-blocking means the tick can go green over a red suite, which is only
       # safe if the summary says so in as many words. This reads the same results
@@ -246,12 +254,13 @@ jobs:
           fi
 
       - name: Upload test results
-        if: always()
+        if: ${{ always() && steps.cleanup-artifacts.outcome == 'success' }}
         uses: actions/upload-artifact@v4
         with:
           name: instrumented-test-results
           path: app/build/outputs/androidTest-results/connected/**
           if-no-files-found: warn
+          overwrite: true
 
       # The report is rendered here, not generated: generating it needs
       # connectedDebugAndroidTest, which needs a device, and the emulator step has
@@ -286,12 +295,13 @@ jobs:
           fi
 
       - name: Upload instrumented coverage report
-        if: always()
+        if: ${{ always() && steps.cleanup-artifacts.outcome == 'success' }}
         uses: actions/upload-artifact@v4
         with:
           name: instrumented-coverage
           path: coverage-instrumented
           if-no-files-found: warn
+          overwrite: true
 
       # The artifact above holds the full JaCoCo HTML report, but GitHub's file
       # browser will not execute index.html and Markdown cannot embed it either, so

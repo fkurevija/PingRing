@@ -52,7 +52,7 @@ Compose semantics tests cover named Ring switches, on/off and disabled states, s
 
 ## Releases
 
-Every successful build on `master` rolls a single `latest` release forward, replacing the previous APK — it is a pointer to the newest build, not a history, and the rolling tag is moved to the commit it contains. Run artifacts keep each build for 90 days. Once a tagged release exists it takes GitHub's "Latest" badge; `latest` deliberately does not claim it.
+Every successful build on `master` rolls a single `latest` release forward, replacing the previous APK — it is a pointer to the newest build, not a history, and the rolling tag is moved to the commit it contains. Workflow runs delete artifacts from completed runs before uploading fresh outputs, so Actions artifacts are transient rather than a 90-day build history; artifacts from active runs are preserved. Download a build if you need to keep it. Republishing a versioned tag replaces release assets with matching names. Once a tagged release exists it takes GitHub's "Latest" badge; `latest` deliberately does not claim it.
 
 ## Signing
 
@@ -73,7 +73,7 @@ In CI, set all four secrets: `PINGRING_KEYSTORE_BASE64` (the keystore, base64-en
 
 After the first signed APK exists and a later release has a higher `versionCode`, verify an upgrade on a test device before publishing: install the earlier signed APK, add non-sensitive test data, then install the new APK with `adb install -r <new-release.apk>`. Confirm that the update succeeds without an uninstall/signature error and that app data remains. Compare both APKs' certificate fingerprints with `apksigner verify --print-certs`; they must match. A debug-signed APK cannot serve as the baseline for this check because it has a different signing identity.
 
-To keep a build permanently, tag it. A `v*` tag publishes an **immutable** release that is never replaced:
+To keep a build as a versioned release, tag it. A `v*` tag publishes a release; republishing that tag replaces release assets with matching names:
 
 ```bash
 python tools/tag_release.py            # preview what has landed, changes nothing
