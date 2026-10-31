@@ -58,6 +58,7 @@ import com.fkurevija.pingring.data.session.EventControlPayloadDto
 import com.fkurevija.pingring.data.session.Friend
 import com.fkurevija.pingring.data.session.InviteSecret
 import com.fkurevija.pingring.data.session.InviteSecretPayloadDto
+import com.fkurevija.pingring.data.session.JoinProofPayloadDto
 import com.fkurevija.pingring.data.session.MembershipPolicy
 import com.fkurevija.pingring.data.session.MeshPresencePayloadDto
 import com.fkurevija.pingring.data.session.SessionManager
@@ -648,6 +649,15 @@ class DiscoveryRepository(
                 if (!state.isHost && state.currentEvent?.hostPeerId == peerId) {
                     _hostConnectionLostAtMillis.value = null
                     chatCoordinator.requestHistoryFromHost()
+                    state.currentEvent?.let { event ->
+                        nearbyConnectionsManager.sendJoinProofToHost(
+                            JoinProofPayloadDto(
+                                eventCode = event.id,
+                                inviteSecret = event.inviteSecret,
+                                guestName = state.userName,
+                            )
+                        )
+                    }
                 }
                 addConnectedPeer(peerId)
                 if (sessionManager.sessionState.value.isHost) {
