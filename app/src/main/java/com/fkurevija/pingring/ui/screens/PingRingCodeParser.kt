@@ -2,13 +2,14 @@ package com.fkurevija.pingring.ui.screens
 
 import java.net.URI
 import java.net.URLDecoder
+import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import com.fkurevija.pingring.data.session.InviteSecret
 import com.fkurevija.pingring.data.session.Event
 
 data class PingRingInvite(val eventCode: String, val secret: String?) {
     fun toQrValue(): String = "pingring://join?event=$eventCode" +
-        (secret?.let { "&secret=$it" } ?: "")
+        (secret?.let { "&secret=${URLEncoder.encode(it, StandardCharsets.UTF_8.name())}" } ?: "")
 }
 
 object PingRingCodeParser {
@@ -41,9 +42,9 @@ object PingRingCodeParser {
             .mapNotNull { part ->
                 val key = part.substringBefore('=', missingDelimiterValue = "").trim()
                 if (key !in queryKeys) return@mapNotNull null
-                val value = part.substringAfter('=', missingDelimiterValue = "").trim()
+                val value = part.substringAfter('=', "").trim()
                 if (value.isBlank()) return@mapNotNull null
-                URLDecoder.decode(value, StandardCharsets.UTF_8)
+                runCatching { URLDecoder.decode(value, StandardCharsets.UTF_8.name()) }.getOrNull() ?: value
             }
     }
 
@@ -54,11 +55,19 @@ object PingRingCodeParser {
         val secretValues = rawQuery.orEmpty().split('&').mapNotNull { part ->
             val key = part.substringBefore('=', missingDelimiterValue = "").trim()
             if (key != "secret") return@mapNotNull null
-            URLDecoder.decode(part.substringAfter('=', ""), StandardCharsets.UTF_8)
+            val value = part.substringAfter('=', "")
+            runCatching { URLDecoder.decode(value, StandardCharsets.UTF_8.name()) }.getOrNull() ?: value
         }
         if (secretValues.size > 1) return null
-        val secret = secretValues.singleOrNull()
-        if (secret != null && InviteSecret.decode(secret) == null) return null
+        var secret = secretValues.singleOrNull()
+        if (secret != null && InviteSecret.decode(secret) == null) {
+            val rawSecret = rawQuery.orEmpty().split('&').firstOrNull { it.startsWith("secret=") }?.substringAfter("secret=")
+            if (rawSecret != null && InviteSecret.decode(rawSecret) != null) {
+                secret = rawSecret
+            } else {
+                return null
+            }
+        }
         return PingRingInvite(eventCode, secret)
     }
 }
