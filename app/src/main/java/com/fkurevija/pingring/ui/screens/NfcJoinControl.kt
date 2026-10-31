@@ -107,7 +107,7 @@ internal fun NfcJoinControl(
                     }
                 },
                 NfcAdapter.FLAG_READER_NFC_A or NfcAdapter.FLAG_READER_NFC_B or
-                    NfcAdapter.FLAG_READER_SKIP_NDEF_CHECK,
+                    NfcAdapter.FLAG_READER_SKIP_NDEF_CHECK or NfcAdapter.FLAG_READER_NO_PLATFORM_SOUNDS,
                 null,
             )
         }
@@ -157,25 +157,44 @@ internal fun NfcJoinControl(
 }
 
 private fun readInvite(tag: Tag): PingRingInvite? {
-    val isoDep = IsoDep.get(tag) ?: run {
-        android.util.Log.w("NfcJoinControl", "Tag does not support IsoDep")
-        return null
-    }
-    return try {
-        isoDep.connect()
-        isoDep.timeout = 3000
-        val response = isoDep.transceive(NfcInviteApdu.selectCommand)
-        val payload = NfcInviteApdu.decodeResponse(response) ?: run {
-            android.util.Log.w("NfcJoinControl", "Failed to decode APDU response")
-            return null
+    val isoDep = IsoDep.get(tag)
+    if (isoDep != null) {
+        try {
+            isoDep.connect()
+            isoDep.timeout = 3000
+            val response = isoDep.transceive(NfcInviteApdu.selectCommand)
+            val payload = NfcInviteApdu.decodeResponse(response)
+            if (payload != null) {
+                val invite = PingRingCodeParser.parseInvite(payload)
+                if (invite?.secret != null) return invite
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("NfcJoinControl", "IsoDep transceive failed", e)
+        } finally {
+            runCatching { isoDep.close() }
         }
-        PingRingCodeParser.parseInvite(payload)?.takeIf { it.secret != null }
-    } catch (e: IOException) {
-        android.util.Log.e("NfcJoinControl", "NFC transceive failed", e)
-        null
-    } finally {
-        runCatching { isoDep.close() }
     }
+
+    val ndef = android.nfc.tech.Ndef.get(tag)
+    if (ndef != null) {
+        try {
+            ndef.connect()
+            val ndefMessage = ndef.ndefMessage
+            if (ndefMessage != null) {
+                for (record in ndefMessage.records) {
+                    val uri = record.toUri()?.toString()
+                    val invite = PingRingCodeParser.parseInvite(uri)
+                    if (invite?.secret != null) return invite
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("NfcJoinControl", "Ndef read failed", e)
+        } finally {
+            runCatching { ndef.close() }
+        }
+    }
+
+    return null
 }
 
 private tailrec fun Context.findActivity(): Activity? = when (this) {

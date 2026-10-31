@@ -25,7 +25,7 @@ internal object NfcInviteApdu {
     private const val MAX_RESPONSE_DATA_BYTES = 240
 
     fun respond(command: ByteArray?, inviteValue: String?): ByteArray {
-        if (command == null || !command.contentEquals(selectCommand)) {
+        if (command == null || !isSelectAidCommand(command)) {
             return fileNotFoundStatus
         }
         val invite = inviteValue ?: return conditionsNotSatisfiedStatus
@@ -34,6 +34,16 @@ internal object NfcInviteApdu {
             return wrongLengthStatus
         }
         return payload + successStatus
+    }
+
+    private fun isSelectAidCommand(command: ByteArray): Boolean {
+        if (command.size < 5 + aid.size) return false
+        if (command[0] != 0x00.toByte() || command[1] != 0xA4.toByte() || command[2] != 0x04.toByte()) {
+            return false
+        }
+        val lc = command[4].toInt() and 0xFF
+        if (lc != aid.size || command.size < 5 + lc) return false
+        return command.copyOfRange(5, 5 + lc).contentEquals(aid)
     }
 
     fun decodeResponse(response: ByteArray?): String? {
