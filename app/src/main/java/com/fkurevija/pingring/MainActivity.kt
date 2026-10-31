@@ -29,6 +29,7 @@ import com.fkurevija.pingring.data.NearbyConnectionsManager
 import com.fkurevija.pingring.data.NearbyTransport
 import com.fkurevija.pingring.data.PingRingRuntime
 import com.fkurevija.pingring.data.PingRingService
+import com.fkurevija.pingring.data.nfc.NfcInviteExchange
 import com.fkurevija.pingring.data.session.SessionManager
 import com.fkurevija.pingring.data.settings.AppearanceSettingsRepository
 import com.fkurevija.pingring.data.settings.ThemeMode
@@ -99,6 +100,31 @@ class MainActivity : AppCompatActivity() {
 
             val sessionState by sessionManager.sessionState.collectAsState()
             val currentEvent = sessionState.currentEvent
+            val isHost = sessionState.isHost
+
+            DisposableEffect(currentEvent?.id, currentEvent?.inviteSecret, isHost, lifecycleOwner) {
+                val eventCode = currentEvent?.id
+                val secret = currentEvent?.inviteSecret
+                fun updateNfc() {
+                    val isResumed = lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+                    if (isHost && eventCode != null && secret != null && isResumed) {
+                        NfcInviteExchange.activate(eventCode, secret)
+                    } else {
+                        if (eventCode != null && secret != null) {
+                            NfcInviteExchange.deactivate("pingring://join?event=$eventCode&secret=$secret")
+                        }
+                    }
+                }
+                val observer = LifecycleEventObserver { _, _ -> updateNfc() }
+                lifecycleOwner.lifecycle.addObserver(observer)
+                updateNfc()
+                onDispose {
+                    lifecycleOwner.lifecycle.removeObserver(observer)
+                    if (eventCode != null && secret != null) {
+                        NfcInviteExchange.deactivate("pingring://join?event=$eventCode&secret=$secret")
+                    }
+                }
+            }
 
             LaunchedEffect(currentEvent?.id) {
                 if (currentEvent != null) {
