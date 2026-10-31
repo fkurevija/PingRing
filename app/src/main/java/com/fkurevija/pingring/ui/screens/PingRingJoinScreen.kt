@@ -52,17 +52,20 @@ fun PingRingJoinScreen(
     BackHandler { onBack() }
 
     fun attemptJoin(codeToUse: String, inviteSecret: String? = null) {
-        val trimmedUsername = username.trim()
-        when (TextInputPolicy.usernameError(trimmedUsername, existingMembers)) {
-            TextInputPolicy.UsernameError.REQUIRED -> {
-                usernameError = context.getString(R.string.join_username_required)
-                return
-            }
-            TextInputPolicy.UsernameError.TAKEN -> {
-                usernameError = context.getString(R.string.join_username_taken, trimmedUsername)
-                return
-            }
-            null -> Unit
+        val rawUsername = username.trim()
+        val trimmedUsername = if (rawUsername.isBlank()) {
+            savedUsername.ifBlank { "Guest" }
+        } else {
+            rawUsername
+        }
+        val usernameErr = TextInputPolicy.usernameError(trimmedUsername, existingMembers)
+        if (usernameErr == TextInputPolicy.UsernameError.REQUIRED) {
+            usernameError = context.getString(R.string.join_username_required)
+            return
+        }
+        if (usernameErr == TextInputPolicy.UsernameError.TAKEN) {
+            usernameError = context.getString(R.string.join_username_taken, trimmedUsername)
+            return
         }
         if (existingMembers.size + 1 >= MAX_PARTICIPANTS) {
             inputError = context.getString(R.string.join_pingring_full, MAX_PARTICIPANTS)
