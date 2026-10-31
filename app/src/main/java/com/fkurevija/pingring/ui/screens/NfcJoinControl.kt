@@ -8,6 +8,7 @@ import android.nfc.Tag
 import android.nfc.tech.IsoDep
 import android.os.Handler
 import android.os.Looper
+import android.widget.Toast
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -100,6 +101,7 @@ internal fun NfcJoinControl(
                                 latestOnInvite(invite)
                             } else {
                                 failure = true
+                                Toast.makeText(context, R.string.nfc_read_failed, Toast.LENGTH_SHORT).show()
                             }
                         }
                     }
@@ -155,13 +157,21 @@ internal fun NfcJoinControl(
 }
 
 private fun readInvite(tag: Tag): PingRingInvite? {
-    val isoDep = IsoDep.get(tag) ?: return null
+    val isoDep = IsoDep.get(tag) ?: run {
+        android.util.Log.w("NfcJoinControl", "Tag does not support IsoDep")
+        return null
+    }
     return try {
         isoDep.connect()
-        val payload = NfcInviteApdu.decodeResponse(isoDep.transceive(NfcInviteApdu.selectCommand))
-            ?: return null
+        isoDep.timeout = 3000
+        val response = isoDep.transceive(NfcInviteApdu.selectCommand)
+        val payload = NfcInviteApdu.decodeResponse(response) ?: run {
+            android.util.Log.w("NfcJoinControl", "Failed to decode APDU response")
+            return null
+        }
         PingRingCodeParser.parseInvite(payload)?.takeIf { it.secret != null }
-    } catch (_: IOException) {
+    } catch (e: IOException) {
+        android.util.Log.e("NfcJoinControl", "NFC transceive failed", e)
         null
     } finally {
         runCatching { isoDep.close() }
