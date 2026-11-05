@@ -26,7 +26,7 @@ What remains in scope is the code a JVM test genuinely can reach — the pure de
 Platform probes (`RangingSourceProbe`, `BleRangeProbe`, `RadarAccessibilityProbe`) are separated into dedicated probe objects beside their respective policy classes (`RangingSourcePolicy`, `BleRangePolicy`, `RadarAccessibilityPolicy`), keeping the decision policies pure and fully testable on a JVM without hardware dependencies. See the [Roadmap](roadmap.md).
 
 ```bash
-git clone https://github.com/fkurevija/PingRing.git
+git clone https://github.com/combustiblelemonlabs/PingRing.git
 cd PingRing
 
 ./gradlew testDebugUnitTest   # unit tests

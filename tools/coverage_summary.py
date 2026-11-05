@@ -52,7 +52,7 @@ def main():
 
     rows = []
     for package in report.findall("package"):
-        short = package.get("name", "").replace("com/fkurevija/pingring/", "")
+        short = package.get("name", "").replace("com/combustiblelemonlabs/pingring/", "")
         for klass in package.findall("class"):
             name = klass.get("name", "")
             # "$" marks a lambda, an inner or an anonymous class the compiler

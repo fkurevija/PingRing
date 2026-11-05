@@ -30,7 +30,7 @@ val releaseKeystore: java.io.File? = releaseKeystorePath?.let(::file)?.takeIf {
 }
 
 android {
-    namespace = "com.fkurevija.pingring"
+    namespace = "com.combustiblelemonlabs.pingring"
     compileSdk {
         version = release(37)
     }
@@ -47,7 +47,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.fkurevija.pingring"
+        applicationId = "com.combustiblelemonlabs.pingring"
         minSdk = 29
         targetSdk = 37
         versionCode = 1

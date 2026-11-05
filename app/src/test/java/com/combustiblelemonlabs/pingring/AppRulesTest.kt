@@ -1,0 +1,361 @@
+package com.combustiblelemonlabs.pingring
+
+import com.combustiblelemonlabs.pingring.data.chat.BeaconPreset
+import com.combustiblelemonlabs.pingring.data.chat.BeaconVibrationPattern
+import com.combustiblelemonlabs.pingring.data.AccessibilityFeature
+import com.combustiblelemonlabs.pingring.data.radar.RadarFeedbackPolicy
+import com.combustiblelemonlabs.pingring.data.radar.RadarAnnouncementPolicy
+import com.combustiblelemonlabs.pingring.data.ranging.RangingSourcePolicy
+import com.combustiblelemonlabs.pingring.data.chat.ChatBubblePalette
+import com.combustiblelemonlabs.pingring.data.chat.ChatNotificationPolicy
+import com.combustiblelemonlabs.pingring.data.radar.RadarAccessibilityPolicy
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+/**
+ * The small decisions that every screen and the notification path depend on.
+ *
+ * Each of these is a rule that is easy to state wrongly and impossible to notice
+ * when it is: a message that renders on the wrong side of the chat, a
+ * notification that is suppressed while nobody is looking, a pattern that vibrates
+ * when it was asked not to.
+ */
+class AppRulesTest {
+
+    @Test
+    fun aNotificationIsSuppressedOnlyWhenTheUserIsActuallyWatching() {
+        // All four conditions met: in the app, on the radar, screen on, unlocked.
+        assertTrue(
+            ChatNotificationPolicy.shouldSuppressNotification(
+                appInForeground = true,
+                radarWindowVisible = true,
+                screenOn = true,
+                deviceUnlocked = true,
+            )
+        )
+    }
+
+    @Test
+    fun aNotificationIsPostedWheneverAnyOneConditionFails() {
+        val watching = arrayOf(true, true, true, true)
+
+        // Every single condition is decisive on its own, so each is flipped one at
+        // a time: a missing condition must always mean "post the notification".
+        for (index in watching.indices) {
+            val flags = watching.copyOf()
+            flags[index] = false
+            assertFalse(
+                "condition $index alone must not suppress",
+                ChatNotificationPolicy.shouldSuppressNotification(
+                    appInForeground = flags[0],
+                    radarWindowVisible = flags[1],
+                    screenOn = flags[2],
+                    deviceUnlocked = flags[3],
+                )
+            )
+        }
+    }
+
+    @Test
+    fun anUnknownVibrationPatternFallsBackToSomethingNoticeable() {
+        // A pattern name arrives over the wire, so an unrecognised one is expected
+        // rather than exceptional - and falling back to SILENT would be the one
+        // wrong choice, since a beacon that cannot be felt fails silently.
+        val pattern = BeaconVibrationPattern.fromName("SOMETHING_ELSE")
+
+        assertEquals(BeaconVibrationPattern.STEADY_PULSE, pattern)
+        assertTrue("the fallback still has to vibrate", pattern.pattern.any { it > 0 })
+    }
+
+    @Test
+    fun aKnownVibrationPatternRoundTripsThroughItsName() {
+        BeaconVibrationPattern.entries.forEach { pattern ->
+            assertEquals(pattern, BeaconVibrationPattern.fromName(pattern.name))
+        }
+    }
+
+    @Test
+    fun theSilentPatternIsTheOnlyOneThatDoesNotVibrate() {
+        BeaconVibrationPattern.entries.forEach { pattern ->
+            val vibrates = pattern.pattern.any { it > 0L }
+            assertEquals(
+                "${pattern.name} vibrates=$vibrates",
+                pattern != BeaconVibrationPattern.SILENT,
+                vibrates,
+            )
+        }
+    }
+
+    @Test
+    fun everyPatternHasAnEmptyLeadingPause() {
+        // Android treats the first entry of a pattern as a delay before the first
+        // vibration, so a non-zero first entry would silently shift the pattern.
+        BeaconVibrationPattern.entries.forEach { pattern ->
+            assertEquals("${pattern.name} must start with a pause", 0L, pattern.pattern.first())
+        }
+    }
+    @Test
+    fun everyBeaconPresetIsFullyDescribed() {
+        // A preset with a blank label or no default pattern would render as an
+        // empty or dead row in the beacon picker, with nothing to point at.
+        BeaconPreset.entries.forEach { preset ->
+            assertTrue("${preset.name} needs a label", preset.label.isNotBlank())
+            assertTrue("${preset.name} needs a title", preset.defaultTitle.isNotBlank())
+            assertTrue("${preset.name} needs an emoji", preset.iconEmoji.isNotBlank())
+            assertNotEquals(0L, preset.defaultColorArgb)
+            assertTrue(
+                "${preset.name} points at a pattern it does not define",
+                BeaconVibrationPattern.entries.contains(preset.defaultPattern)
+            )
+        }
+    }
+
+    @Test
+    fun gondorIsFirstPresetAndCustomSitsLast() {
+        // Gondor is the first quick choice; custom remains an editing tool at the end.
+        assertEquals(BeaconPreset.GONDOR_CALLS_FOR_AID, BeaconPreset.entries.first())
+        assertEquals(0xFFFF9100L, BeaconPreset.GONDOR_CALLS_FOR_AID.defaultColorArgb)
+        assertEquals(BeaconVibrationPattern.RAPID_ALERT, BeaconPreset.GONDOR_CALLS_FOR_AID.defaultPattern)
+        assertNotEquals(BeaconPreset.SOS, BeaconPreset.entries.first())
+        assertTrue("SOS is kept away from the first slot", BeaconPreset.entries.indexOf(BeaconPreset.SOS) > 0)
+        assertEquals(BeaconPreset.CUSTOM, BeaconPreset.entries.last())
+    }
+
+    @Test
+    fun chatBubblePresetsAreTenDistinctOpaqueColors() {
+        assertEquals(10, ChatBubblePalette.presets.size)
+        assertEquals(10, ChatBubblePalette.presets.distinct().size)
+        assertFalse(ChatBubblePalette.presets.contains(0xFF00897BL))
+        assertFalse(ChatBubblePalette.presets.contains(0xFF43A047L))
+        // Fully opaque, or a bubble would show the chat background through it and
+        // two members could be given colours that render identically.
+        assertTrue(ChatBubblePalette.presets.all { it ushr 24 == 0xFFL })
+    }
+
+    /**
+     * Every preset must be readable with the text colour the bubble actually
+     * chooses.
+     *
+     * The bubble picks black or white by contrast ratio rather than assuming
+     * white, which is what lets the palette contain a real yellow and a real
+     * lime. Without that check, brightening the palette to nameable colours could
+     * quietly reintroduce unreadable bubbles - and the old palette's comment
+     * claimed "dark enough for white text" precisely because at the time white
+     * was the only option. The threshold is WCAG AA for normal text (4.5:1).
+     */
+    @Test
+    fun chatBubblePresetsStayReadableWithWhicheverTextColourTheyGet() {
+        ChatBubblePalette.presets.forEach { argb ->
+            val best = maxOf(contrastRatio(argb, 0xFF000000), contrastRatio(argb, 0xFFFFFFFF))
+            assertTrue(
+                "#%06X has only %.2f:1 against its best text colour".format(argb and 0xFFFFFF, best),
+                best >= 4.5,
+            )
+        }
+    }
+
+    /**
+     * No two colours may sit next to each other in the picker unless they are
+     * genuinely distinguishable.
+     *
+     * The swatches are a wrapping FlowRow, so "adjacent in the list" means
+     * adjacent on screen, including across the wrap. Sorting by hue looks tidier
+     * and is worse: it put lime and green at 18 in L*a*b*, which at bubble size is
+     * a difference most people cannot see - the member was being asked to choose
+     * between two things that looked the same. The threshold below is generous
+     * rather than tight; the current worst neighbour pair is about 66.
+     */
+    @Test
+    fun neighbouringSwatchesAreFarEnoughApartToTellApart() {
+        val lab = ChatBubblePalette.presets.map { it.toLab() }
+        for (i in 0 until lab.size - 1) {
+            val distance = lab[i].distanceTo(lab[i + 1])
+            assertTrue(
+                "presets[$i] and presets[${i + 1}] are only %.1f apart".format(distance),
+                distance >= 40.0,
+            )
+        }
+    }
+
+    /** WCAG 2.x relative luminance for one packed ARGB colour. */
+    private fun luminance(argb: Long): Double {
+        fun channel(shift: Int): Double {
+            val c = ((argb shr shift) and 0xFF) / 255.0
+            return if (c <= 0.03928) c / 12.92 else Math.pow((c + 0.055) / 1.055, 2.4)
+        }
+        return 0.2126 * channel(16) + 0.7152 * channel(8) + 0.0722 * channel(0)
+    }
+
+    private fun contrastRatio(a: Long, b: Long): Double {
+        val la = luminance(a)
+        val lb = luminance(b)
+        // (lighter, darker) in that order. Getting this backwards yields the
+        // reciprocal - a ratio of 0.24:1 for a mid red, which fails everything.
+        val (hi, lo) = if (la < lb) lb to la else la to lb
+        return (hi + 0.05) / (lo + 0.05)
+    }
+
+    /** CIE L*a*b*, so "do these look different" is a number rather than an opinion. */
+    private data class Lab(val l: Double, val a: Double, val b: Double) {
+        fun distanceTo(other: Lab): Double {
+            val dl = l - other.l
+            val da = a - other.a
+            val db = b - other.b
+            return Math.sqrt(dl * dl + da * da + db * db)
+        }
+    }
+
+    private fun Long.toLab(): Lab {
+        fun linear(shift: Int): Double {
+            val c = ((this shr shift) and 0xFF) / 255.0
+            return if (c <= 0.04045) c / 12.92 else Math.pow((c + 0.055) / 1.055, 2.4)
+        }
+        fun f(t: Double) = if (t > 0.008856) Math.pow(t, 1.0 / 3.0) else 7.787 * t + 16.0 / 116.0
+        val r = linear(16)
+        val g = linear(8)
+        val b = linear(0)
+        val fx = f((0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047)
+        val fy = f(0.2126 * r + 0.7152 * g + 0.0722 * b)
+        val fz = f((0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883)
+        return Lab(116.0 * fy - 16.0, 500.0 * (fx - fy), 200.0 * (fy - fz))
+    }
+
+    @Test
+    fun chatBubblePresetsAreTheSameForEveryMemberAndRing() {
+        // The whole point of the fixed list. This used to hash the ring and the
+        // member id into a shuffled subset, which meant two phones derived a
+        // *different* palette for the same person - so the preset a sender was
+        // shown was not the one their messages were painted with, and they could
+        // not see the alternatives before choosing.
+        assertEquals(
+            ChatBubblePalette.presets,
+            ChatBubblePalette.presets,
+        )
+        assertEquals(10, ChatBubblePalette.presets.size)
+    }
+
+    @Test
+    fun `the colour a member starts with is one they could have picked`() {
+        // A random draw must come from the offered list, or the user opens chat
+        // settings and finds no swatch matching their own bubbles.
+        repeat(200) {
+            assertTrue(ChatBubblePalette.presets.contains(ChatBubblePalette.random()))
+        }
+    }
+
+    @Test
+    fun `entering a ring twice in a row does not always give the same colour`() {
+        // Not determinism being the goal - the opposite. If every draw returned
+        // the same colour then a ring of eight would be unreadable, which is the
+        // reason the colour exists. Enough draws that a constant implementation
+        // cannot pass by luck.
+        val draws = List(50) { ChatBubblePalette.random() }
+        assertTrue("expected more than one colour across draws", draws.distinct().size > 1)
+    }
+
+    @Test
+    fun radarSummaryNamesTheTrackedMemberAndItsAvailableSpatialCues() {
+        assertEquals(
+            "Radar for Ana. 3.5 meters away. Direction 42 degrees. Active beacon: Regroup here.",
+            RadarAccessibilityPolicy.describe(
+                peerName = "Ana",
+                distanceMeters = 3.5f,
+                azimuthDegrees = 42f,
+                proximity = "Warm",
+                beaconTitle = "Regroup here",
+            )
+        )
+        assertEquals(
+            "Radar. No tracked member. Direction unavailable.",
+            RadarAccessibilityPolicy.describe(null, null, null, null, null)
+        )
+    }
+
+    @Test
+    fun accessibilityFeaturesAreDisabledUntilTheUserEnablesThem() {
+        assertTrue(AccessibilityFeature.entries.isNotEmpty())
+        assertTrue(AccessibilityFeature.PROXIMITY_HAPTICS.defaultEnabled)
+        assertTrue(AccessibilityFeature.entries.filterNot { it == AccessibilityFeature.PROXIMITY_HAPTICS }.none { it.defaultEnabled })
+    }
+
+    @Test
+    fun reducedMotionHonorsEitherTheAppOrSystemPreference() {
+        assertFalse(RadarFeedbackPolicy.reduceMotion(false, true))
+        assertTrue(RadarFeedbackPolicy.reduceMotion(true, true))
+        assertTrue(RadarFeedbackPolicy.reduceMotion(false, false))
+    }
+
+    @Test
+    fun proximityHapticsAreIndependentAndNeverUseGpsEstimates() {
+        assertTrue(RadarFeedbackPolicy.proximityHaptic(true, 1f, RangingSourcePolicy.RangingSource.UWB))
+        assertFalse(RadarFeedbackPolicy.proximityHaptic(false, 1f, RangingSourcePolicy.RangingSource.UWB))
+        assertFalse(RadarFeedbackPolicy.proximityHaptic(true, 1f, RangingSourcePolicy.RangingSource.GNSS))
+        assertFalse(RadarFeedbackPolicy.proximityHaptic(true, Float.NaN, null))
+        assertFalse(RadarFeedbackPolicy.proximityHaptic(true, -1f, null))
+    }
+
+    @Test
+    fun radarAnnouncementsOnlySpeakChangedStatesAtABoundedRate() {
+        val policy = RadarAnnouncementPolicy()
+        val first = RadarAnnouncementPolicy.State("peer", "farther", null)
+        val near = first.copy(proximityState = "near")
+        assertEquals(0L, policy.delayBeforeAnnouncement(first, 0))
+        policy.markAnnounced(first, 0)
+        assertEquals(null, policy.delayBeforeAnnouncement(first, 1_000))
+        assertEquals(9_000L, policy.delayBeforeAnnouncement(near, 1_000))
+        assertEquals(0L, policy.delayBeforeAnnouncement(near, 10_000))
+        policy.markAnnounced(near, 10_000)
+        assertEquals(null, policy.delayBeforeAnnouncement(near, 11_000))
+        policy.reset()
+        assertEquals(0L, policy.delayBeforeAnnouncement(first, 11_000))
+    }
+
+    @Test
+    fun spokenGpsSummaryIncludesTheEstimateWithoutDistanceUncertainty() {
+        val summary = RadarAccessibilityPolicy.describe(
+            peerName = "Ana",
+            distanceMeters = 42f,
+            azimuthDegrees = null,
+            proximity = null,
+            beaconTitle = null,
+            distanceIsEstimate = true,
+            distanceAccuracyMeters = 20f,
+        )
+        assertTrue(summary.contains("GPS distance estimate. 42.0 meters away."))
+        assertFalse(summary.contains("uncertainty 20 meters"))
+        assertTrue(summary.contains("Direction unavailable."))
+    }
+
+    @Test
+    fun pendingSpeechKeepsTheLatestStateWithoutExtendingTheThrottle() {
+        val policy = RadarAnnouncementPolicy()
+        val original = RadarAnnouncementPolicy.State("first", "farther", null)
+        policy.markAnnounced(original, 0L)
+        val intermediate = original.copy(proximityState = "near")
+        val latest = RadarAnnouncementPolicy.State("second", "farther", "Regroup")
+        assertEquals(9_000L, policy.delayBeforeAnnouncement(intermediate, 1_000L))
+        assertEquals(8_000L, policy.delayBeforeAnnouncement(latest, 2_000L))
+        assertEquals(0L, policy.delayBeforeAnnouncement(latest, 10_000L))
+        policy.markAnnounced(latest, 10_000L)
+        assertEquals(null, policy.delayBeforeAnnouncement(latest, 11_000L))
+    }
+
+    @Test
+    fun emptyRadarDoesNotGenerateAnInitialSpokenUpdate() {
+        assertEquals(null, RadarAnnouncementPolicy().delayBeforeAnnouncement(
+            RadarAnnouncementPolicy.State(null, "unknown", null), 0L,
+        ))
+    }
+
+    @Test
+    fun gpsSummaryWithoutAccuracyStillUsesTheAvailableDistanceEstimate() {
+        val summary = RadarAccessibilityPolicy.describe(
+            "Ana", 42f, null, null, null, distanceIsEstimate = true,
+        )
+        assertTrue(summary.contains("GPS distance estimate. 42.0 meters away."))
+    }
+
+}

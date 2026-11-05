@@ -102,8 +102,8 @@ function On-Developer-Options($dev) {
 }
 
 Write-Output "== $Device =="
-& $adb -s $Device shell am force-stop com.fkurevija.pingring
-& $adb -s $Device shell am start -n com.fkurevija.pingring/.MainActivity | Out-Null
+& $adb -s $Device shell am force-stop com.combustiblelemonlabs.pingring
+& $adb -s $Device shell am start -n com.combustiblelemonlabs.pingring/.MainActivity | Out-Null
 Start-Sleep -Seconds 5
 
 # Home -> App Settings.

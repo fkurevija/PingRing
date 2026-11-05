@@ -440,7 +440,7 @@ def test_the_scripted_range_is_the_apps_own():
     source = pathlib.Path(mock_radar.__file__).read_text(encoding="utf-8")
     estimator = (
         pathlib.Path(mock_radar.__file__).resolve().parents[1]
-        / "app/src/main/java/com/fkurevija/pingring/data/ranging/RssiDistanceEstimator.kt"
+        / "app/src/main/java/com/combustiblelemonlabs/pingring/data/ranging/RssiDistanceEstimator.kt"
     ).read_text(encoding="utf-8")
     assert "RSSI_AT_ONE_METER = -59.0" in source
     assert "PATH_LOSS_EXPONENT = 2.2" in source

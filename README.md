@@ -2,8 +2,8 @@
 
 **Serverless, Real-Time P2P Crowd-Finding & Peer Coordination for Android**
 
-[![Build APK](https://github.com/fkurevija/PingRing/actions/workflows/build-apk.yml/badge.svg)](https://github.com/fkurevija/PingRing/actions/workflows/build-apk.yml)
-[![Instrumented Tests](https://github.com/fkurevija/PingRing/actions/workflows/instrumented-tests.yml/badge.svg)](https://github.com/fkurevija/PingRing/actions/workflows/instrumented-tests.yml)
+[![Build APK](https://github.com/combustiblelemonlabs/PingRing/actions/workflows/build-apk.yml/badge.svg)](https://github.com/combustiblelemonlabs/PingRing/actions/workflows/build-apk.yml)
+[![Instrumented Tests](https://github.com/combustiblelemonlabs/PingRing/actions/workflows/instrumented-tests.yml/badge.svg)](https://github.com/combustiblelemonlabs/PingRing/actions/workflows/instrumented-tests.yml)
 [![Platform](https://img.shields.io/badge/Platform-Android_10%2B_%28API_29%2B%29-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://developer.android.com)
 [![Language](https://img.shields.io/badge/Language-Kotlin-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)](https://kotlinlang.org)
 [![UI](https://img.shields.io/badge/UI-Jetpack_Compose_&_Material_3-4285F4?style=for-the-badge&logo=jetpackcompose&logoColor=white)](https://developer.android.com/jetpack/compose)
@@ -92,7 +92,7 @@ Full detail, and the reasoning behind each of these: **[Features](docs/features.
 **Prerequisites**: Android Studio (Ladybug+), JDK 17, Android SDK 37, and a physical device on **Android 10 (API 29)+**.
 
 ```bash
-git clone https://github.com/fkurevija/PingRing.git
+git clone https://github.com/combustiblelemonlabs/PingRing.git
 cd PingRing
 
 ./gradlew testDebugUnitTest   # unit tests

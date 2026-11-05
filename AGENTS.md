@@ -109,7 +109,7 @@ PingRing — Local-first, offline-first peer-to-peer mesh Indoor Positioning Sys
 ### Layout
 
 ```
-app/src/main/java/com/fkurevija/pingring/
+app/src/main/java/com/combustiblelemonlabs/pingring/
   MainActivity.kt
   data/
     AppearanceSettingsRepository.kt

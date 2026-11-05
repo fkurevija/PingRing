@@ -34,7 +34,7 @@ def issue(number, title):
         "number": number,
         "title": title,
         "state": "open",
-        "url": f"https://github.com/fkurevija/PingRing/issues/{number}",
+        "url": f"https://github.com/combustiblelemonlabs/PingRing/issues/{number}",
     }
 
 

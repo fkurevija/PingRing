@@ -55,7 +55,7 @@ new use used using option options feature features setting settings
 # near-misses that are worth a human look.
 DUPLICATE_THRESHOLD = 0.5
 
-REPO = "fkurevija/PingRing"
+REPO = "combustiblelemonlabs/PingRing"
 
 
 def stem(word):
