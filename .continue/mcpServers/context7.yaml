@@ -1,6 +1,0 @@
-name: Context7
-version: 1.0.0
-schema: v1
-mcpServers:
-  - name: Context7
-    url: https://mcp.context7.com/mcp
