@@ -63,3 +63,4 @@ keystore.properties
 # Python bytecode from the debug tools in tools/
 __pycache__/
 *.pyc
+/.idea/appInsightsSettings.xml
