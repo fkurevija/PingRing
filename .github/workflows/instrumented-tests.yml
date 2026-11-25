@@ -20,6 +20,7 @@ name: Instrumented Tests
 
 on:
   push:
+    branches: [master]
     tags:
       - 'v*'
   workflow_dispatch:
