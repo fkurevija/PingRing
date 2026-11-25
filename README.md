@@ -106,6 +106,12 @@ Releases, signing, CI behaviour, the emulator↔device LAN debug transport and s
 
 ---
 
+## 🤖 AI Disclosure
+
+Portions of this codebase, documentation, or tests were generated or refactored with the assistance of AI tools (e.g. GitHub Copilot, Claude, ChatGPT). All AI-generated outputs have been reviewed, tested, and verified by human maintainers.
+
+---
+
 <div align="center">
   <sub>Built with ❤️ for staying connected when the network isn't.</sub>
 </div>
