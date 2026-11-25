@@ -27,6 +27,7 @@ jobs:
 
       - name: Remove artifacts from previous completed runs
         env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bash tools/cleanup_github_artifacts.sh
 

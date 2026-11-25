@@ -27,9 +27,10 @@ while IFS=$'\t' read -r artifact_id run_id; do
     continue
   fi
 
-  gh api --silent --method DELETE \
-    "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact_id"
-  deleted=$((deleted + 1))
+  if gh api --silent --method DELETE \
+    "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact_id" 2>/dev/null; then
+    deleted=$((deleted + 1))
+  fi
 done <<< "$artifacts"
 
 echo "Deleted $deleted completed-run artifact(s); preserved $preserved artifact(s) from active runs."
